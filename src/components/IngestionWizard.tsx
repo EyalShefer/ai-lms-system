@@ -1,58 +1,73 @@
-import React from 'react';
-import { Upload, FileText, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { useCourseStore } from '../context/CourseContext';
+import { generateCourseWithGemini } from '../gemini'; // <--- הייבוא החדש
 
 const IngestionWizard: React.FC = () => {
+    const { setCourse } = useCourseStore();
+    const [topic, setTopic] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleGenerate = async () => {
+        // אם אין נושא ואין קובץ - לא עושים כלום
+        const effectiveTopic = topic || (fileInputRef.current?.files?.[0]?.name);
+        if (!effectiveTopic) return;
+
+        setIsGenerating(true);
+
+        try {
+            // קריאה ל-Gemini (זה לוקח כמה שניות)
+            const newCourse = await generateCourseWithGemini(effectiveTopic);
+
+            // עדכון המערכת בקורס החדש
+            setCourse(newCourse);
+            alert("הקורס נוצר בהצלחה! 🎓");
+
+            // איפוס
+            setTopic('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+
+        } catch (error) {
+            alert("אופס! היתה בעיה ביצירת הקורס. נסה שוב.");
+            console.error(error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     return (
-        <div className="max-w-3xl mx-auto w-full">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-                    <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-blue-600" />
-                        יצירת יחידת לימוד חדשה
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                        העלה תוכן או הדבק טקסט כדי ליצור יחידת לימוד באופן אוטומטי
-                    </p>
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-6 mb-8 shadow-sm">
+            <div className="flex items-start gap-4">
+                <div className="bg-indigo-600 text-white p-3 rounded-lg text-2xl shadow-md">
+                    🧙‍♂️
                 </div>
+                <div className="flex-1">
+                    <h3 className="text-lg font-bold text-indigo-900 mb-1">
+                        מחולל הקורסים האוטומטי (מופעל ע"י Gemini)
+                    </h3>
+                    <p className="text-sm text-indigo-600 mb-4 opacity-80">
+                        כתוב נושא, והבינה המלאכותית תבנה לך קורס שלם בעברית תוך שניות.
+                    </p>
 
-                <div className="p-8 space-y-8">
-                    {/* Drag & Drop Zone */}
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 flex flex-col items-center justify-center text-center hover:border-blue-500 hover:bg-blue-50/30 transition-colors cursor-pointer group">
-                        <div className="p-4 rounded-full bg-blue-50 text-blue-600 mb-4 group-hover:scale-110 transition-transform">
-                            <Upload className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-lg font-medium text-gray-900">גרור קובץ לכאן</h3>
-                        <p className="text-sm text-gray-500 mt-1">תומך בקבצי PDF, DOCX</p>
-                    </div>
+                    <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-indigo-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500">
+                        <input
+                            type="text"
+                            placeholder="על מה תרצה ללמוד היום?"
+                            value={topic}
+                            onChange={(e) => setTopic(e.target.value)}
+                            disabled={isGenerating}
+                            className="flex-1 p-2 outline-none text-gray-700"
+                        />
 
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-200"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">או</span>
-                        </div>
-                    </div>
-
-                    {/* Text Area */}
-                    <div className="space-y-3">
-                        <label htmlFor="content-text" className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            הדבק טקסט חופשי
-                        </label>
-                        <textarea
-                            id="content-text"
-                            rows={6}
-                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3 border resize-none"
-                            placeholder="הדבק כאן את תוכן השיעור..."
-                        ></textarea>
-                    </div>
-
-                    {/* Action Button */}
-                    <div className="flex justify-end pt-4">
-                        <button className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            <Sparkles className="w-5 h-5 ml-2" />
-                            נתח תוכן באמצעות AI
+                        <button
+                            onClick={handleGenerate}
+                            disabled={!topic || isGenerating}
+                            className={`px-6 py-2 rounded-md font-bold text-white transition-all mx-1 ${isGenerating
+                                    ? 'bg-gray-400 cursor-not-allowed'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 shadow hover:shadow-lg'
+                                }`}
+                        >
+                            {isGenerating ? 'ה-AI כותב... 🧠' : 'צור קורס ✨'}
                         </button>
                     </div>
                 </div>

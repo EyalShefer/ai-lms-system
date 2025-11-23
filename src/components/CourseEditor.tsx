@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
 import { useCourseStore } from '../context/CourseContext';
-import UnitEditor from './UnitEditor'; // <--- הייבוא החדש שלנו
-import { LearningUnit } from '../types';
+import UnitEditor from './UnitEditor';
+import IngestionWizard from './IngestionWizard'; // <--- הנה ההזמנה של הקוסם
+import type { LearningUnit } from '../types';
 
 const CourseEditor: React.FC = () => {
     const { course, updateCourseTitle, updateLearningUnit } = useCourseStore();
-
-    // State כדי לדעת איזה שיעור אנחנו עורכים כרגע (לפי המזהה שלו)
     const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
 
     const handleSaveUnit = (moduleId: string, updatedUnit: LearningUnit) => {
-        updateLearningUnit(moduleId, updatedUnit); // עדכון ב"מוח" של האפליקציה
-        setEditingUnitId(null); // סגירת העורך
+        updateLearningUnit(moduleId, updatedUnit);
+        setEditingUnitId(null);
     };
 
     return (
         <div className="max-w-4xl mx-auto p-6">
-            {/* כותרת ראשית */}
+
+            {/* --- כאן אנחנו מציגים את הקוסם על המסך --- */}
+            <IngestionWizard />
+            {/* ----------------------------------------- */}
+
             <div className="bg-white shadow-md rounded-lg p-6 mb-6 border-r-4 border-blue-500">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">הגדרות קורס</h2>
                 <input
@@ -28,7 +31,6 @@ const CourseEditor: React.FC = () => {
                 <p className="text-gray-500 mt-2">קהל יעד: {course.targetAudience}</p>
             </div>
 
-            {/* רשימת המודולים והשיעורים */}
             <div className="space-y-6">
                 {course.syllabus.map((module) => (
                     <div key={module.id} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
@@ -39,7 +41,6 @@ const CourseEditor: React.FC = () => {
                         <div className="p-4 space-y-3">
                             {module.learningUnits.map((unit) => (
                                 <div key={unit.id}>
-                                    {/* תנאי: אם זה השיעור שנבחר לעריכה -> הצג את העורך. אחרת -> הצג שורה רגילה */}
                                     {editingUnitId === unit.id ? (
                                         <UnitEditor
                                             unit={unit}

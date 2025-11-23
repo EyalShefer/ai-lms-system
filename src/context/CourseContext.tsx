@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
-import type { Course } from '../types';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import type { Course, LearningUnit } from '../types';
 import { mockCourse } from '../mockData';
 
 interface CourseContextType {
     course: Course;
-    updateCourseTitle: (title: string) => void;
-    updateLearningUnit: (moduleId: string, unitId: string, updates: Partial<import('../types').LearningUnit>) => void;
+    setCourse: (course: Course) => void; // <--- היכולת החדשה להחליף קורס!
+    updateCourseTitle: (newTitle: string) => void;
+    updateLearningUnit: (moduleId: string, updatedUnit: LearningUnit) => void;
 }
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
@@ -13,28 +14,27 @@ const CourseContext = createContext<CourseContextType | undefined>(undefined);
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [course, setCourse] = useState<Course>(mockCourse);
 
-    const updateCourseTitle = (title: string) => {
-        setCourse(prev => ({ ...prev, title }));
+    const updateCourseTitle = (newTitle: string) => {
+        setCourse(prev => ({ ...prev, title: newTitle }));
     };
 
-    const updateLearningUnit = (moduleId: string, unitId: string, updates: Partial<import('../types').LearningUnit>) => {
-        setCourse(prev => ({
-            ...prev,
-            syllabus: prev.syllabus.map(module =>
-                module.id === moduleId
-                    ? {
-                        ...module,
-                        learningUnits: module.learningUnits.map(unit =>
-                            unit.id === unitId ? { ...unit, ...updates } : unit
-                        )
-                    }
-                    : module
-            )
-        }));
+    const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
+        setCourse(prevCourse => {
+            const newSyllabus = prevCourse.syllabus.map(module => {
+                if (module.id !== moduleId) return module;
+                return {
+                    ...module,
+                    learningUnits: module.learningUnits.map(unit =>
+                        unit.id === updatedUnit.id ? updatedUnit : unit
+                    )
+                };
+            });
+            return { ...prevCourse, syllabus: newSyllabus };
+        });
     };
 
     return (
-        <CourseContext.Provider value={{ course, updateCourseTitle, updateLearningUnit }}>
+        <CourseContext.Provider value={{ course, setCourse, updateCourseTitle, updateLearningUnit }}>
             {children}
         </CourseContext.Provider>
     );
