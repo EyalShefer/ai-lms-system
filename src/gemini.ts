@@ -1,96 +1,41 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-import type { Course } from "./types";
+// --- פונקציה 4: שכתוב פדגוגי (מטה הקסם) ---
+export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
+  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!API_KEY) throw new Error("Missing API Key");
 
-// 🔑 אל תשכח להחזיר את המפתח שלך לכאן!
-const API_KEY = "AIzaSyBRc47SYhNfo-AxSqS736JEuhxY1DE8RCI";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
-const genAI = new GoogleGenerativeAI(API_KEY);
-
-export async function generateCourseWithGemini(topic: string): Promise<Course> {
-    // השינוי הקריטי: אנחנו משתמשים במודל החדש (2.0) אבל מכבים את כל ההגנות
-    const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-        safetySettings: [
-            {
-                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-        ]
-    });
-
-    const prompt = `
-    You are an expert curriculum designer. 
-    Create a comprehensive online course about: "${topic}".
+  const promptText = `
+    Act as a Pedagogical Expert.
+    Rewrite and enhance the following text to specifically foster the skill of: "${skill}".
     
-    The output must be valid JSON strictly following this structure:
-    {
-      "id": "generated-id",
-      "title": "Course Title",
-      "targetAudience": "Target Audience",
-      "syllabus": [
-        {
-          "id": "m1",
-          "title": "Module Title",
-          "learningUnits": [
-            {
-              "id": "u1",
-              "title": "Unit Title",
-              "type": "acquisition", 
-              "baseContent": "Detailed educational content in Hebrew (at least 3 paragraphs).",
-              "activityBlocks": []
-            },
-            {
-              "id": "u2",
-              "title": "Practice Quiz",
-              "type": "practice",
-              "baseContent": "Practice questions",
-              "activityBlocks": [
-                 {
-                    "id": "q1",
-                    "type": "multiple-choice",
-                    "content": {
-                        "question": "Question text in Hebrew...",
-                        "options": ["A", "B", "C", "D"],
-                        "correctAnswer": "A"
-                    }
-                 }
-              ]
-            }
-          ]
-        }
-      ]
-    }
+    Original Text:
+    "${text}"
 
-    Rules:
-    1. Content MUST be in Hebrew (עברית).
-    2. Return ONLY the JSON object, no markdown formatting.
+    Instructions for "${skill}":
+    - If "Critical Thinking": Add probing questions, present conflicting viewpoints, encourage skepticism.
+    - If "Creativity": Use metaphors, storytelling, ask "what if" questions.
+    - If "Empathy/Perspective": Focus on the human experience, emotions, and different points of view.
+    - If "Information Literacy": Encourage checking sources, distinguishing fact from opinion.
+    - If "Simplification": Make it simpler for younger students.
+
+    Output Requirement:
+    - Return ONLY the rewritten text in HEBREW.
+    - Keep the same core facts, but change the tone and structure to match the skill.
   `;
 
-    try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+    });
 
-        const cleanJson = text.replace(/```json|```/g, '').trim();
-        const courseData = JSON.parse(cleanJson) as Course;
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
 
-        courseData.id = Date.now().toString();
-        return courseData;
-
-    } catch (error) {
-        console.error("Gemini Error:", error);
-        throw error;
-    }
+  } catch (error) {
+    console.error("Refinement failed:", error);
+    return text; // במקרה של שגיאה, נחזיר את המקור
+  }
 }

@@ -1,16 +1,19 @@
 export type LearningUnitType = 'acquisition' | 'practice' | 'test';
 
-export type ActivityBlockType = 'text' | 'video' | 'multiple-choice' | 'open-question';
+// הוספנו כאן: image, pdf
+export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'gem-link';
 
 export interface ActivityBlockMetadata {
     difficultyLevel?: number;
+    modelAnswer?: string; // לתשובות פתוחות
+    aiPrompt?: string;    // לתיאור תמונה שנוצר ע"י AI
     [key: string]: any;
 }
 
 export interface ActivityBlock {
     id: string;
     type: ActivityBlockType;
-    content: any;
+    content: any; // יכול להיות טקסט, לינק, או אובייקט שאלה
     metadata?: ActivityBlockMetadata;
 }
 
