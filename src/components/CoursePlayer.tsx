@@ -117,7 +117,6 @@ const CoursePlayer: React.FC = () => {
 
                                 {block.type === 'text' && <div className="prose max-w-none text-gray-700 bg-gray-50 p-6 rounded-lg border-r-4 border-indigo-200 whitespace-pre-line shadow-sm">{block.content}</div>}
 
-                                {/* --- תיקון תצוגת תמונה --- */}
                                 {block.type === 'image' && (
                                     <figure className="my-6">
                                         {block.content ? (
@@ -127,8 +126,7 @@ const CoursePlayer: React.FC = () => {
                                                 className="w-full rounded-xl shadow-md max-h-[500px] object-cover border border-gray-200 bg-gray-100"
                                                 loading="lazy"
                                                 onError={(e) => {
-                                                    // אם התמונה נכשלת, נציג ריבוע אפור יפה במקום להעלים
-                                                    e.currentTarget.src = 'https://placehold.co/800x400?text=Image+Not+Available';
+                                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
                                                 }}
                                             />
                                         ) : (
@@ -136,7 +134,6 @@ const CoursePlayer: React.FC = () => {
                                                 ממתין לתמונה...
                                             </div>
                                         )}
-                                        {/* הצגת הקרדיט/תיאור אם קיים */}
                                         {block.metadata?.aiPrompt && (
                                             <figcaption className="text-xs text-gray-400 mt-2 text-center italic">
                                                 AI Generated: {block.metadata.aiPrompt.substring(0, 50)}...
@@ -205,7 +202,7 @@ const CoursePlayer: React.FC = () => {
                                     <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-8 rounded-xl border border-orange-100 shadow-sm">
                                         <h4 className="font-bold text-xl text-gray-800 mb-2 flex items-center gap-2"><span>✍️</span> שאלה למחשבה</h4>
                                         <p className="text-gray-700 mb-6 font-medium text-lg leading-relaxed border-b border-orange-200 pb-4">
-                                            {typeof block.content === 'object' ? block.content.question : block.content}
+                                            {typeof block.content === 'object' ? block.content.question : "שאלה פתוחה"}
                                         </p>
 
                                         <textarea
@@ -229,4 +226,24 @@ const CoursePlayer: React.FC = () => {
                                         )}
 
                                         {aiGrading[block.id] && (
-                                            <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-orange-400
+                                            <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-orange-400 shadow-md animate-fade-in">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className={`text-2xl font-black ${aiGrading[block.id].grade >= 80 ? 'text-green-600' : 'text-orange-600'}`}>ציון: {aiGrading[block.id].grade}</div>
+                                                    <div className="text-sm text-gray-400 uppercase tracking-wider">משוב אוטומטי (AI)</div>
+                                                </div>
+                                                <p className="text-gray-700 leading-relaxed">{aiGrading[block.id].feedback}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </main>
+            <AiTutor />
+        </div>
+    );
+};
+
+export default CoursePlayer;
