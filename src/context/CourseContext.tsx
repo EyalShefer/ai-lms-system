@@ -20,12 +20,16 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-// התיקון כאן: שימוש ב-React.ReactNode במקום בייבוא נפרד
+// שימוש ב-React.ReactNode פותר את בעיית הטיפוסים
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
     const [course, setCourseState] = useState<Course>(() => {
-        const savedCourse = localStorage.getItem('my-ai-course');
-        return savedCourse ? JSON.parse(savedCourse) : initialEmptyCourse;
+        try {
+            const savedCourse = localStorage.getItem('my-ai-course');
+            return savedCourse ? JSON.parse(savedCourse) : initialEmptyCourse;
+        } catch (e) {
+            return initialEmptyCourse;
+        }
     });
 
     const [fullBookContent, setFullBookContentState] = useState<string>(() => {
