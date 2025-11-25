@@ -1,10 +1,19 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { Course, LearningUnit } from '../types';
-import { mockCourse } from '../mockData';
+
+// קורס ריק כברירת מחדל
+const initialEmptyCourse: Course = {
+    id: 'new-course',
+    title: 'קורס חדש (ללא תוכן)',
+    targetAudience: 'כללי',
+    syllabus: []
+};
 
 interface CourseContextType {
     course: Course;
-    setCourse: (course: Course) => void; // <--- היכולת החדשה להחליף קורס!
+    fullBookContent: string;
+    setCourse: (course: Course) => void;
+    setFullBookContent: (text: string) => void;
     updateCourseTitle: (newTitle: string) => void;
     updateLearningUnit: (moduleId: string, updatedUnit: LearningUnit) => void;
 }
@@ -12,14 +21,42 @@ interface CourseContextType {
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [course, setCourse] = useState<Course>(mockCourse);
+
+    // 1. טעינה ראשונית: ננסה לקרוא מהזיכרון המקומי (LocalStorage)
+    // אם יש שם קורס שמור - נשתמש בו. אם לא - נתחיל מריק.
+    const [course, setCourseState] = useState<Course>(() => {
+        const savedCourse = localStorage.getItem('my-ai-course');
+        return savedCourse ? JSON.parse(savedCourse) : initialEmptyCourse;
+    });
+
+    const [fullBookContent, setFullBookContentState] = useState<string>(() => {
+        return localStorage.getItem('my-book-content') || "";
+    });
+
+    // 2. מנגנון שמירה אוטומטי: כל שינוי בקורס נשמר מיד לזיכרון
+    useEffect(() => {
+        localStorage.setItem('my-ai-course', JSON.stringify(course));
+    }, [course]);
+
+    useEffect(() => {
+        localStorage.setItem('my-book-content', fullBookContent);
+    }, [fullBookContent]);
+
+    // מעטפות לפונקציות הסטייט (כדי לשמור על הממשק המקורי)
+    const setCourse = (newCourse: Course) => {
+        setCourseState(newCourse);
+    };
+
+    const setFullBookContent = (text: string) => {
+        setFullBookContentState(text);
+    };
 
     const updateCourseTitle = (newTitle: string) => {
-        setCourse(prev => ({ ...prev, title: newTitle }));
+        setCourseState(prev => ({ ...prev, title: newTitle }));
     };
 
     const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
-        setCourse(prevCourse => {
+        setCourseState(prevCourse => {
             const newSyllabus = prevCourse.syllabus.map(module => {
                 if (module.id !== moduleId) return module;
                 return {
@@ -34,7 +71,14 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     return (
-        <CourseContext.Provider value={{ course, setCourse, updateCourseTitle, updateLearningUnit }}>
+        <CourseContext.Provider value={{
+            course,
+            setCourse,
+            fullBookContent,
+            setFullBookContent,
+            updateCourseTitle,
+            updateLearningUnit
+        }}>
             {children}
         </CourseContext.Provider>
     );

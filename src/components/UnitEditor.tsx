@@ -8,26 +8,37 @@ interface UnitEditorProps {
     onCancel: () => void;
 }
 
-// רשימת המיומנויות
 const PEDAGOGICAL_SKILLS = [
-    "חשיבה ביקורתית (Critical Thinking)",
-    "יצירתיות ודמיון (Creativity)",
-    "פרספקטיבה ואמפתיה (Empathy)",
-    "אוריינות מידע וחקר (Inquiry)",
-    "פשטות ובהירות (Simplification)",
-    "טיעון ונימוק (Argumentation)"
+    "חשיבה ביקורתית", "יצירתיות ודמיון", "פרספקטיבה ואמפתיה",
+    "אוריינות מידע", "פשטות ובהירות", "טיעון ונימוק"
 ];
 
 const UnitEditor: React.FC<UnitEditorProps> = ({ unit, onSave, onCancel }) => {
     const [editedUnit, setEditedUnit] = useState<LearningUnit>(unit);
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
-
-    // משתנה ששומר איזו מיומנות נבחרה עבור כל בלוק
     const [selectedSkill, setSelectedSkill] = useState<Record<string, string>>({});
 
-    useEffect(() => {
-        setEditedUnit(unit);
-    }, [unit]);
+    useEffect(() => { setEditedUnit(unit); }, [unit]);
+
+    // פונקציית עזר למניעת קריסה: מוודאה שהתוכן הוא אובייקט כשהוא צריך להיות
+    const safeContent = (block: ActivityBlock) => {
+        if (block.type === 'multiple-choice') {
+            if (typeof block.content !== 'object' || !block.content) {
+                return { question: '', options: ["", "", "", ""], correctAnswer: "" };
+            }
+        }
+        if (block.type === 'open-question') {
+            if (typeof block.content !== 'object' || !block.content) {
+                return { question: '' };
+            }
+        }
+        if (block.type === 'gem-link') {
+            if (typeof block.content !== 'object' || !block.content) {
+                return { title: '', url: '', instructions: '' };
+            }
+        }
+        return block.content;
+    };
 
     const addBlock = (type: ActivityBlockType) => {
         const newBlock: ActivityBlock = {
@@ -41,10 +52,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, onSave, onCancel }) => {
             metadata: {}
         };
         setEditedUnit({ ...editedUnit, activityBlocks: [...(editedUnit.activityBlocks || []), newBlock] });
+
+        setTimeout(() => {
+            const el = document.getElementById('end-of-blocks');
+            el?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
     };
 
     const deleteBlock = (blockId: string) => {
-        setEditedUnit({ ...editedUnit, activityBlocks: editedUnit.activityBlocks.filter(b => b.id !== blockId) });
+        if (confirm("למחוק את הרכיב?")) {
+            setEditedUnit({ ...editedUnit, activityBlocks: editedUnit.activityBlocks.filter(b => b.id !== blockId) });
+        }
+    };
+
+    const moveBlock = (index: number, direction: 'up' | 'down') => {
+        const newBlocks = [...editedUnit.activityBlocks];
+        if (direction === 'up' && index > 0) {
+            [newBlocks[index], newBlocks[index - 1]] = [newBlocks[index - 1], newBlocks[index]];
+        } else if (direction === 'down' && index < newBlocks.length - 1) {
+            [newBlocks[index], newBlocks[index + 1]] = [newBlocks[index + 1], newBlocks[index]];
+        }
+        setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
     };
 
     const updateBlock = (blockId: string, newContent: any, newMetadata?: any) => {
@@ -56,63 +84,86 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, onSave, onCancel }) => {
         });
     };
 
-    // --- AI Functions ---
-
-    const handleGenerateImagePrompt = async (blockId: string) => {
-        setLoadingBlockId(blockId);
-        try {
-            const prompt = await generateImagePromptBlock(editedUnit.baseContent);
-            const block = editedUnit.activityBlocks.find(b => b.id === blockId);
-            if (block) updateBlock(blockId, block.content, { ...block.metadata, aiPrompt: prompt });
-        } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
-    };
-
-    const handleGenerateQuestionsFromText = async (textBlockId: string, textContent: string) => {
-        if (!textContent || textContent.length < 10) return alert("חסר טקסט");
-        setLoadingBlockId(textBlockId);
-        try {
-            const newQuestions = await generateQuestionsFromText(textContent);
-            const newBlocks = newQuestions.map(q => ({
-                id: Date.now().toString() + Math.random(),
-                type: 'multiple-choice' as ActivityBlockType,
-                content: q,
-                metadata: {}
-            }));
-            const idx = editedUnit.activityBlocks.findIndex(b => b.id === textBlockId);
-            const updated = [...editedUnit.activityBlocks];
-            updated.splice(idx + 1, 0, ...newBlocks);
-            setEditedUnit({ ...editedUnit, activityBlocks: updated });
-            alert(`✨ נוספו ${newQuestions.length} שאלות!`);
-        } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
-    };
-
-    // שכתוב פדגוגי
-    const handleRefineText = async (blockId: string, currentText: string) => {
-        const skill = selectedSkill[blockId];
-        if (!skill) return alert("אנא בחר מיומנות מהרשימה");
-
-        setLoadingBlockId(blockId);
-        try {
-            const refinedText = await refineContentWithPedagogy(currentText, skill);
-            updateBlock(blockId, refinedText);
-        } catch (e) {
-            alert("שגיאה בשכתוב");
-        } finally {
-            setLoadingBlockId(null);
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, blockId: string) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => updateBlock(blockId, reader.result as string);
+            reader.readAsDataURL(file);
         }
     };
 
-    // Youtube Helper
+    // --- AI Functions ---
+    const handleGenerateQuestions = async (blockId: string, text: string, type: 'multiple-choice' | 'open-question') => {
+        if (!text || text.length < 10) return alert("חסר טקסט");
+        setLoadingBlockId(blockId);
+        try {
+            const questions = await generateQuestionsFromText(text, type);
+
+            if (!questions || !Array.isArray(questions)) throw new Error("Invalid questions format");
+
+            const newBlocks: ActivityBlock[] = questions.map((q: any) => {
+                if (type === 'multiple-choice') {
+                    return {
+                        id: `gen-${Date.now()}-${Math.random()}`,
+                        type: 'multiple-choice',
+                        content: {
+                            question: q.question || "שאלה ללא טקסט",
+                            options: q.options || ["", "", "", ""],
+                            correctAnswer: q.correctAnswer || ""
+                        },
+                        metadata: {}
+                    };
+                } else {
+                    return {
+                        id: `gen-${Date.now()}-${Math.random()}`,
+                        type: 'open-question',
+                        content: { question: q.question || "שאלה ללא טקסט" },
+                        metadata: { modelAnswer: q.modelAnswer || "" }
+                    };
+                }
+            });
+
+            const idx = editedUnit.activityBlocks.findIndex(b => b.id === blockId);
+            const updated = [...editedUnit.activityBlocks];
+            updated.splice(idx + 1, 0, ...newBlocks);
+            setEditedUnit({ ...editedUnit, activityBlocks: updated });
+            alert("✨ שאלות נוספו!");
+        } catch (e) {
+            console.error(e);
+            alert("שגיאה ביצירה");
+        } finally { setLoadingBlockId(null); }
+    };
+
+    const handleGenerateRealImage = async (blockId: string) => {
+        setLoadingBlockId(blockId);
+        try {
+            const prompt = await generateImagePromptBlock(editedUnit.baseContent);
+            // ניקוי תווים בעייתיים מהפרומפט לפני שליחה ל-URL
+            const safePrompt = encodeURIComponent(prompt.replace(/[^\w\s]/gi, ''));
+            const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=800&height=600&nologo=true&seed=${Math.random()}`;
+            updateBlock(blockId, imageUrl, { aiPrompt: prompt });
+        } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
+    };
+
+    const handleRefineText = async (blockId: string, text: string) => {
+        if (!selectedSkill[blockId]) return alert("בחר מיומנות");
+        setLoadingBlockId(blockId);
+        try {
+            const res = await refineContentWithPedagogy(text, selectedSkill[blockId]);
+            updateBlock(blockId, res);
+        } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
+    };
+
     const getYoutubeId = (url: string) => {
-        if (!url) return null;
+        if (!url || typeof url !== 'string') return null;
         const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
         return (match && match[2].length === 11) ? match[2] : null;
     };
 
     return (
-        <div className="bg-white border-2 border-blue-500 rounded-lg p-6 my-4 shadow-xl animate-fade-in max-h-[90vh] overflow-y-auto">
-
-            <div className="flex justify-between items-center mb-6 border-b pb-4 sticky top-0 bg-white z-10">
+        <div className="bg-white border-2 border-blue-500 rounded-lg p-6 my-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b pb-4 sticky top-0 bg-white z-20">
                 <h3 className="font-bold text-2xl text-blue-900">🛠️ עורך יחידה</h3>
                 <div className="flex gap-2">
                     <button onClick={onCancel} className="px-4 py-1 bg-gray-100 rounded hover:bg-gray-200 text-gray-700">ביטול</button>
@@ -121,121 +172,109 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, onSave, onCancel }) => {
             </div>
 
             <div className="mb-8 space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">כותרת השיעור</label>
-                    <input type="text" value={editedUnit.title} onChange={(e) => setEditedUnit({ ...editedUnit, title: e.target.value })} className="w-full p-2 border rounded font-bold text-lg" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">תוכן פתיחה</label>
-                    <textarea rows={3} value={editedUnit.baseContent} onChange={(e) => setEditedUnit({ ...editedUnit, baseContent: e.target.value })} className="w-full p-2 border rounded" />
-                </div>
+                <input type="text" value={editedUnit.title} onChange={(e) => setEditedUnit({ ...editedUnit, title: e.target.value })} className="w-full p-2 border rounded font-bold text-lg" placeholder="כותרת השיעור" />
+                <textarea rows={3} value={editedUnit.baseContent} onChange={(e) => setEditedUnit({ ...editedUnit, baseContent: e.target.value })} className="w-full p-2 border rounded" placeholder="הסבר ראשי..." />
             </div>
 
             <div className="space-y-6 pb-10">
-                <h4 className="font-bold text-gray-800 border-b pb-2">🧩 רכיבי התוכן</h4>
+                {editedUnit.activityBlocks?.map((block, index) => {
+                    const safeC = safeContent(block);
 
-                {editedUnit.activityBlocks?.map((block) => (
-                    <div key={block.id} className="relative bg-white p-5 rounded-lg border border-gray-300 shadow-sm group hover:border-blue-400 transition-all">
-                        <button onClick={() => deleteBlock(block.id)} className="absolute top-2 left-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">🗑️</button>
-                        <span className="absolute top-2 right-2 text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">{block.type}</span>
+                    return (
+                        <div key={block.id} className="relative bg-white p-5 rounded-lg border border-gray-300 shadow-sm hover:border-blue-400 transition-all group">
 
-                        <div className="mt-4">
+                            <div className="absolute top-2 left-2 flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity bg-white p-1 rounded border shadow-sm z-10">
+                                <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30">⬆️</button>
+                                <button onClick={() => moveBlock(index, 'down')} disabled={index === (editedUnit.activityBlocks.length - 1)} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30">⬇️</button>
+                                <div className="w-px bg-gray-300 mx-1"></div>
+                                <button onClick={() => deleteBlock(block.id)} className="p-1 text-red-500 hover:bg-red-50 rounded">🗑️</button>
+                            </div>
 
-                            {/* --- כאן נמצא התיקון החשוב: עורך טקסט עם מטה הקסם --- */}
-                            {block.type === 'text' && (
-                                <div>
-                                    <label className="block text-xs text-gray-500 mb-1">תוכן הטקסט:</label>
-                                    <textarea className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-100 mb-2" rows={4} value={block.content} onChange={(e) => updateBlock(block.id, e.target.value)} />
+                            <span className="absolute top-2 right-2 text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">{block.type}</span>
 
-                                    {/* --- סרגל הכלים הסגול --- */}
-                                    <div className="flex flex-wrap items-center gap-2 bg-purple-50 p-3 rounded border border-purple-100 shadow-sm">
-                                        <span className="text-sm font-bold text-purple-800">✨ מטה הקסם:</span>
+                            <div className="mt-8">
 
-                                        <select
-                                            className="text-sm p-1 rounded border border-purple-200 flex-1"
-                                            value={selectedSkill[block.id] || ""}
-                                            onChange={(e) => setSelectedSkill({ ...selectedSkill, [block.id]: e.target.value })}
-                                        >
-                                            <option value="">בחר מיומנות לחיזוק...</option>
-                                            {PEDAGOGICAL_SKILLS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
+                                {block.type === 'text' && (
+                                    <div>
+                                        <textarea className="w-full p-2 border rounded mb-2" rows={4} value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                        <div className="flex flex-wrap items-center gap-2 bg-purple-50 p-2 rounded border border-purple-100">
+                                            <select className="text-xs p-1 rounded border border-purple-200" value={selectedSkill[block.id] || ""} onChange={(e) => setSelectedSkill({ ...selectedSkill, [block.id]: e.target.value })}>
+                                                <option value="">מיומנות...</option>
+                                                {PEDAGOGICAL_SKILLS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                            <button onClick={() => handleRefineText(block.id, block.content)} disabled={loadingBlockId === block.id || !selectedSkill[block.id]} className="text-xs bg-purple-600 text-white px-2 py-1 rounded">
+                                                {loadingBlockId === block.id ? '...' : 'שכתב'}
+                                            </button>
+                                            <div className="border-l border-purple-300 h-4 mx-1"></div>
+                                            <button onClick={() => handleGenerateQuestions(block.id, block.content, 'multiple-choice')} className="text-xs bg-white text-blue-700 border border-blue-200 px-2 py-1 rounded">❓ שאלה</button>
+                                            <button onClick={() => handleGenerateQuestions(block.id, block.content, 'open-question')} className="text-xs bg-white text-green-700 border border-green-200 px-2 py-1 rounded">✍️ פתוחה</button>
+                                        </div>
+                                    </div>
+                                )}
 
-                                        <button
-                                            onClick={() => handleRefineText(block.id, block.content)}
-                                            disabled={loadingBlockId === block.id || !selectedSkill[block.id]}
-                                            className="text-sm bg-purple-600 text-white px-4 py-1 rounded hover:bg-purple-700 disabled:bg-gray-300 transition-colors font-bold"
-                                        >
-                                            {loadingBlockId === block.id ? 'משכתב...' : 'שכתב'}
+                                {block.type === 'image' && (
+                                    <div>
+                                        <div className="flex gap-2 mb-2">
+                                            <input type="text" className="flex-1 p-2 border rounded ltr text-left" value={typeof block.content === 'string' && block.content.startsWith('data:') ? '(תמונה)' : block.content} placeholder="URL..." onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                            <label className="px-2 py-1 bg-gray-200 rounded cursor-pointer text-xs font-bold pt-2">📂<input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} /></label>
+                                        </div>
+                                        {block.content && typeof block.content === 'string' && <img src={block.content} className="max-h-40 rounded shadow-sm mx-auto" onError={(e) => (e.currentTarget.src = 'https://placehold.co/600x400?text=Error')} />}
+                                        <button onClick={() => handleGenerateRealImage(block.id)} disabled={loadingBlockId === block.id} className="mt-2 text-xs bg-indigo-600 text-white px-3 py-1 rounded shadow w-full">
+                                            {loadingBlockId === block.id ? '...' : '🎨 צור תמונה ב-AI'}
                                         </button>
-
-                                        <div className="border-l border-purple-200 h-6 mx-2"></div>
-
-                                        <button
-                                            onClick={() => handleGenerateQuestionsFromText(block.id, block.content)}
-                                            disabled={loadingBlockId === block.id}
-                                            className="text-sm bg-white text-purple-700 border border-purple-200 px-3 py-1 rounded hover:bg-purple-100"
-                                        >
-                                            {loadingBlockId === block.id ? '...' : 'צור שאלות'}
-                                        </button>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {block.type === 'image' && (
-                                <div>
-                                    <input type="text" className="w-full p-2 border rounded mb-2 ltr text-left" value={block.content} placeholder="URL..." onChange={(e) => updateBlock(block.id, e.target.value)} />
-                                    {block.content && <img src={block.content} className="max-h-40 rounded shadow-sm" />}
-                                    <div className="bg-indigo-50 p-2 rounded mt-2 flex justify-between items-center">
-                                        <span className="text-xs text-indigo-700">עזרה ביצירת תמונה:</span>
-                                        <button onClick={() => handleGenerateImagePrompt(block.id)} disabled={loadingBlockId === block.id} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">{loadingBlockId === block.id ? '...' : 'הצע תיאור'}</button>
+                                {block.type === 'video' && (
+                                    <div>
+                                        <input type="text" className="w-full p-2 border rounded ltr text-left" value={block.content || ''} placeholder="YouTube URL..." onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                        {getYoutubeId(block.content) && <div className="aspect-video bg-black rounded mt-2"><iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`} frameBorder="0" allowFullScreen></iframe></div>}
                                     </div>
-                                    {block.metadata?.aiPrompt && <textarea readOnly className="w-full p-2 text-xs border rounded bg-white text-gray-600 italic mt-2" rows={2} value={block.metadata.aiPrompt} />}
-                                </div>
-                            )}
+                                )}
 
-                            {block.type === 'video' && (
-                                <div>
-                                    <input type="text" className="w-full p-2 border rounded ltr text-left" value={block.content} placeholder="YouTube URL..." onChange={(e) => updateBlock(block.id, e.target.value)} />
-                                    {getYoutubeId(block.content) && <div className="aspect-video bg-black rounded mt-2"><iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`} frameBorder="0" allowFullScreen></iframe></div>}
-                                </div>
-                            )}
-
-                            {block.type === 'multiple-choice' && (
-                                <div className="bg-blue-50 p-3 rounded">
-                                    <input type="text" className="w-full font-bold p-2 border rounded bg-white mb-2" value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {block.content.options?.map((opt: string, idx: number) => (
-                                            <input key={idx} type="text" className="flex-1 p-1 text-sm border rounded" value={opt} onChange={(e) => { const newOptions = [...block.content.options]; newOptions[idx] = e.target.value; updateBlock(block.id, { ...block.content, options: newOptions }); }} />
-                                        ))}
+                                {block.type === 'multiple-choice' && (
+                                    <div className="bg-blue-50 p-3 rounded border border-blue-100">
+                                        <input type="text" className="w-full font-bold p-2 border rounded bg-white mb-2" value={safeC.question} onChange={(e) => updateBlock(block.id, { ...safeC, question: e.target.value })} />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {safeC.options?.map((opt: string, idx: number) => (
+                                                <div key={idx} className="flex items-center gap-1">
+                                                    <button onClick={() => updateBlock(block.id, { ...safeC, correctAnswer: opt })} className={`w-5 h-5 rounded-full border text-[10px] ${safeC.correctAnswer === opt ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>✓</button>
+                                                    <input type="text" className="flex-1 p-1 text-sm border rounded" value={opt} onChange={(e) => { const newOptions = [...safeC.options]; newOptions[idx] = e.target.value; const newContent = { ...safeC, options: newOptions }; if (safeC.correctAnswer === opt) newContent.correctAnswer = e.target.value; updateBlock(block.id, newContent); }} />
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {block.type === 'open-question' && (
-                                <div className="bg-purple-50 p-3 rounded">
-                                    <textarea className="w-full p-2 border rounded mb-2" rows={2} value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
-                                    <textarea className="w-full p-2 border border-green-200 rounded text-sm bg-green-50" rows={2} placeholder="תשובת בית ספר..." value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { ...block.metadata, modelAnswer: e.target.value })} />
-                                </div>
-                            )}
+                                {block.type === 'open-question' && (
+                                    <div className="bg-green-50 p-3 rounded border border-green-100">
+                                        <textarea className="w-full p-2 border rounded bg-white mb-2" value={safeC.question} onChange={(e) => updateBlock(block.id, { ...safeC, question: e.target.value })} />
+                                        <label className="text-xs text-green-700 font-bold">תשובת מורה:</label>
+                                        <textarea className="w-full p-2 border border-green-200 rounded text-sm bg-white" value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { ...block.metadata, modelAnswer: e.target.value })} />
+                                    </div>
+                                )}
 
-                            {block.type === 'gem-link' && (
-                                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded">
-                                    <input type="text" className="w-full p-2 border rounded mb-2 font-bold" value={block.content.title} onChange={(e) => updateBlock(block.id, { ...block.content, title: e.target.value })} />
-                                    <textarea className="w-full p-2 border rounded bg-white" rows={2} value={block.content.instructions} onChange={(e) => updateBlock(block.id, { ...block.content, instructions: e.target.value })} />
-                                </div>
-                            )}
+                                {block.type === 'gem-link' && (
+                                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                                        <input type="text" className="w-full p-2 border rounded mb-1 font-bold" value={safeC.title} onChange={(e) => updateBlock(block.id, { ...safeC, title: e.target.value })} placeholder="כותרת המשימה" />
+                                        <input type="text" className="w-full p-2 border rounded mb-1 ltr text-left" value={safeC.url} onChange={(e) => updateBlock(block.id, { ...safeC, url: e.target.value })} placeholder="Link..." />
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
+                <div id="end-of-blocks"></div>
             </div>
 
             <div className="sticky bottom-0 bg-gray-100 p-4 rounded-t-xl border-t-2 border-blue-200 shadow-lg flex flex-wrap justify-center gap-3 z-20">
                 <button onClick={() => addBlock('text')} className="btn-tool">📝 טקסט</button>
                 <button onClick={() => addBlock('image')} className="btn-tool">🖼️ תמונה</button>
                 <button onClick={() => addBlock('video')} className="btn-tool">▶️ וידאו</button>
-                <button onClick={() => addBlock('multiple-choice')} className="btn-tool">❓ אמריקאית</button>
-                <button onClick={() => addBlock('open-question')} className="btn-tool">✍️ פתוחה</button>
-                <button onClick={() => addBlock('gem-link')} className="btn-tool text-purple-700 bg-purple-50 border-purple-200">💎 AI Gem</button>
+                <div className="w-px bg-gray-300 h-6 mx-1"></div>
+                <button onClick={() => addBlock('multiple-choice')} className="btn-tool border-blue-200 text-blue-700 bg-blue-50">❓ אמריקאית</button>
+                <button onClick={() => addBlock('open-question')} className="btn-tool border-green-200 text-green-700 bg-green-50">✍️ פתוחה</button>
+                <button onClick={() => addBlock('gem-link')} className="btn-tool border-purple-200 text-purple-700 bg-purple-50">💎 Gem</button>
             </div>
 
             <style>{` .btn-tool { @apply px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 hover:-translate-y-1 transition-all; } `}</style>

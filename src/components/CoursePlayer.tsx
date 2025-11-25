@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useCourseStore } from '../context/CourseContext';
+import AiTutor from './AiTutor';
+import { gradeStudentAnswer } from '../gemini';
 
 const CoursePlayer: React.FC = () => {
     const { course } = useCourseStore();
@@ -7,58 +9,70 @@ const CoursePlayer: React.FC = () => {
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
 
-    // ניהול תשובות התלמיד (זמני לזיכרון הדפדפן)
     const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
     const [feedback, setFeedback] = useState<Record<string, string>>({});
+    const [aiGrading, setAiGrading] = useState<Record<string, { grade: number, feedback: string }>>({});
+    const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
 
-    // בדיקות בטיחות למקרה שהקורס ריק
     if (!course || !course.syllabus || course.syllabus.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-gray-500">
-                <div className="text-4xl mb-4">📭</div>
-                <p>הקורס ריק עדיין.</p>
-                <p className="text-sm">עבור למצב "עורך" וצור תוכן חדש.</p>
-            </div>
-        );
+        return <div className="text-center p-10 text-gray-500">הקורס ריק עדיין... עבור לעורך וצור תוכן.</div>;
     }
 
     const currentModule = course.syllabus[currentModuleIndex];
     const currentUnit = currentModule?.learningUnits[currentUnitIndex];
 
-    // הגנה נוספת למקרה שיש מודול אבל אין בו יחידות
-    if (!currentUnit) {
-        return <div className="p-10 text-center">יחידה לא נמצאה. נסה לבחור יחידה אחרת מהתפריט.</div>;
-    }
+    if (!currentUnit) return <div className="text-center p-10">לא נמצא תוכן</div>;
 
-    // חילוץ מזהה יוטיוב (אותה לוגיקה מהעורך)
     const getYoutubeId = (url: string) => {
-        if (!url) return null;
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-        const match = url.match(regExp);
+        if (!url || typeof url !== 'string') return null;
+        const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
         return (match && match[2].length === 11) ? match[2] : null;
     };
 
-    // בדיקת תשובה אמריקאית
     const checkAnswer = (blockId: string, selectedOption: string, correctAnswer: string) => {
         setStudentAnswers({ ...studentAnswers, [blockId]: selectedOption });
-        if (selectedOption === correctAnswer) {
+        const isCorrect = correctAnswer ? selectedOption === correctAnswer : true;
+
+        if (isCorrect) {
             setFeedback({ ...feedback, [blockId]: 'correct' });
         } else {
             setFeedback({ ...feedback, [blockId]: 'incorrect' });
         }
     };
 
-    return (
-        <div className="flex h-[85vh] bg-gray-100 overflow-hidden rounded-2xl shadow-2xl border border-gray-200">
+    const handleGradeOpenQuestion = async (blockId: string, question: string, modelAnswer: string) => {
+        const answer = studentAnswers[blockId];
+        if (!answer || answer.length < 5) return alert("אנא כתוב תשובה מלאה");
 
-            {/* --- תפריט צד ימין --- */}
-            <aside className="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg z-10 overflow-hidden">
+        setIsGrading({ ...isGrading, [blockId]: true });
+        try {
+            const result = await gradeStudentAnswer(question, answer, modelAnswer);
+            setAiGrading({ ...aiGrading, [blockId]: result });
+        } catch (e) {
+            alert("שגיאה בבדיקה");
+        } finally {
+            setIsGrading({ ...isGrading, [blockId]: false });
+        }
+    };
+
+    // פונקציית עזר למניעת קריסה בשאלות
+    const getSafeOptions = (content: any) => {
+        if (content.options && Array.isArray(content.options) && content.options.length > 0) {
+            return content.options;
+        }
+        return ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"];
+    };
+
+    return (
+        <div className="flex h-[85vh] bg-gray-100 overflow-hidden rounded-2xl shadow-2xl border border-gray-200 relative">
+
+            {/* תפריט צד ימין */}
+            <aside className="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg z-10 overflow-hidden shrink-0">
                 <div className="p-6 bg-indigo-700 text-white shrink-0">
                     <h2 className="text-lg font-bold leading-tight">{course.title}</h2>
                     <p className="text-indigo-200 text-xs mt-1">תוכן העניינים</p>
                 </div>
-
-                <div className="overflow-y-auto flex-1 py-2">
+                <div className="overflow-y-auto flex-1 py-2 custom-scrollbar">
                     {course.syllabus.map((mod, mIdx) => (
                         <div key={mod.id} className="mb-2">
                             <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">
@@ -69,20 +83,10 @@ const CoursePlayer: React.FC = () => {
                                 return (
                                     <div
                                         key={unit.id}
-                                        onClick={() => {
-                                            setCurrentModuleIndex(mIdx);
-                                            setCurrentUnitIndex(uIdx);
-                                        }}
-                                        className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-all border-b border-gray-50 ${isActive
-                                                ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600 font-medium'
-                                                : 'text-gray-600 hover:bg-gray-100'
-                                            }`}
+                                        onClick={() => { setCurrentModuleIndex(mIdx); setCurrentUnitIndex(uIdx); }}
+                                        className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-all border-b border-gray-50 ${isActive ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
                                     >
-                                        <span className="text-base">
-                                            {unit.type === 'acquisition' && '📖'}
-                                            {unit.type === 'practice' && '✍️'}
-                                            {unit.type === 'test' && '🧠'}
-                                        </span>
+                                        <span className="text-base">{unit.type === 'acquisition' ? '📖' : unit.type === 'practice' ? '✍️' : '🧠'}</span>
                                         <span className="text-sm leading-snug truncate">{unit.title}</span>
                                     </div>
                                 );
@@ -92,161 +96,137 @@ const CoursePlayer: React.FC = () => {
                 </div>
             </aside>
 
-            {/* --- אזור התוכן המרכזי (Scrollable) --- */}
+            {/* תוכן מרכזי */}
             <main className="flex-1 bg-gray-50 overflow-y-auto p-6 md:p-10 scroll-smooth">
-                <div className="max-w-3xl mx-auto bg-white min-h-full shadow-sm border border-gray-200 rounded-xl p-8 md:p-12">
+                <div className="max-w-3xl mx-auto bg-white min-h-full shadow-sm border border-gray-200 rounded-xl p-8 md:p-12 mb-20">
 
-                    {/* כותרת היחידה */}
                     <header className="mb-8 border-b pb-6">
                         <div className="flex items-center gap-2 mb-3">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${currentUnit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' :
-                                    currentUnit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'
-                                }`}>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${currentUnit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' : currentUnit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'}`}>
                                 {currentUnit.type === 'acquisition' ? 'למידה' : currentUnit.type === 'practice' ? 'תרגול' : 'מבחן'}
                             </span>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
-                            {currentUnit.title}
-                        </h1>
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">{currentUnit.title}</h1>
                     </header>
 
-                    {/* טקסט ראשי */}
-                    {currentUnit.baseContent && (
-                        <div className="prose prose-lg max-w-none text-gray-700 leading-relaxed mb-10 whitespace-pre-line">
-                            {currentUnit.baseContent}
-                        </div>
-                    )}
+                    {currentUnit.baseContent && <div className="prose prose-lg max-w-none text-gray-700 leading-relaxed mb-10 whitespace-pre-line">{currentUnit.baseContent}</div>}
 
-                    {/* --- רכיבי התוכן (הלגו) --- */}
-                    <div className="space-y-8">
+                    <div className="space-y-10">
                         {currentUnit.activityBlocks?.map((block) => (
                             <div key={block.id} className="animate-fade-in">
 
-                                {/* 📝 טקסט נוסף */}
-                                {block.type === 'text' && (
-                                    <div className="prose max-w-none text-gray-700 bg-gray-50 p-4 rounded-lg border-r-4 border-gray-300 whitespace-pre-line">
-                                        {block.content}
-                                    </div>
-                                )}
+                                {block.type === 'text' && <div className="prose max-w-none text-gray-700 bg-gray-50 p-6 rounded-lg border-r-4 border-indigo-200 whitespace-pre-line shadow-sm">{block.content}</div>}
 
-                                {/* 🖼️ תמונה */}
-                                {block.type === 'image' && block.content && (
-                                    <figure className="my-4">
-                                        <img
-                                            src={block.content}
-                                            alt="Visual Aid"
-                                            className="w-full rounded-lg shadow-md max-h-96 object-cover"
-                                            onError={(e) => (e.currentTarget.style.display = 'none')}
-                                        />
+                                {/* --- תיקון תצוגת תמונה --- */}
+                                {block.type === 'image' && (
+                                    <figure className="my-6">
+                                        {block.content ? (
+                                            <img
+                                                src={block.content}
+                                                alt="Visual Aid"
+                                                className="w-full rounded-xl shadow-md max-h-[500px] object-cover border border-gray-200 bg-gray-100"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    // אם התמונה נכשלת, נציג ריבוע אפור יפה במקום להעלים
+                                                    e.currentTarget.src = 'https://placehold.co/800x400?text=Image+Not+Available';
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-40 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 border-2 border-dashed">
+                                                ממתין לתמונה...
+                                            </div>
+                                        )}
+                                        {/* הצגת הקרדיט/תיאור אם קיים */}
+                                        {block.metadata?.aiPrompt && (
+                                            <figcaption className="text-xs text-gray-400 mt-2 text-center italic">
+                                                AI Generated: {block.metadata.aiPrompt.substring(0, 50)}...
+                                            </figcaption>
+                                        )}
                                     </figure>
                                 )}
 
-                                {/* ▶️ וידאו */}
                                 {block.type === 'video' && getYoutubeId(block.content) && (
-                                    <div className="aspect-video w-full rounded-xl overflow-hidden shadow-lg my-6">
-                                        <iframe
-                                            width="100%" height="100%"
-                                            src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`}
-                                            title="YouTube video player"
-                                            frameBorder="0"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                        ></iframe>
+                                    <div className="aspect-video w-full rounded-xl overflow-hidden shadow-lg my-6 bg-black">
+                                        <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`} title="Video" frameBorder="0" allowFullScreen></iframe>
                                     </div>
                                 )}
 
-                                {/* 💎 Gem Link */}
                                 {block.type === 'gem-link' && (
-                                    <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-6 rounded-xl text-white shadow-lg transform hover:scale-[1.01] transition-transform">
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-4xl">💎</div>
+                                    <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-8 rounded-xl text-white shadow-xl transform hover:scale-[1.01] transition-transform my-6">
+                                        <div className="flex items-start gap-5">
+                                            <div className="text-5xl bg-white/20 p-3 rounded-full backdrop-blur-sm">💎</div>
                                             <div>
-                                                <h3 className="font-bold text-xl mb-1">{block.content.title || 'משימת AI'}</h3>
-                                                <p className="text-purple-100 text-sm mb-4">{block.content.instructions}</p>
-                                                <a
-                                                    href={block.content.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-block bg-white text-purple-700 px-6 py-2 rounded-full font-bold text-sm hover:bg-purple-50 transition-colors"
-                                                >
-                                                    התחל שיחה בחלון חדש ↗
-                                                </a>
+                                                <h3 className="font-bold text-2xl mb-2">{block.content.title || 'משימת דיאלוג'}</h3>
+                                                <p className="text-purple-100 text-base mb-6 leading-relaxed">{block.content.instructions}</p>
+                                                <a href={block.content.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-purple-700 px-6 py-3 rounded-full font-bold hover:bg-purple-50 transition-colors shadow-md"><span>פתח את הצ'אט</span><span>↗</span></a>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* ❓ שאלה אמריקאית (אינטראקטיבית) */}
                                 {block.type === 'multiple-choice' && (
-                                    <div className="bg-white p-6 rounded-xl border-2 border-indigo-50 shadow-sm">
-                                        <h4 className="font-bold text-lg text-gray-800 mb-4 flex gap-2">
-                                            <span className="text-indigo-600">?</span> {block.content.question}
+                                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                        <h4 className="font-bold text-lg text-gray-800 mb-4 flex gap-3 items-start">
+                                            <span className="bg-indigo-100 text-indigo-600 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shrink-0">?</span>
+                                            {typeof block.content === 'object' ? block.content.question : block.content}
                                         </h4>
-                                        <div className="space-y-2">
-                                            {block.content.options?.map((opt: string, i: number) => {
+
+                                        <div className="space-y-3 mr-11">
+                                            {getSafeOptions(block.content).map((opt: string, i: number) => {
                                                 const isSelected = studentAnswers[block.id] === opt;
                                                 const isCorrect = block.content.correctAnswer === opt;
                                                 const showFeedback = !!feedback[block.id];
 
-                                                let btnClass = "w-full text-right p-3 rounded-lg border transition-all ";
-
+                                                let btnClass = "w-full text-right p-4 rounded-lg border transition-all flex justify-between items-center ";
                                                 if (showFeedback) {
-                                                    if (isCorrect) btnClass += "bg-green-100 border-green-300 text-green-800";
-                                                    else if (isSelected) btnClass += "bg-red-100 border-red-300 text-red-800";
-                                                    else btnClass += "bg-gray-50 border-gray-200 opacity-50";
+                                                    if (isCorrect) btnClass += "bg-green-100 border-green-200 text-green-900";
+                                                    else if (isSelected) btnClass += "bg-red-50 border-red-200 text-red-900";
+                                                    else btnClass += "bg-gray-50 border-gray-200 text-gray-400";
                                                 } else {
-                                                    btnClass += isSelected
-                                                        ? "bg-indigo-100 border-indigo-300 text-indigo-900 font-bold"
-                                                        : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300";
+                                                    btnClass += isSelected ? "bg-indigo-50 border-indigo-300 text-indigo-900 ring-1 ring-indigo-300" : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300";
                                                 }
 
                                                 return (
-                                                    <button
-                                                        key={i}
-                                                        onClick={() => checkAnswer(block.id, opt, block.content.correctAnswer)}
-                                                        disabled={showFeedback}
-                                                        className={btnClass}
-                                                    >
-                                                        {opt}
-                                                        {showFeedback && isCorrect && " ✅"}
-                                                        {showFeedback && isSelected && !isCorrect && " ❌"}
+                                                    <button key={i} onClick={() => checkAnswer(block.id, opt, block.content.correctAnswer)} disabled={showFeedback} className={btnClass}>
+                                                        <span>{opt}</span>
+                                                        {showFeedback && isCorrect && <span className="text-xl">✅</span>}
+                                                        {showFeedback && isSelected && !isCorrect && <span className="text-xl">❌</span>}
                                                     </button>
                                                 );
                                             })}
                                         </div>
-                                        {feedback[block.id] === 'correct' && (
-                                            <div className="mt-3 text-green-600 text-sm font-bold animate-bounce">כל הכבוד! תשובה נכונה. 🎉</div>
-                                        )}
-                                        {feedback[block.id] === 'incorrect' && (
-                                            <div className="mt-3 text-red-500 text-sm">לא נורא, נסה שוב בפעם הבאה.</div>
-                                        )}
+
+                                        {feedback[block.id] === 'correct' && <div className="mt-4 mr-11 p-3 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-100">כל הכבוד! תשובה נכונה. 🎉</div>}
+                                        {feedback[block.id] === 'incorrect' && <div className="mt-4 mr-11 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">לא נורא, נסה שוב.</div>}
                                     </div>
                                 )}
 
-                                {/* ✍️ שאלה פתוחה */}
                                 {block.type === 'open-question' && (
-                                    <div className="bg-orange-50 p-6 rounded-xl border border-orange-100">
-                                        <h4 className="font-bold text-lg text-gray-800 mb-3">✍️ שאלה למחשבה</h4>
-                                        <p className="text-gray-700 mb-4 font-medium">{block.content.question}</p>
+                                    <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-8 rounded-xl border border-orange-100 shadow-sm">
+                                        <h4 className="font-bold text-xl text-gray-800 mb-2 flex items-center gap-2"><span>✍️</span> שאלה למחשבה</h4>
+                                        <p className="text-gray-700 mb-6 font-medium text-lg leading-relaxed border-b border-orange-200 pb-4">
+                                            {typeof block.content === 'object' ? block.content.question : block.content}
+                                        </p>
+
                                         <textarea
-                                            className="w-full p-4 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-300 outline-none bg-white h-32 resize-none"
-                                            placeholder="כתוב את תשובתך כאן..."
+                                            className="w-full p-4 border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-300 outline-none bg-white h-40 resize-none shadow-inner text-gray-700 text-base"
+                                            placeholder="הקלד את תשובתך כאן..."
+                                            value={studentAnswers[block.id] || ''}
+                                            onChange={(e) => setStudentAnswers({ ...studentAnswers, [block.id]: e.target.value })}
+                                            disabled={!!aiGrading[block.id]}
                                         />
-                                        <div className="mt-2 text-right">
-                                            <button className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-600 transition-colors">
-                                                שלח לבדיקה (בקרוב)
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
 
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </main>
-        </div>
-    );
-};
+                                        {!aiGrading[block.id] && (
+                                            <div className="mt-4 text-right">
+                                                <button
+                                                    onClick={() => handleGradeOpenQuestion(block.id, typeof block.content === 'object' ? block.content.question : "", block.metadata?.modelAnswer || '')}
+                                                    disabled={isGrading[block.id]}
+                                                    className="bg-orange-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:bg-gray-300"
+                                                >
+                                                    {isGrading[block.id] ? 'בודק...' : 'שלח לבדיקה'}
+                                                </button>
+                                            </div>
+                                        )}
 
-export default CoursePlayer;
+                                        {aiGrading[block.id] && (
+                                            <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-orange-400
