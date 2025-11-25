@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Course, LearningUnit } from '../types';
 
 // קורס ריק כברירת מחדל
@@ -20,10 +20,9 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+// התיקון כאן: שימוש ב-React.ReactNode במקום בייבוא נפרד
+export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
-    // 1. טעינה ראשונית: ננסה לקרוא מהזיכרון המקומי (LocalStorage)
-    // אם יש שם קורס שמור - נשתמש בו. אם לא - נתחיל מריק.
     const [course, setCourseState] = useState<Course>(() => {
         const savedCourse = localStorage.getItem('my-ai-course');
         return savedCourse ? JSON.parse(savedCourse) : initialEmptyCourse;
@@ -33,7 +32,6 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return localStorage.getItem('my-book-content') || "";
     });
 
-    // 2. מנגנון שמירה אוטומטי: כל שינוי בקורס נשמר מיד לזיכרון
     useEffect(() => {
         localStorage.setItem('my-ai-course', JSON.stringify(course));
     }, [course]);
@@ -42,7 +40,6 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         localStorage.setItem('my-book-content', fullBookContent);
     }, [fullBookContent]);
 
-    // מעטפות לפונקציות הסטייט (כדי לשמור על הממשק המקורי)
     const setCourse = (newCourse: Course) => {
         setCourseState(newCourse);
     };
