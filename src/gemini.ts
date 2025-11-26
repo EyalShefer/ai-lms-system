@@ -16,7 +16,7 @@ const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
 ];
 
-// --- 1. יצירת קורס מלא ---
+// 1. יצירת קורס מלא
 export async function generateCourseWithGemini(
   topic: string,
   gradeLevel: string,
@@ -25,8 +25,7 @@ export async function generateCourseWithGemini(
 ): Promise<Course> {
 
   const hasSource = sourceMaterial.length > 0;
-  // שימוש במודל יציב
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings: SAFETY_SETTINGS });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
 
   let promptContext = hasSource
     ? `SOURCE MATERIAL:\n"""${sourceMaterial.substring(0, 40000)}"""`
@@ -37,9 +36,7 @@ export async function generateCourseWithGemini(
     Target Audience: ${gradeLevel}, Subject: ${subject}
     ${promptContext}
 
-    CRITICAL: 
-    1. Content MUST be in Hebrew.
-    2. OUTPUT ONLY VALID JSON.
+    CRITICAL: Content MUST be in Hebrew. OUTPUT ONLY VALID JSON.
 
     JSON Structure:
     {
@@ -55,7 +52,7 @@ export async function generateCourseWithGemini(
               "id": "u1",
               "title": "Unit Name",
               "type": "acquisition", 
-              "baseContent": "Intro...",
+              "baseContent": "Intro content...",
               "activityBlocks": [
                 { "type": "text", "content": "..." }
               ]
@@ -68,9 +65,7 @@ export async function generateCourseWithGemini(
 
   try {
     const result = await model.generateContent(promptText);
-    const response = await result.response;
-    let text = response.text();
-
+    let text = result.response.text();
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
@@ -79,10 +74,9 @@ export async function generateCourseWithGemini(
     const courseData = JSON.parse(text) as Course;
     courseData.id = Date.now().toString();
 
-    // תיקון: מחקנו את idx שלא היה בשימוש
     courseData.syllabus.forEach(mod => {
       mod.learningUnits.forEach(unit => {
-        unit.activityBlocks?.forEach((block) => {
+        unit.activityBlocks?.forEach((block, idx) => {
           block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         });
       });
@@ -95,19 +89,18 @@ export async function generateCourseWithGemini(
   }
 }
 
-// --- 2. יצירת שאלות ---
+// 2. שאלות מתוך טקסט
 export async function generateQuestionsFromText(
   text: string,
   type: 'multiple-choice' | 'open-question'
 ): Promise<any[]> {
 
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings: SAFETY_SETTINGS });
-
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
   let promptText = "";
 
   if (type === 'multiple-choice') {
     promptText = `
-          TASK: Create 2 multiple-choice questions in HEBREW.
+          TASK: Create 2 multiple-choice questions in HEBREW based on the text below.
           INPUT TEXT: "${text.substring(0, 2000)}..."
           OUTPUT JSON ARRAY ONLY: [{"question": "...", "options": ["a","b","c","d"], "correctAnswer": "a"}]
         `;
@@ -122,8 +115,8 @@ export async function generateQuestionsFromText(
   try {
     const result = await model.generateContent(promptText);
     let resultText = result.response.text();
-
     resultText = resultText.replace(/```json/g, "").replace(/```/g, "").trim();
+
     const firstBracket = resultText.indexOf('[');
     const lastBracket = resultText.lastIndexOf(']');
 
@@ -140,10 +133,10 @@ export async function generateQuestionsFromText(
   }
 }
 
-// --- 3. תמונה ---
+// 3. תמונה
 export async function generateImagePromptBlock(lessonContent: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings: SAFETY_SETTINGS });
-  const promptText = `Create a descriptive prompt (in English) for AI image generator: "${lessonContent.substring(0, 1000)}..."`;
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
+  const promptText = `Create a descriptive prompt (in English) for an AI image generator based on: "${lessonContent.substring(0, 1000)}..." Max 50 words. Return ONLY the prompt.`;
 
   try {
     const result = await model.generateContent(promptText);
@@ -151,10 +144,10 @@ export async function generateImagePromptBlock(lessonContent: string): Promise<s
   } catch (error) { return "Error"; }
 }
 
-// --- 4. שכתוב ---
+// 4. שכתוב
 export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings: SAFETY_SETTINGS });
-  const promptText = `Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}".`;
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
+  const promptText = `Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}". Return ONLY the rewritten text.`;
 
   try {
     const result = await model.generateContent(promptText);
@@ -162,21 +155,52 @@ export async function refineContentWithPedagogy(text: string, skill: string): Pr
   } catch (error) { return text; }
 }
 
-// --- 5. בודק ---
+// 5. בודק אוטומטי
 export async function gradeStudentAnswer(
   question: string,
   studentAnswer: string,
   modelAnswer: string
 ): Promise<{ grade: number; feedback: string }> {
-
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings: SAFETY_SETTINGS });
-
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
   const promptText = `
       Act as a teacher. Grade student answer.
       Question: "${question}"
       Model Answer: "${modelAnswer}"
       Student Answer: "${studentAnswer}"
       Output JSON ONLY: { "grade": 0-100, "feedback": "Hebrew" }
+    `;
+  try {
+    const result = await model.generateContent(promptText);
+    let text = result.response.text();
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    return JSON.parse(text);
+  } catch (error) {
+    return { grade: 0, feedback: "שגיאה בבדיקה." };
+  }
+}
+
+// --- 6. ניתוח כיתתי (הפונקציה החדשה!) ---
+export async function generateClassAnalysis(studentsData: any[]): Promise<any> {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
+  const dataString = JSON.stringify(studentsData);
+
+  const promptText = `
+      Act as a Senior Pedagogical Analyst.
+      Analyze this class performance data:
+      ${dataString}
+
+      Provide a deep insight report in HEBREW.
+      
+      OUTPUT JSON ONLY:
+      {
+        "classOverview": "סיכום מילולי על מצב הכיתה...",
+        "weakSkills": ["מיומנות חלשה 1", "מיומנות חלשה 2"],
+        "strongSkills": ["מיומנות חזקה 1", "מיומנות חזקה 2"],
+        "studentInsights": [
+            { "name": "Student Name", "insight": "ניתוח ספציפי לתלמיד..." }
+        ],
+        "actionItems": ["המלצה 1 למורה", "המלצה 2 למורה"]
+      }
     `;
 
   try {
@@ -185,6 +209,7 @@ export async function gradeStudentAnswer(
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
   } catch (error) {
-    return { grade: 0, feedback: "שגיאה בבדיקה." };
+    console.error("Analysis failed:", error);
+    return null;
   }
 }
