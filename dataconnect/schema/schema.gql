@@ -1,0 +1,43 @@
+type User @table {
+  displayName: String!
+  email: String!
+  createdAt: Timestamp!
+  photoUrl: String
+  role: String
+}
+
+type Course @table {
+  title: String!
+  description: String!
+  instructor: User!
+  createdAt: Timestamp!
+  duration: Int
+  difficultyLevel: String
+  imageUrl: String
+  price: Float
+}
+
+type Lesson @table {
+  course: Course!
+  title: String!
+  content: String!
+  orderIndex: Int!
+  videoUrl: String
+  quizId: UUID
+}
+
+type Enrollment @table(key: ["user", "course"]) {
+  user: User!
+  course: Course!
+  enrollmentDate: Timestamp!
+  status: String!
+  completionDate: Timestamp
+  progress: Float
+}
+
+type Recommendation @table(key: ["user", "course"]) {
+  user: User!
+  course: Course!
+  recommendedDate: Timestamp!
+  reason: String
+}

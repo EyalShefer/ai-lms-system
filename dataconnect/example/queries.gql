@@ -1,0 +1,28 @@
+mutation CreateNewUser($displayName: String!, $email: String!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  user_insert(data: { displayName: $displayName, email: $email, createdAt_expr: "request.time" })
+}
+
+query GetCourses @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  courses {
+    id
+    title
+    description
+    imageUrl
+  }
+}
+
+mutation EnrollUserInCourse($courseId: UUID!) @auth(level: USER) {
+  enrollment_insert(data: { userId_expr: "auth.uid", courseId: $courseId, enrollmentDate_expr: "request.time", status: "ENROLLED" })
+}
+
+query GetMyEnrollments @auth(level: USER) {
+  enrollments(where: { userId: { eq_expr: "auth.uid" } }) {
+    course {
+      id
+      title
+      description
+    }
+    enrollmentDate
+    status
+  }
+}

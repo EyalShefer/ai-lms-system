@@ -1,0 +1,77 @@
+mutation CreateSeedData @transaction @auth(level: USER, insecureReason: "This mutation is for seeding data and does not require user-specific authorization.") {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      displayName: "demouser1",
+      email: "demouser1@example.com",
+      createdAt: "2024-01-01T00:00:00Z"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      displayName: "demouser2",
+      email: "demouser2@example.com",
+      createdAt: "2024-01-01T00:00:00Z"
+    }
+  ])
+  course_insertMany(data: [
+    {
+      id: "650e8400-e29b-41d4-a716-446655440000",
+      instructorId: "550e8400-e29b-41d4-a716-446655440000",
+      title: "Demo Course 1",
+      description: "This is a demo course",
+      createdAt: "2024-01-01T00:00:00Z",
+      price: 99.99
+    },
+    {
+      id: "650e8400-e29b-41d4-a716-446655440001",
+      instructorId: "550e8400-e29b-41d4-a716-446655440001",
+      title: "Demo Course 2",
+      description: "This is another demo course",
+      createdAt: "2024-01-01T00:00:00Z",
+      price: 149.99
+    }
+  ])
+  enrollment_insertMany(data: [
+    {
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      courseId: "650e8400-e29b-41d4-a716-446655440000",
+      enrollmentDate: "2024-01-05T00:00:00Z",
+      status: "ACTIVE"
+    },
+    {
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      courseId: "650e8400-e29b-41d4-a716-446655440001",
+      enrollmentDate: "2024-01-10T00:00:00Z",
+      status: "COMPLETED",
+      completionDate: "2024-03-10T00:00:00Z"
+    }
+  ])
+  recommendation_insertMany(data: [
+    {
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      courseId: "650e8400-e29b-41d4-a716-446655440001",
+      recommendedDate: "2024-01-07T00:00:00Z",
+      reason: "Recommended based on user 1's past enrollments"
+    },
+    {
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      courseId: "650e8400-e29b-41d4-a716-446655440000",
+      recommendedDate: "2024-01-12T00:00:00Z",
+      reason: "Recommended because it's a popular course"
+    }
+  ])
+  lesson_insertMany(data: [
+    {
+      courseId: "650e8400-e29b-41d4-a716-446655440000",
+      title: "Lesson 1 for Demo Course 1",
+      content: "This is the content for lesson 1",
+      orderIndex: 1
+    },
+    {
+      courseId: "650e8400-e29b-41d4-a716-446655440001",
+      title: "Lesson 1 for Demo Course 2",
+      content: "This is the content for lesson 1 in demo course 2",
+      orderIndex: 1
+    }
+  ])
+}
