@@ -4,11 +4,10 @@ import { generateCourseWithGemini } from '../gemini';
 import { extractTextFromPDF } from '../pdfService';
 
 const IngestionWizard: React.FC = () => {
-    // שליפת הפונקציות מה-Store (כולל שמירת תוכן הספר לבוט)
+    // לוגיקה חדשה: שליפת הפונקציה לשמירת תוכן הספר
     const { setCourse, setFullBookContent } = useCourseStore();
 
     const [topic, setTopic] = useState('');
-    // ברירת מחדל
     const [gradeLevel, setGradeLevel] = useState('כיתה ט׳ (חטיבת ביניים)');
     const [subject, setSubject] = useState('היסטוריה');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -38,17 +37,19 @@ const IngestionWizard: React.FC = () => {
                 setStatus(`קורא את הספר: ${selectedFile.name}...`);
                 sourceText = await extractTextFromPDF(selectedFile);
 
-                // 🎯 שמירת הטקסט המלא עבור הבוט (AiTutor)
+                // לוגיקה חדשה: שמירת הטקסט עבור הבוט
                 setFullBookContent(sourceText);
             }
 
             setStatus('ה-AI מנתח פדגוגית ובונה קורס...');
-            // שליחת הנתונים ליצירת הקורס
+
+            // לוגיקה: יצירת הקורס עם הפרמטרים
             const newCourse = await generateCourseWithGemini(topic, gradeLevel, subject, sourceText);
 
             setCourse(newCourse);
             alert("הקורס נוצר בהצלחה! 📚");
 
+            // איפוס
             setTopic('');
             setSelectedFile(null);
             setStatus('');
@@ -80,7 +81,7 @@ const IngestionWizard: React.FC = () => {
                     <div className="flex flex-col gap-3">
                         <div className="flex gap-2">
 
-                            {/* תפריט תחומי דעת מורחב */}
+                            {/* UI חדש: תפריט תחומי דעת מורחב */}
                             <select
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
@@ -114,7 +115,7 @@ const IngestionWizard: React.FC = () => {
                                 </optgroup>
                             </select>
 
-                            {/* תפריט שכבות גיל מלא (ד' עד י"ב) */}
+                            {/* UI חדש: תפריט שכבות גיל מלא */}
                             <select
                                 value={gradeLevel}
                                 onChange={(e) => setGradeLevel(e.target.value)}
