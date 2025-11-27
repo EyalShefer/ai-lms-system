@@ -1,25 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import { generateClassAnalysis } from '../gemini';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const TeacherDashboard: React.FC = () => {
     const { course } = useCourseStore();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
+    const [studentsData, setStudentsData] = useState<any[]>([]); // נתונים אמיתיים מהענן
+    const [loading, setLoading] = useState(true);
 
-    // נתוני דמה לניתוח (מדמה מצב שבו תלמידים ענו על שאלות)
-    const mockStudentsData = [
-        { id: 1, name: "דניאל כהן", score: 85, answers: "ענה נכון על שאלות הידע, אך טעה בשאלת היישום המורכבת." },
-        { id: 2, name: "מיכל לוי", score: 92, answers: "תשובות מלאות, מנומקות היטב, מפגינה חשיבה ביקורתית." },
-        { id: 3, name: "יוסי ישראלי", score: 45, answers: "תשובות קצרות מדי, חוסר הבנה של מושגי היסוד." },
-        { id: 4, name: "נועה שחר", score: 65, answers: "הבינה את הרעיון הכללי אך התקשתה בניסוח התשובה." },
-        { id: 5, name: "אביב גולן", score: 88, answers: "שליטה מצוינת בחומר." },
-    ];
+    // האזנה לנתונים מ-Firebase בזמן אמת
+    useEffect(() => {
+        if (!course.id) return;
+
+        const q = query(
+            collection(db, "student_progress"),
+            where("courseId", "==", course.id)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const realData = snapshot.docs.map(doc => {
+                const data = doc.data();
+
+                // חישוב ציון ממוצע לתלמיד על בסיס כל השאלות שבדק ה-AI
+                let totalScore = 0;
+                let count = 0;
+                if (data.grading) {
+                    Object.values(data.grading).forEach((g: any) => {
+                        if (g.grade) {
+                            totalScore += g.grade;
+                            count++;
+                        }
+                    });
+                }
+
+                return {
+                    id: doc.id,
+                    name: data.studentEmail || "אנונימי", // כרגע אנחנו יודעים רק מייל
+                    score: count > 0 ? Math.round(totalScore / count) : 0,
+                    answers: JSON.stringify(data.answers), // לצורך הניתוח של ה-AI
+                    lastActive: data.lastActive ? new Date(data.lastActive).toLocaleTimeString('he-IL') : '-'
+                };
+            });
+
+            setStudentsData(realData);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [course.id]);
 
     const handleAnalyzeClass = async () => {
+        if (studentsData.length === 0) return alert("אין עדיין נתונים לנתח");
         setIsAnalyzing(true);
         try {
-            const result = await generateClassAnalysis(mockStudentsData);
+            const result = await generateClassAnalysis(studentsData);
             setAnalysisResult(result);
         } catch (e) {
             alert("שגיאה בניתוח הנתונים");
@@ -38,13 +75,19 @@ const TeacherDashboard: React.FC = () => {
                         <p className="text-gray-500 mt-1">קורס: <span className="font-bold text-indigo-600">{course.title}</span></p>
                     </div>
 
-                    <button
-                        onClick={handleAnalyzeClass}
-                        disabled={isAnalyzing}
-                        className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all flex items-center gap-2"
-                    >
-                        {isAnalyzing ? 'ה-AI מנתח נתונים...' : '🤖 בצע ניתוח פדגוגי עמוק'}
-                    </button>
+                    <div className="flex gap-4">
+                        <div className="bg-white p-4 rounded-xl shadow-sm border text-center w-32">
+                            <div className="text-2xl font-bold text-blue-600">{studentsData.length}</div>
+                            <div className="text-xs text-gray-400">תלמידים פעילים</div>
+                        </div>
+                        <button
+                            onClick={handleAnalyzeClass}
+                            disabled={isAnalyzing || studentsData.length === 0}
+                            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all flex items-center gap-2"
+                        >
+                            {isAnalyzing ? 'ה-AI מנתח נתונים...' : '🤖 בצע ניתוח פדגוגי עמוק'}
+                        </button>
+                    </div>
                 </div>
 
                 {analysisResult && (
@@ -53,11 +96,9 @@ const TeacherDashboard: React.FC = () => {
                             <h2 className="text-2xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
                                 🧠 תובנות המערכת (AI Insights)
                             </h2>
-
                             <div className="bg-indigo-50 p-4 rounded-lg text-indigo-800 mb-6 text-lg leading-relaxed">
                                 {analysisResult.classOverview}
                             </div>
-
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div>
                                     <h3 className="font-bold text-gray-700 mb-3">מיומנויות ומגמות:</h3>
@@ -80,7 +121,6 @@ const TeacherDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-
                                 <div>
                                     <h3 className="font-bold text-gray-700 mb-3">המלצות למורה:</h3>
                                     <ul className="space-y-2">
@@ -98,19 +138,23 @@ const TeacherDashboard: React.FC = () => {
                 )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="p-4 border-b bg-gray-50 font-bold text-gray-500">נתוני גלם (ציונים)</div>
+                    <div className="p-4 border-b bg-gray-50 font-bold text-gray-500 flex justify-between">
+                        <span>נתוני אמת (מהענן)</span>
+                        {loading && <span className="text-xs text-blue-500">מתעדכן...</span>}
+                    </div>
                     <table className="w-full text-right">
                         <thead className="bg-white border-b text-sm text-gray-400">
                             <tr>
-                                <th className="px-6 py-3">שם</th>
-                                <th className="px-6 py-3">ציון</th>
-                                <th className="px-6 py-3">ניתוח אישי (AI)</th>
+                                <th className="px-6 py-3">שם (מייל)</th>
+                                <th className="px-6 py-3">ציון ממוצע</th>
+                                <th className="px-6 py-3">נראה לאחרונה</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {mockStudentsData.map((student) => {
-                                const studentInsight = analysisResult?.studentInsights?.find((s: any) => s.name === student.name)?.insight;
-                                return (
+                            {studentsData.length === 0 ? (
+                                <tr><td colSpan={3} className="p-10 text-center text-gray-400">עדיין אין תלמידים פעילים בקורס זה</td></tr>
+                            ) : (
+                                studentsData.map((student) => (
                                     <tr key={student.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 font-bold text-gray-800">{student.name}</td>
                                         <td className="px-6 py-4">
@@ -119,11 +163,11 @@ const TeacherDashboard: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-600">
-                                            {studentInsight || student.answers}
+                                            {student.lastActive}
                                         </td>
                                     </tr>
-                                );
-                            })}
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

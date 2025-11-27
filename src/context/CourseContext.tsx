@@ -1,21 +1,25 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { Course, LearningUnit } from '../types';
-import { db } from '../firebase'; // הייבוא של הקובץ שיצרת
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { Course, LearningUnit } from '../courseTypes';
+import { db } from '../firebase';
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
-// קורס ריק כברירת מחדל (עד שהמידע יגיע מהענן)
 const initialEmptyCourse: Course = {
-    id: 'new-course',
-    title: 'טוען קורס מהענן...',
-    targetAudience: '...',
+    id: 'loading',
+    teacherId: '',
+    title: 'טוען...',
+    targetAudience: '',
     syllabus: []
 };
 
 interface CourseContextType {
     course: Course;
     fullBookContent: string;
+    pdfSource: string | null;
+    currentCourseId: string | null;
+    loadCourse: (id: string) => void;
     setCourse: (course: Course) => void;
     setFullBookContent: (text: string) => void;
+    setPdfSource: (data: string) => void;
     updateCourseTitle: (newTitle: string) => void;
     updateLearningUnit: (moduleId: string, updatedUnit: LearningUnit) => void;
 }
@@ -25,61 +29,75 @@ const CourseContext = createContext<CourseContextType | undefined>(undefined);
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [course, setCourseState] = useState<Course>(initialEmptyCourse);
     const [fullBookContent, setFullBookContentState] = useState<string>("");
+    const [pdfSource, setPdfSourceState] = useState<string | null>(null);
+    const [currentCourseId, setCurrentCourseId] = useState<string | null>(null);
 
-    // מזהה הקורס הקבוע שלנו (בשלב הבא נעשה את זה דינמי לכל מורה)
-    const COURSE_ID = "my-first-course";
+    const loadCourse = (id: string) => {
+        setCurrentCourseId(id);
+    };
 
-    // 1. האזנה לשינויים בענן (Real-time Listener)
-    // ברגע שמשהו משתנה ב-Firebase, זה מתעדכן אצלך אוטומטית
+    // האזנה וקריאה חכמה של הנתונים
     useEffect(() => {
-        const courseRef = doc(db, "courses", COURSE_ID);
+        if (!currentCourseId) return;
 
+        const courseRef = doc(db, "courses", currentCourseId);
         const unsubscribe = onSnapshot(courseRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // עדכון הנתונים באפליקציה
-                if (data.course) setCourseState(data.course);
-                if (data.fullBookContent) setFullBookContentState(data.fullBookContent);
-            } else {
-                console.log("No course found in cloud, creating new...");
-                // אם אין קורס, ניצור אחד ריק בענן
-                saveToCloud(initialEmptyCourse, "");
+
+                // --- התיקון הקריטי כאן ---
+                // בודקים: האם המידע שמור בתוך אובייקט 'course' (ישן) או שטוח (חדש)?
+                const courseData = data.course ? data.course : data;
+
+                // מוודאים שיש סילבוס כדי למנוע קריסה
+                if (!courseData.syllabus) courseData.syllabus = [];
+
+                setCourseState({ ...courseData, id: docSnap.id } as Course);
+                setFullBookContentState(data.fullBookContent || "");
+                setPdfSourceState(data.pdfSource || null);
             }
-        }, (error) => {
-            console.error("Firebase Read Error:", error);
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [currentCourseId]);
 
-    // פונקציית עזר לשמירה בענן (Debounced - כדי לא לשגע את השרת)
-    const saveToCloud = async (newCourse: Course, newBookContent: string) => {
+    // שמירה בפורמט שטוח (Flat) כדי למנוע בלבול בעתיד
+    const saveToCloud = async (newCourse: Course, newBookContent: string, newPdf: string | null) => {
+        if (!currentCourseId) return;
         try {
-            await setDoc(doc(db, "courses", COURSE_ID), {
-                course: newCourse,
-                fullBookContent: newBookContent
-            });
+            // מפרקים את האובייקט ושומרים את השדות ישירות במסמך
+            const { id, ...courseFields } = newCourse;
+
+            await setDoc(doc(db, "courses", currentCourseId), {
+                ...courseFields, // שומרים את title, syllabus, teacherId בשורש המסמך
+                fullBookContent: newBookContent,
+                pdfSource: newPdf,
+                lastUpdated: new Date()
+            }, { merge: true });
         } catch (e) {
-            console.error("Error saving to cloud:", e);
+            console.error("Error saving:", e);
         }
     };
 
-    // --- הפונקציות שחושפות את המידע לאפליקציה ---
-
     const setCourse = (newCourse: Course) => {
         setCourseState(newCourse);
-        saveToCloud(newCourse, fullBookContent); // שמירה לענן
+        saveToCloud(newCourse, fullBookContent, pdfSource);
     };
 
     const setFullBookContent = (text: string) => {
         setFullBookContentState(text);
-        saveToCloud(course, text); // שמירה לענן
+        saveToCloud(course, text, pdfSource);
+    };
+
+    const setPdfSource = (data: string) => {
+        setPdfSourceState(data);
+        saveToCloud(course, fullBookContent, data);
     };
 
     const updateCourseTitle = (newTitle: string) => {
         const updated = { ...course, title: newTitle };
         setCourseState(updated);
-        saveToCloud(updated, fullBookContent);
+        saveToCloud(updated, fullBookContent, pdfSource);
     };
 
     const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
@@ -93,17 +111,20 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 )
             };
         });
-
         setCourseState(updatedCourse);
-        saveToCloud(updatedCourse, fullBookContent);
+        saveToCloud(updatedCourse, fullBookContent, pdfSource);
     };
 
     return (
         <CourseContext.Provider value={{
             course,
-            setCourse,
             fullBookContent,
+            pdfSource,
+            currentCourseId,
+            loadCourse,
+            setCourse,
             setFullBookContent,
+            setPdfSource,
             updateCourseTitle,
             updateLearningUnit
         }}>
@@ -114,8 +135,6 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useCourseStore = () => {
     const context = useContext(CourseContext);
-    if (!context) {
-        throw new Error('useCourseStore must be used within a CourseProvider');
-    }
+    if (!context) throw new Error('useCourseStore must be used within a CourseProvider');
     return context;
 };

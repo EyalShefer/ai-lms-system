@@ -4,8 +4,7 @@ import { generateCourseWithGemini } from '../gemini';
 import { extractTextFromPDF } from '../pdfService';
 
 const IngestionWizard: React.FC = () => {
-    // לוגיקה חדשה: שליפת הפונקציה לשמירת תוכן הספר
-    const { setCourse, setFullBookContent } = useCourseStore();
+    const { setCourse, setFullBookContent, setPdfSource } = useCourseStore();
 
     const [topic, setTopic] = useState('');
     const [gradeLevel, setGradeLevel] = useState('כיתה ט׳ (חטיבת ביניים)');
@@ -36,20 +35,23 @@ const IngestionWizard: React.FC = () => {
             if (selectedFile && selectedFile.type === 'application/pdf') {
                 setStatus(`קורא את הספר: ${selectedFile.name}...`);
                 sourceText = await extractTextFromPDF(selectedFile);
-
-                // לוגיקה חדשה: שמירת הטקסט עבור הבוט
                 setFullBookContent(sourceText);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (e.target?.result) {
+                        setPdfSource(e.target.result as string);
+                    }
+                };
+                reader.readAsDataURL(selectedFile);
             }
 
             setStatus('ה-AI מנתח פדגוגית ובונה קורס...');
-
-            // לוגיקה: יצירת הקורס עם הפרמטרים
             const newCourse = await generateCourseWithGemini(topic, gradeLevel, subject, sourceText);
 
             setCourse(newCourse);
             alert("הקורס נוצר בהצלחה! 📚");
 
-            // איפוס
             setTopic('');
             setSelectedFile(null);
             setStatus('');
@@ -81,7 +83,7 @@ const IngestionWizard: React.FC = () => {
                     <div className="flex flex-col gap-3">
                         <div className="flex gap-2">
 
-                            {/* UI חדש: תפריט תחומי דעת מורחב */}
+                            {/* תפריט תחומי דעת מורחב */}
                             <select
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
@@ -115,7 +117,7 @@ const IngestionWizard: React.FC = () => {
                                 </optgroup>
                             </select>
 
-                            {/* UI חדש: תפריט שכבות גיל מלא */}
+                            {/* תפריט שכבות גיל מלא */}
                             <select
                                 value={gradeLevel}
                                 onChange={(e) => setGradeLevel(e.target.value)}
@@ -142,43 +144,11 @@ const IngestionWizard: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* שורת הקובץ והכפתור */}
                         <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-indigo-200 shadow-sm">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                                title="העלה קובץ PDF"
-                            >
-                                📎
-                            </button>
-
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                accept=".pdf"
-                                className="hidden"
-                            />
-
-                            <input
-                                type="text"
-                                placeholder={selectedFile ? `נבחר: ${selectedFile.name}` : "הקלד נושא באופן חופשי..."}
-                                value={topic}
-                                onChange={(e) => setTopic(e.target.value)}
-                                disabled={isGenerating}
-                                className="flex-1 p-2 outline-none text-gray-700"
-                            />
-
-                            <button
-                                onClick={handleGenerate}
-                                disabled={(!topic && !selectedFile) || isGenerating}
-                                className={`px-6 py-2 rounded-md font-bold text-white transition-all ${isGenerating
-                                        ? 'bg-gray-400 cursor-not-allowed'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 shadow hover:shadow-lg'
-                                    }`}
-                            >
-                                {isGenerating ? status : 'צור קורס ✨'}
-                            </button>
+                            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">📎</button>
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
+                            <input type="text" placeholder={selectedFile ? `נבחר: ${selectedFile.name}` : "הקלד נושא..."} value={topic} onChange={(e) => setTopic(e.target.value)} disabled={isGenerating} className="flex-1 p-2 outline-none text-gray-700" />
+                            <button onClick={handleGenerate} disabled={(!topic && !selectedFile) || isGenerating} className={`px-6 py-2 rounded-md font-bold text-white transition-all ${isGenerating ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700 shadow'}`}>{isGenerating ? status : 'צור קורס ✨'}</button>
                         </div>
                     </div>
                 </div>

@@ -1,19 +1,18 @@
 export type LearningUnitType = 'acquisition' | 'practice' | 'test';
 
-// הוספנו כאן: image, pdf
 export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'gem-link';
 
 export interface ActivityBlockMetadata {
     difficultyLevel?: number;
-    modelAnswer?: string; // לתשובות פתוחות
-    aiPrompt?: string;    // לתיאור תמונה שנוצר ע"י AI
+    modelAnswer?: string;
+    aiPrompt?: string;
     [key: string]: any;
 }
 
 export interface ActivityBlock {
     id: string;
     type: ActivityBlockType;
-    content: any; // יכול להיות טקסט, לינק, או אובייקט שאלה
+    content: any;
     metadata?: ActivityBlockMetadata;
 }
 
@@ -31,9 +30,12 @@ export interface Module {
     learningUnits: LearningUnit[];
 }
 
+// הנה הייצוא שהיה חסר
 export interface Course {
     id: string;
+    teacherId: string;
     title: string;
     targetAudience: string;
     syllabus: Module[];
+    createdAt?: any;
 }

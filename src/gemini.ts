@@ -1,22 +1,48 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-import type { Course } from "./types";
+import type { Course } from "./courseTypes";
 
+// טעינת המפתח
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
   throw new Error("Missing Gemini API Key! Check .env file.");
 }
 
-const genAI = new GoogleGenerativeAI(API_KEY);
+// 🚀 הגדרה קבועה למודל 2.0 (החזק והמהיר)
+const MODEL_NAME = "gemini-2.0-flash";
+const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
 const SAFETY_SETTINGS = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
 ];
 
-// 1. יצירת קורס מלא
+// פונקציית עזר לביצוע הבקשה (Fetch ישיר)
+async function callGeminiDirect(promptText: string): Promise<string> {
+  // לוג כדי שתוכל לוודא בקונסול שאנחנו משתמשים במודל הנכון
+  console.log(`📡 Sending request to ${MODEL_NAME}...`);
+
+  const response = await fetch(BASE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }],
+      safetySettings: SAFETY_SETTINGS
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Google Error Details:", errorData);
+    throw new Error(`Google Error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
+// --- 1. יצירת קורס מלא ---
 export async function generateCourseWithGemini(
   topic: string,
   gradeLevel: string,
@@ -25,23 +51,42 @@ export async function generateCourseWithGemini(
 ): Promise<Course> {
 
   const hasSource = sourceMaterial.length > 0;
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
+  console.log(`🚀 Generating course via API for: ${topic}`);
+
+  // ניקוי הטקסט מה-PDF
+  const cleanSource = sourceMaterial
+    .replace(/"/g, "'")
+    .replace(/\n/g, " ")
+    .replace(/\\/g, "")
+    .substring(0, 80000);
 
   let promptContext = hasSource
-    ? `SOURCE MATERIAL:\n"""${sourceMaterial.substring(0, 40000)}"""`
+    ? `SOURCE MATERIAL (Base content ONLY on this):\n"""${cleanSource}"""`
     : `TOPIC: "${topic}"`;
 
   const promptText = `
-    Act as an expert Instructional Designer. Create a RICH online course in HEBREW.
-    Target Audience: ${gradeLevel}, Subject: ${subject}
+    Act as a Senior Curriculum Developer.
+    Create a DEEP, MULTI-LAYERED online course in HEBREW.
+
+    Context:
+    - Target Audience: ${gradeLevel}
+    - Subject Domain: ${subject}
     ${promptContext}
 
-    CRITICAL: Content MUST be in Hebrew. OUTPUT ONLY VALID JSON.
+    PEDAGOGICAL STRUCTURE:
+    1. **Acquisition Unit:** Detailed explanation.
+    2. **Practice Unit:** Interactive Multiple Choice blocks.
+    3. **Test Unit:** Open-Ended question blocks.
 
+    CRITICAL INSTRUCTIONS FOR BLOCKS (READ CAREFULLY):
+    1. **Rhetorical Questions:** Can go inside 'text' blocks.
+    2. **Assessment Questions:** MUST be separate blocks ('multiple-choice' or 'open-question').
+    3. **Images:** Include 'image' blocks with descriptive 'aiPrompt'.
+    
     JSON Structure:
     {
       "id": "gen-id",
-      "title": "Course Title",
+      "title": "Course Title (Hebrew)",
       "targetAudience": "${gradeLevel}",
       "syllabus": [
         {
@@ -50,11 +95,41 @@ export async function generateCourseWithGemini(
           "learningUnits": [
             {
               "id": "u1",
-              "title": "Unit Name",
+              "title": "שם השיעור (הקניה)",
               "type": "acquisition", 
-              "baseContent": "Intro content...",
+              "baseContent": "Intro...",
               "activityBlocks": [
-                { "type": "text", "content": "..." }
+                 { "type": "text", "content": "הסבר מפורט..." },
+                 { "type": "image", "content": "https://placehold.co/600x400?text=Image", "metadata": { "aiPrompt": "..." } }
+              ] 
+            },
+            {
+              "id": "u2",
+              "title": "תרגול",
+              "type": "practice",
+              "baseContent": "תרגול:",
+              "activityBlocks": [
+                 {
+                    "type": "multiple-choice",
+                    "content": {
+                        "question": "שאלה לבדיקת ידע...",
+                        "options": ["1", "2", "3", "4"],
+                        "correctAnswer": "1"
+                    }
+                 }
+              ]
+            },
+            {
+              "id": "u3",
+              "title": "מבחן",
+              "type": "test",
+              "baseContent": "סיכום:",
+              "activityBlocks": [
+                 {
+                    "type": "open-question",
+                    "content": { "question": "שאלה למחשבה..." },
+                    "metadata": { "modelAnswer": "..." }
+                 }
               ]
             }
           ]
@@ -64,8 +139,9 @@ export async function generateCourseWithGemini(
   `;
 
   try {
-    const result = await model.generateContent(promptText);
-    let text = result.response.text();
+    let text = await callGeminiDirect(promptText);
+
+    // ניקוי JSON
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
@@ -76,7 +152,7 @@ export async function generateCourseWithGemini(
 
     courseData.syllabus.forEach(mod => {
       mod.learningUnits.forEach(unit => {
-        unit.activityBlocks?.forEach((block, idx) => {
+        unit.activityBlocks?.forEach((block) => {
           block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         });
       });
@@ -89,40 +165,35 @@ export async function generateCourseWithGemini(
   }
 }
 
-// 2. שאלות מתוך טקסט
+// --- 2. שאלות מתוך טקסט ---
 export async function generateQuestionsFromText(
   text: string,
   type: 'multiple-choice' | 'open-question'
 ): Promise<any[]> {
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
   let promptText = "";
 
   if (type === 'multiple-choice') {
     promptText = `
-          TASK: Create 2 multiple-choice questions in HEBREW based on the text below.
-          INPUT TEXT: "${text.substring(0, 2000)}..."
+          TASK: Create 2 multiple-choice questions in HEBREW based on: "${text.substring(0, 2000)}...".
           OUTPUT JSON ARRAY ONLY: [{"question": "...", "options": ["a","b","c","d"], "correctAnswer": "a"}]
         `;
   } else {
     promptText = `
-          TASK: Create 1 OPEN-ENDED question in HEBREW.
-          INPUT TEXT: "${text.substring(0, 2000)}..."
+          TASK: Create 1 OPEN-ENDED question in HEBREW based on: "${text.substring(0, 2000)}...".
           OUTPUT JSON ARRAY ONLY: [{"question": "...", "modelAnswer": "..."}]
         `;
   }
 
   try {
-    const result = await model.generateContent(promptText);
-    let resultText = result.response.text();
-    resultText = resultText.replace(/```json/g, "").replace(/```/g, "").trim();
+    let resultText = await callGeminiDirect(promptText);
 
+    resultText = resultText.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBracket = resultText.indexOf('[');
     const lastBracket = resultText.lastIndexOf(']');
 
     if (firstBracket !== -1 && lastBracket !== -1) {
-      resultText = resultText.substring(firstBracket, lastBracket + 1);
-      return JSON.parse(resultText);
+      return JSON.parse(resultText.substring(firstBracket, lastBracket + 1));
     } else {
       const parsed = JSON.parse(resultText);
       return Array.isArray(parsed) ? parsed : [parsed];
@@ -133,45 +204,37 @@ export async function generateQuestionsFromText(
   }
 }
 
-// 3. תמונה
+// --- 3. תמונה ---
 export async function generateImagePromptBlock(lessonContent: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
-  const promptText = `Create a descriptive prompt (in English) for an AI image generator based on: "${lessonContent.substring(0, 1000)}..." Max 50 words. Return ONLY the prompt.`;
-
+  const promptText = `Create a descriptive prompt (in English) for AI image generator: "${lessonContent.substring(0, 1000)}..."`;
   try {
-    const result = await model.generateContent(promptText);
-    return result.response.text()?.trim() || "Error";
+    return (await callGeminiDirect(promptText)).trim();
   } catch (error) { return "Error"; }
 }
 
-// 4. שכתוב
+// --- 4. שכתוב ---
 export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
-  const promptText = `Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}". Return ONLY the rewritten text.`;
-
+  const promptText = `Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}".`;
   try {
-    const result = await model.generateContent(promptText);
-    return result.response.text()?.trim() || text;
+    return (await callGeminiDirect(promptText)).trim();
   } catch (error) { return text; }
 }
 
-// 5. בודק אוטומטי
+// --- 5. בודק ---
 export async function gradeStudentAnswer(
   question: string,
   studentAnswer: string,
   modelAnswer: string
 ): Promise<{ grade: number; feedback: string }> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
   const promptText = `
-      Act as a teacher. Grade student answer.
+      Act as a teacher. Grade answer.
       Question: "${question}"
       Model Answer: "${modelAnswer}"
       Student Answer: "${studentAnswer}"
       Output JSON ONLY: { "grade": 0-100, "feedback": "Hebrew" }
     `;
   try {
-    const result = await model.generateContent(promptText);
-    let text = result.response.text();
+    let text = await callGeminiDirect(promptText);
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
   } catch (error) {
@@ -179,37 +242,15 @@ export async function gradeStudentAnswer(
   }
 }
 
-// --- 6. ניתוח כיתתי (הפונקציה החדשה!) ---
+// --- 6. ניתוח כיתתי ---
 export async function generateClassAnalysis(studentsData: any[]): Promise<any> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", safetySettings: SAFETY_SETTINGS });
-  const dataString = JSON.stringify(studentsData);
-
   const promptText = `
-      Act as a Senior Pedagogical Analyst.
-      Analyze this class performance data:
-      ${dataString}
-
-      Provide a deep insight report in HEBREW.
-      
-      OUTPUT JSON ONLY:
-      {
-        "classOverview": "סיכום מילולי על מצב הכיתה...",
-        "weakSkills": ["מיומנות חלשה 1", "מיומנות חלשה 2"],
-        "strongSkills": ["מיומנות חזקה 1", "מיומנות חזקה 2"],
-        "studentInsights": [
-            { "name": "Student Name", "insight": "ניתוח ספציפי לתלמיד..." }
-        ],
-        "actionItems": ["המלצה 1 למורה", "המלצה 2 למורה"]
-      }
+      Act as Analyst. Analyze: ${JSON.stringify(studentsData)}
+      Output JSON ONLY: { "classOverview": "...", "weakSkills": [], "strongSkills": [], "studentInsights": [], "actionItems": [] }
     `;
-
   try {
-    const result = await model.generateContent(promptText);
-    let text = result.response.text();
+    let text = await callGeminiDirect(promptText);
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
-  } catch (error) {
-    console.error("Analysis failed:", error);
-    return null;
-  }
+  } catch (error) { return null; }
 }

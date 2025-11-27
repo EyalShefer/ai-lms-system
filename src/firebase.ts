@@ -1,19 +1,21 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-// הנתונים שהעתקנו מהתמונה שלך:
 const firebaseConfig = {
-    apiKey: "AIzaSyAxISC0BPJ9kQks32QuanvhxoUB-ZQGsco",
-    authDomain: "ai-lms-app-31c7e.firebaseapp.com",
-    projectId: "ai-lms-app-31c7e",
-    storageBucket: "ai-lms-app-31c7e.firebasestorage.app",
-    messagingSenderId: "703290427762",
-    appId: "1:703290427762:web:ea12e93f0ae7373dac75eb",
-    measurementId: "G-SEZG6PBWHM"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// אתחול החיבור
 const app = initializeApp(firebaseConfig);
 
-// ייצוא המשתנה שמאפשר לשמור ולקרוא נתונים
+// ייצוא בסיס הנתונים (ללא מצב אופליין מורכב כרגע)
 export const db = getFirestore(app);
+
+// ייצוא מערכת האימות
+export const auth = getAuth(app);
