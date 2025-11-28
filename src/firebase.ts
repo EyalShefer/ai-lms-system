@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+// טעינת המשתנים מהסביבה (עובד גם במחשב וגם ב-Vercel)
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -12,10 +13,9 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// אתחול האפליקציה
 const app = initializeApp(firebaseConfig);
 
-// ייצוא בסיס הנתונים (ללא מצב אופליין מורכב כרגע)
+// ייצוא השירותים (ללא persistence שגורם לתקיעות)
 export const db = getFirestore(app);
-
-// ייצוא מערכת האימות
 export const auth = getAuth(app);

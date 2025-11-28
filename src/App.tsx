@@ -10,20 +10,22 @@ import { auth } from './firebase';
 
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
+  const [isStudentLink, setIsStudentLink] = useState(false); // זיהוי האם הגיע מקישור תלמיד
   const { course, loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
 
-  // בדיקת קישור כניסה (Deep Link)
+  // בדיקת קישור כניסה (Deep Link) - רץ פעם אחת בעלייה
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const studentLink = params.get('studentCourseId');
+    const studentLinkID = params.get('studentCourseId');
 
-    if (studentLink) {
-      console.log("Student link detected:", studentLink);
-      loadCourse(studentLink);
-      setMode('student'); // מעבר אוטומטי למצב תלמיד
+    if (studentLinkID) {
+      console.log("Student link detected:", studentLinkID);
+      setIsStudentLink(true); // סימון שאנחנו במצב תלמיד
+      loadCourse(studentLinkID);
+      setMode('student'); // מעבר אוטומטי לנגן
     }
-  }, []); // רץ רק פעם אחת בטעינה
+  }, []);
 
   const handleCourseSelect = (courseId: string) => {
     loadCourse(courseId);
@@ -32,7 +34,7 @@ const AuthenticatedApp = () => {
 
   const handleBackToList = () => {
     setMode('list');
-    // מנקים את ה-URL כדי שלא יחזור לאותו קורס ברענון
+    // ניקוי URL אם צריך
     window.history.pushState({}, '', '/');
   };
 
@@ -41,19 +43,25 @@ const AuthenticatedApp = () => {
 
       <header className="bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-50 border-b border-gray-200">
         <div className="flex items-center gap-4">
-          {mode !== 'list' && (
+          {/* כפתור חזור - מוצג רק אם זה לא מסך הרשימה ורק אם זה לא תלמיד */}
+          {mode !== 'list' && !isStudentLink && (
             <button onClick={handleBackToList} className="text-gray-500 hover:bg-gray-100 p-2 rounded-full transition-colors" title="חזור לרשימת הקורסים">
               🔙
             </button>
           )}
+
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            🚀 AI-LMS: <span className="font-normal text-gray-600">{mode === 'list' ? 'המרכז למורה' : course.title}</span>
+            🚀 AI-LMS: <span className="font-normal text-gray-600">
+              {/* כותרת דינמית בהתאם למצב */}
+              {isStudentLink ? course.title : (mode === 'list' ? 'המרכז למורה' : course.title)}
+            </span>
           </h1>
         </div>
 
         <div className="bg-gray-100 p-1 rounded-lg flex text-sm font-bold items-center gap-2">
-          {/* כפתורים למורה בלבד - נסתיר אותם אם זה תלמיד בקישור ישיר בעתיד */}
-          {mode !== 'list' && (
+
+          {/* --- האזור הקריטי: הסתרת כפתורי מורה לתלמידים --- */}
+          {!isStudentLink && (
             <>
               <button onClick={() => setMode('editor')} className={`px-4 py-2 rounded-md transition-all ${mode === 'editor' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>✏️ עורך</button>
               <button onClick={() => setMode('student')} className={`px-4 py-2 rounded-md transition-all ${mode === 'student' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>👨‍🎓 תלמיד</button>
@@ -61,15 +69,27 @@ const AuthenticatedApp = () => {
               <div className="w-px h-6 bg-gray-300 mx-2"></div>
             </>
           )}
-          <button onClick={() => auth.signOut()} className="text-red-500 text-xs hover:underline px-2">יציאה ({currentUser?.email})</button>
+
+          {/* כפתור יציאה - קיים תמיד */}
+          <div className="flex flex-col items-end text-xs px-2">
+            <span className="text-gray-400">{currentUser?.email}</span>
+            <button onClick={() => auth.signOut()} className="text-red-500 hover:underline">יציאה</button>
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 pb-8">
-        {mode === 'list' && <CourseList onSelectCourse={handleCourseSelect} />}
-        {mode === 'editor' && <CourseEditor />}
-        {mode === 'student' && <CoursePlayer />}
-        {mode === 'dashboard' && <TeacherDashboard />}
+        {/* אם זה קישור תלמיד - מציגים רק את הנגן. אחרת - את כל האופציות */}
+        {isStudentLink ? (
+          <CoursePlayer />
+        ) : (
+          <>
+            {mode === 'list' && <CourseList onSelectCourse={handleCourseSelect} />}
+            {mode === 'editor' && <CourseEditor />}
+            {mode === 'student' && <CoursePlayer />}
+            {mode === 'dashboard' && <TeacherDashboard />}
+          </>
+        )}
       </main>
     </div>
   );
@@ -77,9 +97,6 @@ const AuthenticatedApp = () => {
 
 const AppWrapper = () => {
   const { currentUser, loading } = useAuth();
-
-  // אם המשתמש לא מחובר, אנחנו עדיין רוצים לבדוק אם יש קישור תלמיד!
-  // אבל כרגע, כדי לפשט - נחייב גם תלמיד להירשם/להיכנס כדי שהנתונים שלו יישמרו
   if (loading) return <div className="h-screen flex items-center justify-center">טוען...</div>;
   return currentUser ? <AuthenticatedApp /> : <Login />;
 };
