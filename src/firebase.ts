@@ -1,8 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-
-console.log("🔥 Config Check:", import.meta.env.VITE_FIREBASE_API_KEY ? "OK" : "FAIL");
+import { getStorage } from "firebase/storage"; // <--- הוספנו את זה
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,5 +14,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const storage = getStorage(app); // <--- ייצוא המחסן

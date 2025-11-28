@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
@@ -36,7 +36,6 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentCourseId(id);
     };
 
-    // האזנה וקריאה חכמה של הנתונים
     useEffect(() => {
         if (!currentCourseId) return;
 
@@ -44,12 +43,7 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const unsubscribe = onSnapshot(courseRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-
-                // --- התיקון הקריטי כאן ---
-                // בודקים: האם המידע שמור בתוך אובייקט 'course' (ישן) או שטוח (חדש)?
                 const courseData = data.course ? data.course : data;
-
-                // מוודאים שיש סילבוס כדי למנוע קריסה
                 if (!courseData.syllabus) courseData.syllabus = [];
 
                 setCourseState({ ...courseData, id: docSnap.id } as Course);
@@ -61,17 +55,16 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return () => unsubscribe();
     }, [currentCourseId]);
 
-    // שמירה בפורמט שטוח (Flat) כדי למנוע בלבול בעתיד
     const saveToCloud = async (newCourse: Course, newBookContent: string, newPdf: string | null) => {
         if (!currentCourseId) return;
         try {
-            // מפרקים את האובייקט ושומרים את השדות ישירות במסמך
             const { id, ...courseFields } = newCourse;
 
+            // כאן הוסר הבלם של ה-1MB, כי ה-PDF נשמר ב-Storage והמשתנה מכיל רק URL קצר
             await setDoc(doc(db, "courses", currentCourseId), {
-                ...courseFields, // שומרים את title, syllabus, teacherId בשורש המסמך
+                ...courseFields,
                 fullBookContent: newBookContent,
-                pdfSource: newPdf,
+                pdfSource: newPdf, // עכשיו זה URL ולא הקובץ עצמו
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) {
