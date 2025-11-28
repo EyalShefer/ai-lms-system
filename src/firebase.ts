@@ -2,10 +2,6 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// לוג דיבאג פשוט כדי לראות שהמפתח קיים
-const key = import.meta.env.VITE_FIREBASE_API_KEY;
-console.log("🔥 Firebase Init:", key ? "OK" : "MISSING");
-
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -16,6 +12,7 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// אתחול
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
