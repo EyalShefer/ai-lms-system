@@ -20,6 +20,10 @@ const CoursePlayer: React.FC = () => {
     const [aiGrading, setAiGrading] = useState<Record<string, { grade: number, feedback: string }>>({});
     const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
 
+    // ניהול מצב "תשובה נשמרה" במבחן
+    const [savedStatus, setSavedStatus] = useState<Record<string, boolean>>({});
+
+    // טעינת היסטוריה
     useEffect(() => {
         const loadProgress = async () => {
             if (!currentUser || !course.id) return;
@@ -39,6 +43,7 @@ const CoursePlayer: React.FC = () => {
         loadProgress();
     }, [currentUser, course.id]);
 
+    // שמירה לענן
     const saveProgressToCloud = async (newAnswers: any, newGrading: any) => {
         if (!currentUser || !course.id) return;
         try {
@@ -56,6 +61,7 @@ const CoursePlayer: React.FC = () => {
         }
     };
 
+    // טיפול ב-PDF
     useEffect(() => {
         if (pdfSource && pdfSource.startsWith('data:application/pdf;base64,')) {
             try {
@@ -94,8 +100,14 @@ const CoursePlayer: React.FC = () => {
     const checkAnswer = (blockId: string, selectedOption: string, correctAnswer: string) => {
         const newAnswers = { ...studentAnswers, [blockId]: selectedOption };
         setStudentAnswers(newAnswers);
-        saveProgressToCloud(newAnswers, aiGrading);
 
+        if (course.mode === 'exam') {
+            saveProgressToCloud(newAnswers, aiGrading);
+            setSavedStatus({ ...savedStatus, [blockId]: true });
+            return;
+        }
+
+        saveProgressToCloud(newAnswers, aiGrading);
         const isCorrect = correctAnswer ? selectedOption === correctAnswer : true;
         if (isCorrect) setFeedback({ ...feedback, [blockId]: 'correct' });
         else setFeedback({ ...feedback, [blockId]: 'incorrect' });
@@ -104,6 +116,12 @@ const CoursePlayer: React.FC = () => {
     const handleGradeOpenQuestion = async (blockId: string, question: string, modelAnswer: string) => {
         const answer = studentAnswers[blockId];
         if (!answer || answer.length < 5) return alert("אנא כתוב תשובה מלאה");
+
+        if (course.mode === 'exam') {
+            saveProgressToCloud(studentAnswers, aiGrading);
+            setSavedStatus({ ...savedStatus, [blockId]: true });
+            return;
+        }
 
         setIsGrading({ ...isGrading, [blockId]: true });
         try {
@@ -133,28 +151,23 @@ const CoursePlayer: React.FC = () => {
     return (
         <div className="flex h-[85vh] bg-gray-100 overflow-hidden rounded-2xl shadow-2xl border border-gray-200 relative">
             <aside className="w-64 bg-white border-l border-gray-200 flex flex-col shadow-lg z-10 shrink-0">
-                <div className="p-4 bg-indigo-700 text-white shrink-0">
+                <div className={`p-4 text-white shrink-0 ${course.mode === 'exam' ? 'bg-red-700' : 'bg-indigo-700'}`}>
                     <h2 className="text-sm font-bold leading-tight">{course.title}</h2>
+                    <div className="text-xs mt-1 opacity-80">{course.mode === 'exam' ? '🛑 מצב מבחן' : '✅ מצב למידה'}</div>
                 </div>
                 <div className="overflow-y-auto flex-1 py-2 custom-scrollbar">
                     {course.syllabus.map((mod, mIdx) => (
                         <div key={mod.id} className="mb-2">
-                            <div className="px-4 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">
-                                {mod.title}
-                            </div>
-                            {mod.learningUnits.map((unit, uIdx) => {
-                                const isActive = mIdx === currentModuleIndex && uIdx === currentUnitIndex;
-                                return (
-                                    <div
-                                        key={unit.id}
-                                        onClick={() => { setCurrentModuleIndex(mIdx); setCurrentUnitIndex(uIdx); }}
-                                        className={`px-4 py-2 cursor-pointer flex items-center gap-2 border-b border-gray-50 ${isActive ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    >
-                                        <span className="text-base">{unit.type === 'acquisition' ? '📖' : unit.type === 'practice' ? '✍️' : '🧠'}</span>
-                                        <span className="text-xs truncate">{unit.title}</span>
-                                    </div>
-                                );
-                            })}
+                            <div className="px-4 py-1 text-[10px] font-bold text-gray-400 uppercase bg-gray-50">{mod.title}</div>
+                            {mod.learningUnits.map((unit, uIdx) => (
+                                <div
+                                    key={unit.id}
+                                    onClick={() => { setCurrentModuleIndex(mIdx); setCurrentUnitIndex(uIdx); }}
+                                    className={`px-4 py-2 cursor-pointer flex items-center gap-2 border-b border-gray-50 ${mIdx === currentModuleIndex && uIdx === currentUnitIndex ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    <span className="text-xs truncate">{unit.title}</span>
+                                </div>
+                            ))}
                         </div>
                     ))}
                 </div>
@@ -184,6 +197,7 @@ const CoursePlayer: React.FC = () => {
                         {currentUnit.activityBlocks?.map((block) => (
                             <div key={block.id} className="animate-fade-in">
                                 {block.type === 'text' && <div className="prose max-w-none text-gray-700 bg-gray-50 p-6 rounded-lg border-r-4 border-indigo-200 whitespace-pre-line shadow-sm">{block.content}</div>}
+
                                 {block.type === 'image' && (
                                     <figure className="my-6">
                                         {block.content ? (
@@ -192,11 +206,13 @@ const CoursePlayer: React.FC = () => {
                                         {block.metadata?.aiPrompt && <figcaption className="text-xs text-gray-400 mt-2 text-center italic">AI Generated: {block.metadata.aiPrompt.substring(0, 50)}...</figcaption>}
                                     </figure>
                                 )}
+
                                 {block.type === 'video' && getYoutubeId(block.content) && (
                                     <div className="aspect-video w-full rounded-xl overflow-hidden shadow-lg my-6 bg-black">
                                         <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`} title="Video" frameBorder="0" allowFullScreen></iframe>
                                     </div>
                                 )}
+
                                 {block.type === 'gem-link' && (
                                     <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-8 rounded-xl text-white shadow-xl transform hover:scale-[1.01] transition-transform my-6">
                                         <div className="flex items-start gap-5">
@@ -209,6 +225,7 @@ const CoursePlayer: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
+
                                 {block.type === 'multiple-choice' && (
                                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                                         <h4 className="font-bold text-lg text-gray-800 mb-4 flex gap-3 items-start">
@@ -219,7 +236,8 @@ const CoursePlayer: React.FC = () => {
                                             {getSafeOptions(block.content).map((opt: string, i: number) => {
                                                 const isSelected = studentAnswers[block.id] === opt;
                                                 const isCorrect = block.content.correctAnswer === opt;
-                                                const showFeedback = !!feedback[block.id];
+                                                const showFeedback = course.mode !== 'exam' && !!feedback[block.id];
+
                                                 let btnClass = "w-full text-right p-4 rounded-lg border transition-all flex justify-between items-center ";
                                                 if (showFeedback) {
                                                     if (isCorrect) btnClass += "bg-green-100 border-green-200 text-green-900";
@@ -237,8 +255,12 @@ const CoursePlayer: React.FC = () => {
                                                 );
                                             })}
                                         </div>
+                                        {course.mode !== 'exam' && feedback[block.id] === 'correct' && <div className="mt-4 mr-11 p-3 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-100">כל הכבוד! תשובה נכונה. 🎉</div>}
+                                        {course.mode !== 'exam' && feedback[block.id] === 'incorrect' && <div className="mt-4 mr-11 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">לא נורא, נסה שוב.</div>}
+                                        {course.mode === 'exam' && savedStatus[block.id] && <div className="mt-2 mr-11 text-gray-500 text-xs">✅ התשובה נשמרה</div>}
                                     </div>
                                 )}
+
                                 {block.type === 'open-question' && (
                                     <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-8 rounded-xl border border-orange-100 shadow-sm">
                                         <h4 className="font-bold text-xl text-gray-800 mb-2 flex items-center gap-2"><span>✍️</span> שאלה למחשבה</h4>
@@ -250,19 +272,36 @@ const CoursePlayer: React.FC = () => {
                                             placeholder="הקלד את תשובתך כאן..."
                                             value={studentAnswers[block.id] || ''}
                                             onChange={(e) => handleTextChange(block.id, e.target.value)}
-                                            onBlur={() => saveProgressToCloud(studentAnswers, aiGrading)}
+                                            onBlur={() => course.mode === 'exam' && saveProgressToCloud(studentAnswers, aiGrading)}
                                             disabled={!!aiGrading[block.id]}
                                         />
-                                        {!aiGrading[block.id] && (
-                                            <div className="mt-4 text-right">
-                                                <button onClick={() => handleGradeOpenQuestion(block.id, typeof block.content === 'object' ? block.content.question : "", block.metadata?.modelAnswer || '')} disabled={isGrading[block.id]} className="bg-orange-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:bg-gray-300">
-                                                    {isGrading[block.id] ? 'בודק...' : 'שלח לבדיקה'}
-                                                </button>
-                                            </div>
-                                        )}
 
-                                        {/* --- התיקון: הסרת הציון, השארת המשוב בלבד --- */}
-                                        {aiGrading[block.id] && (
+                                        <div className="mt-4 text-right">
+                                            {course.mode === 'exam' ? (
+                                                <button
+                                                    onClick={() => {
+                                                        setSavedStatus({ ...savedStatus, [block.id]: true });
+                                                        saveProgressToCloud(studentAnswers, aiGrading);
+                                                    }}
+                                                    className="bg-gray-800 text-white px-8 py-3 rounded-lg font-bold hover:bg-gray-700 transition-colors shadow-lg"
+                                                >
+                                                    {savedStatus[block.id] ? 'נשמר ✓' : 'שמור תשובה'}
+                                                </button>
+                                            ) : (
+                                                !aiGrading[block.id] && (
+                                                    <button
+                                                        onClick={() => handleGradeOpenQuestion(block.id, typeof block.content === 'object' ? block.content.question : "", block.metadata?.modelAnswer || '')}
+                                                        disabled={isGrading[block.id]}
+                                                        className="bg-orange-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:bg-gray-300"
+                                                    >
+                                                        {isGrading[block.id] ? 'בודק...' : 'שלח לבדיקה'}
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
+
+                                        {/* משוב AI (רק במצב למידה) */}
+                                        {course.mode !== 'exam' && aiGrading[block.id] && (
                                             <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-blue-400 shadow-md animate-fade-in">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <span className="text-2xl">🤖</span>

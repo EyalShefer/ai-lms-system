@@ -2,9 +2,9 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// לוג דיבאג פשוט וישיר
-const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-console.log("🔥 Firebase Init Check:", apiKey ? "Key Found!" : "KEY MISSING ❌");
+// לוג דיבאג פשוט כדי לראות שהמפתח קיים
+const key = import.meta.env.VITE_FIREBASE_API_KEY;
+console.log("🔥 Firebase Init:", key ? "OK" : "MISSING");
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
