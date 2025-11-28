@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getStorage } from "firebase/storage"; // <--- הוספנו את זה
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,8 +13,13 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// בדיקה למנוע קריסה אם המפתח חסר
+if (!firebaseConfig.apiKey) {
+    console.error("Critical Error: Firebase API Key is missing!");
+}
+
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-export const storage = getStorage(app); // <--- ייצוא המחסן
+export const storage = getStorage(app);

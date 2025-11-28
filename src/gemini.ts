@@ -1,11 +1,13 @@
 import type { Course } from "./courseTypes";
 
+// טעינת המפתח
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
   throw new Error("Missing Gemini API Key! Check .env file.");
 }
 
+// שימוש במודל 2.0 (החזק והמהיר)
 const MODEL_NAME = "gemini-2.0-flash";
 const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
@@ -16,8 +18,10 @@ const SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
 ];
 
+// פונקציית עזר לביצוע הבקשה (Fetch ישיר)
 async function callGeminiDirect(promptText: string): Promise<string> {
   console.log(`📡 Sending request to ${MODEL_NAME}...`);
+
   const response = await fetch(BASE_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -26,128 +30,209 @@ async function callGeminiDirect(promptText: string): Promise<string> {
       safetySettings: SAFETY_SETTINGS
     })
   });
+
   if (!response.ok) {
     const errorData = await response.json();
+    console.error("Google Error Details:", errorData);
     throw new Error(`Google Error: ${errorData.error?.message || response.statusText}`);
   }
+
   const data = await response.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-// 1. יצירת קורס
-export async function generateCourseWithGemini(topic: string, gradeLevel: string, subject: string, sourceMaterial: string = ""): Promise<Course> {
-  const cleanSource = sourceMaterial.replace(/"/g, "'").replace(/\n/g, " ").replace(/\\/g, "").substring(0, 80000);
-  let promptContext = sourceMaterial ? `SOURCE MATERIAL:\n"""${cleanSource}"""` : `TOPIC: "${topic}"`;
+// --- המוח הפדגוגי (התאמה לגיל) ---
+function getPedagogicalGuidelines(gradeLevel: string): string {
+  if (gradeLevel.includes("יסודי") || gradeLevel.includes("ד׳") || gradeLevel.includes("ה׳") || gradeLevel.includes("ו׳")) {
+    return `
+        ADAPTATION STRATEGY: **Concrete & Visual**
+        - Critical Thinking: Attached to concrete, day-to-day examples.
+        - Language: Simple syntax, short sentences.
+        - Tone: Encouraging, storytelling style.
+        `;
+  }
+  else if (gradeLevel.includes("חטיבת ביניים") || gradeLevel.includes("ז׳") || gradeLevel.includes("ח׳") || gradeLevel.includes("ט׳")) {
+    return `
+        ADAPTATION STRATEGY: **Relatability & Identity**
+        - Critical Thinking: Cause-and-effect, ethical dilemmas.
+        - Language: Rich vocabulary but accessible.
+        - Tone: Conversational but smart (" בגובה העיניים").
+        `;
+  }
+  else { // תיכון / מבוגרים
+    return `
+        ADAPTATION STRATEGY: **Abstraction & Nuance**
+        - Critical Thinking: Ambiguity, conflicting sources.
+        - Language: Academic, precise terminology.
+        - Tone: Professional, intellectual.
+        `;
+  }
+}
 
-  // שליפת הנחיות פדגוגיות לפי גיל (פונקציה מקוצרת כאן לצורך הקוד, אבל היא קיימת בלוגיקה שלך)
-  const pedagogicalInst = "ADAPT CONTENT TO AGE LEVEL: " + gradeLevel;
+// --- 1. יצירת קורס מלא ---
+export async function generateCourseWithGemini(
+  topic: string,
+  gradeLevel: string,
+  subject: string,
+  sourceMaterial: string = ""
+): Promise<Course> {
+
+  const hasSource = sourceMaterial.length > 0;
+  console.log(`🚀 Generating course via API for: ${topic}`);
+
+  // ניקוי טקסט מה-PDF
+  const cleanSource = sourceMaterial
+    .replace(/"/g, "'")
+    .replace(/\n/g, " ")
+    .replace(/\\/g, "")
+    .substring(0, 80000);
+
+  let promptContext = hasSource
+    ? `SOURCE MATERIAL (Base content ONLY on this):\n"""${cleanSource}"""`
+    : `TOPIC: "${topic}"`;
+
+  const pedagogicalInstructions = getPedagogicalGuidelines(gradeLevel);
 
   const promptText = `
-    Act as a Senior Curriculum Developer. Create a structured Hebrew course.
-    Target: ${gradeLevel}, Subject: ${subject}
+    Act as a Senior Curriculum Developer.
+    Create a DEEP, MULTI-LAYERED online course in HEBREW.
+
+    Context:
+    - Target Audience: ${gradeLevel}
+    - Subject Domain: ${subject}
     ${promptContext}
-    ${pedagogicalInst}
 
-    STRUCTURE PER MODULE:
-    1. Acquisition (Text + Image)
-    2. Practice (Multiple Choice)
-    3. Test (Open Question)
+    --- PEDAGOGICAL GUIDELINES ---
+    ${pedagogicalInstructions}
 
-    RULES: No questions in text blocks. Use specific block types.
+    PEDAGOGICAL STRUCTURE (Each module MUST have 3 units):
+    1. **Acquisition:** Explanation + Image.
+    2. **Practice:** Multiple Choice questions.
+    3. **Test:** Open-Ended question (Deep Dive).
+
+    CRITICAL INSTRUCTIONS FOR BLOCKS:
+    - **NEVER** write questions inside a 'text' block. 
+    - **ALWAYS** use 'multiple-choice' or 'open-question' block types.
+    - **IMAGES:** Include 'image' blocks with descriptive 'aiPrompt'.
     
-    JSON Output: { "id": "gen", "title": "...", "targetAudience": "...", "syllabus": [...] }
+    JSON Structure:
+    {
+      "id": "gen-id",
+      "title": "Course Title",
+      "targetAudience": "${gradeLevel}",
+      "syllabus": [
+        {
+          "id": "m1",
+          "title": "Module Name",
+          "learningUnits": [
+            {
+              "id": "u1",
+              "title": "...",
+              "type": "acquisition", 
+              "baseContent": "...",
+              "activityBlocks": [
+                 { "type": "text", "content": "..." },
+                 { "type": "image", "content": "...", "metadata": { "aiPrompt": "..." } }
+              ] 
+            }
+          ]
+        }
+      ]
+    }
   `;
 
   try {
     let text = await callGeminiDirect(promptText);
+
+    // ניקוי JSON
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1) text = text.substring(firstBrace, lastBrace + 1);
+
     const courseData = JSON.parse(text) as Course;
     courseData.id = Date.now().toString();
-    courseData.syllabus.forEach(mod => {
-      mod.learningUnits.forEach(unit => {
-        unit.activityBlocks?.forEach((block) => {
-          block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        });
+
+    // --- התיקון החדש: הגנה מפני קריסה (Safe Navigation) ---
+    // מוודאים שכל המערכים קיימים לפני שרצים עליהם
+    if (courseData.syllabus && Array.isArray(courseData.syllabus)) {
+      courseData.syllabus.forEach(mod => {
+        if (mod.learningUnits && Array.isArray(mod.learningUnits)) {
+          mod.learningUnits.forEach(unit => {
+            if (unit.activityBlocks && Array.isArray(unit.activityBlocks)) {
+              unit.activityBlocks.forEach((block) => {
+                block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              });
+            } else {
+              unit.activityBlocks = [];
+            }
+          });
+        } else {
+          mod.learningUnits = [];
+        }
       });
-    });
+    } else {
+      courseData.syllabus = [];
+    }
+    // ---------------------------------------------------
+
     return courseData;
-  } catch (error) { throw error; }
+  } catch (error) {
+    console.error("Generation Failed:", error);
+    throw error;
+  }
 }
 
-// 2. שאלות
+// --- שאר הפונקציות (כולן כאן!) ---
+
 export async function generateQuestionsFromText(text: string, type: 'multiple-choice' | 'open-question'): Promise<any[]> {
-  let promptText = type === 'multiple-choice'
-    ? `Create 2 multiple-choice questions in HEBREW based on: "${text.substring(0, 2000)}...". JSON: [{"question": "...", "options": [], "correctAnswer": "..."}]`
-    : `Create 1 OPEN-ENDED question in HEBREW based on: "${text.substring(0, 2000)}...". JSON: [{"question": "...", "modelAnswer": "..."}]`;
-
+  let promptText = "";
+  if (type === 'multiple-choice') {
+    promptText = `TASK: Create 2 multiple-choice questions in HEBREW based on: "${text.substring(0, 2000)}...". OUTPUT JSON ARRAY ONLY: [{"question": "...", "options": ["a","b","c","d"], "correctAnswer": "a"}]`;
+  } else {
+    promptText = `TASK: Create 1 OPEN-ENDED question in HEBREW based on: "${text.substring(0, 2000)}...". OUTPUT JSON ARRAY ONLY: [{"question": "...", "modelAnswer": "..."}]`;
+  }
   try {
-    let res = await callGeminiDirect(promptText);
-    res = res.replace(/```json/g, "").replace(/```/g, "").trim();
-    const first = res.indexOf('['); const last = res.lastIndexOf(']');
-    if (first !== -1) return JSON.parse(res.substring(first, last + 1));
-    return JSON.parse(res);
-  } catch (e) { return []; }
+    let resultText = await callGeminiDirect(promptText);
+    resultText = resultText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const firstBracket = resultText.indexOf('[');
+    const lastBracket = resultText.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1) return JSON.parse(resultText.substring(firstBracket, lastBracket + 1));
+    return JSON.parse(resultText);
+  } catch (error) { return []; }
 }
 
-// 3. תמונה
 export async function generateImagePromptBlock(lessonContent: string): Promise<string> {
-  try { return (await callGeminiDirect(`Create English AI image prompt for: "${lessonContent.substring(0, 1000)}..."`)).trim(); } catch (e) { return "Error"; }
+  const promptText = `Create a descriptive prompt (in English) for AI image generator based on: "${lessonContent.substring(0, 1000)}..."`;
+  try { return (await callGeminiDirect(promptText)).trim(); } catch (error) { return "Error"; }
 }
 
-// 4. שכתוב
 export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
-  try { return (await callGeminiDirect(`Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}".`)).trim(); } catch (e) { return text; }
+  const promptText = `Rewrite in HEBREW to enhance "${skill}": "${text.substring(0, 1000)}".`;
+  try { return (await callGeminiDirect(promptText)).trim(); } catch (error) { return text; }
 }
 
-// 5. בדיקת תשובה
-export async function gradeStudentAnswer(q: string, a: string, m: string): Promise<{ grade: number; feedback: string }> {
+export async function gradeStudentAnswer(question: string, studentAnswer: string, modelAnswer: string): Promise<{ grade: number; feedback: string }> {
+  const promptText = `Act as a teacher. Grade answer. Question: "${question}" Model Answer: "${modelAnswer}" Student Answer: "${studentAnswer}" Output JSON ONLY: { "grade": 0-100, "feedback": "Hebrew" }`;
   try {
-    let text = await callGeminiDirect(`Act as teacher. Grade answer. Q: "${q}" Model: "${m}" Student: "${a}". Output JSON: { "grade": 0-100, "feedback": "Hebrew" }`);
+    let text = await callGeminiDirect(promptText);
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
-  } catch (e) { return { grade: 0, feedback: "Error" }; }
+  } catch (error) { return { grade: 0, feedback: "שגיאה בבדיקה." }; }
 }
 
-// 6. ניתוח כיתתי
 export async function generateClassAnalysis(studentsData: any[]): Promise<any> {
+  const promptText = `Act as Analyst. Analyze: ${JSON.stringify(studentsData)} Output JSON ONLY: { "classOverview": "...", "weakSkills": [], "strongSkills": [], "studentInsights": [], "actionItems": [] }`;
   try {
-    let text = await callGeminiDirect(`Act as Analyst. Analyze class: ${JSON.stringify(studentsData)}. Output JSON: { "classOverview": "...", "weakSkills": [], "strongSkills": [], "studentInsights": [], "actionItems": [] }`);
+    let text = await callGeminiDirect(promptText);
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
-  } catch (e) { return null; }
+  } catch (error) { return null; }
 }
 
-// --- 7. החדש: דוח הערכה אישי לתלמיד (הערכה מסכמת) ---
+// הפונקציה החדשה לדוחות אישיים (שמרתי גם אותה)
 export async function generateStudentReport(studentData: any): Promise<any> {
-  const promptText = `
-      Act as a Pedagogical Expert.
-      Create a SUMMATIVE ASSESSMENT report for a specific student based on this data:
-      ${JSON.stringify(studentData)}
-
-      Analyze based on these 5 criteria:
-      1. Knowledge Mastery (דיוק וידע)
-      2. Depth & Application (עומק התשובות)
-      3. Learning Agility (Did they improve on 2nd attempt? Look at 'attempts' count)
-      4. Expression (יכולת הבעה)
-      5. Recommendations (המלצות להמשך)
-
-      OUTPUT JSON ONLY:
-      {
-        "studentName": "Student Name",
-        "summary": "פסקה מסכמת אישית...",
-        "criteria": {
-            "knowledge": "הערכה...",
-            "depth": "הערכה...",
-            "agility": "הערכה (התייחס לניסיונות חוזרים)...",
-            "expression": "הערכה...",
-            "recommendations": "הערכה..."
-        },
-        "finalGradeLabel": "מילולי (למשל: שולט בחומר / נדרש חיזוק)"
-      }
-    `;
+  const promptText = `Act as Pedagogical Expert. Create SUMMATIVE ASSESSMENT report for: ${JSON.stringify(studentData)} Criteria: Knowledge, Depth, Agility, Expression, Recommendations. OUTPUT JSON ONLY: { "studentName": "...", "summary": "...", "criteria": { "knowledge": "...", "depth": "...", "agility": "...", "expression": "...", "recommendations": "..." }, "finalGradeLabel": "..." }`;
   try {
     let text = await callGeminiDirect(promptText);
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
