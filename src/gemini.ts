@@ -7,7 +7,7 @@ if (!API_KEY) {
   throw new Error("Missing Gemini API Key! Check .env file.");
 }
 
-// שימוש במודל 2.0 (החזק והמהיר)
+// שימוש במודל 2.0
 const MODEL_NAME = "gemini-2.0-flash";
 const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
@@ -18,7 +18,6 @@ const SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
 ];
 
-// פונקציית עזר לביצוע הבקשה (Fetch ישיר)
 async function callGeminiDirect(promptText: string): Promise<string> {
   console.log(`📡 Sending request to ${MODEL_NAME}...`);
 
@@ -33,7 +32,6 @@ async function callGeminiDirect(promptText: string): Promise<string> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error("Google Error Details:", errorData);
     throw new Error(`Google Error: ${errorData.error?.message || response.statusText}`);
   }
 
@@ -41,35 +39,35 @@ async function callGeminiDirect(promptText: string): Promise<string> {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-// --- המוח הפדגוגי (התאמה לגיל) ---
+// --- פונקציית התאמה לגיל ---
 function getPedagogicalGuidelines(gradeLevel: string): string {
   if (gradeLevel.includes("יסודי") || gradeLevel.includes("ד׳") || gradeLevel.includes("ה׳") || gradeLevel.includes("ו׳")) {
     return `
         ADAPTATION STRATEGY: **Concrete & Visual**
-        - Critical Thinking: Attached to concrete, day-to-day examples.
-        - Language: Simple syntax, short sentences.
-        - Tone: Encouraging, storytelling style.
+        - Critical Thinking: Attached to concrete examples.
+        - Language: Simple syntax.
+        - Tone: Encouraging, storytelling.
         `;
   }
   else if (gradeLevel.includes("חטיבת ביניים") || gradeLevel.includes("ז׳") || gradeLevel.includes("ח׳") || gradeLevel.includes("ט׳")) {
     return `
         ADAPTATION STRATEGY: **Relatability & Identity**
-        - Critical Thinking: Cause-and-effect, ethical dilemmas.
-        - Language: Rich vocabulary but accessible.
-        - Tone: Conversational but smart (" בגובה העיניים").
+        - Critical Thinking: Cause-and-effect, dilemmas.
+        - Language: Rich but accessible.
+        - Tone: Conversational mentor.
         `;
   }
-  else { // תיכון / מבוגרים
+  else {
     return `
         ADAPTATION STRATEGY: **Abstraction & Nuance**
-        - Critical Thinking: Ambiguity, conflicting sources.
-        - Language: Academic, precise terminology.
-        - Tone: Professional, intellectual.
+        - Critical Thinking: Ambiguity, synthesis.
+        - Language: Academic.
+        - Tone: Professional.
         `;
   }
 }
 
-// --- 1. יצירת קורס מלא ---
+// --- 1. יצירת קורס מלא (הגרסה המוגנת ב-100%) ---
 export async function generateCourseWithGemini(
   topic: string,
   gradeLevel: string,
@@ -78,9 +76,7 @@ export async function generateCourseWithGemini(
 ): Promise<Course> {
 
   const hasSource = sourceMaterial.length > 0;
-  console.log(`🚀 Generating course via API for: ${topic}`);
 
-  // ניקוי טקסט מה-PDF
   const cleanSource = sourceMaterial
     .replace(/"/g, "'")
     .replace(/\n/g, " ")
@@ -144,7 +140,6 @@ export async function generateCourseWithGemini(
   try {
     let text = await callGeminiDirect(promptText);
 
-    // ניקוי JSON
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
@@ -153,27 +148,22 @@ export async function generateCourseWithGemini(
     const courseData = JSON.parse(text) as Course;
     courseData.id = Date.now().toString();
 
-    // --- התיקון החדש: הגנה מפני קריסה (Safe Navigation) ---
-    // מוודאים שכל המערכים קיימים לפני שרצים עליהם
-    if (courseData.syllabus && Array.isArray(courseData.syllabus)) {
-      courseData.syllabus.forEach(mod => {
-        if (mod.learningUnits && Array.isArray(mod.learningUnits)) {
-          mod.learningUnits.forEach(unit => {
-            if (unit.activityBlocks && Array.isArray(unit.activityBlocks)) {
-              unit.activityBlocks.forEach((block) => {
-                block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-              });
-            } else {
-              unit.activityBlocks = [];
-            }
-          });
-        } else {
-          mod.learningUnits = [];
-        }
+    // --- ההגנה המוחלטת (Bulletproof Parsing) ---
+    // אנחנו משתמשים ב- || [] (או מערך ריק) כדי להבטיח שאף לולאה לא תרוץ על undefined
+
+    courseData.syllabus = courseData.syllabus || [];
+
+    courseData.syllabus.forEach(mod => {
+      mod.learningUnits = mod.learningUnits || []; // הגנה 1
+
+      mod.learningUnits.forEach(unit => {
+        unit.activityBlocks = unit.activityBlocks || []; // הגנה 2
+
+        unit.activityBlocks.forEach((block) => {
+          block.id = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        });
       });
-    } else {
-      courseData.syllabus = [];
-    }
+    });
     // ---------------------------------------------------
 
     return courseData;
@@ -183,7 +173,7 @@ export async function generateCourseWithGemini(
   }
 }
 
-// --- שאר הפונקציות (כולן כאן!) ---
+// --- שאר הפונקציות ---
 
 export async function generateQuestionsFromText(text: string, type: 'multiple-choice' | 'open-question'): Promise<any[]> {
   let promptText = "";
@@ -230,7 +220,6 @@ export async function generateClassAnalysis(studentsData: any[]): Promise<any> {
   } catch (error) { return null; }
 }
 
-// הפונקציה החדשה לדוחות אישיים (שמרתי גם אותה)
 export async function generateStudentReport(studentData: any): Promise<any> {
   const promptText = `Act as Pedagogical Expert. Create SUMMATIVE ASSESSMENT report for: ${JSON.stringify(studentData)} Criteria: Knowledge, Depth, Agility, Expression, Recommendations. OUTPUT JSON ONLY: { "studentName": "...", "summary": "...", "criteria": { "knowledge": "...", "depth": "...", "agility": "...", "expression": "...", "recommendations": "..." }, "finalGradeLabel": "..." }`;
   try {
@@ -238,4 +227,5 @@ export async function generateStudentReport(studentData: any): Promise<any> {
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(text);
   } catch (error) { return null; }
+
 }
