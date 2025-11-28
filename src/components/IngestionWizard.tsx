@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import { generateCourseWithGemini } from '../gemini';
 import { extractTextFromPDF } from '../pdfService';
-import type { Course } from '../courseTypes';
+import { SUBJECT_OPTIONS, GRADE_OPTIONS } from '../courseConstants'; // <--- הייבוא החדש
 
 const IngestionWizard: React.FC = () => {
     const { setCourse, setFullBookContent, setPdfSource } = useCourseStore();
@@ -10,9 +10,7 @@ const IngestionWizard: React.FC = () => {
     const [topic, setTopic] = useState('');
     const [gradeLevel, setGradeLevel] = useState('כיתה ט׳ (חטיבת ביניים)');
     const [subject, setSubject] = useState('היסטוריה');
-
-    // --- התוספת החדשה: בחירת מצב מראש ---
-    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning');
+    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning'); // מצב קורס
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -24,7 +22,7 @@ const IngestionWizard: React.FC = () => {
         if (event.target.files && event.target.files[0]) {
             const file = event.target.files[0];
             setSelectedFile(file);
-            setTopic(file.name);
+            setTopic(file.name.replace('.pdf', ''));
         }
     };
 
@@ -42,6 +40,7 @@ const IngestionWizard: React.FC = () => {
                 sourceText = await extractTextFromPDF(selectedFile);
                 setFullBookContent(sourceText);
 
+                // שמירת ה-PDF לתצוגה
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     if (e.target?.result) {
@@ -53,15 +52,16 @@ const IngestionWizard: React.FC = () => {
 
             setStatus('ה-AI מנתח פדגוגית ובונה קורס...');
 
-            // יצירת הקורס
+            // שליחה ל-Gemini
             const newCourse = await generateCourseWithGemini(topic, gradeLevel, subject, sourceText);
 
-            // --- הזרקת המצב שנבחר (למידה/מבחן) לתוך הקורס החדש ---
+            // הזרקת מצב הקורס (למידה/מבחן)
             newCourse.mode = courseMode;
 
             setCourse(newCourse);
             alert("הקורס נוצר בהצלחה! 📚");
 
+            // איפוס
             setTopic('');
             setSelectedFile(null);
             setStatus('');
@@ -77,14 +77,14 @@ const IngestionWizard: React.FC = () => {
     };
 
     return (
-        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-6 mb-8 shadow-sm">
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-6 mb-8 shadow-sm animate-fade-in">
             <div className="flex items-start gap-4">
                 <div className="bg-indigo-600 text-white p-3 rounded-lg text-2xl shadow-md">
                     🎓
                 </div>
                 <div className="flex-1">
                     <h3 className="text-lg font-bold text-indigo-900 mb-1">
-                        מחולל קורסים פדגוגי (מערכת החינוך)
+                        מחולל קורסים פדגוגי
                     </h3>
                     <p className="text-sm text-indigo-600 mb-4 opacity-80">
                         בחר שכבת גיל ותחום דעת, העלה חומר לימוד, והמערכת תבנה מערך שיעור מותאם.
@@ -92,66 +92,52 @@ const IngestionWizard: React.FC = () => {
 
                     <div className="flex flex-col gap-3">
 
-                        {/* שורה ראשונה: בחירות כלליות */}
-                        <div className="flex flex-wrap gap-2">
+                        {/* שורה ראשונה: הגדרות */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
 
-                            {/* בחירת סוג הפעילות (החדש!) */}
+                            {/* בחירת מצב */}
                             <select
                                 value={courseMode}
                                 onChange={(e) => setCourseMode(e.target.value as 'learning' | 'exam')}
-                                className={`p-2 rounded border font-bold outline-none focus:ring-2 focus:ring-indigo-300 flex-1 ${courseMode === 'exam' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                                className={`p-2 rounded border font-bold outline-none focus:ring-2 focus:ring-indigo-300 ${courseMode === 'exam' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
                                     }`}
                             >
-                                <option value="learning">✅ מצב למידה (עם משוב)</option>
-                                <option value="exam">🛑 מצב מבחן (ללא משוב)</option>
+                                <option value="learning">✅ מצב למידה (משוב)</option>
+                                <option value="exam">🛑 מצב מבחן (נסתר)</option>
                             </select>
 
+                            {/* בחירת מקצוע (מתוך הקובץ החדש) */}
                             <select
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
-                                className="p-2 rounded border border-indigo-200 bg-white text-gray-700 flex-1 outline-none focus:border-indigo-500"
+                                className="p-2 rounded border border-indigo-200 bg-white text-gray-700 outline-none focus:border-indigo-500"
                             >
-                                <optgroup label="הומניסטיקה וחברה">
-                                    <option value="היסטוריה">היסטוריה</option>
-                                    <option value="אזרחות">אזרחות</option>
-                                    <option value="גיאוגרפיה">גיאוגרפיה</option>
-                                    <option value="ספרות">ספרות</option>
-                                    <option value="תנ״ך">תנ״ך</option>
-                                    <option value="תרבות ישראל">תרבות ישראל</option>
-                                </optgroup>
-                                <optgroup label="שפות">
-                                    <option value="לשון עברית">לשון עברית</option>
-                                    <option value="אנגלית (English)">אנגלית</option>
-                                    <option value="ערבית">ערבית</option>
-                                </optgroup>
-                                <optgroup label="מדעים וטכנולוגיה">
-                                    <option value="מתמטיקה">מתמטיקה</option>
-                                    <option value="פיזיקה">פיזיקה</option>
-                                    <option value="כימיה">כימיה</option>
-                                    <option value="ביולוגיה">ביולוגיה</option>
-                                    <option value="מדעים וטכנולוגיה (מו״ט)">מדעים וטכנולוגיה</option>
-                                </optgroup>
+                                {SUBJECT_OPTIONS.map((group, idx) => (
+                                    <optgroup key={idx} label={group.label}>
+                                        {group.options.map((opt) => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                    </optgroup>
+                                ))}
                             </select>
 
+                            {/* בחירת גיל (מתוך הקובץ החדש) */}
                             <select
                                 value={gradeLevel}
                                 onChange={(e) => setGradeLevel(e.target.value)}
-                                className="p-2 rounded border border-indigo-200 bg-white text-gray-700 flex-1 outline-none focus:border-indigo-500"
+                                className="p-2 rounded border border-indigo-200 bg-white text-gray-700 outline-none focus:border-indigo-500"
                             >
-                                <optgroup label="חטיבת ביניים">
-                                    <option value="כיתה ז׳ (חטיבת ביניים)">כיתה ז׳</option>
-                                    <option value="כיתה ח׳ (חטיבת ביניים)">כיתה ח׳</option>
-                                    <option value="כיתה ט׳ (חטיבת ביניים)">כיתה ט׳</option>
-                                </optgroup>
-                                <optgroup label="חטיבה עליונה">
-                                    <option value="כיתה י׳ (תיכון)">כיתה י׳</option>
-                                    <option value="כיתה י״א (תיכון)">כיתה י״א</option>
-                                    <option value="כיתה י״ב (תיכון)">כיתה י״ב</option>
-                                </optgroup>
+                                {GRADE_OPTIONS.map((group, idx) => (
+                                    <optgroup key={idx} label={group.label}>
+                                        {group.options.map((opt) => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                    </optgroup>
+                                ))}
                             </select>
                         </div>
 
-                        {/* שורה שנייה: קובץ וכפתור יצירה */}
+                        {/* שורה שנייה: קובץ וכפתור */}
                         <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-indigo-200 shadow-sm">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
