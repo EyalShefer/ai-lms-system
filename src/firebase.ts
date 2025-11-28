@@ -2,15 +2,19 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// --- הוסף את זה ---
-const debugKey = import.meta.env.VITE_FIREBASE_API_KEY;
-console.log("🔍 Firebase Debug Check:");
-console.log("1. Key Exists?", !!debugKey); // יחזיר true או false
-console.log("2. Key First 5 chars:", debugKey ? debugKey.substring(0, 5) : "MISSING");
-console.log("3. Auth Domain:", import.meta.env.VITE_FIREBASE_AUTH_DOMAIN);
-// ------------------
+// --- שלב הדיבאג: בדיקה מה השרת רואה ---
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
 
-// טעינת המשתנים מהסביבה (עובד גם במחשב וגם ב-Vercel)
+// זה יקפיץ חלון מיד כשהאתר עולה
+if (typeof window !== "undefined") {
+    alert(
+        `Baudika Debug:\n` +
+        `1. האם המפתח קיים? ${apiKey ? "כן" : "לא"}\n` +
+        `2. 5 תווים ראשונים: ${apiKey ? apiKey.substring(0, 5) : "כלום"}`
+    );
+}
+// ----------------------------------------
+
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -21,9 +25,7 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// אתחול האפליקציה
 const app = initializeApp(firebaseConfig);
 
-// ייצוא השירותים (ללא persistence שגורם לתקיעות)
 export const db = getFirestore(app);
 export const auth = getAuth(app);
