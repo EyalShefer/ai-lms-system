@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useCourseStore } from '../context/CourseContext';
+import { useAuth } from '../context/AuthContext';
 import AiTutor from './AiTutor';
 import { gradeStudentAnswer } from '../gemini';
 import { db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { useAuth } from '../context/AuthContext';
 
 const CoursePlayer: React.FC = () => {
     const { course, pdfSource } = useCourseStore();
@@ -20,27 +20,20 @@ const CoursePlayer: React.FC = () => {
     const [aiGrading, setAiGrading] = useState<Record<string, { grade: number, feedback: string }>>({});
     const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
 
-    // --- התיקון: טעינה בטוחה שלא מפילה את האתר ---
     useEffect(() => {
         const loadProgress = async () => {
-            // אם אין משתמש או קורס, או שאנחנו במצב פיתוח ללא רשת - לא עושים כלום
             if (!currentUser || !course.id) return;
-
             try {
                 const progressId = `${course.id}_${currentUser.uid}`;
                 const docRef = doc(db, "student_progress", progressId);
-
-                // מנסים לקרוא. אם נכשל (בגלל רשת/חסימה) - עוברים ל-catch
                 const docSnap = await getDoc(docRef);
-
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.answers) setStudentAnswers(data.answers);
                     if (data.grading) setAiGrading(data.grading);
                 }
             } catch (error) {
-                console.warn("⚠️ לא ניתן לטעון היסטוריית תלמיד (ייתכן חוסם פרסומות או בעיית רשת):", error);
-                // אנחנו לא זורקים שגיאה למשתמש, אלא נותנים לו להמשיך "נקי"
+                console.warn("Offline mode / error loading progress");
             }
         };
         loadProgress();
@@ -59,7 +52,7 @@ const CoursePlayer: React.FC = () => {
                 lastActive: new Date().toISOString()
             }, { merge: true });
         } catch (e) {
-            console.error("Failed to save progress (offline?)", e);
+            console.error("Save error", e);
         }
     };
 
@@ -84,7 +77,7 @@ const CoursePlayer: React.FC = () => {
     }, [pdfSource]);
 
     if (!course || !course.syllabus || course.syllabus.length === 0) {
-        return <div className="text-center p-10 text-gray-500">הקורס ריק עדיין... עבור לעורך וצור תוכן.</div>;
+        return <div className="text-center p-10 text-gray-500">הקורס ריק...</div>;
     }
 
     const currentModule = course.syllabus[currentModuleIndex];
@@ -191,7 +184,6 @@ const CoursePlayer: React.FC = () => {
                         {currentUnit.activityBlocks?.map((block) => (
                             <div key={block.id} className="animate-fade-in">
                                 {block.type === 'text' && <div className="prose max-w-none text-gray-700 bg-gray-50 p-6 rounded-lg border-r-4 border-indigo-200 whitespace-pre-line shadow-sm">{block.content}</div>}
-
                                 {block.type === 'image' && (
                                     <figure className="my-6">
                                         {block.content ? (
@@ -200,13 +192,11 @@ const CoursePlayer: React.FC = () => {
                                         {block.metadata?.aiPrompt && <figcaption className="text-xs text-gray-400 mt-2 text-center italic">AI Generated: {block.metadata.aiPrompt.substring(0, 50)}...</figcaption>}
                                     </figure>
                                 )}
-
                                 {block.type === 'video' && getYoutubeId(block.content) && (
                                     <div className="aspect-video w-full rounded-xl overflow-hidden shadow-lg my-6 bg-black">
                                         <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYoutubeId(block.content)}`} title="Video" frameBorder="0" allowFullScreen></iframe>
                                     </div>
                                 )}
-
                                 {block.type === 'gem-link' && (
                                     <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-8 rounded-xl text-white shadow-xl transform hover:scale-[1.01] transition-transform my-6">
                                         <div className="flex items-start gap-5">
@@ -219,7 +209,6 @@ const CoursePlayer: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-
                                 {block.type === 'multiple-choice' && (
                                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                                         <h4 className="font-bold text-lg text-gray-800 mb-4 flex gap-3 items-start">
@@ -248,11 +237,8 @@ const CoursePlayer: React.FC = () => {
                                                 );
                                             })}
                                         </div>
-                                        {feedback[block.id] === 'correct' && <div className="mt-4 mr-11 p-3 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-100">כל הכבוד! תשובה נכונה. 🎉</div>}
-                                        {feedback[block.id] === 'incorrect' && <div className="mt-4 mr-11 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">לא נורא, נסה שוב.</div>}
                                     </div>
                                 )}
-
                                 {block.type === 'open-question' && (
                                     <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-8 rounded-xl border border-orange-100 shadow-sm">
                                         <h4 className="font-bold text-xl text-gray-800 mb-2 flex items-center gap-2"><span>✍️</span> שאלה למחשבה</h4>
@@ -274,13 +260,15 @@ const CoursePlayer: React.FC = () => {
                                                 </button>
                                             </div>
                                         )}
+
+                                        {/* --- התיקון: הסרת הציון, השארת המשוב בלבד --- */}
                                         {aiGrading[block.id] && (
-                                            <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-orange-400 shadow-md animate-fade-in">
+                                            <div className="mt-6 bg-white p-6 rounded-xl border-r-4 border-blue-400 shadow-md animate-fade-in">
                                                 <div className="flex items-center gap-3 mb-3">
-                                                    <div className={`text-2xl font-black ${aiGrading[block.id].grade >= 80 ? 'text-green-600' : 'text-orange-600'}`}>ציון: {aiGrading[block.id].grade}</div>
-                                                    <div className="text-sm text-gray-400 uppercase tracking-wider">משוב אוטומטי (AI)</div>
+                                                    <span className="text-2xl">🤖</span>
+                                                    <div className="font-bold text-gray-800">הערכת AI:</div>
                                                 </div>
-                                                <p className="text-gray-700 leading-relaxed">{aiGrading[block.id].feedback}</p>
+                                                <p className="text-gray-700 leading-relaxed text-lg">{aiGrading[block.id].feedback}</p>
                                             </div>
                                         )}
                                     </div>
