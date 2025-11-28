@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import { generateCourseWithGemini } from '../gemini';
 import { extractTextFromPDF } from '../pdfService';
+import type { Course } from '../courseTypes';
 
 const IngestionWizard: React.FC = () => {
     const { setCourse, setFullBookContent, setPdfSource } = useCourseStore();
@@ -9,6 +10,10 @@ const IngestionWizard: React.FC = () => {
     const [topic, setTopic] = useState('');
     const [gradeLevel, setGradeLevel] = useState('כיתה ט׳ (חטיבת ביניים)');
     const [subject, setSubject] = useState('היסטוריה');
+
+    // --- התוספת החדשה: בחירת מצב מראש ---
+    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning');
+
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [status, setStatus] = useState('');
@@ -47,7 +52,12 @@ const IngestionWizard: React.FC = () => {
             }
 
             setStatus('ה-AI מנתח פדגוגית ובונה קורס...');
+
+            // יצירת הקורס
             const newCourse = await generateCourseWithGemini(topic, gradeLevel, subject, sourceText);
+
+            // --- הזרקת המצב שנבחר (למידה/מבחן) לתוך הקורס החדש ---
+            newCourse.mode = courseMode;
 
             setCourse(newCourse);
             alert("הקורס נוצר בהצלחה! 📚");
@@ -81,9 +91,21 @@ const IngestionWizard: React.FC = () => {
                     </p>
 
                     <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
 
-                            {/* תפריט תחומי דעת מורחב */}
+                        {/* שורה ראשונה: בחירות כלליות */}
+                        <div className="flex flex-wrap gap-2">
+
+                            {/* בחירת סוג הפעילות (החדש!) */}
+                            <select
+                                value={courseMode}
+                                onChange={(e) => setCourseMode(e.target.value as 'learning' | 'exam')}
+                                className={`p-2 rounded border font-bold outline-none focus:ring-2 focus:ring-indigo-300 flex-1 ${courseMode === 'exam' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                                    }`}
+                            >
+                                <option value="learning">✅ מצב למידה (עם משוב)</option>
+                                <option value="exam">🛑 מצב מבחן (ללא משוב)</option>
+                            </select>
+
                             <select
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
@@ -98,8 +120,8 @@ const IngestionWizard: React.FC = () => {
                                     <option value="תרבות ישראל">תרבות ישראל</option>
                                 </optgroup>
                                 <optgroup label="שפות">
-                                    <option value="לשון עברית">לשון עברית (הבעה והבנה)</option>
-                                    <option value="אנגלית (English)">אנגלית (English)</option>
+                                    <option value="לשון עברית">לשון עברית</option>
+                                    <option value="אנגלית (English)">אנגלית</option>
                                     <option value="ערבית">ערבית</option>
                                 </optgroup>
                                 <optgroup label="מדעים וטכנולוגיה">
@@ -107,48 +129,65 @@ const IngestionWizard: React.FC = () => {
                                     <option value="פיזיקה">פיזיקה</option>
                                     <option value="כימיה">כימיה</option>
                                     <option value="ביולוגיה">ביולוגיה</option>
-                                    <option value="מדעים וטכנולוגיה (מו״ט)">מדעים וטכנולוגיה (מו״ט)</option>
-                                    <option value="מדעי המחשב">מדעי המחשב</option>
-                                </optgroup>
-                                <optgroup label="אחר">
-                                    <option value="חינוך פיננסי">חינוך פיננסי</option>
-                                    <option value="כישורי חיים">כישורי חיים</option>
-                                    <option value="כללי">נושא העשרה כללי</option>
+                                    <option value="מדעים וטכנולוגיה (מו״ט)">מדעים וטכנולוגיה</option>
                                 </optgroup>
                             </select>
 
-                            {/* תפריט שכבות גיל מלא */}
                             <select
                                 value={gradeLevel}
                                 onChange={(e) => setGradeLevel(e.target.value)}
                                 className="p-2 rounded border border-indigo-200 bg-white text-gray-700 flex-1 outline-none focus:border-indigo-500"
                             >
-                                <optgroup label="בית ספר יסודי">
-                                    <option value="כיתה ד׳ (יסודי)">כיתה ד׳</option>
-                                    <option value="כיתה ה׳ (יסודי)">כיתה ה׳</option>
-                                    <option value="כיתה ו׳ (יסודי)">כיתה ו׳</option>
-                                </optgroup>
                                 <optgroup label="חטיבת ביניים">
                                     <option value="כיתה ז׳ (חטיבת ביניים)">כיתה ז׳</option>
                                     <option value="כיתה ח׳ (חטיבת ביניים)">כיתה ח׳</option>
                                     <option value="כיתה ט׳ (חטיבת ביניים)">כיתה ט׳</option>
                                 </optgroup>
-                                <optgroup label="חטיבה עליונה (תיכון)">
+                                <optgroup label="חטיבה עליונה">
                                     <option value="כיתה י׳ (תיכון)">כיתה י׳</option>
-                                    <option value="כיתה י״א (תיכון/בגרות)">כיתה י״א</option>
-                                    <option value="כיתה י״ב (תיכון/בגרות)">כיתה י״ב</option>
-                                </optgroup>
-                                <optgroup label="השכלה גבוהה">
-                                    <option value="סטודנטים / מבוגרים">מבוגרים / אקדמיה</option>
+                                    <option value="כיתה י״א (תיכון)">כיתה י״א</option>
+                                    <option value="כיתה י״ב (תיכון)">כיתה י״ב</option>
                                 </optgroup>
                             </select>
                         </div>
 
+                        {/* שורה שנייה: קובץ וכפתור יצירה */}
                         <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-indigo-200 shadow-sm">
-                            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">📎</button>
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
-                            <input type="text" placeholder={selectedFile ? `נבחר: ${selectedFile.name}` : "הקלד נושא..."} value={topic} onChange={(e) => setTopic(e.target.value)} disabled={isGenerating} className="flex-1 p-2 outline-none text-gray-700" />
-                            <button onClick={handleGenerate} disabled={(!topic && !selectedFile) || isGenerating} className={`px-6 py-2 rounded-md font-bold text-white transition-all ${isGenerating ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700 shadow'}`}>{isGenerating ? status : 'צור קורס ✨'}</button>
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                title="העלה קובץ PDF"
+                            >
+                                📎
+                            </button>
+
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                accept=".pdf"
+                                className="hidden"
+                            />
+
+                            <input
+                                type="text"
+                                placeholder={selectedFile ? `נבחר: ${selectedFile.name}` : "הקלד נושא באופן חופשי..."}
+                                value={topic}
+                                onChange={(e) => setTopic(e.target.value)}
+                                disabled={isGenerating}
+                                className="flex-1 p-2 outline-none text-gray-700"
+                            />
+
+                            <button
+                                onClick={handleGenerate}
+                                disabled={(!topic && !selectedFile) || isGenerating}
+                                className={`px-6 py-2 rounded-md font-bold text-white transition-all ${isGenerating
+                                        ? 'bg-gray-400 cursor-not-allowed'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 shadow hover:shadow-lg'
+                                    }`}
+                            >
+                                {isGenerating ? status : 'צור קורס ✨'}
+                            </button>
                         </div>
                     </div>
                 </div>

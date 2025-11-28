@@ -5,7 +5,7 @@ import IngestionWizard from './IngestionWizard';
 import type { LearningUnit, Module } from '../courseTypes';
 
 const CourseEditor: React.FC = () => {
-    const { course, updateLearningUnit } = useCourseStore();
+    const { course, updateLearningUnit, setCourse } = useCourseStore();
     const [editingUnit, setEditingUnit] = useState<LearningUnit | null>(null);
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
@@ -25,14 +25,16 @@ const CourseEditor: React.FC = () => {
         );
     }
 
-    // פונקציית שיתוף הקישור
     const handleShare = () => {
-        // בונים את הקישור: הכתובת הנוכחית + ה-ID של הקורס
         const shareUrl = `${window.location.origin}/?studentCourseId=${course.id}`;
-
         navigator.clipboard.writeText(shareUrl).then(() => {
             alert(`הקישור הועתק בהצלחה!\n\n${shareUrl}\n\nשלח אותו לתלמידים.`);
         });
+    };
+
+    const toggleMode = () => {
+        const newMode = course.mode === 'exam' ? 'learning' : 'exam';
+        setCourse({ ...course, mode: newMode });
     };
 
     const handleEditUnit = (unit: LearningUnit, moduleId: string) => {
@@ -55,20 +57,41 @@ const CourseEditor: React.FC = () => {
             ) : (
                 <div className="space-y-8 animate-fade-in">
 
-                    {/* כותרת וכפתורי פעולה */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
-                        <div>
-                            <h2 className="text-3xl font-extrabold text-gray-900">{course.title}</h2>
-                            <div className="flex gap-3 mt-2 text-sm text-gray-500">
-                                <span className="bg-gray-100 px-3 py-1 rounded-full">🎯 {course.targetAudience || 'קהל כללי'}</span>
-                                <span className="bg-gray-100 px-3 py-1 rounded-full">📚 {course.syllabus.length} פרקים</span>
+                    {/* --- הכותרת הראשית עם הכפתורים --- */}
+                    <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+
+                        <div className="flex-1">
+                            <h2 className="text-3xl font-extrabold text-gray-900 leading-tight">{course.title}</h2>
+                            <div className="flex flex-wrap items-center gap-3 mt-3">
+
+                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium border border-gray-200">
+                                    🎯 {course.targetAudience || 'קהל כללי'}
+                                </span>
+
+                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium border border-gray-200">
+                                    📚 {course.syllabus.length} פרקים
+                                </span>
+
+                                {/* 👇 הכפתור הזה היה חסר לך! הוספתי אותו כאן בולט 👇 */}
+                                <button
+                                    onClick={toggleMode}
+                                    className={`px-4 py-1 rounded-full border text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm hover:shadow ${course.mode === 'exam'
+                                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                        }`}
+                                >
+                                    {course.mode === 'exam' ? '🛑 מצב מבחן (ללא משוב)' : '✅ מצב למידה (משוב מלא)'}
+                                </button>
+                                {/* 👆👆👆 */}
+
                             </div>
                         </div>
+
                         <button
                             onClick={handleShare}
-                            className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow hover:bg-green-700 flex items-center gap-2 transition-all transform hover:-translate-y-1"
+                            className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow hover:bg-green-700 flex items-center gap-2 transition-all transform hover:-translate-y-1 shrink-0"
                         >
-                            <span>🔗</span> שתף קישור עם תלמידים
+                            <span>🔗</span> שתף קישור לתלמיד
                         </button>
                     </div>
 
@@ -76,19 +99,28 @@ const CourseEditor: React.FC = () => {
                     {course.syllabus.map((mod: Module, mIdx: number) => (
                         <div key={mod.id || mIdx} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800"><span className="text-indigo-500 opacity-50 ml-2">#{mIdx + 1}</span>{mod.title}</h3>
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    <span className="text-indigo-500 opacity-50 ml-2">#{mIdx + 1}</span>
+                                    {mod.title}
+                                </h3>
                             </div>
+
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {mod.learningUnits?.map((unit) => (
                                     <div key={unit.id} className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-indigo-300 transition-all duration-200 flex flex-col h-full">
                                         <div className="mb-3">
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${unit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' : unit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'}`}>
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${unit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' :
+                                                    unit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-purple-100 text-purple-700'
+                                                }`}>
                                                 {unit.type === 'acquisition' ? '📖 הקניה' : unit.type === 'practice' ? '✍️ תרגול' : '🧠 מבחן'}
                                             </span>
                                         </div>
                                         <h4 className="font-bold text-gray-900 mb-2 leading-tight">{unit.title}</h4>
                                         <p className="text-xs text-gray-500 line-clamp-3 mb-4 flex-1">{unit.baseContent}</p>
-                                        <button onClick={() => handleEditUnit(unit, mod.id)} className="w-full py-2 rounded-lg bg-gray-50 text-indigo-600 text-sm font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-auto">ערוך יחידה ✏️</button>
+                                        <button onClick={() => handleEditUnit(unit, mod.id)} className="w-full py-2 rounded-lg bg-gray-50 text-indigo-600 text-sm font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-auto">
+                                            ערוך יחידה ✏️
+                                        </button>
                                     </div>
                                 ))}
                             </div>
