@@ -3,6 +3,7 @@ import { useCourseStore } from '../context/CourseContext';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import type { ActivityBlock } from '../courseTypes';
 
 interface StudentStat {
     id: string;
@@ -10,7 +11,8 @@ interface StudentStat {
     score: number;
     progress: number;
     lastActive: string;
-    weakness?: string;
+    rawAnswers: Record<string, string>; // הוספנו את זה בשביל ה-Drill Down
+    grading: Record<string, any>; // שמירת הציונים הגולמיים
 }
 
 const TeacherDashboard: React.FC = () => {
@@ -32,8 +34,11 @@ const TeacherDashboard: React.FC = () => {
     const [analyzingStudentId, setAnalyzingStudentId] = useState<string | null>(null);
     const [selectedStudentReport, setSelectedStudentReport] = useState<any>(null);
 
+    // --- חדש: ניהול Drill Down ---
+    const [selectedStudentDrilldown, setSelectedStudentDrilldown] = useState<StudentStat | null>(null);
+
     useEffect(() => {
-        if (!course.id) return;
+        if (!course?.id) return;
 
         // האזנה לנתוני התלמידים בזמן אמת
         const q = query(collection(db, "student_progress"), where("courseId", "==", course.id));
@@ -59,7 +64,9 @@ const TeacherDashboard: React.FC = () => {
                     name: data.studentEmail?.split('@')[0] || "אנונימי",
                     score: finalScore,
                     progress: data.answers ? Object.keys(data.answers).length : 0,
-                    lastActive: data.lastActive ? new Date(data.lastActive).toLocaleDateString('he-IL') : '-'
+                    lastActive: data.lastActive ? new Date(data.lastActive).toLocaleDateString('he-IL') : '-',
+                    rawAnswers: data.answers || {}, // שמירת התשובות
+                    grading: data.grading || {}
                 };
             });
 
@@ -75,7 +82,7 @@ const TeacherDashboard: React.FC = () => {
         });
 
         return () => unsubscribe();
-    }, [course.id]);
+    }, [course?.id]);
 
     const calculateStats = (data: StudentStat[]) => {
         if (data.length === 0) return;
@@ -96,7 +103,8 @@ const TeacherDashboard: React.FC = () => {
         setDistribution(dist);
     };
 
-    const handleGenerateStudentReport = async (student: any) => {
+    const handleGenerateStudentReport = async (student: any, e: React.MouseEvent) => {
+        e.stopPropagation(); // מניעת פתיחת ה-Drill Down כשלוחצים על הכפתור הזה
         setAnalyzingStudentId(student.id);
         try {
             const report = await generateStudentReport(student);
@@ -121,7 +129,43 @@ const TeacherDashboard: React.FC = () => {
         link.click();
     };
 
+    // --- פונקציית עזר ל-Drill Down: מציאת פרטי השאלה מתוך המערך ---
+    const getDetailedAnswers = (student: StudentStat) => {
+        const details: any[] = [];
+
+        if (!course || !course.syllabus) return [];
+
+        course.syllabus.forEach(mod => {
+            mod.learningUnits.forEach(unit => {
+                unit.activityBlocks.forEach((block: ActivityBlock) => {
+                    // בדיקה אם יש לתלמיד תשובה לשאלה הזו
+                    if (student.rawAnswers[block.id]) {
+                        const studentAns = student.rawAnswers[block.id];
+                        const isMultiChoice = block.type === 'multiple-choice';
+                        const isCorrect = isMultiChoice ? studentAns === block.content.correctAnswer : true; // בשאלה פתוחה נניח שזה "הוגש"
+
+                        // ניסיון לשלוף ציון ספציפי אם קיים
+                        const gradeInfo = student.grading[block.id];
+
+                        details.push({
+                            question: block.content.question || block.content.title || "שאלה ללא כותרת",
+                            studentAnswer: studentAns,
+                            correctAnswer: isMultiChoice ? block.content.correctAnswer : "(שאלה פתוחה)",
+                            type: block.type,
+                            isCorrect: isCorrect,
+                            score: gradeInfo ? gradeInfo.grade : null,
+                            feedback: gradeInfo ? gradeInfo.feedback : null
+                        });
+                    }
+                });
+            });
+        });
+        return details;
+    };
+
+
     if (loading) return <div className="p-10 text-center text-gray-500">טוען נתוני כיתה בזמן אמת...</div>;
+    if (!course) return <div className="p-10 text-center">אנא בחר מערך שיעור</div>;
 
     return (
         <div className="min-h-screen bg-gray-50 p-8 font-sans pb-20">
@@ -131,6 +175,7 @@ const TeacherDashboard: React.FC = () => {
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">דשבורד פדגוגי 📊</h1>
+                        {/* תיקון מינוח: מערך שיעור */}
                         <p className="text-gray-500 mt-1">מערך שיעור: <span className="font-bold text-indigo-600">{course.title}</span></p>
                     </div>
                     <button onClick={exportToCSV} className="text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2 border border-indigo-200">
@@ -230,14 +275,18 @@ const TeacherDashboard: React.FC = () => {
                             <table className="w-full text-right text-sm">
                                 <thead className="bg-white text-gray-400 sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <th className="px-4 py-3 font-normal">שם</th>
+                                        <th className="px-4 py-3 font-normal">שם (לחץ לפירוט)</th>
                                         <th className="px-4 py-3 font-normal">ציון</th>
                                         <th className="px-4 py-3 font-normal">דוח</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {students.map(student => (
-                                        <tr key={student.id} className="hover:bg-indigo-50/30 transition-colors">
+                                        <tr
+                                            key={student.id}
+                                            onClick={() => setSelectedStudentDrilldown(student)} // הוספת לחיצה ל-Drill Down
+                                            className="hover:bg-indigo-50/50 transition-colors cursor-pointer"
+                                        >
                                             <td className="px-4 py-3 font-bold text-gray-800">
                                                 {student.name}
                                                 <div className="text-[10px] text-gray-400 font-normal">{student.lastActive}</div>
@@ -247,7 +296,7 @@ const TeacherDashboard: React.FC = () => {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <button
-                                                    onClick={() => handleGenerateStudentReport(student)}
+                                                    onClick={(e) => handleGenerateStudentReport(student, e)}
                                                     disabled={analyzingStudentId === student.id}
                                                     className="text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-xs font-bold hover:bg-indigo-100"
                                                 >
@@ -263,7 +312,7 @@ const TeacherDashboard: React.FC = () => {
 
                 </div>
 
-                {/* Modal לדוח אישי */}
+                {/* --- Modal 1: דוח אישי AI --- */}
                 {selectedStudentReport && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
@@ -294,6 +343,73 @@ const TeacherDashboard: React.FC = () => {
                             </div>
                             <div className="p-4 border-t bg-gray-50 text-center rounded-b-2xl">
                                 <button onClick={() => window.print()} className="text-indigo-600 hover:underline text-sm font-bold">הדפס דוח 🖨️</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- Modal 2: Drill Down (פירוט תשובות) --- */}
+                {selectedStudentDrilldown && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                            {/* כותרת */}
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900">{selectedStudentDrilldown.name}</h3>
+                                    <div className="flex gap-3 text-sm mt-1">
+                                        <span className={`font-bold ${selectedStudentDrilldown.score >= 60 ? 'text-green-600' : 'text-red-600'}`}>
+                                            ציון: {selectedStudentDrilldown.score}
+                                        </span>
+                                        <span className="text-gray-400">|</span>
+                                        <span className="text-gray-500">התקדמות: {selectedStudentDrilldown.progress} משימות</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedStudentDrilldown(null)}
+                                    className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* תוכן - רשימת שאלות */}
+                            <div className="p-6 overflow-y-auto bg-gray-50/30 flex-1">
+                                <h4 className="font-bold text-gray-700 mb-4 border-r-4 border-indigo-500 mr-[-24px] pr-6">פירוט ביצועים</h4>
+                                <div className="space-y-4">
+                                    {getDetailedAnswers(selectedStudentDrilldown).length > 0 ? (
+                                        getDetailedAnswers(selectedStudentDrilldown).map((ans, idx) => (
+                                            <div key={idx} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                                <div className="flex justify-between items-start mb-2 gap-4">
+                                                    <span className="font-bold text-gray-800 text-sm">{ans.question}</span>
+                                                    {ans.isCorrect ? (
+                                                        <span className="shrink-0 text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">V נכון</span>
+                                                    ) : (
+                                                        <span className="shrink-0 text-[10px] bg-red-100 text-red-700 px-2 py-1 rounded font-bold">X שגוי</span>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-3 bg-gray-50 p-3 rounded-lg text-sm space-y-2">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">תשובת התלמיד:</span>
+                                                        <span className={`font-medium ${ans.isCorrect ? 'text-green-700' : 'text-red-600 line-through'}`}>
+                                                            {ans.studentAnswer}
+                                                        </span>
+                                                    </div>
+                                                    {!ans.isCorrect && ans.type === 'multiple-choice' && (
+                                                        <div className="flex justify-between border-t border-gray-200 pt-2">
+                                                            <span className="text-gray-500">תשובה נכונה:</span>
+                                                            <span className="font-bold text-green-700">{ans.correctAnswer}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-10 text-gray-400">
+                                            לא נמצאו תשובות מפורטות לתלמיד זה.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
