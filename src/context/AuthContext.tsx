@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase';
+import { auth } from '../firebase'; // וודא שהנתיב הזה תקין ביחס למיקום הקובץ
 import { onAuthStateChanged } from 'firebase/auth';
-import type { User } from 'firebase/auth'; // <-- התיקון: הוספנו type
+import type { User } from 'firebase/auth';
 
 interface AuthContextType {
     currentUser: User | null;
@@ -15,7 +15,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // האזנה לשינויים במצב ההתחברות
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
             setLoading(false);

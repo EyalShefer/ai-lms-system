@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { Course, LearningUnit } from '../courseTypes';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { Course, Module, LearningUnit, ActivityBlock } from '../courseTypes';
 import { db } from '../firebase';
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { v4 as uuidv4 } from 'uuid'; // חובה!
 
 const initialEmptyCourse: Course = {
     id: 'loading',
@@ -26,6 +27,41 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
+// --- פונקציית הניקוי (החלק הקריטי) ---
+// היא מבטיחה שאין שום null/undefined ושלכולם יש ID ייחודי
+const sanitizeCourseData = (data: any, docId: string): Course => {
+    const course = data.course ? data.course : data; // תמיכה במבנה ישן/חדש
+
+    // 1. וידוא סילבוס
+    const syllabus = Array.isArray(course.syllabus) ? course.syllabus : [];
+
+    // 2. מעבר עמוק ותיקון מזהים
+    const cleanSyllabus = syllabus.map((mod: any) => {
+        const modId = mod.id || uuidv4();
+
+        const learningUnits = Array.isArray(mod.learningUnits) ? mod.learningUnits : [];
+        const cleanUnits = learningUnits.map((unit: any) => {
+            const unitId = unit.id || uuidv4();
+
+            const activityBlocks = Array.isArray(unit.activityBlocks) ? unit.activityBlocks : [];
+            const cleanBlocks = activityBlocks.map((block: any) => ({
+                ...block,
+                id: block.id || uuidv4()
+            }));
+
+            return { ...unit, id: unitId, activityBlocks: cleanBlocks };
+        });
+
+        return { ...mod, id: modId, learningUnits: cleanUnits };
+    });
+
+    return {
+        ...course,
+        id: docId,
+        syllabus: cleanSyllabus
+    } as Course;
+};
+
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [course, setCourseState] = useState<Course>(initialEmptyCourse);
     const [fullBookContent, setFullBookContentState] = useState<string>("");
@@ -43,10 +79,11 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const unsubscribe = onSnapshot(courseRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const courseData = data.course ? data.course : data;
-                if (!courseData.syllabus) courseData.syllabus = [];
 
-                setCourseState({ ...courseData, id: docSnap.id } as Course);
+                // כאן הקסם קורה: מנקים את המידע לפני שהוא נכנס ל-State
+                const cleanCourse = sanitizeCourseData(data, docSnap.id);
+
+                setCourseState(cleanCourse);
                 setFullBookContentState(data.fullBookContent || "");
                 setPdfSourceState(data.pdfSource || null);
             }
@@ -59,12 +96,10 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!currentCourseId) return;
         try {
             const { id, ...courseFields } = newCourse;
-
-            // כאן הוסר הבלם של ה-1MB, כי ה-PDF נשמר ב-Storage והמשתנה מכיל רק URL קצר
             await setDoc(doc(db, "courses", currentCourseId), {
                 ...courseFields,
                 fullBookContent: newBookContent,
-                pdfSource: newPdf, // עכשיו זה URL ולא הקובץ עצמו
+                pdfSource: newPdf,
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) {
@@ -110,16 +145,7 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return (
         <CourseContext.Provider value={{
-            course,
-            fullBookContent,
-            pdfSource,
-            currentCourseId,
-            loadCourse,
-            setCourse,
-            setFullBookContent,
-            setPdfSource,
-            updateCourseTitle,
-            updateLearningUnit
+            course, fullBookContent, pdfSource, currentCourseId, loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit
         }}>
             {children}
         </CourseContext.Provider>

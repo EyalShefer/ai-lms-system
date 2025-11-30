@@ -13,13 +13,11 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// בדיקה למנוע קריסה אם המפתח חסר
-if (!firebaseConfig.apiKey) {
-    console.error("Critical Error: Firebase API Key is missing!");
-}
-
 const app = initializeApp(firebaseConfig);
 
+// ייצוא מפורש של השירותים - קריטי לקבצים האחרים
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+export default app;

@@ -1,18 +1,34 @@
 export type LearningUnitType = 'acquisition' | 'practice' | 'test';
 
-export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'gem-link';
+// הוספנו את 'interactive-chat'
+export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'interactive-chat' | 'gem-link';
+
+export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
 
 export interface ActivityBlockMetadata {
-    difficultyLevel?: number;
+    difficultyLevel?: number; // 1-5
+    bloomLevel?: BloomLevel;
+    score?: number; // 0-100
+
+    // שדות לשאלות
     modelAnswer?: string;
+
+    // שדות לתמונות/וידאו
     aiPrompt?: string;
+    uploadedFileUrl?: string; // ה-URL של הקובץ ב-Firebase Storage
+    fileName?: string; // שם הקובץ המקורי לתצוגה
+
+    // שדות לצ'אט אינטראקטיבי
+    systemPrompt?: string; // "האישיות" של הבוט
+    initialMessage?: string; // הודעת הפתיחה של הבוט
+
     [key: string]: any;
 }
 
 export interface ActivityBlock {
     id: string;
     type: ActivityBlockType;
-    content: any;
+    content: any; // תוכן הבלוק (טקסט, URL, אובייקט שאלה וכו')
     metadata?: ActivityBlockMetadata;
 }
 
@@ -35,8 +51,12 @@ export interface Course {
     teacherId: string;
     title: string;
     targetAudience: string;
-    // שדה חדש: האם הקורס במצב למידה או בחינה
     mode?: 'learning' | 'exam';
     syllabus: Module[];
     createdAt?: any;
+    updatedAt?: any;
+    settings?: {
+        totalScore: number;
+        passScore: number;
+    };
 }
