@@ -15,7 +15,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ייצוא מפורש של השירותים - קריטי לקבצים האחרים
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);

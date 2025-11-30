@@ -3,16 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-// תיקון קריטי למסך הלבן: במקום להקריס את האפליקציה, רק נרשום שגיאה בקונסול
 if (!API_KEY) {
-  console.error("⚠️ CRITICAL ERROR: Missing VITE_GEMINI_API_KEY in .env file.");
-  console.error("The app will load, but AI features will fail until fixed.");
-  // throw new Error("Missing Gemini API Key! Check .env file."); // בוטל כדי למנוע קריסה
+  throw new Error("Missing Gemini API Key! Check .env file.");
 }
 
 const MODEL_NAME = "gemini-2.0-flash";
-// הוספנו תנאי כדי שה-URL לא יהיה שבור אם אין מפתח (למרות שהקריאה תיכשל)
-const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY || 'MISSING_KEY'}`;
+const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
 const SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -25,19 +21,15 @@ export interface GenerationConfig {
   modulesCount: number;
   unitsPerModule: number;
   questionDistribution: {
-    knowledge: number; // %
-    application: number; // %
-    reasoning: number; // %
+    knowledge: number;
+    application: number;
+    reasoning: number;
   };
   includeSampleQuestion?: string;
   totalScore: number;
 }
 
 async function callGeminiDirect(promptText: string): Promise<string> {
-  if (!API_KEY) {
-    throw new Error("Cannot call AI: API Key is missing.");
-  }
-
   const response = await fetch(BASE_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -47,7 +39,7 @@ async function callGeminiDirect(promptText: string): Promise<string> {
       generationConfig: {
         temperature: 0.4,
         maxOutputTokens: 8192,
-        responseMimeType: "application/json" // הקסם שמונע שגיאות JSON
+        responseMimeType: "application/json"
       }
     })
   });
@@ -129,8 +121,6 @@ export async function generateCourseWithGemini(
 
   try {
     let text = await callGeminiDirect(promptText);
-
-    // ניקויים ליתר ביטחון
     text = text.trim();
     if (text.startsWith('```json')) text = text.replace(/```json/g, "").replace(/```/g, "");
     if (text.startsWith('```')) text = text.replace(/```/g, "");
@@ -182,15 +172,12 @@ export async function generateCourseWithGemini(
   }
 }
 
-// --- פונקציה חדשה לאדפטיביות (יצירת יחידת חיזוק) ---
 export async function generateAdaptiveUnit(originalUnit: LearningUnit, weakTopics: string): Promise<LearningUnit> {
   const promptText = `
     Role: Adaptive Learning Specialist.
     Task: Create a REMEDIAL (reinforcement) learning unit based on the student's failure.
-    
     Original Unit Content: "${originalUnit.baseContent.substring(0, 1000)}..."
     Student Weakness: The student failed to understand: ${weakTopics}.
-
     Goal: Explain the concept again but SIMPLER, using analogies and step-by-step logic. Then ask 2 easy validation questions.
 
     --- JSON OUTPUT FORMAT ---
@@ -209,25 +196,16 @@ export async function generateAdaptiveUnit(originalUnit: LearningUnit, weakTopic
 
   try {
     let text = await callGeminiDirect(promptText);
-    // ניקויים ליתר ביטחון
-    text = text.trim();
-    if (text.startsWith('```json')) text = text.replace(/```json/g, "").replace(/```/g, "");
-    if (text.startsWith('```')) text = text.replace(/```/g, "");
-
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const unitData = JSON.parse(text) as LearningUnit;
-
-    // יצירת מזהים ייחודיים חדשים
     unitData.id = uuidv4();
     unitData.activityBlocks = unitData.activityBlocks.map(b => ({ ...b, id: uuidv4() }));
-
     return unitData;
   } catch (e) {
     console.error("Adaptive gen failed", e);
     throw e;
   }
 }
-
-// --- שאר הפונקציות ---
 
 export async function generateQuestionsFromText(text: string, type: 'multiple-choice' | 'open-question'): Promise<any[]> {
   const promptText = type === 'multiple-choice'
@@ -250,7 +228,6 @@ export async function generateQuestionsFromText(text: string, type: 'multiple-ch
 
 export async function generateImagePromptBlock(lessonContent: string): Promise<string> {
   try {
-    // לתמונות אנחנו רוצים טקסט חופשי, לא JSON
     const response = await fetch(BASE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -266,7 +243,6 @@ export async function generateImagePromptBlock(lessonContent: string): Promise<s
 
 export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
   try {
-    // גם כאן טקסט חופשי
     const response = await fetch(BASE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

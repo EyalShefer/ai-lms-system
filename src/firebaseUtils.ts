@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { Course } from "./courseTypes";
 
-// פונקציית עזר לניקוי נתונים לפני שמירה (מונעת קריסות של undefined)
+// פונקציית עזר לניקוי נתונים לפני שמירה (מונעת קריסות של undefined ב-Firestore)
 const cleanDataForFirestore = (data: any): any => {
     if (Array.isArray(data)) {
         return data.map(cleanDataForFirestore);
@@ -67,7 +67,7 @@ export const uploadMediaFile = async (file: File, folder: string = 'media'): Pro
         throw new Error(`הקובץ גדול מדי. מקסימום מותר: ${isVideo ? '50MB' : '5MB'}`);
     }
 
-    // יצירת נתיב ייחודי עם Timestamp
+    // יצירת נתיב ייחודי עם Timestamp למניעת דריסת קבצים
     const storagePath = `course_assets/${folder}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, storagePath);
 

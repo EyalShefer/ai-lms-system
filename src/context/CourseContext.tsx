@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Course, Module, LearningUnit, ActivityBlock } from '../courseTypes';
+import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
-import { v4 as uuidv4 } from 'uuid'; // חובה!
+import { v4 as uuidv4 } from 'uuid';
 
 const initialEmptyCourse: Course = {
     id: 'loading',
@@ -27,31 +27,24 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-// --- פונקציית הניקוי (החלק הקריטי) ---
-// היא מבטיחה שאין שום null/undefined ושלכולם יש ID ייחודי
+// פונקציית ניקוי וסניטציה לנתונים שמגיעים מ-Firebase
 const sanitizeCourseData = (data: any, docId: string): Course => {
-    const course = data.course ? data.course : data; // תמיכה במבנה ישן/חדש
+    const course = data.course ? data.course : data;
 
-    // 1. וידוא סילבוס
     const syllabus = Array.isArray(course.syllabus) ? course.syllabus : [];
 
-    // 2. מעבר עמוק ותיקון מזהים
     const cleanSyllabus = syllabus.map((mod: any) => {
         const modId = mod.id || uuidv4();
-
         const learningUnits = Array.isArray(mod.learningUnits) ? mod.learningUnits : [];
         const cleanUnits = learningUnits.map((unit: any) => {
             const unitId = unit.id || uuidv4();
-
             const activityBlocks = Array.isArray(unit.activityBlocks) ? unit.activityBlocks : [];
             const cleanBlocks = activityBlocks.map((block: any) => ({
                 ...block,
                 id: block.id || uuidv4()
             }));
-
             return { ...unit, id: unitId, activityBlocks: cleanBlocks };
         });
-
         return { ...mod, id: modId, learningUnits: cleanUnits };
     });
 
@@ -79,8 +72,6 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const unsubscribe = onSnapshot(courseRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-
-                // כאן הקסם קורה: מנקים את המידע לפני שהוא נכנס ל-State
                 const cleanCourse = sanitizeCourseData(data, docSnap.id);
 
                 setCourseState(cleanCourse);
@@ -96,8 +87,11 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!currentCourseId) return;
         try {
             const { id, ...courseFields } = newCourse;
+            // הסרת שדות undefined לפני השמירה (Firestore לא תומך ב-undefined)
+            const cleanFields = JSON.parse(JSON.stringify(courseFields));
+
             await setDoc(doc(db, "courses", currentCourseId), {
-                ...courseFields,
+                ...cleanFields,
                 fullBookContent: newBookContent,
                 pdfSource: newPdf,
                 lastUpdated: new Date()

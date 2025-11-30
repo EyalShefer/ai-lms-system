@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
-// הוספתי 'type' כדי להבטיח ייבוא נכון של אינטרפייס
 import { generateCourseWithGemini, type GenerationConfig } from '../gemini';
 import { extractTextFromPDF } from '../pdfService';
 import { SUBJECT_OPTIONS, GRADE_OPTIONS } from '../courseConstants';
@@ -64,7 +63,7 @@ const IngestionWizard: React.FC = () => {
                 setPdfSource(url);
             }
 
-            setStatus('בונה את סילבוס הקורס בהתאם להגדרות הפדגוגיות...');
+            setStatus('בונה את סילבוס המערך בהתאם להגדרות הפדגוגיות...');
 
             const config: GenerationConfig = {
                 modulesCount,
@@ -86,7 +85,7 @@ const IngestionWizard: React.FC = () => {
 
         } catch (error) {
             console.error(error);
-            alert("הייתה בעיה ביצירת הקורס. נסה שוב.");
+            alert("הייתה בעיה ביצירת המערך. נסה שוב.");
             setStep('source');
         }
     };
@@ -105,7 +104,7 @@ const IngestionWizard: React.FC = () => {
         <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden font-sans">
             <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-8 text-white flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold mb-2">סטודיו ליצירת קורסים 🎓</h2>
+                    <h2 className="text-3xl font-bold mb-2">סטודיו ליצירת מערכי שיעור 🎓</h2>
                     <p className="opacity-80">בנה מערך שיעור או מבחן מותאם אישית תוך שניות.</p>
                 </div>
                 <div className="flex gap-2 text-sm font-bold bg-white/20 p-1 rounded-lg">
@@ -171,7 +170,7 @@ const IngestionWizard: React.FC = () => {
                     <div className="flex gap-8">
                         <div className="w-1/3 space-y-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2">מצב קורס</label>
+                                <label className="block text-sm font-bold text-gray-500 mb-2">מצב פעילות</label>
                                 <div className="flex p-1 bg-gray-100 rounded-xl">
                                     <button onClick={() => setCourseMode('learning')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${courseMode === 'learning' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}>למידה ✅</button>
                                     <button onClick={() => setCourseMode('exam')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${courseMode === 'exam' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}>מבחן 🛑</button>
@@ -193,7 +192,7 @@ const IngestionWizard: React.FC = () => {
                             </div>
 
                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                <h4 className="text-blue-800 font-bold mb-2 text-sm">מבנה הקורס</h4>
+                                <h4 className="text-blue-800 font-bold mb-2 text-sm">מבנה המערך</h4>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm text-gray-600">מספר פרקים (Modules):</span>
                                     <input type="number" min="1" max="10" value={modulesCount} onChange={(e) => setModulesCount(Number(e.target.value))} className="w-16 p-1 text-center border rounded bg-white" />
@@ -210,7 +209,7 @@ const IngestionWizard: React.FC = () => {
                                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <span>🧠</span> רמות חשיבה (הטקסונומיה של בלום)
                                 </h3>
-                                <p className="text-sm text-gray-400 mb-4">קבע את תמהיל השאלות בקורס לפי רמת קושי.</p>
+                                <p className="text-sm text-gray-400 mb-4">קבע את תמהיל השאלות לפי רמת קושי.</p>
 
                                 <div className="space-y-4">
                                     <div>
@@ -256,7 +255,7 @@ const IngestionWizard: React.FC = () => {
                                     onClick={handleGenerate}
                                     className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1"
                                 >
-                                    צור קורס עכשיו ✨
+                                    צור מערך עכשיו ✨
                                 </button>
                             </div>
                         </div>

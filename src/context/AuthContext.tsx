@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase'; // וודא שהנתיב הזה תקין ביחס למיקום הקובץ
+import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
@@ -15,7 +15,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        console.log("🔵 AuthProvider: מאזין לשינויי התחברות...");
         const unsubscribe = onAuthStateChanged(auth, (user) => {
+            console.log("🟢 AuthProvider: סטטוס משתמש השתנה:", user ? "מחובר (" + user.email + ")" : "מנותק");
             setCurrentUser(user);
             setLoading(false);
         });
@@ -23,9 +25,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return unsubscribe;
     }, []);
 
+    // לוג בדיקה בכל רינדור
+    console.log("🟡 AuthProvider Render: Loading =", loading, "| User =", currentUser?.email);
+
     return (
         <AuthContext.Provider value={{ currentUser, loading }}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };

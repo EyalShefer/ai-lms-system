@@ -3,7 +3,7 @@ import type { LearningUnit, ActivityBlock, ActivityBlockType } from '../courseTy
 import { generateImagePromptBlock, generateQuestionsFromText, refineContentWithPedagogy } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import { v4 as uuidv4 } from 'uuid';
-import { useCourseStore } from '../context/CourseContext';
+import { useCourseStore } from '../context/CourseContext'; // ייבוא ה-Store כדי לדעת את מצב הקורס
 
 interface UnitEditorProps {
     unit: LearningUnit;
@@ -20,63 +20,32 @@ const getAiActions = (gradeLevel: string) => [
     { label: "🤣 הוסף הומור", prompt: `הוסף נגיעה של הומור בטוב טעם` },
 ];
 
-// --- Sub-component defined OUTSIDE to prevent Hook errors ---
-const InsertMenu: React.FC<{
-    index: number;
-    activeInsertIndex: number | null;
-    setActiveInsertIndex: (index: number | null) => void;
-    onAdd: (type: ActivityBlockType, index: number) => void;
-}> = ({ index, activeInsertIndex, setActiveInsertIndex, onAdd }) => (
-    <div className="relative py-2 group">
-        <div className="absolute inset-x-0 top-1/2 h-0.5 bg-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <div className="flex justify-center relative z-10">
-            {activeInsertIndex === index ? (
-                <div className="bg-white border border-indigo-200 shadow-xl rounded-xl p-2 flex gap-2 animate-scale-in z-50">
-                    <button onClick={() => onAdd('text', index)} className="insert-btn">📝 טקסט</button>
-                    <button onClick={() => onAdd('image', index)} className="insert-btn">🖼️ תמונה</button>
-                    <button onClick={() => onAdd('video', index)} className="insert-btn">▶️ וידאו</button>
-                    <div className="w-px bg-gray-200 mx-1"></div>
-                    <button onClick={() => onAdd('multiple-choice', index)} className="insert-btn">❓ אמריקאית</button>
-                    <button onClick={() => onAdd('open-question', index)} className="insert-btn">✍️ פתוחה</button>
-                    <button onClick={() => onAdd('interactive-chat', index)} className="insert-btn text-purple-600">💬 צ'אט</button>
-                    <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 px-2">✕</button>
-                </div>
-            ) : (
-                <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-indigo-500 border border-indigo-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-600 hover:text-white transform hover:scale-110 text-xs" title="הוסף רכיב">+</button>
-            )}
-        </div>
-    </div>
-);
-
 const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", onSave, onCancel }) => {
-    const { course } = useCourseStore();
-
-    // --- HOOKS MUST BE UNCONDITIONAL ---
+    const { course } = useCourseStore(); // שליפת נתוני הקורס
     const [editedUnit, setEditedUnit] = useState<LearningUnit>(unit);
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
     const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
 
-    // Effect to sync prop changes
-    useEffect(() => {
-        if (unit) setEditedUnit(unit);
-    }, [unit]);
+    // בדיקה האם להציג ניקוד (רק במצב מבחן או ביחידת מבחן)
+    const showScoring = course.mode === 'exam' || unit.type === 'test';
 
-    // Safe access to course data (handle case where course might be null/undefined initially)
-    const showScoring = (course?.mode === 'exam' || unit?.type === 'test');
     const AI_ACTIONS = getAiActions(gradeLevel);
 
-    // --- Logic ---
+    useEffect(() => { setEditedUnit(unit); }, [unit]);
 
+    // --- לוגיקה לחלוקת ניקוד חכמה ---
     const handleAutoDistributePoints = () => {
         const questions = editedUnit.activityBlocks.filter(b => b.type === 'multiple-choice' || b.type === 'open-question');
         if (questions.length === 0) return alert("אין שאלות ביחידה זו לחלוקת ניקוד.");
 
+        // שואלים את המורה מה סך הניקוד ליחידה זו (גמישות למבחנים מרובי פרקים)
         const targetTotalStr = prompt("מה סך הניקוד הכולל ליחידה זו?", "100");
         const targetTotal = parseInt(targetTotalStr || "0");
 
         if (!targetTotal || targetTotal <= 0) return;
 
+        // משקלות: שאלה פתוחה = 2 נקודות זכות, אמריקאית = 1 נקודת זכות
         const totalWeight = questions.reduce((sum, block) => sum + (block.type === 'open-question' ? 2 : 1), 0);
         const pointValue = targetTotal / totalWeight;
 
@@ -91,8 +60,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             return block;
         });
 
+        // תיקון שארית (כדי להגיע בדיוק למספר היעד)
         if (currentSum !== targetTotal) {
             const diff = targetTotal - currentSum;
+            // הוספת ההפרש לשאלה הראשונה
             const firstQIndex = newBlocks.findIndex(b => b.type === 'multiple-choice' || b.type === 'open-question');
             if (firstQIndex !== -1 && newBlocks[firstQIndex].metadata) {
                 newBlocks[firstQIndex].metadata!.score = (newBlocks[firstQIndex].metadata!.score || 0) + diff;
@@ -121,7 +92,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     : type === 'interactive-chat' ? { title: 'דיאלוג עם דמות', description: 'שוחח עם הבוט...' }
                         : '',
             metadata: {
-                score: 0,
+                score: 0, // ברירת מחדל 0, המורה יחלק בסוף
                 systemPrompt: type === 'interactive-chat' ? 'אתה מורה סבלני ועוזר. ענה בעברית.' : '',
                 initialMessage: type === 'interactive-chat' ? 'שלום! שאל אותי כל דבר.' : ''
             }
@@ -168,68 +139,32 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     };
 
     // --- AI Helpers ---
-    const handleAiAction = async (blockId: string, text: string, actionPrompt: string) => {
-        if (!text) return;
-        setLoadingBlockId(blockId);
-        try {
-            const res = await refineContentWithPedagogy(text, actionPrompt);
-            updateBlock(blockId, res);
-        } catch (e) {
-            alert("שגיאה");
-        } finally {
-            setLoadingBlockId(null);
-        }
-    };
+    const handleAiAction = async (blockId: string, text: string, actionPrompt: string) => { if (!text) return; setLoadingBlockId(blockId); try { const res = await refineContentWithPedagogy(text, actionPrompt); updateBlock(blockId, res); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
+    const handleSuggestImagePrompt = async (blockId: string) => { setLoadingBlockId(blockId); try { const prompt = await generateImagePromptBlock(editedUnit.baseContent); const block = editedUnit.activityBlocks.find(b => b.id === blockId); if (block) updateBlock(blockId, block.content, { aiPrompt: prompt }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
+    const handlePaintImage = (blockId: string, promptText: string) => { if (!promptText) return alert("חסר תיאור!"); setLoadingBlockId(blockId); const safePrompt = encodeURIComponent(promptText.replace(/[^\w\s,.]/gi, '')); const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=800&height=600&nologo=true&seed=${Math.random()}`; const img = new Image(); img.src = imageUrl; img.onload = () => { updateBlock(blockId, imageUrl, { aiPrompt: promptText }); setLoadingBlockId(null); }; };
+    const handleGenerateQuestions = async (blockId: string, text: string, type: 'multiple-choice' | 'open-question') => { if (!text || text.length < 10) return alert("חסר טקסט"); setLoadingBlockId(blockId); try { const questions = await generateQuestionsFromText(text, type); const newBlocks: ActivityBlock[] = questions.map((q: any) => { const id = uuidv4(); if (type === 'multiple-choice') return { id, type: 'multiple-choice', content: { question: q.question, options: q.options, correctAnswer: q.correctAnswer }, metadata: { score: 0 } }; return { id, type: 'open-question', content: { question: q.question }, metadata: { modelAnswer: q.modelAnswer, score: 0 } }; }); const idx = editedUnit.activityBlocks.findIndex(b => b.id === blockId); const updated = [...editedUnit.activityBlocks]; updated.splice(idx + 1, 0, ...newBlocks); setEditedUnit({ ...editedUnit, activityBlocks: updated }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
 
-    const handleSuggestImagePrompt = async (blockId: string) => {
-        setLoadingBlockId(blockId);
-        try {
-            const prompt = await generateImagePromptBlock(editedUnit.baseContent);
-            const block = editedUnit.activityBlocks.find(b => b.id === blockId);
-            if (block) updateBlock(blockId, block.content, { aiPrompt: prompt });
-        } catch (e) {
-            alert("שגיאה");
-        } finally {
-            setLoadingBlockId(null);
-        }
-    };
-
-    const handlePaintImage = (blockId: string, promptText: string) => {
-        if (!promptText) return alert("חסר תיאור!");
-        setLoadingBlockId(blockId);
-        const safePrompt = encodeURIComponent(promptText.replace(/[^\w\s,.]/gi, ''));
-        const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=800&height=600&nologo=true&seed=${Math.random()}`;
-        const img = new Image();
-        img.src = imageUrl;
-        img.onload = () => {
-            updateBlock(blockId, imageUrl, { aiPrompt: promptText });
-            setLoadingBlockId(null);
-        };
-    };
-
-    const handleGenerateQuestions = async (blockId: string, text: string, type: 'multiple-choice' | 'open-question') => {
-        if (!text || text.length < 10) return alert("חסר טקסט");
-        setLoadingBlockId(blockId);
-        try {
-            const questions = await generateQuestionsFromText(text, type);
-            const newBlocks: ActivityBlock[] = questions.map((q: any) => {
-                const id = uuidv4();
-                if (type === 'multiple-choice') return { id, type: 'multiple-choice', content: { question: q.question, options: q.options, correctAnswer: q.correctAnswer }, metadata: { score: 0 } };
-                return { id, type: 'open-question', content: { question: q.question }, metadata: { modelAnswer: q.modelAnswer, score: 0 } };
-            });
-            const idx = editedUnit.activityBlocks.findIndex(b => b.id === blockId);
-            const updated = [...editedUnit.activityBlocks];
-            updated.splice(idx + 1, 0, ...newBlocks);
-            setEditedUnit({ ...editedUnit, activityBlocks: updated });
-        } catch (e) {
-            alert("שגיאה");
-        } finally {
-            setLoadingBlockId(null);
-        }
-    };
-
-    // If unit or editedUnit is missing, prevent crash
-    if (!editedUnit) return <div>Loading Editor...</div>;
+    const InsertMenu = ({ index }: { index: number }) => (
+        <div className="relative py-2 group">
+            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="flex justify-center relative z-10">
+                {activeInsertIndex === index ? (
+                    <div className="bg-white border border-indigo-200 shadow-xl rounded-xl p-2 flex gap-2 animate-scale-in z-50">
+                        <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn">📝 טקסט</button>
+                        <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn">🖼️ תמונה</button>
+                        <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn">▶️ וידאו</button>
+                        <div className="w-px bg-gray-200 mx-1"></div>
+                        <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn">❓ אמריקאית</button>
+                        <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn">✍️ פתוחה</button>
+                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn text-purple-600">💬 צ'אט</button>
+                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 px-2">✕</button>
+                    </div>
+                ) : (
+                    <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-indigo-500 border border-indigo-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-600 hover:text-white transform hover:scale-110 text-xs" title="הוסף רכיב">+</button>
+                )}
+            </div>
+        </div>
+    );
 
     return (
         <div className="bg-gray-50 min-h-screen p-8 font-sans">
@@ -239,6 +174,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <div className="text-xs text-gray-400 px-2 mt-1">שכבת גיל: {gradeLevel} {showScoring ? '| מצב מבחן' : '| מצב למידה'}</div>
                 </div>
                 <div className="flex gap-3">
+                    {/* כפתור חלוקת ניקוד - מוצג רק במצב רלוונטי */}
                     {showScoring && (
                         <button onClick={handleAutoDistributePoints} className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-xl font-bold text-sm hover:bg-yellow-200 transition-colors shadow-sm">
                             ⚖️ חלק ניקוד
@@ -250,8 +186,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             </div>
 
             <div className="max-w-3xl mx-auto space-y-4 pb-20">
-                <InsertMenu index={0} activeInsertIndex={activeInsertIndex} setActiveInsertIndex={setActiveInsertIndex} onAdd={addBlockAtIndex} />
-
+                <InsertMenu index={0} />
                 {editedUnit.activityBlocks?.map((block, index) => (
                     <React.Fragment key={block.id}>
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow relative group">
@@ -349,6 +284,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         <div className="flex justify-between items-start mb-3">
                                             <input type="text" className="flex-1 font-bold p-2 bg-transparent border-b border-transparent focus:border-gray-300 outline-none" value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder="השאלה..." />
 
+                                            {/* הצגת שדה הניקוד רק אם showScoring הוא true */}
                                             {showScoring && (
                                                 <div className="flex flex-col items-center ml-2">
                                                     <span className="text-[10px] font-bold text-gray-400 uppercase">ניקוד</span>
@@ -369,7 +305,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 )}
                             </div>
                         </div>
-                        <InsertMenu index={index + 1} activeInsertIndex={activeInsertIndex} setActiveInsertIndex={setActiveInsertIndex} onAdd={addBlockAtIndex} />
+                        <InsertMenu index={index + 1} />
                     </React.Fragment>
                 ))}
             </div>

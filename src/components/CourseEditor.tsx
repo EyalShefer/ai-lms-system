@@ -6,179 +6,233 @@ import type { LearningUnit, Module } from '../courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 
 const CourseEditor: React.FC = () => {
-    const { course, updateLearningUnit, setCourse } = useCourseStore();
+    const { course, setCourse, updateCourseTitle } = useCourseStore();
     const [editingUnit, setEditingUnit] = useState<LearningUnit | null>(null);
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
-    // מנגנון פשוט: מוודא שיש IDs לכולם פעם אחת בטעינה (בשביל ה-Key של ריאקט)
+    // Data Sanitizer - רץ פעם אחת כדי להבטיח תקינות מבנה (IDs חסרים וכו')
     useEffect(() => {
         if (!course?.syllabus) return;
-
-        let hasChanges = false;
         const newSyllabus = JSON.parse(JSON.stringify(course.syllabus));
+        let changed = false;
 
         newSyllabus.forEach((mod: Module) => {
-            if (!mod.id) { mod.id = uuidv4(); hasChanges = true; }
-            if (!mod.learningUnits) { mod.learningUnits = []; hasChanges = true; }
-
+            if (!mod.id) { mod.id = uuidv4(); changed = true; }
+            if (!mod.learningUnits) { mod.learningUnits = []; changed = true; }
             mod.learningUnits.forEach((unit: LearningUnit) => {
-                if (!unit.id) { unit.id = uuidv4(); hasChanges = true; }
+                if (!unit.id) { unit.id = uuidv4(); changed = true; }
+                // וידוא שקיים מערך activityBlocks
+                if (!unit.activityBlocks) { unit.activityBlocks = []; changed = true; }
             });
         });
 
-        if (hasChanges) {
+        if (changed) {
+            console.log("Sanitizer fixed course structure");
             setCourse({ ...course, syllabus: newSyllabus });
         }
     }, [course]);
 
-    if (!course) return <div className="p-10 text-center">טוען...</div>;
+    // --- Handlers ---
 
-    if (!course.syllabus || course.syllabus.length === 0) {
-        return (
-            <div className="max-w-4xl mx-auto mt-10">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-8 rounded-2xl text-center mb-8 border border-indigo-100 shadow-sm">
-                    <h1 className="text-3xl font-bold text-indigo-900 mb-2">ברוכים הבאים לקורס החדש! 🎉</h1>
-                    <p className="text-indigo-700">הקורס <strong>"{course.title}"</strong> כרגע ריק.<br />בוא נתחיל ביצירת סילבוס ותוכן בעזרת ה-AI.</p>
-                </div>
-                <IngestionWizard />
-            </div>
-        );
-    }
-
-    const handleShare = () => {
-        const shareUrl = `${window.location.origin}/?studentCourseId=${course.id}`;
-        navigator.clipboard.writeText(shareUrl).then(() => alert(`הקישור הועתק:\n${shareUrl}`));
-    };
-
-    const toggleMode = () => {
-        const newMode = course.mode === 'exam' ? 'learning' : 'exam';
-        setCourse({ ...course, mode: newMode });
-    };
-
-    const handleEditUnit = (unit: LearningUnit, moduleId: string) => {
-        setEditingUnit(unit);
-        setActiveModuleId(moduleId);
-    };
-
-    const handleSaveUnit = (updatedUnit: LearningUnit) => {
-        if (activeModuleId) {
-            updateLearningUnit(activeModuleId, updatedUnit);
-            setEditingUnit(null);
-            setActiveModuleId(null);
-        }
-    };
-
-    // פונקציות עריכה פשוטות (ללא ספריות)
-    const addModuleAtIndex = (index: number) => {
+    const handleAddModule = () => {
         const newModule: Module = {
             id: uuidv4(),
             title: "פרק חדש",
-            learningUnits: [{ id: uuidv4(), title: "יחידה ראשונה", type: "acquisition", baseContent: "...", activityBlocks: [] }]
+            learningUnits: []
         };
-        const newSyllabus = [...course.syllabus];
-        newSyllabus.splice(index, 0, newModule);
+        const newSyllabus = [...(course.syllabus || []), newModule];
         setCourse({ ...course, syllabus: newSyllabus });
     };
 
-    const addUnitAtIndex = (moduleIndex: number, unitIndex: number) => {
-        const newUnit: LearningUnit = { id: uuidv4(), title: "יחידה חדשה", type: "acquisition", baseContent: "", activityBlocks: [] };
-        const newSyllabus = JSON.parse(JSON.stringify(course.syllabus));
-        if (!newSyllabus[moduleIndex].learningUnits) newSyllabus[moduleIndex].learningUnits = [];
-        newSyllabus[moduleIndex].learningUnits.splice(unitIndex, 0, newUnit);
-        setCourse({ ...course, syllabus: newSyllabus });
-    };
-
-    const deleteModule = (moduleId: string) => {
-        if (confirm("למחוק את הפרק?")) {
+    const handleDeleteModule = (moduleId: string) => {
+        if (confirm("למחוק את הפרק וכל התוכן שבו?")) {
             const newSyllabus = course.syllabus.filter(m => m.id !== moduleId);
             setCourse({ ...course, syllabus: newSyllabus });
         }
     };
 
-    const updateModuleTitle = (moduleId: string, newTitle: string) => {
-        const newSyllabus = course.syllabus.map(m => m.id === moduleId ? { ...m, title: newTitle } : m);
-        setCourse({ ...course, syllabus: newSyllabus });
-    };
-
-    // הזזה פשוטה עם מערכים (בלי גרירה)
-    const moveUnit = (modIdx: number, unitIdx: number, direction: 'left' | 'right') => {
-        const newSyllabus = JSON.parse(JSON.stringify(course.syllabus));
-        const units = newSyllabus[modIdx].learningUnits;
-
-        if (direction === 'left' && unitIdx > 0) {
-            [units[unitIdx], units[unitIdx - 1]] = [units[unitIdx - 1], units[unitIdx]];
-        } else if (direction === 'right' && unitIdx < units.length - 1) {
-            [units[unitIdx], units[unitIdx + 1]] = [units[unitIdx + 1], units[unitIdx]];
+    const handleMoveModule = (index: number, direction: 'up' | 'down') => {
+        const newSyllabus = [...course.syllabus];
+        if (direction === 'up' && index > 0) {
+            [newSyllabus[index], newSyllabus[index - 1]] = [newSyllabus[index - 1], newSyllabus[index]];
+        } else if (direction === 'down' && index < newSyllabus.length - 1) {
+            [newSyllabus[index], newSyllabus[index + 1]] = [newSyllabus[index + 1], newSyllabus[index]];
         }
         setCourse({ ...course, syllabus: newSyllabus });
     };
 
-    const InsertModuleButton = ({ index }: { index: number }) => (
-        <div className="relative py-6 group flex justify-center items-center">
-            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <button onClick={() => addModuleAtIndex(index)} className="relative z-10 bg-white text-indigo-600 border border-indigo-200 rounded-full px-6 py-1.5 text-sm font-bold shadow-sm opacity-50 hover:opacity-100 transition-all hover:bg-indigo-600 hover:text-white transform hover:scale-110 flex items-center gap-2"><span>+</span> הוסף פרק כאן</button>
-        </div>
-    );
+    const handleAddUnit = (moduleId: string) => {
+        const newUnit: LearningUnit = {
+            id: uuidv4(),
+            title: "יחידה חדשה",
+            type: 'acquisition',
+            baseContent: "",
+            activityBlocks: []
+        };
 
+        const newSyllabus = course.syllabus.map(mod => {
+            if (mod.id === moduleId) {
+                return { ...mod, learningUnits: [...mod.learningUnits, newUnit] };
+            }
+            return mod;
+        });
+        setCourse({ ...course, syllabus: newSyllabus });
+        setEditingUnit(newUnit); // מעבר ישיר לעריכה
+        setActiveModuleId(moduleId);
+    };
+
+    const handleDeleteUnit = (moduleId: string, unitId: string) => {
+        if (confirm("למחוק את היחידה?")) {
+            const newSyllabus = course.syllabus.map(mod => {
+                if (mod.id === moduleId) {
+                    return { ...mod, learningUnits: mod.learningUnits.filter(u => u.id !== unitId) };
+                }
+                return mod;
+            });
+            setCourse({ ...course, syllabus: newSyllabus });
+        }
+    };
+
+    const handleMoveUnit = (moduleId: string, unitIndex: number, direction: 'up' | 'down') => {
+        const newSyllabus = [...course.syllabus];
+        const modIndex = newSyllabus.findIndex(m => m.id === moduleId);
+        if (modIndex === -1) return;
+
+        const units = [...newSyllabus[modIndex].learningUnits];
+        if (direction === 'up' && unitIndex > 0) {
+            [units[unitIndex], units[unitIndex - 1]] = [units[unitIndex - 1], units[unitIndex]];
+        } else if (direction === 'down' && unitIndex < units.length - 1) {
+            [units[unitIndex], units[unitIndex + 1]] = [units[unitIndex + 1], units[unitIndex]];
+        }
+
+        newSyllabus[modIndex].learningUnits = units;
+        setCourse({ ...course, syllabus: newSyllabus });
+    };
+
+    const saveUnitChanges = (updatedUnit: LearningUnit) => {
+        if (!activeModuleId) return;
+
+        const newSyllabus = course.syllabus.map(mod => {
+            if (mod.id === activeModuleId) {
+                return {
+                    ...mod,
+                    learningUnits: mod.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u)
+                };
+            }
+            return mod;
+        });
+
+        setCourse({ ...course, syllabus: newSyllabus });
+        setEditingUnit(null); // סגירת העורך
+        setActiveModuleId(null);
+    };
+
+    // --- Render ---
+
+    if (!course) return <div className="p-10 text-center">טוען נתונים...</div>;
+
+    // אם אין תוכן (סילבוס ריק) - מציגים את הוויזארד
+    if (!course.syllabus || course.syllabus.length === 0) {
+        return <IngestionWizard />;
+    }
+
+    // אם עורכים יחידה כרגע - מציגים את עורך היחידות
+    if (editingUnit) {
+        return (
+            <UnitEditor
+                unit={editingUnit}
+                gradeLevel={course.targetAudience}
+                onSave={saveUnitChanges}
+                onCancel={() => setEditingUnit(null)}
+            />
+        );
+    }
+
+    // מסך ראשי - עריכת מבנה הקורס (סילבוס)
     return (
-        <div className="max-w-6xl mx-auto pb-20">
-            {editingUnit ? (
-                <UnitEditor unit={editingUnit} gradeLevel={course.targetAudience} onSave={handleSaveUnit} onCancel={() => setEditingUnit(null)} />
-            ) : (
-                <div className="space-y-2 animate-fade-in">
+        <div className="max-w-4xl mx-auto p-6 font-sans">
+            <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">שם המערך</label>
+                <input
+                    type="text"
+                    value={course.title}
+                    onChange={(e) => updateCourseTitle(e.target.value)}
+                    className="text-3xl font-bold text-gray-800 w-full outline-none border-b-2 border-transparent focus:border-indigo-500 transition-colors bg-transparent"
+                />
+                <div className="mt-2 flex gap-4 text-sm text-gray-500">
+                    <span>קהל יעד: <b>{course.targetAudience}</b></span>
+                    <span>•</span>
+                    <span>מצב: <b>{course.mode === 'exam' ? 'מבחן' : 'למידה'}</b></span>
+                </div>
+            </div>
 
-                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-8">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h2 className="text-3xl font-extrabold text-gray-900 leading-tight">{course.title}</h2>
-                                <div className="flex gap-2 mt-2 text-sm text-gray-500"><span className="bg-gray-100 px-3 py-1 rounded-full">🎯 {course.targetAudience || 'כללי'}</span><span className="bg-gray-100 px-3 py-1 rounded-full">📚 {course.syllabus.length} פרקים</span></div>
-                            </div>
-                            <div className="flex flex-col gap-2 align-end"><button onClick={handleShare} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-green-700 text-sm flex items-center justify-center gap-2"><span>🔗</span> שתף לתלמיד</button></div>
-                        </div>
-                        <div className="border-t pt-4 mt-2 flex justify-between items-center">
-                            <span className="text-gray-600 font-bold text-sm">מצב נוכחי:</span>
-                            <button onClick={toggleMode} className={`px-6 py-2 rounded-full border font-bold transition-all flex items-center gap-2 shadow-sm ${course.mode === 'exam' ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}>{course.mode === 'exam' ? '🛑 מצב מבחן' : '✅ מצב למידה'}</button>
-                        </div>
-                    </div>
-
-                    <InsertModuleButton index={0} />
-
-                    {course.syllabus.map((mod, mIdx) => (
-                        <React.Fragment key={mod.id || mIdx}>
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative group/module">
-
-                                <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center">
-                                    <div className="flex items-center gap-2 flex-1"><span className="text-indigo-500 opacity-50 font-bold">#{mIdx + 1}</span><input type="text" value={mod.title} onChange={(e) => updateModuleTitle(mod.id, e.target.value)} className="text-lg font-bold text-gray-800 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none flex-1 hover:border-gray-300 transition-colors" /></div>
-                                    <button onClick={() => deleteModule(mod.id)} className="text-gray-300 hover:text-red-500 p-2 rounded transition-colors opacity-0 group-hover/module:opacity-100">🗑️</button>
+            <div className="space-y-6">
+                {course.syllabus.map((mod, mIdx) => (
+                    <div key={mod.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-all hover:shadow-md">
+                        {/* כותרת הפרק */}
+                        <div className="bg-gray-50 p-4 flex justify-between items-center border-b border-gray-100">
+                            <div className="flex items-center gap-3 flex-1">
+                                <div className="flex flex-col gap-1">
+                                    <button onClick={() => handleMoveModule(mIdx, 'up')} disabled={mIdx === 0} className="text-gray-400 hover:text-indigo-600 disabled:opacity-20 text-xs">▲</button>
+                                    <button onClick={() => handleMoveModule(mIdx, 'down')} disabled={mIdx === course.syllabus.length - 1} className="text-gray-400 hover:text-indigo-600 disabled:opacity-20 text-xs">▼</button>
                                 </div>
+                                <input
+                                    type="text"
+                                    value={mod.title}
+                                    onChange={(e) => {
+                                        const newSyllabus = [...course.syllabus];
+                                        newSyllabus[mIdx].title = e.target.value;
+                                        setCourse({ ...course, syllabus: newSyllabus });
+                                    }}
+                                    className="font-bold text-lg bg-transparent outline-none text-gray-800 w-full"
+                                />
+                            </div>
+                            <button onClick={() => handleDeleteModule(mod.id)} className="text-gray-400 hover:text-red-500 p-2">🗑️</button>
+                        </div>
 
-                                <div className="p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {(mod.learningUnits || []).map((unit, uIdx) => (
-                                            <div key={unit.id || uIdx} className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-indigo-300 transition-all duration-200 flex flex-col h-full">
-                                                <div className="mb-3 flex justify-between items-start">
-                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${unit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' : unit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'}`}>{unit.type === 'acquisition' ? '📖 הקניה' : unit.type === 'practice' ? '✍️ תרגול' : '🧠 מבחן'}</span>
-
-                                                    {/* כפתורי הזזה פשוטים (במקום גרירה) */}
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={(e) => { e.stopPropagation(); moveUnit(mIdx, uIdx, 'left'); }} disabled={uIdx === 0} className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 px-1 font-bold text-lg">‹</button>
-                                                        <button onClick={(e) => { e.stopPropagation(); moveUnit(mIdx, uIdx, 'right'); }} disabled={uIdx === (mod.learningUnits.length - 1)} className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 px-1 font-bold text-lg">›</button>
-                                                    </div>
-                                                </div>
-                                                <h4 className="font-bold text-gray-900 mb-2 leading-tight">{unit.title}</h4>
-                                                <p className="text-xs text-gray-500 line-clamp-3 mb-4 flex-1">{unit.baseContent}</p>
-                                                <button onClick={() => handleEditUnit(unit, mod.id)} className="w-full py-2 rounded-lg bg-gray-50 text-indigo-600 text-sm font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-auto relative z-10">ערוך יחידה ✏️</button>
-                                            </div>
-                                        ))}
-                                        <button onClick={() => addUnitAtIndex(mIdx, (mod.learningUnits || []).length)} className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center text-gray-400 hover:text-indigo-500 hover:border-indigo-300 transition-all cursor-pointer h-full min-h-[180px]"><span className="text-4xl mb-2">+</span><span className="text-sm font-bold">הוסף יחידה</span></button>
+                        {/* רשימת היחידות */}
+                        <div className="p-2 space-y-2">
+                            {mod.learningUnits.map((unit, uIdx) => (
+                                <div key={unit.id} className="flex items-center justify-between p-3 bg-white hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 group transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleMoveUnit(mod.id, uIdx, 'up')} disabled={uIdx === 0} className="text-gray-400 hover:text-indigo-600 text-[10px]">▲</button>
+                                            <button onClick={() => handleMoveUnit(mod.id, uIdx, 'down')} disabled={uIdx === mod.learningUnits.length - 1} className="text-gray-400 hover:text-indigo-600 text-[10px]">▼</button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${unit.type === 'acquisition' ? 'bg-blue-400' : unit.type === 'practice' ? 'bg-yellow-400' : 'bg-red-400'}`}></span>
+                                            <span className="text-sm font-medium text-gray-700">{unit.title}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => { setEditingUnit(unit); setActiveModuleId(mod.id); }}
+                                            className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-md font-bold hover:bg-indigo-100 transition-colors"
+                                        >
+                                            ערוך תוכן ✏️
+                                        </button>
+                                        <button onClick={() => handleDeleteUnit(mod.id, unit.id)} className="text-gray-300 hover:text-red-500 px-2 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                                     </div>
                                 </div>
-                            </div>
-                            <InsertModuleButton index={mIdx + 1} />
-                        </React.Fragment>
-                    ))}
-                </div>
-            )}
+                            ))}
+
+                            <button
+                                onClick={() => handleAddUnit(mod.id)}
+                                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-indigo-600 hover:bg-gray-50 rounded-lg border-2 border-dashed border-gray-100 hover:border-indigo-100 transition-all flex items-center justify-center gap-1"
+                            >
+                                <span>+</span> הוסף יחידת לימוד
+                            </button>
+                        </div>
+                    </div>
+                ))}
+
+                <button
+                    onClick={handleAddModule}
+                    className="w-full py-4 bg-gray-800 text-white rounded-xl font-bold shadow-lg hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
+                >
+                    <span>+</span> הוסף פרק חדש
+                </button>
+            </div>
         </div>
     );
 };

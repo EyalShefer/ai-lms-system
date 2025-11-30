@@ -1,6 +1,6 @@
 export type LearningUnitType = 'acquisition' | 'practice' | 'test';
 
-// הוספנו את 'interactive-chat'
+// סוגי הפעילויות האפשריים (כולל הצ'אט החדש)
 export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'interactive-chat' | 'gem-link';
 
 export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
@@ -8,12 +8,12 @@ export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analys
 export interface ActivityBlockMetadata {
     difficultyLevel?: number; // 1-5
     bloomLevel?: BloomLevel;
-    score?: number; // 0-100
+    score?: number; // 0-100 (הניקוד לשאלה)
 
     // שדות לשאלות
     modelAnswer?: string;
 
-    // שדות לתמונות/וידאו
+    // שדות לתמונות/וידאו (העלאת קבצים)
     aiPrompt?: string;
     uploadedFileUrl?: string; // ה-URL של הקובץ ב-Firebase Storage
     fileName?: string; // שם הקובץ המקורי לתצוגה
