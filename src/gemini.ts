@@ -3,12 +3,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
+// תיקון קריטי למסך הלבן: במקום להקריס את האפליקציה, רק נרשום שגיאה בקונסול
 if (!API_KEY) {
-  throw new Error("Missing Gemini API Key! Check .env file.");
+  console.error("⚠️ CRITICAL ERROR: Missing VITE_GEMINI_API_KEY in .env file.");
+  console.error("The app will load, but AI features will fail until fixed.");
+  // throw new Error("Missing Gemini API Key! Check .env file."); // בוטל כדי למנוע קריסה
 }
 
 const MODEL_NAME = "gemini-2.0-flash";
-const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+// הוספנו תנאי כדי שה-URL לא יהיה שבור אם אין מפתח (למרות שהקריאה תיכשל)
+const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY || 'MISSING_KEY'}`;
 
 const SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -30,6 +34,10 @@ export interface GenerationConfig {
 }
 
 async function callGeminiDirect(promptText: string): Promise<string> {
+  if (!API_KEY) {
+    throw new Error("Cannot call AI: API Key is missing.");
+  }
+
   const response = await fetch(BASE_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
