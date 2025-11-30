@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import { useAuth } from '../context/AuthContext';
-import { generateAdaptiveUnit } from '../gemini'; // וודא שיש לך את הפונקציה הזו ב-gemini.ts
+import { generateAdaptiveUnit } from '../gemini';
 import type { ActivityBlock, LearningUnit, Module } from '../courseTypes';
 
 // --- רכיב צ'אט אינטראקטיבי חכם ---
@@ -89,8 +89,8 @@ const InteractiveChatBlock: React.FC<{ block: ActivityBlock; context: { unitTitl
                 {messages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                ? 'bg-indigo-600 text-white rounded-br-none'
-                                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                            ? 'bg-indigo-600 text-white rounded-br-none'
+                            : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
                             }`}>
                             {msg.text}
                         </div>
@@ -155,6 +155,16 @@ const CoursePlayer: React.FC = () => {
     const activeUnit = activeModule?.learningUnits.find(u => u.id === activeUnitId);
     const isExamMode = course.mode === 'exam';
 
+    // פונקציית עזר לחישוב צבע ותווית סוג היחידה
+    const getUnitBadge = (unit: LearningUnit) => {
+        if (unit.type === 'acquisition') return { label: '📖 יחידת לימוד', class: 'bg-blue-100 text-blue-700' };
+        if (unit.type === 'practice') return { label: '💪 יחידת תרגול', class: 'bg-yellow-100 text-yellow-700' };
+        if (unit.type === 'test') return { label: '📝 מבחן ידע', class: 'bg-red-100 text-red-700' };
+        if (unit.type === 'remedial') return { label: '🩹 יחידת חיזוק', class: 'bg-green-100 text-green-700' };
+        // ברירת מחדל ניטרלית לסיכומים וכו'
+        return { label: '📄 יחידה כללית', class: 'bg-gray-100 text-gray-700' };
+    };
+
     const handleAnswerSelect = (blockId: string, answer: string) => {
         if (!feedbackVisible[blockId]) {
             setUserAnswers(prev => ({ ...prev, [blockId]: answer }));
@@ -170,7 +180,6 @@ const CoursePlayer: React.FC = () => {
         if (isCorrect) {
             setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
         } else {
-            // מאפשרים 2 ניסיונות כושלים (0 ו-1), בשלישי (2) נגמר.
             if (currentAttempts < 2) {
                 setAttempts(prev => ({ ...prev, [blockId]: currentAttempts + 1 }));
                 const remaining = 2 - currentAttempts;
@@ -181,53 +190,86 @@ const CoursePlayer: React.FC = () => {
         }
     };
 
-    // --- לוגיקה אדפטיבית: סיום יחידה ---
-    const handleFinishUnit = async () => {
-        if (!activeUnit) return;
+    // --- לוגיקה למעבר ליחידה הבאה ---
+    const goToNextUnit = () => {
+        if (!activeModuleId || !activeUnitId) return;
 
-        // 1. חישוב ציון
-        const questions = activeUnit.activityBlocks.filter(b => b.type === 'multiple-choice');
-        // אם אין שאלות, פשוט עוברים
-        if (questions.length === 0) {
-            alert("יחידה הושלמה בהצלחה!");
-            return;
+        // מציאת האינדקסים הנוכחיים
+        const currentModIndex = course.syllabus.findIndex(m => m.id === activeModuleId);
+        if (currentModIndex === -1) return;
+
+        const currentModule = course.syllabus[currentModIndex];
+        const currentUnitIndex = currentModule.learningUnits.findIndex(u => u.id === activeUnitId);
+
+        // בדיקה האם יש עוד יחידה במודול הנוכחי
+        if (currentUnitIndex < currentModule.learningUnits.length - 1) {
+            const nextUnit = currentModule.learningUnits[currentUnitIndex + 1];
+            setActiveUnitId(nextUnit.id);
+            // גלילה למעלה
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-
-        let correctCount = 0;
-        questions.forEach(q => {
-            if (userAnswers[q.id] === q.content.correctAnswer) correctCount++;
-        });
-
-        const score = Math.round((correctCount / questions.length) * 100);
-
-        // 2. בדיקה האם נדרש חיזוק (פחות מ-60)
-        if (score < 60 && !isExamMode) {
-            if (confirm(`הציון שלך ביחידה זו הוא ${score}. האם תרצה שהמערכת תיצור עבורך שיעור חיזוק מותאם אישית?`)) {
-                setIsGeneratingAdaptive(true);
-                try {
-                    // קריאה לפונקציה החדשה ב-gemini.ts
-                    const remedialUnit = await generateAdaptiveUnit(activeUnit, "General comprehension failure");
-
-                    // הוספה לקורס
-                    const updatedCourse = { ...course };
-                    const modIndex = updatedCourse.syllabus.findIndex(m => m.id === activeModuleId);
-                    if (modIndex !== -1) {
-                        const unitIndex = updatedCourse.syllabus[modIndex].learningUnits.findIndex(u => u.id === activeUnitId);
-                        updatedCourse.syllabus[modIndex].learningUnits.splice(unitIndex + 1, 0, remedialUnit);
-
-                        setCourse(updatedCourse);
-                        setActiveUnitId(remedialUnit.id);
-                        alert("שיעור החיזוק מוכן! בהצלחה.");
-                    }
-                } catch (e) {
-                    console.error(e);
-                    alert("שגיאה ביצירת תוכן אדפטיבי.");
-                } finally {
-                    setIsGeneratingAdaptive(false);
-                }
+        // אם לא, בודקים אם יש עוד מודול
+        else if (currentModIndex < course.syllabus.length - 1) {
+            const nextModule = course.syllabus[currentModIndex + 1];
+            if (nextModule.learningUnits.length > 0) {
+                setActiveModuleId(nextModule.id);
+                setActiveUnitId(nextModule.learningUnits[0].id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         } else {
-            alert(`כל הכבוד! סיימת את היחידה בציון ${score}.`);
+            alert("כל הכבוד! סיימת את הקורס כולו. 🎉");
+        }
+    };
+
+    // --- לוגיקה ראשית: כפתור המשך ---
+    const handleContinueClick = async () => {
+        if (!activeUnit) return;
+
+        // 1. חישוב ציון (אם יש שאלות)
+        const questions = activeUnit.activityBlocks.filter(b => b.type === 'multiple-choice');
+        let score = 100;
+
+        if (questions.length > 0) {
+            let correctCount = 0;
+            questions.forEach(q => {
+                if (userAnswers[q.id] === q.content.correctAnswer) correctCount++;
+            });
+            score = Math.round((correctCount / questions.length) * 100);
+        }
+
+        // 2. לוגיקה אדפטיבית (רק אם ציון נמוך מ-60 ולא במבחן)
+        if (score < 60 && !isExamMode && questions.length > 0) {
+            setIsGeneratingAdaptive(true);
+            try {
+                // יצירת יחידת החיזוק
+                const remedialUnit = await generateAdaptiveUnit(activeUnit, "General comprehension failure");
+
+                // הוספה לקורס (מיד אחרי היחידה הנוכחית)
+                const updatedCourse = { ...course };
+                const modIndex = updatedCourse.syllabus.findIndex(m => m.id === activeModuleId);
+
+                if (modIndex !== -1) {
+                    const unitIndex = updatedCourse.syllabus[modIndex].learningUnits.findIndex(u => u.id === activeUnitId);
+
+                    // הוספת יחידת החיזוק
+                    updatedCourse.syllabus[modIndex].learningUnits.splice(unitIndex + 1, 0, remedialUnit);
+                    setCourse(updatedCourse);
+
+                    // מעבר אוטומטי ליחידה החדשה
+                    setActiveUnitId(remedialUnit.id);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    // אפשר להוסיף כאן טוסט/הודעה קטנה במקום Alert מציק
+                }
+            } catch (e) {
+                console.error("Adaptive Error:", e);
+                // במקרה של שגיאה, פשוט ממשיכים רגיל
+                goToNextUnit();
+            } finally {
+                setIsGeneratingAdaptive(false);
+            }
+        } else {
+            // הכל טוב, ממשיכים הלאה
+            goToNextUnit();
         }
     };
 
@@ -361,6 +403,9 @@ const CoursePlayer: React.FC = () => {
         }
     };
 
+    // משתנה עזר לתווית
+    const unitBadge = activeUnit ? getUnitBadge(activeUnit) : { label: '', class: '' };
+
     return (
         <div className="flex h-[calc(100vh-80px)] overflow-hidden bg-gray-50">
             <aside className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0 pb-20 shadow-xl z-10">
@@ -381,8 +426,8 @@ const CoursePlayer: React.FC = () => {
                                                     : 'text-gray-600 hover:bg-gray-100'}`}
                                         >
                                             <span>{unit.title}</span>
-                                            {/* הסתרת התגיות במצב מבחן כפי שביקשת */}
-                                            {unit.type === 'test' && !isExamMode && (
+                                            {/* תיקון: הצגת תגית מבחן רק אם זה באמת מבחן וגם הכותרת לא מכילה 'סיכום' (למקרה שהדאטה שגוי) */}
+                                            {unit.type === 'test' && !isExamMode && !unit.title.includes('סיכום') && (
                                                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeUnitId === unit.id ? 'bg-white text-indigo-600' : 'bg-red-100 text-red-600'}`}>
                                                     מבחן
                                                 </span>
@@ -409,10 +454,8 @@ const CoursePlayer: React.FC = () => {
                     {activeUnit ? (
                         <>
                             <header className="mb-10 pb-6 border-b border-gray-100">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold mb-3 inline-block
-                                    ${activeUnit.type === 'acquisition' ? 'bg-blue-100 text-blue-700' : activeUnit.type === 'practice' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}
-                                `}>
-                                    {activeUnit.type === 'acquisition' ? '📖 יחידת לימוד' : activeUnit.type === 'practice' ? '💪 יחידת תרגול' : '📝 יחידת מבחן'}
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold mb-3 inline-block ${unitBadge.class}`}>
+                                    {unitBadge.label}
                                 </span>
                                 <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">{activeUnit.title}</h1>
                             </header>
@@ -422,14 +465,24 @@ const CoursePlayer: React.FC = () => {
                                 {activeUnit.activityBlocks?.map(renderBlock)}
                             </div>
 
-                            {/* כפתור סיום יחידה + אדפטיביות */}
+                            {/* כפתור המשך (מחליף את כפתור הסיום) */}
                             <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center">
                                 <button
-                                    onClick={handleFinishUnit}
+                                    onClick={handleContinueClick}
                                     disabled={isGeneratingAdaptive}
-                                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all flex items-center gap-2"
+                                    className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:shadow-xl hover:bg-indigo-700 transform hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
                                 >
-                                    {isGeneratingAdaptive ? '🤖 ה-AI בונה לך שיעור חיזוק...' : '✅ סיימתי את היחידה'}
+                                    {isGeneratingAdaptive ? (
+                                        <>
+                                            <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                                            <span>מכין תרגול מותאם...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>המשך לשיעור הבא</span>
+                                            <span>⬅️</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </>

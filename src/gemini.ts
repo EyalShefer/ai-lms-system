@@ -1,4 +1,4 @@
-import type { Course } from "./courseTypes";
+import type { Course, LearningUnit } from "./courseTypes";
 import { v4 as uuidv4 } from 'uuid';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -17,7 +17,6 @@ const SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
 ];
 
-// --- ממשק ההגדרות (חשוב לייצא אותו) ---
 export interface GenerationConfig {
   modulesCount: number;
   unitsPerModule: number;
@@ -31,8 +30,6 @@ export interface GenerationConfig {
 }
 
 async function callGeminiDirect(promptText: string): Promise<string> {
-  console.log("📡 Calling Gemini 2.0 Flash (JSON Mode)...");
-
   const response = await fetch(BASE_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,9 +37,9 @@ async function callGeminiDirect(promptText: string): Promise<string> {
       contents: [{ parts: [{ text: promptText }] }],
       safetySettings: SAFETY_SETTINGS,
       generationConfig: {
-        temperature: 0.4, // ירדנו קצת ליציבות
+        temperature: 0.4,
         maxOutputTokens: 8192,
-        responseMimeType: "application/json" // <--- השינוי הקריטי: כפיית מצב JSON
+        responseMimeType: "application/json" // הקסם שמונע שגיאות JSON
       }
     })
   });
@@ -68,11 +65,9 @@ export async function generateCourseWithGemini(
   config?: GenerationConfig
 ): Promise<Course> {
 
-  // קיצור קל של הטקסט למניעת חריגת טוקנים שקוטעת את ה-JSON
   const hasSource = sourceMaterial.length > 0;
-  const cleanSource = sourceMaterial.replace(/"/g, "'").substring(0, 45000);
+  const cleanSource = sourceMaterial.replace(/"/g, "'").substring(0, 50000);
 
-  // הגדרות ברירת מחדל
   const modulesCount = config?.modulesCount || 3;
   const unitsCount = config?.unitsPerModule || 3;
   const totalScore = config?.totalScore || 100;
@@ -96,16 +91,11 @@ export async function generateCourseWithGemini(
        - Reasoning: ${config?.questionDistribution.reasoning || 20}%
     3. Style: ${config?.includeSampleQuestion ? `Mimic style: "${config.includeSampleQuestion}"` : "Standard academic."}
 
-    --- CRITICAL JSON RULES ---
-    1. Output MUST be valid JSON.
-    2. **ESCAPE DOUBLE QUOTES**: If writing Hebrew text containing quotes (e.g. "word"), use backslash (e.g. \"word\").
-    3. NO MARKDOWN: Do not wrap in \`\`\`json ... \`\`\`. Just raw JSON.
-    4. NO TRAILING COMMAS.
-
     --- SCORING ---
     - Assign "score" to questions. Sum must be ${totalScore}.
 
-    --- SCHEMA ---
+    --- JSON FORMAT ---
+    Return ONLY valid JSON:
     {
       "title": "Hebrew Title",
       "targetAudience": "${gradeLevel}",
@@ -132,14 +122,12 @@ export async function generateCourseWithGemini(
   try {
     let text = await callGeminiDirect(promptText);
 
-    // ניקויים ליתר ביטחון, למרות ש-JSON Mode אמור לטפל בזה
+    // ניקויים ליתר ביטחון
     text = text.trim();
     if (text.startsWith('```json')) text = text.replace(/```json/g, "").replace(/```/g, "");
     if (text.startsWith('```')) text = text.replace(/```/g, "");
 
     const courseData = JSON.parse(text) as Course;
-
-    // --- מנגנון ה-UUID וניקוד ---
     courseData.id = uuidv4();
     courseData.teacherId = "";
     courseData.mode = 'learning';
@@ -166,9 +154,7 @@ export async function generateCourseWithGemini(
       }))
     }));
 
-    // נרמול ניקוד (אם ה-AI פספס בחישוב)
     if (questionCount > 0 && Math.abs(calculatedTotal - totalScore) > 2) {
-      console.log(`Normalizing score from ${calculatedTotal} to ${totalScore}`);
       const factor = totalScore / calculatedTotal;
       courseData.syllabus.forEach(mod => {
         mod.learningUnits.forEach(unit => {
@@ -188,14 +174,57 @@ export async function generateCourseWithGemini(
   }
 }
 
+// --- פונקציה חדשה לאדפטיביות (יצירת יחידת חיזוק) ---
+export async function generateAdaptiveUnit(originalUnit: LearningUnit, weakTopics: string): Promise<LearningUnit> {
+  const promptText = `
+    Role: Adaptive Learning Specialist.
+    Task: Create a REMEDIAL (reinforcement) learning unit based on the student's failure.
+    
+    Original Unit Content: "${originalUnit.baseContent.substring(0, 1000)}..."
+    Student Weakness: The student failed to understand: ${weakTopics}.
+
+    Goal: Explain the concept again but SIMPLER, using analogies and step-by-step logic. Then ask 2 easy validation questions.
+
+    --- JSON OUTPUT FORMAT ---
+    Return ONLY valid JSON matching LearningUnit structure:
+    {
+      "title": "חיזוק: ${originalUnit.title}",
+      "type": "acquisition",
+      "baseContent": "Simpler explanation here...",
+      "activityBlocks": [
+         { "type": "text", "content": "Analogy or simple text..." },
+         { "type": "multiple-choice", "content": { "question": "Easy check...", "options": ["A","B","C","D"], "correctAnswer": "A" }, "metadata": { "score": 0 } },
+         { "type": "multiple-choice", "content": { "question": "Easy check 2...", "options": ["A","B","C","D"], "correctAnswer": "A" }, "metadata": { "score": 0 } }
+      ]
+    }
+    `;
+
+  try {
+    let text = await callGeminiDirect(promptText);
+    // ניקויים ליתר ביטחון
+    text = text.trim();
+    if (text.startsWith('```json')) text = text.replace(/```json/g, "").replace(/```/g, "");
+    if (text.startsWith('```')) text = text.replace(/```/g, "");
+
+    const unitData = JSON.parse(text) as LearningUnit;
+
+    // יצירת מזהים ייחודיים חדשים
+    unitData.id = uuidv4();
+    unitData.activityBlocks = unitData.activityBlocks.map(b => ({ ...b, id: uuidv4() }));
+
+    return unitData;
+  } catch (e) {
+    console.error("Adaptive gen failed", e);
+    throw e;
+  }
+}
+
 // --- שאר הפונקציות ---
 
 export async function generateQuestionsFromText(text: string, type: 'multiple-choice' | 'open-question'): Promise<any[]> {
-  // גם כאן נשתמש ב-responseMimeType ליציבות
   const promptText = type === 'multiple-choice'
     ? `Create 2 multiple-choice questions in HEBREW based on: "${text.substring(0, 2000)}...". Output JSON array.`
     : `Create 1 OPEN-ENDED question in HEBREW based on: "${text.substring(0, 2000)}...". Output JSON array.`;
-
   try {
     const response = await fetch(BASE_URL, {
       method: "POST",
@@ -207,14 +236,13 @@ export async function generateQuestionsFromText(text: string, type: 'multiple-ch
       })
     });
     const data = await response.json();
-    const resText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-    return JSON.parse(resText);
+    return JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
   } catch (e) { return []; }
 }
 
 export async function generateImagePromptBlock(lessonContent: string): Promise<string> {
   try {
-    // כאן אנחנו רוצים טקסט פשוט, לא JSON
+    // לתמונות אנחנו רוצים טקסט חופשי, לא JSON
     const response = await fetch(BASE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -230,6 +258,7 @@ export async function generateImagePromptBlock(lessonContent: string): Promise<s
 
 export async function refineContentWithPedagogy(text: string, skill: string): Promise<string> {
   try {
+    // גם כאן טקסט חופשי
     const response = await fetch(BASE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
