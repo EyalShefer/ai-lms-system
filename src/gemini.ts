@@ -6,7 +6,7 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// --- פונקציה 1: יצירת סילבוס לקורס (החלק שחסר לך) ---
+// --- פונקציה 1: יצירת סילבוס לקורס ---
 export const generateCoursePlan = async (topic: string, mode: string = 'learning') => {
   const prompt = `
     Create a comprehensive course syllabus for the topic: "${topic}".
@@ -36,18 +36,17 @@ export const generateCoursePlan = async (topic: string, mode: string = 'learning
   try {
     const result = await model.generateContent(prompt);
     const response = result.response;
-    const text = response.text().replace(/```json|```/g, '').trim(); // ניקוי שאריות מרקדאון
+    const text = response.text().replace(/```json|```/g, '').trim();
 
     const rawData = JSON.parse(text);
 
-    // הוספת מזהים ייחודיים ומבנה תקין
     return rawData.map((mod: any) => ({
       ...mod,
       id: uuidv4(),
       learningUnits: mod.learningUnits.map((unit: any) => ({
         ...unit,
         id: uuidv4(),
-        activityBlocks: [] // מתחיל ריק, המורה או ה-AI ימלאו אחר כך
+        activityBlocks: []
       }))
     }));
 
@@ -57,14 +56,12 @@ export const generateCoursePlan = async (topic: string, mode: string = 'learning
   }
 };
 
-// --- פונקציה 2: יצירת תוכן מלא ליחידה (אופציונלי, למילוי אוטומטי) ---
+// --- פונקציה 2: יצירת תוכן מלא ליחידה ---
 export const generateFullUnitContent = async (unitTitle: string, description: string) => {
-  // לוגיקה ליצירת בלוקים (טקסט, שאלות וכו')
-  // כרגע נשאיר פשוט כדי לא להעמיס, אבל הפונקציה קיימת כדי לא לשבור ייבוא
   return [];
 };
 
-// --- פונקציה 3: שיפור טקסט פדגוגי (לעורך) ---
+// --- פונקציה 3: שיפור טקסט פדגוגי ---
 export const refineContentWithPedagogy = async (content: string, instruction: string) => {
   const prompt = `
     Act as an expert pedagogical editor.
@@ -110,7 +107,7 @@ export const generateImagePromptBlock = async (context: string) => {
   return result.response.text();
 };
 
-// --- פונקציה 6: יחידה אדפטיבית (לנגן) ---
+// --- פונקציה 6: יחידה אדפטיבית ---
 export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) => {
   const prompt = `
         A student failed to understand "${originalUnit.title}".
@@ -119,7 +116,7 @@ export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) 
         Language: Hebrew.
         Return JSON object of a LearningUnit.
     `;
-  // פישוט לצורך הדמו: מחזירים יחידה בסיסית
+
   return {
     id: uuidv4(),
     title: `חיזוק: ${originalUnit.title}`,
@@ -135,7 +132,7 @@ export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) 
   };
 };
 
-// --- פונקציה 7: ניתוח כיתתי (דשבורד) ---
+// --- פונקציה 7: ניתוח כיתתי ---
 export const generateClassAnalysis = async (studentsData: any[]) => {
   const prompt = `
         Analyze this class data (JSON): ${JSON.stringify(studentsData).substring(0, 1000)}
@@ -157,7 +154,7 @@ export const generateClassAnalysis = async (studentsData: any[]) => {
   }
 };
 
-// --- פונקציה 8: דוח תלמיד (דשבורד) ---
+// --- פונקציה 8: דוח תלמיד ---
 export const generateStudentReport = async (studentData: any) => {
   const prompt = `
         Create a report for student: ${JSON.stringify(studentData)}
@@ -179,5 +176,28 @@ export const generateStudentReport = async (studentData: any) => {
     return JSON.parse(text);
   } catch (e) {
     return null;
+  }
+};
+
+// --- פונקציה 9: יצירת שאלה פתוחה בודדת (Wizdi Magic) ---
+export const generateSingleOpenQuestion = async (context: string) => {
+  const prompt = `
+      Create a single challenging open-ended question about: "${context}".
+      Include a "Model Answer" (rubric) for the teacher.
+      Language: Hebrew.
+      Return ONLY valid JSON:
+      {
+        "question": "The question text...",
+        "modelAnswer": "The expected answer / key points..."
+      }
+    `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json|```/g, '').trim();
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Error generating single question", e);
+    return { question: "שגיאה ביצירה", modelAnswer: "" };
   }
 };

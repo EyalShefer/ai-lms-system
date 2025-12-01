@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import type { LearningUnit, ActivityBlock, ActivityBlockType } from '../courseTypes';
-import { generateImagePromptBlock, generateQuestionsFromText, refineContentWithPedagogy } from '../gemini';
+import { generateImagePromptBlock, generateQuestionsFromText, refineContentWithPedagogy, generateSingleOpenQuestion } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
-// ייבוא האייקונים החדשים - וודא שהשמות תואמים לקובץ icons.tsx שלך
 import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconWand, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance // הנחתי שקיימים אייקונים אלו או דומים
+    IconRobot, IconPalette, IconBalance, IconBrain
 } from '../icons';
 
 interface UnitEditorProps {
@@ -19,7 +18,6 @@ interface UnitEditorProps {
     onCancel: () => void;
 }
 
-// עדכון הפעולות ללא אימוג'ים בטקסט (האייקון יבוא בנפרד)
 const getAiActions = (gradeLevel: string) => [
     { label: "שפר ניסוח", prompt: `שפר את הניסוח שיהיה זורם, מקצועי ומותאם לתלמידי ${gradeLevel}` },
     { label: "קצר טקסט", prompt: "קצר את הטקסט תוך שמירה על המסר העיקרי" },
@@ -143,25 +141,45 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handlePaintImage = (blockId: string, promptText: string) => { if (!promptText) return alert("חסר תיאור!"); setLoadingBlockId(blockId); const safePrompt = encodeURIComponent(promptText.replace(/[^\w\s,.]/gi, '')); const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=800&height=600&nologo=true&seed=${Math.random()}`; const img = new Image(); img.src = imageUrl; img.onload = () => { updateBlock(blockId, imageUrl, { aiPrompt: promptText }); setLoadingBlockId(null); }; };
     const handleGenerateQuestions = async (blockId: string, text: string, type: 'multiple-choice' | 'open-question') => { if (!text || text.length < 10) return alert("חסר טקסט"); setLoadingBlockId(blockId); try { const questions = await generateQuestionsFromText(text, type); const newBlocks: ActivityBlock[] = questions.map((q: any) => { const id = uuidv4(); if (type === 'multiple-choice') return { id, type: 'multiple-choice', content: { question: q.question, options: q.options, correctAnswer: q.correctAnswer }, metadata: { score: 0 } }; return { id, type: 'open-question', content: { question: q.question }, metadata: { modelAnswer: q.modelAnswer, score: 0 } }; }); const idx = editedUnit.activityBlocks.findIndex(b => b.id === blockId); const updated = [...editedUnit.activityBlocks]; updated.splice(idx + 1, 0, ...newBlocks); setEditedUnit({ ...editedUnit, activityBlocks: updated }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
 
-    // --- קומפוננטת תפריט ההוספה (מעודכנת ל-Glass) ---
+    // --- פונקציה חדשה: מילוי אוטומטי לשאלה פתוחה ריקה ---
+    const handleAutoGenerateQuestion = async (blockId: string) => {
+        setLoadingBlockId(blockId);
+        try {
+            // משתמשים בכותרת היחידה כקונטקסט
+            const result = await generateSingleOpenQuestion(editedUnit.title);
+            updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
+        } catch (e) {
+            console.error(e);
+            alert("שגיאה ביצירת השאלה");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
+
     const InsertMenu = ({ index }: { index: number }) => (
-        <div className="relative py-3 group z-20">
-            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-blue-200/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="flex justify-center relative z-10">
+        <div className="relative py-6 group z-20 flex justify-center">
+            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-blue-100 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+
+            <div className="relative z-10">
                 {activeInsertIndex === index ? (
-                    <div className="glass border border-white/40 shadow-xl rounded-xl p-2 flex gap-2 animate-scale-in items-center backdrop-blur-md">
+                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-3 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/90">
                         <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn"><IconText className="w-4 h-4" /><span>טקסט</span></button>
                         <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn"><IconImage className="w-4 h-4" /><span>תמונה</span></button>
                         <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn"><IconVideo className="w-4 h-4" /><span>וידאו</span></button>
-                        <div className="w-px h-6 bg-gray-300/50 mx-1"></div>
+                        <div className="w-px h-6 bg-gray-300 mx-2 hidden sm:block"></div>
                         <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>אמריקאית</span></button>
                         <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>פתוחה</span></button>
-                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn text-purple-600"><IconChat className="w-4 h-4" /><span>צ'אט</span></button>
-                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 px-2 ml-1"><IconX className="w-5 h-5" /></button>
+                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn text-purple-600 bg-purple-50 hover:bg-purple-100 border-purple-200"><IconChat className="w-4 h-4" /><span>צ'אט AI</span></button>
+                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
                     </div>
                 ) : (
-                    <button onClick={() => setActiveInsertIndex(index)} className="glass text-blue-500 border border-blue-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-600 hover:text-white transform hover:scale-110" title="הוסף רכיב">
-                        <IconPlus className="w-5 h-5" />
+                    <button
+                        onClick={() => setActiveInsertIndex(index)}
+                        className="bg-white text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-50"
+                        title="הוסף רכיב חדש כאן"
+                    >
+                        <IconPlus className="w-4 h-4" />
+                        <span className="text-xs font-bold">הוסף רכיב</span>
                     </button>
                 )}
             </div>
@@ -169,9 +187,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     );
 
     return (
-        <div className="min-h-screen p-8 font-sans pb-24">
-            {/* Header - Glass Style */}
-            <div className="sticky top-4 z-40 glass backdrop-blur-lg shadow-lg rounded-2xl p-4 flex justify-between items-center mb-10 border border-white/30">
+        <div className="min-h-screen p-8 font-sans pb-24 bg-gray-50/50">
+            {/* Header */}
+            <div className="sticky top-4 z-40 glass backdrop-blur-lg shadow-lg rounded-2xl p-4 flex justify-between items-center mb-10 border border-white/60 bg-white/80">
                 <div>
                     <input
                         type="text"
@@ -207,8 +225,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 {editedUnit.activityBlocks?.map((block, index) => (
                     <React.Fragment key={block.id}>
-                        <div className="glass p-6 rounded-2xl shadow-sm border border-white/40 hover:shadow-xl transition-all relative group bg-white/60">
-                            {/* Block Controls - appearing on hover */}
+                        <div className="glass p-6 rounded-2xl shadow-sm border border-white/60 hover:shadow-xl hover:border-blue-200 transition-all relative group bg-white/80">
+                            {/* Block Controls */}
                             <div className="absolute top-4 left-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur border border-gray-100 rounded-lg p-1 z-10 shadow-sm">
                                 <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors"><IconArrowUp className="w-4 h-4" /></button>
                                 <button onClick={() => moveBlock(index, 'down')} disabled={index === editedUnit.activityBlocks.length - 1} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors"><IconArrowDown className="w-4 h-4" /></button>
@@ -219,7 +237,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             <span className="absolute top-2 right-12 text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-1 rounded-full uppercase tracking-wide border border-white/50">{block.type}</span>
 
                             <div className="mt-2">
-                                {/* --- TEXT BLOCK --- */}
                                 {block.type === 'text' && (
                                     <div>
                                         <textarea
@@ -228,8 +245,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             onChange={(e) => updateBlock(block.id, e.target.value)}
                                             placeholder="הקלד כאן את תוכן הלימוד..."
                                         />
-
-                                        {/* AI Tools Bar */}
                                         <div className="flex flex-wrap items-center gap-2 mt-3 bg-blue-50/40 p-2 rounded-xl border border-blue-100/50 backdrop-blur-sm">
                                             <div className="flex items-center gap-1 text-blue-600 px-2 font-bold text-xs">
                                                 <IconSparkles className="w-4 h-4" /> AI:
@@ -252,7 +267,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                 )}
 
-                                {/* --- IMAGE BLOCK --- */}
                                 {block.type === 'image' && (
                                     <div>
                                         <div className="flex gap-2 mb-3">
@@ -266,14 +280,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, block.id)} />
                                             </label>
                                         </div>
-
                                         {block.content && (
                                             <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
                                                 <img src={block.content} className="w-full h-64 object-cover" alt="Content" />
                                             </div>
                                         )}
-
-                                        {/* AI Image Generation */}
                                         <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 mt-3 flex gap-2 items-center backdrop-blur-sm">
                                             <div className="flex items-center gap-1 text-purple-600 px-2 font-bold text-xs">
                                                 <IconPalette className="w-4 h-4" /> AI Art:
@@ -289,7 +300,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                 )}
 
-                                {/* --- VIDEO BLOCK --- */}
                                 {block.type === 'video' && (
                                     <div>
                                         <div className="flex gap-2 mb-3">
@@ -303,7 +313,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <input type="file" className="hidden" accept="video/*" onChange={(e) => handleFileUpload(e, block.id)} />
                                             </label>
                                         </div>
-
                                         {getYoutubeId(block.content) ? (
                                             <div className="relative aspect-video rounded-xl overflow-hidden border border-gray-200 bg-black group-video shadow-md">
                                                 <img src={`https://img.youtube.com/vi/${getYoutubeId(block.content)}/maxresdefault.jpg`} className="w-full h-full object-cover opacity-80" onError={(e) => e.currentTarget.src = `https://img.youtube.com/vi/${getYoutubeId(block.content)}/0.jpg`} />
@@ -319,7 +328,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                 )}
 
-                                {/* --- CHAT BLOCK --- */}
                                 {block.type === 'interactive-chat' && (
                                     <div className="bg-gradient-to-r from-purple-50/80 to-indigo-50/80 p-5 rounded-xl border border-purple-100 backdrop-blur-sm">
                                         <div className="flex items-center gap-3 mb-4">
@@ -343,7 +351,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                 )}
 
-                                {/* --- QUESTIONS BLOCKS --- */}
                                 {(block.type === 'multiple-choice' || block.type === 'open-question') && (
                                     <div className={`${block.type === 'multiple-choice' ? 'bg-blue-50/40 border-blue-100' : 'bg-orange-50/40 border-orange-100'} p-5 rounded-xl border backdrop-blur-sm`}>
                                         <div className="flex justify-between items-start mb-4">
@@ -351,7 +358,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className={`mt-1 ${block.type === 'multiple-choice' ? 'text-blue-500' : 'text-orange-500'}`}>
                                                     {block.type === 'multiple-choice' ? <IconList className="w-5 h-5" /> : <IconEdit className="w-5 h-5" />}
                                                 </div>
-                                                <input type="text" className="flex-1 font-bold text-lg p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400" value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder="הקלד את השאלה כאן..." />
+                                                <input type="text" className="flex-1 font-bold text-lg p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400" value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder={block.type === 'multiple-choice' ? "הקלד שאלה אמריקאית..." : "הקלד שאלה פתוחה..."} />
                                             </div>
 
                                             {showScoring && (
@@ -386,6 +393,19 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                         {block.type === 'open-question' && (
                                             <div className="pr-7 mt-2">
+                                                {/* כפתור הקסם החדש לשאלה פתוחה */}
+                                                {!block.content.question && (
+                                                    <div className="flex justify-end mb-2">
+                                                        <button
+                                                            onClick={() => handleAutoGenerateQuestion(block.id)}
+                                                            disabled={loadingBlockId === block.id}
+                                                            className="bg-gradient-to-r from-orange-400 to-pink-500 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                                                        >
+                                                            {loadingBlockId === block.id ? 'חושב...' : <><IconSparkles className="w-3 h-3" /> Wizdi Magic: צור שאלה ומחוון אוטומטית</>}
+                                                        </button>
+                                                    </div>
+                                                )}
+
                                                 <label className="text-xs font-bold text-gray-400 mb-1 block flex items-center gap-1"><IconBrain className="w-3 h-3" /> תשובה לדוגמה (עבור ה-AI):</label>
                                                 <textarea className="w-full p-3 border border-gray-200/80 rounded-xl bg-white/80 text-sm focus:bg-white transition-colors outline-none focus:border-orange-300" rows={2} value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { modelAnswer: e.target.value })} placeholder="כתוב כאן את התשובה המצופה..." />
                                             </div>
