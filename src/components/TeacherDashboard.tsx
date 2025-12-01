@@ -3,6 +3,10 @@ import { useCourseStore } from '../context/CourseContext';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import {
+    IconChart, IconStudent, IconBrain, IconList,
+    IconCheck, IconX, IconSparkles, IconEdit, IconSave
+} from '../icons';
 
 interface StudentStat {
     id: string;
@@ -27,6 +31,7 @@ const TeacherDashboard: React.FC = () => {
 
     // ניתוח כיתתי (AI)
     const [aiInsight, setAiInsight] = useState<any>(null);
+    const [aiLoading, setAiLoading] = useState(false);
 
     // ניתוח אישי (תעודה)
     const [analyzingStudentId, setAnalyzingStudentId] = useState<string | null>(null);
@@ -52,7 +57,6 @@ const TeacherDashboard: React.FC = () => {
                         }
                     });
                 }
-                // אם יש ציון סופי שמור, השתמש בו. אחרת חשב ממוצע.
                 const finalScore = count > 0 ? Math.round(totalScore / count) : (data.finalScore || 0);
 
                 return {
@@ -66,18 +70,16 @@ const TeacherDashboard: React.FC = () => {
 
             setStudents(rawData);
             calculateStats(rawData);
-
-            // הפעלת ניתוח AI אוטומטי אם יש נתונים ועדיין אין תובנות
-            if (rawData.length > 0 && !aiInsight) {
-                try {
-                    const insight = await generateClassAnalysis(rawData);
-                    setAiInsight(insight);
-                } catch (e) {
-                    console.error("Failed to generate class analysis", e);
-                }
-            }
-
             setLoading(false);
+
+            // הפעלת ניתוח AI אוטומטי (רק אם יש מספיק נתונים ועדיין לא נוצר)
+            if (rawData.length >= 3 && !aiInsight && !aiLoading) {
+                setAiLoading(true);
+                generateClassAnalysis(rawData)
+                    .then(insight => setAiInsight(insight))
+                    .catch(e => console.error("Failed to generate class analysis", e))
+                    .finally(() => setAiLoading(false));
+            }
         });
 
         return () => unsubscribe();
@@ -86,15 +88,12 @@ const TeacherDashboard: React.FC = () => {
     const calculateStats = (data: StudentStat[]) => {
         if (data.length === 0) return;
 
-        // חישוב ממוצע
         const sum = data.reduce((acc, curr) => acc + curr.score, 0);
         setAverageScore(Math.round(sum / data.length));
 
-        // חישוב תלמידים בסיכון (מתחת ל-60)
         const risk = data.filter(s => s.score < 60).length;
         setAtRiskCount(risk);
 
-        // חישוב התפלגות ציונים לגרף
         const dist = [0, 0, 0, 0];
         data.forEach(s => {
             if (s.score < 56) dist[0]++;      // נכשל
@@ -117,16 +116,12 @@ const TeacherDashboard: React.FC = () => {
         }
     };
 
-    // פונקציית ייצוא לאקסל (CSV)
     const exportToCSV = () => {
         let csvContent = "data:text/csv;charset=utf-8,";
-        // כותרות (BOM לעברית תקינה באקסל)
         csvContent += "\uFEFFשם תלמיד,ציון,התקדמות (שאלות שנענו),נראה לאחרונה\n";
-
         students.forEach(row => {
             csvContent += `${row.name},${row.score},${row.progress},${row.lastActive}\n`;
         });
-
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -136,47 +131,47 @@ const TeacherDashboard: React.FC = () => {
         document.body.removeChild(link);
     };
 
-    if (loading) return <div className="p-10 text-center text-gray-500 font-bold">טוען נתוני כיתה בזמן אמת... ⏳</div>;
+    if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען נתונים...</div>;
 
     return (
         <div className="min-h-screen bg-gray-50 p-8 font-sans pb-20">
             <div className="max-w-7xl mx-auto">
 
-                {/* כותרת וכפתור ייצוא */}
-                <div className="flex justify-between items-center mb-8">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">דשבורד פדגוגי 📊</h1>
-                        <p className="text-gray-500 mt-1">מערך שיעור: <span className="font-bold text-indigo-600">{course.title}</span></p>
+                        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2"><IconChart className="w-8 h-8 text-indigo-600" /> דשבורד פדגוגי</h1>
+                        <p className="text-gray-500 mt-1 flex items-center gap-2 text-sm">מערך שיעור: <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{course.title}</span></p>
                     </div>
                     <button
                         onClick={exportToCSV}
-                        className="text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2 border border-indigo-200 shadow-sm"
+                        className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm hover:shadow flex items-center gap-2 text-sm"
                     >
-                        <span>📥</span> ייצוא לאקסל
+                        <IconSave className="w-4 h-4" /> ייצוא לאקסל
                     </button>
                 </div>
 
-                {/* KPI Cards - מדדים עיקריים */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-                        <div className="text-gray-400 text-sm font-bold uppercase tracking-wide">ממוצע כיתתי</div>
-                        <div className={`text-4xl font-extrabold ${averageScore > 80 ? 'text-green-600' : averageScore > 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                    <div className="glass p-6 rounded-2xl shadow-sm border border-white/60 bg-white/70 flex flex-col justify-between hover:shadow-md transition-shadow">
+                        <div className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1"><IconChart className="w-3 h-3" /> ממוצע כיתתי</div>
+                        <div className={`text-5xl font-extrabold mt-2 ${averageScore > 80 ? 'text-green-500' : averageScore > 60 ? 'text-yellow-500' : 'text-red-500'}`}>
                             {averageScore}
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-                        <div className="text-gray-400 text-sm font-bold uppercase tracking-wide">מצטיינים (90+)</div>
-                        <div className="text-4xl font-extrabold text-blue-600">{distribution[3]}</div>
+                    <div className="glass p-6 rounded-2xl shadow-sm border border-white/60 bg-white/70 flex flex-col justify-between hover:shadow-md transition-shadow">
+                        <div className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1"><IconSparkles className="w-3 h-3" /> מצטיינים (90+)</div>
+                        <div className="text-5xl font-extrabold text-blue-500 mt-2">{distribution[3]}</div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100 flex flex-col justify-between relative overflow-hidden">
-                        <div className="absolute right-0 top-0 w-2 h-full bg-red-500"></div>
-                        <div className="text-gray-400 text-sm font-bold uppercase tracking-wide">טעוני טיפוח</div>
-                        <div className="text-4xl font-extrabold text-red-600">{atRiskCount}</div>
-                        <div className="text-xs text-red-400 mt-2 font-bold">דורש התייחסות מיידית</div>
+                    <div className="glass p-6 rounded-2xl shadow-sm border border-red-100 bg-red-50/50 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-1.5 h-full bg-red-400"></div>
+                        {/* תיקון הטקסט כאן */}
+                        <div className="text-red-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1">⚠️ זקוקים לתשומת לב מיוחדת</div>
+                        <div className="text-5xl font-extrabold text-red-500 mt-2">{atRiskCount}</div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-                        <div className="text-gray-400 text-sm font-bold uppercase tracking-wide">פעילות היום</div>
-                        <div className="text-4xl font-extrabold text-purple-600">
+                    <div className="glass p-6 rounded-2xl shadow-sm border border-white/60 bg-white/70 flex flex-col justify-between hover:shadow-md transition-shadow">
+                        <div className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1"><IconStudent className="w-3 h-3" /> פעילות היום</div>
+                        <div className="text-5xl font-extrabold text-purple-500 mt-2">
                             {students.filter(s => s.lastActive === new Date().toLocaleDateString('he-IL')).length}
                         </div>
                     </div>
@@ -184,81 +179,98 @@ const TeacherDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                    {/* עמודה ימנית: תובנות AI וגרפים */}
+                    {/* Left Column: AI & Charts */}
                     <div className="lg:col-span-2 space-y-8">
 
-                        {/* כרטיס תובנות AI */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
-                            <div className="absolute top-4 left-4 text-3xl opacity-20">🤖</div>
-                            <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                                <span>🧠</span> תובנות פדגוגיות (AI Analysis)
+                        {/* AI Insights Card */}
+                        <div className="glass bg-gradient-to-br from-indigo-50/80 to-white/90 p-8 rounded-3xl shadow-sm border border-indigo-100/50 relative overflow-hidden backdrop-blur-xl">
+                            <div className="absolute top-0 right-0 p-6 opacity-10"><IconBrain className="w-32 h-32 text-indigo-600" /></div>
+                            <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-2 relative z-10">
+                                <span className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><IconBrain className="w-5 h-5" /></span>
+                                תובנות פדגוגיות (AI Analysis)
                             </h3>
 
                             {aiInsight ? (
-                                <div className="space-y-4 text-gray-700">
-                                    <div className="bg-white/80 p-4 rounded-xl border border-indigo-50 shadow-sm">
-                                        <h4 className="font-bold text-sm text-indigo-600 mb-1">סקירה כללית</h4>
-                                        <p className="text-sm leading-relaxed">{aiInsight.classOverview}</p>
+                                <div className="space-y-6 relative z-10">
+                                    <div className="bg-white/60 p-5 rounded-2xl border border-white/50 shadow-sm backdrop-blur-sm">
+                                        <h4 className="font-bold text-sm text-indigo-600 mb-2">סקירה כללית</h4>
+                                        <p className="text-sm leading-relaxed text-gray-700">{aiInsight.classOverview}</p>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-                                            <h4 className="font-bold text-sm text-green-700 mb-2">✅ נקודות חוזק</h4>
-                                            <ul className="list-disc list-inside text-xs text-green-800 space-y-1">
-                                                {aiInsight.strongSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                                        <div className="bg-green-50/60 p-5 rounded-2xl border border-green-100/50">
+                                            <h4 className="font-bold text-sm text-green-700 mb-3 flex items-center gap-2"><IconCheck className="w-4 h-4" /> נקודות חוזק</h4>
+                                            <ul className="space-y-2">
+                                                {aiInsight.strongSkills?.map((s: string, i: number) => (
+                                                    <li key={i} className="text-xs text-green-800 flex items-start gap-2">
+                                                        <span className="mt-1 w-1.5 h-1.5 bg-green-400 rounded-full flex-shrink-0"></span> {s}
+                                                    </li>
+                                                ))}
                                             </ul>
                                         </div>
-                                        <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-                                            <h4 className="font-bold text-sm text-red-700 mb-2">⚠️ נקודות לחיזוק</h4>
-                                            <ul className="list-disc list-inside text-xs text-red-800 space-y-1">
-                                                {aiInsight.weakSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                                        <div className="bg-red-50/60 p-5 rounded-2xl border border-red-100/50">
+                                            <h4 className="font-bold text-sm text-red-700 mb-3 flex items-center gap-2"><IconX className="w-4 h-4" /> נקודות לחיזוק</h4>
+                                            <ul className="space-y-2">
+                                                {aiInsight.weakSkills?.map((s: string, i: number) => (
+                                                    <li key={i} className="text-xs text-red-800 flex items-start gap-2">
+                                                        <span className="mt-1 w-1.5 h-1.5 bg-red-400 rounded-full flex-shrink-0"></span> {s}
+                                                    </li>
+                                                ))}
                                             </ul>
                                         </div>
                                     </div>
-                                    {/* המלצות פעולה */}
-                                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
-                                        <h4 className="font-bold text-sm text-yellow-800 mb-2">💡 המלצות לפעולה</h4>
-                                        <ul className="list-disc list-inside text-xs text-yellow-900 space-y-1">
-                                            {aiInsight.actionItems?.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                                    <div className="bg-yellow-50/60 p-5 rounded-2xl border border-yellow-100/50">
+                                        <h4 className="font-bold text-sm text-yellow-800 mb-3 flex items-center gap-2"><IconSparkles className="w-4 h-4" /> המלצות לפעולה</h4>
+                                        <ul className="space-y-2">
+                                            {aiInsight.actionItems?.map((s: string, i: number) => (
+                                                <li key={i} className="text-xs text-yellow-900 flex items-start gap-2">
+                                                    <span className="mt-1 w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0"></span> {s}
+                                                </li>
+                                            ))}
                                         </ul>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-12 text-gray-400 flex flex-col items-center justify-center">
-                                    <div className="animate-spin text-3xl mb-3">⏳</div>
-                                    <div className="text-sm font-medium">הבינה המלאכותית מנתחת את נתוני הכיתה...</div>
+                                <div className="text-center py-12 text-gray-400 flex flex-col items-center justify-center relative z-10">
+                                    {students.length < 3 ? (
+                                        <div className="text-sm">דרושים לפחות 3 תלמידים כדי להפיק דוח תובנות.</div>
+                                    ) : aiLoading ? (
+                                        <>
+                                            <div className="animate-spin text-3xl mb-3 border-2 border-indigo-600 border-t-transparent rounded-full w-8 h-8"></div>
+                                            <div className="text-sm font-medium text-indigo-600">הבינה המלאכותית מנתחת את הנתונים...</div>
+                                        </>
+                                    ) : (
+                                        <div className="text-sm">לא נמצאו תובנות עדיין.</div>
+                                    )}
                                 </div>
                             )}
                         </div>
 
-                        {/* גרף התפלגות ציונים (ויזואלי) */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-6">התפלגות ציונים בכיתה</h3>
-                            <div className="flex items-end justify-around h-48 gap-4 px-4 pb-2 border-b border-gray-50">
+                        {/* Grade Distribution Chart */}
+                        <div className="glass bg-white/80 p-8 rounded-3xl shadow-sm border border-white/60">
+                            <h3 className="text-lg font-bold text-gray-800 mb-8 flex items-center gap-2"><IconChart className="w-5 h-5 text-gray-400" /> התפלגות ציונים</h3>
+                            <div className="flex items-end justify-around h-64 gap-6 px-4 pb-2 border-b border-gray-100">
                                 {distribution.map((count, i) => {
-                                    // חישוב גובה העמודה באחוזים (מינימום 10% כדי שיראו משהו)
-                                    const height = students.length > 0 ? Math.max((count / students.length) * 100, 10) : 0;
+                                    const height = students.length > 0 ? Math.max((count / students.length) * 100, 5) : 0;
                                     const colors = [
-                                        'bg-red-100 border-red-200 text-red-600',    // נכשל
-                                        'bg-yellow-100 border-yellow-200 text-yellow-600', // עובר
-                                        'bg-blue-100 border-blue-200 text-blue-600',    // טוב
-                                        'bg-green-100 border-green-200 text-green-600'  // מצוין
+                                        'bg-red-100 border-red-200 text-red-600',    // Fail
+                                        'bg-yellow-100 border-yellow-200 text-yellow-600', // Pass
+                                        'bg-blue-100 border-blue-200 text-blue-600',    // Good
+                                        'bg-green-100 border-green-200 text-green-600'  // Excellent
                                     ];
                                     const labels = ['0-55', '56-75', '76-90', '91-100'];
 
                                     return (
-                                        <div key={i} className="flex flex-col items-center w-full group relative">
-                                            {/* Tooltip עם המספר המדויק */}
-                                            <div className="absolute -top-8 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {count} תלמידים
+                                        <div key={i} className="flex flex-col items-center w-full group relative h-full justify-end">
+                                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg mb-2 z-20 whitespace-nowrap">
+                                                {count} תלמידים ({students.length > 0 ? Math.round((count / students.length) * 100) : 0}%)
                                             </div>
-
                                             <div
-                                                className={`w-full rounded-t-xl border-t border-x transition-all duration-500 ${colors[i]} relative flex items-end justify-center pb-2`}
+                                                className={`w-full max-w-[60px] rounded-t-xl border transition-all duration-700 ease-out ${colors[i]} relative flex items-center justify-center hover:opacity-80`}
                                                 style={{ height: `${height}%` }}
                                             >
-                                                <span className="font-bold text-xl">{count}</span>
+                                                <span className="font-bold text-xl">{count > 0 ? count : ''}</span>
                                             </div>
-                                            <div className="text-xs text-gray-500 mt-3 font-bold text-center w-full border-t pt-2">
+                                            <div className="text-xs text-gray-400 mt-4 font-bold text-center w-full">
                                                 {labels[i]}
                                             </div>
                                         </div>
@@ -268,109 +280,100 @@ const TeacherDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* עמודה שמאלית: רשימת תלמידים ופעולות */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[800px]">
-                        <div className="p-4 border-b bg-gray-50 font-bold text-gray-700 flex justify-between items-center sticky top-0 z-20">
-                            <span>רשימת תלמידים</span>
-                            <span className="bg-gray-200 px-2 py-0.5 rounded-full text-xs text-gray-600 font-bold">{students.length}</span>
+                    {/* Right Column: Student List */}
+                    <div className="glass bg-white/80 rounded-3xl shadow-sm border border-white/60 overflow-hidden flex flex-col h-[900px]">
+                        <div className="p-6 border-b border-gray-100 bg-white/50 backdrop-blur font-bold text-gray-700 flex justify-between items-center sticky top-0 z-20">
+                            <span className="flex items-center gap-2"><IconList className="w-4 h-4" /> רשימת תלמידים</span>
+                            <span className="bg-indigo-100 px-3 py-1 rounded-full text-xs text-indigo-700 font-bold border border-indigo-200">{students.length}</span>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 custom-scrollbar">
+                        <div className="overflow-y-auto flex-1 custom-scrollbar p-2">
                             {students.length === 0 ? (
-                                <div className="text-center py-10 text-gray-400">אין תלמידים עדיין</div>
+                                <div className="text-center py-20 text-gray-400 flex flex-col items-center gap-2">
+                                    <IconStudent className="w-12 h-12 opacity-20" />
+                                    <span>אין תלמידים רשומים עדיין</span>
+                                </div>
                             ) : (
-                                <table className="w-full text-right text-sm border-collapse">
-                                    <thead className="bg-white text-gray-400 sticky top-0 z-10 shadow-sm">
-                                        <tr>
-                                            <th className="px-4 py-3 font-normal bg-white">שם</th>
-                                            <th className="px-4 py-3 font-normal bg-white text-center">ציון</th>
-                                            <th className="px-4 py-3 font-normal bg-white text-center">פעולות</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {students.map(student => (
-                                            <tr key={student.id} className="hover:bg-indigo-50/30 transition-colors group">
-                                                <td className="px-4 py-3">
-                                                    <div className="font-bold text-gray-800">{student.name}</div>
-                                                    <div className="text-[10px] text-gray-400 mt-0.5">פעיל: {student.lastActive}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className={`inline-block min-w-[2.5rem] py-1 rounded-md text-center font-bold text-xs
-                                                        ${student.score < 60 ? 'bg-red-100 text-red-700' :
-                                                            student.score > 90 ? 'bg-green-100 text-green-700' :
-                                                                'bg-gray-100 text-gray-700'}
-                                                    `}>
-                                                        {student.score}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <button
-                                                        onClick={() => handleGenerateStudentReport(student)}
-                                                        disabled={analyzingStudentId === student.id}
-                                                        className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-indigo-100 shadow-sm"
-                                                    >
-                                                        {analyzingStudentId === student.id ? '⏳' : '📝 דוח אישי'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <div className="space-y-2">
+                                    {students.map(student => (
+                                        <div key={student.id} className="bg-white p-4 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group flex items-center justify-between">
+                                            <div>
+                                                <div className="font-bold text-gray-800">{student.name}</div>
+                                                <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                                                    <span className={`w-2 h-2 rounded-full ${student.lastActive === new Date().toLocaleDateString('he-IL') ? 'bg-green-400' : 'bg-gray-300'}`}></span>
+                                                    פעיל: {student.lastActive}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className={`px-3 py-1 rounded-lg font-bold text-sm min-w-[3rem] text-center ${student.score < 60 ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                        student.score > 90 ? 'bg-green-50 text-green-600 border border-green-100' :
+                                                            'bg-gray-50 text-gray-600 border border-gray-200'
+                                                    }`}>
+                                                    {student.score}
+                                                </div>
+                                                <button
+                                                    onClick={() => handleGenerateStudentReport(student)}
+                                                    disabled={analyzingStudentId === student.id}
+                                                    className="p-2 rounded-lg hover:bg-indigo-50 text-indigo-600 transition-colors"
+                                                    title="הפקת דוח אישי"
+                                                >
+                                                    {analyzingStudentId === student.id ? <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div> : <IconEdit className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>
-
                 </div>
 
-                {/* Modal לדוח אישי לתלמיד (קופץ במרכז) */}
+                {/* Student Report Modal */}
                 {selectedStudentReport && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-all">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in border border-gray-200">
-                            {/* כותרת המודל */}
-                            <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10">
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in border border-gray-200">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur sticky top-0 z-10">
                                 <div>
-                                    <h3 className="text-2xl font-bold text-gray-800">הערכה אישית: <span className="text-indigo-600">{selectedStudentReport.studentName}</span></h3>
-                                    <p className="text-xs text-gray-500 mt-1">נוצר באמצעות AI על סמך ביצועי התלמיד</p>
+                                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><IconStudent className="w-5 h-5 text-indigo-500" /> דוח הערכה אישי</h3>
+                                    <p className="text-sm text-indigo-600 font-bold mt-0.5">{selectedStudentReport.studentName}</p>
                                 </div>
-                                <button onClick={() => setSelectedStudentReport(null)} className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors">✕</button>
+                                <button onClick={() => setSelectedStudentReport(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><IconX className="w-5 h-5 text-gray-500" /></button>
                             </div>
 
-                            {/* תוכן הדוח */}
-                            <div className="p-8 space-y-6">
-                                {/* סיכום כללי */}
-                                <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 text-blue-900 text-lg leading-relaxed shadow-sm">
+                            <div className="p-8 space-y-8">
+                                <div className="bg-blue-50/60 p-6 rounded-2xl border border-blue-100 text-blue-900 leading-relaxed shadow-sm">
+                                    <h4 className="font-bold text-xs text-blue-400 uppercase tracking-wider mb-2">סיכום ביצועים</h4>
                                     {selectedStudentReport.summary}
                                 </div>
 
-                                {/* מדדים ספציפיים */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2">🎯 שליטה בידע</h4>
+                                    <div className="p-5 bg-gray-50/50 rounded-2xl border border-gray-100">
+                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm"><IconCheck className="w-4 h-4 text-green-500" /> ידע ושליטה</h4>
                                         <p className="text-sm text-gray-600 leading-relaxed">{selectedStudentReport.criteria?.knowledge}</p>
                                     </div>
-                                    <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2">🧠 עומק והבנה</h4>
+                                    <div className="p-5 bg-gray-50/50 rounded-2xl border border-gray-100">
+                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm"><IconBrain className="w-4 h-4 text-purple-500" /> עומק והבנה</h4>
                                         <p className="text-sm text-gray-600 leading-relaxed">{selectedStudentReport.criteria?.depth}</p>
                                     </div>
-                                    <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2">✍️ יכולת הבעה</h4>
+                                    <div className="p-5 bg-gray-50/50 rounded-2xl border border-gray-100">
+                                        <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm"><IconEdit className="w-4 h-4 text-blue-500" /> יכולת הבעה</h4>
                                         <p className="text-sm text-gray-600 leading-relaxed">{selectedStudentReport.criteria?.expression}</p>
                                     </div>
-                                    <div className="p-5 bg-yellow-50 rounded-xl border border-yellow-200">
-                                        <h4 className="font-bold text-yellow-800 mb-2 flex items-center gap-2">🚀 המלצות להמשך</h4>
+                                    <div className="p-5 bg-yellow-50/50 rounded-2xl border border-yellow-100">
+                                        <h4 className="font-bold text-yellow-800 mb-2 flex items-center gap-2 text-sm"><IconSparkles className="w-4 h-4 text-yellow-600" /> המלצות להמשך</h4>
                                         <p className="text-sm text-yellow-900 leading-relaxed">{selectedStudentReport.criteria?.recommendations}</p>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* כפתורים תחתונים */}
-                            <div className="p-4 border-t bg-gray-50 text-center rounded-b-2xl sticky bottom-0">
-                                <button
-                                    onClick={() => window.print()}
-                                    className="text-indigo-600 hover:bg-indigo-50 px-6 py-2 rounded-full font-bold transition-colors border border-indigo-200 shadow-sm flex items-center justify-center gap-2 mx-auto"
-                                >
-                                    <span>🖨️</span> הדפס דוח
-                                </button>
+                                <div className="text-center pt-4 border-t border-gray-100">
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="text-white bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-full font-bold transition-all shadow-lg hover:shadow-indigo-200 flex items-center justify-center gap-2 mx-auto"
+                                    >
+                                        הדפס דוח
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

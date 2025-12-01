@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useCourseStore } from '../context/CourseContext';
 import type { Course } from '../courseTypes';
-// וודא שקובץ icons.tsx קיים בתיקיית src
-import { IconTrash, IconLink, IconEdit, IconStudent, IconPlus, IconBook } from '../icons';
+import {
+    IconTrash, IconLink, IconEdit, IconStudent, IconPlus,
+    IconBook, IconRocket, IconCheck
+} from '../icons';
 
 interface CourseListProps {
     onSelectCourse: (courseId: string) => void;
@@ -12,16 +15,15 @@ interface CourseListProps {
 
 const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
     const { currentUser, loading: authLoading } = useAuth();
+    const { loadCourse } = useCourseStore();
     const [courses, setCourses] = useState<Course[]>([]);
-    const [dataLoading, setDataLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newCourseTitle, setNewCourseTitle] = useState('');
+    const [copiedId, setCopiedId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (authLoading) return;
-
-        if (!currentUser) {
-            setDataLoading(false);
-            return;
-        }
+        if (authLoading || !currentUser) return;
 
         const q = query(
             collection(db, "courses"),
@@ -41,167 +43,177 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
             });
 
             setCourses(coursesData);
-            setDataLoading(false);
+            setLoading(false);
         }, (error) => {
             console.error("Firebase Error:", error);
-            setDataLoading(false);
+            setLoading(false);
         });
 
         return () => unsubscribe();
     }, [currentUser, authLoading]);
 
     const handleCreateNewCourse = async () => {
-        if (!currentUser) return;
+        if (!newCourseTitle.trim() || !currentUser) return;
+        setIsCreating(true);
 
         const newCourseData = {
-            title: "מערך שיעור חדש",
+            title: newCourseTitle,
             teacherId: currentUser.uid,
             targetAudience: "כללי",
             syllabus: [],
+            mode: 'learning',
             createdAt: serverTimestamp()
         };
 
         try {
             const docRef = await addDoc(collection(db, "courses"), newCourseData);
+            setNewCourseTitle('');
+            loadCourse(docRef.id);
             onSelectCourse(docRef.id);
         } catch (e) {
             console.error("Error creating course:", e);
             alert("שגיאה ביצירת מערך שיעור");
+        } finally {
+            setIsCreating(false);
         }
     };
 
-    const handleDeleteCourse = async (courseId: string, courseTitle: string, e: React.MouseEvent) => {
+    const handleDeleteCourse = async (e: React.MouseEvent, courseId: string, courseTitle: string) => {
         e.stopPropagation();
-        if (window.confirm(`האם אתה בטוח שברצונך למחוק את מערך השיעור "${courseTitle}"?`)) {
+        if (window.confirm(`האם למחוק את השיעור "${courseTitle}" לצמיתות?`)) {
             try {
                 await deleteDoc(doc(db, "courses", courseId));
             } catch (error) {
                 console.error("Error deleting course:", error);
-                alert("שגיאה במחיקת מערך השיעור");
+                alert("שגיאה במחיקה");
             }
         }
     };
 
-    const handleCopyLink = (courseId: string, e: React.MouseEvent) => {
+    const handleCopyLink = (e: React.MouseEvent, courseId: string) => {
         e.stopPropagation();
         const link = `${window.location.origin}/?studentCourseId=${courseId}`;
-
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(link).then(() => {
-                alert("הקישור הועתק! 🔗\nשלח אותו לתלמידים.");
-            });
-        } else {
-            const textArea = document.createElement("textarea");
-            textArea.value = link;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                alert("הקישור הועתק! 🔗\nשלח אותו לתלמידים.");
-            } catch (err) {
-                console.error('Failed to copy link', err);
-            }
-            document.body.removeChild(textArea);
-        }
+        navigator.clipboard.writeText(link);
+        setCopiedId(courseId);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
-    if (authLoading || dataLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-                <div className="text-4xl animate-spin text-indigo-600">⏳</div>
-                <div className="text-gray-500 font-bold">טוען את מערכי השיעור...</div>
-            </div>
-        );
-    }
+    if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען שיעורים...</div>;
 
     return (
-        <div className="p-8 max-w-7xl mx-auto animate-fade-in">
-            {/* כותרת ראשית */}
-            <div className="flex justify-between items-center mb-10">
-                <div>
-                    <h1 className="text-4xl font-extrabold text-gray-800 flex items-center gap-3">
-                        מערכי השיעור שלי <IconBook className="w-8 h-8 text-indigo-600 opacity-80" />
-                    </h1>
-                    <p className="text-gray-500 font-medium mt-2 text-lg">שלום, {currentUser?.email}</p>
-                </div>
+        <div className="max-w-6xl mx-auto p-8 font-sans pb-24">
+
+            {/* Hero Section */}
+            <div className="text-center mb-12 relative">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+                <div className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+
+                <h1 className="text-6xl font-black text-gray-900 mb-4 relative z-10 tracking-tight">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                        Wizdi Studio
+                    </span>
+                </h1>
+                <p className="text-2xl text-gray-500 relative z-10 font-light">
+                    יצירה, למידה והערכה – הכל במקום אחד
+                </p>
+            </div>
+
+            {/* Create Bar */}
+            <div className="glass p-3 rounded-2xl shadow-lg border border-white/50 flex gap-2 max-w-2xl mx-auto mb-16 backdrop-blur-xl relative z-20">
+                <input
+                    type="text"
+                    value={newCourseTitle}
+                    onChange={(e) => setNewCourseTitle(e.target.value)}
+                    placeholder="נושא השיעור החדש..."
+                    className="flex-1 p-4 bg-white/60 border-none rounded-xl focus:ring-2 focus:ring-blue-200 outline-none text-gray-800 placeholder-gray-400 transition-all text-lg"
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewCourse()}
+                />
                 <button
                     onClick={handleCreateNewCourse}
-                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all transform hover:-translate-y-1 flex items-center gap-3 text-lg"
+                    disabled={isCreating || !newCourseTitle.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold text-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                    <IconPlus className="w-6 h-6" />
-                    <span>צור מערך שיעור חדש</span>
+                    {isCreating ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div> : <><IconPlus className="w-6 h-6" /> צור</>}
                 </button>
             </div>
 
+            {/* Courses Grid */}
             {courses.length === 0 ? (
-                <div className="text-center py-32 bg-white rounded-3xl border-4 border-dashed border-indigo-100 shadow-sm flex flex-col items-center justify-center">
-                    <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 text-indigo-500">
-                        <IconBook className="w-12 h-12" />
-                    </div>
-                    <h3 className="text-3xl font-bold text-gray-700 mb-3">עדיין אין לך מערכי שיעור</h3>
-                    <p className="text-gray-500 mb-8 text-lg max-w-md">התחל ליצור תוכן לימודי מדהים בעזרת הבינה המלאכותית שלנו.</p>
-                    <button onClick={handleCreateNewCourse} className="text-indigo-600 font-bold hover:underline text-xl flex items-center gap-2">
-                        <IconPlus className="w-5 h-5" /> צור את המערך הראשון
-                    </button>
+                <div className="text-center py-20 opacity-60 flex flex-col items-center">
+                    <IconRocket className="w-24 h-24 text-gray-300 mb-4" />
+                    <div className="text-2xl font-bold text-gray-400">אין שיעורים עדיין</div>
+                    <p className="text-gray-400">צור את השיעור הראשון שלך ב-Wizdi Studio 👆</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {courses.map(course => (
                         <div
                             key={course.id}
-                            className="bg-white p-6 rounded-3xl shadow-sm border border-white/60 hover:border-indigo-200 transition-all duration-300 flex flex-col h-80 relative group overflow-hidden"
+                            onClick={() => onSelectCourse(course.id)}
+                            className="glass group bg-white/70 hover:bg-white/90 p-6 rounded-3xl border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[240px]"
                         >
-                            {/* כפתורי פעולה עליונים (מוסתרים עד מעבר עכבר) */}
-                            <div className="absolute top-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-400 to-indigo-400 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+
+                            <div className="absolute top-4 left-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                                 <button
-                                    onClick={(e) => handleDeleteCourse(course.id, course.title, e)}
-                                    className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors bg-white shadow-sm"
-                                    title="מחק מערך שיעור"
+                                    onClick={(e) => handleDeleteCourse(e, course.id, course.title)}
+                                    className="p-2 bg-white text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full shadow-sm transition-colors"
+                                    title="מחק"
                                 >
-                                    <IconTrash className="w-5 h-5" />
+                                    <IconTrash className="w-4 h-4" />
                                 </button>
                             </div>
 
-                            <div className="absolute top-4 right-4 z-20">
+                            <div className="absolute top-4 right-4 flex gap-2 z-10">
                                 <button
-                                    onClick={(e) => handleCopyLink(course.id, e)}
-                                    className="text-gray-400 hover:text-indigo-600 p-2 rounded-full hover:bg-indigo-50 transition-all"
+                                    onClick={(e) => handleCopyLink(e, course.id)}
+                                    className="p-2 bg-white/50 hover:bg-white text-blue-400 hover:text-blue-600 rounded-full transition-colors relative shadow-sm"
                                     title="העתק קישור לתלמיד"
                                 >
-                                    <IconLink className="w-5 h-5" />
+                                    {copiedId === course.id ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
                                 </button>
                             </div>
 
-                            {/* גוף הכרטיס */}
-                            <div className="flex-1 cursor-pointer mt-2 flex flex-col items-center justify-center text-center" onClick={() => onSelectCourse(course.id)}>
-                                <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-full mb-5 flex items-center justify-center shadow-inner text-white transform group-hover:scale-110 transition-transform duration-300">
-                                    <IconStudent className="w-12 h-12 text-indigo-600 opacity-80" />
+                            <div className="mt-8 text-center flex flex-col items-center">
+                                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-blue-100">
+                                    <IconBook className="w-8 h-8" />
                                 </div>
-                                <h3 className="text-2xl font-bold text-gray-800 mb-2 line-clamp-2 px-4 leading-tight" title={course.title}>
+                                <h3 className="text-xl font-extrabold text-gray-800 mb-2 leading-tight group-hover:text-blue-700 transition-colors line-clamp-2">
                                     {course.title}
                                 </h3>
-                                <p className="text-sm text-gray-500 font-medium bg-gray-100/80 px-4 py-1.5 rounded-full mt-2">
-                                    {course.syllabus?.length || 0} פרקים • {course.targetAudience || "כללי"}
-                                </p>
+                                <div className="flex gap-2 mt-2">
+                                    {/* כאן השינוי: מודולים -> פרקים */}
+                                    <span className="text-xs font-bold bg-gray-100 text-gray-500 px-3 py-1 rounded-full border border-gray-200">
+                                        {course.syllabus?.length || 0} פרקים
+                                    </span>
+                                    {course.mode === 'exam' && (
+                                        <span className="text-xs font-bold bg-red-100 text-red-500 px-3 py-1 rounded-full border border-red-200">
+                                            מבחן
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* כפתור תחתון */}
-                            <div className="mt-auto pt-4 w-full">
-                                <button
-                                    onClick={() => onSelectCourse(course.id)}
-                                    className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
-                                >
-                                    <IconEdit className="w-4 h-4" />
-                                    פתח לעריכה
+                            <div className="mt-6 pt-4 border-t border-gray-100/50">
+                                <button className="w-full py-2 rounded-xl font-bold text-sm transition-all text-blue-600 group-hover:bg-blue-50 flex items-center justify-center gap-2">
+                                    הכנס לעריכה <IconEdit className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+
+            <style>{`
+                @keyframes blob {
+                    0% { transform: translate(0px, 0px) scale(1); }
+                    33% { transform: translate(30px, -50px) scale(1.1); }
+                    66% { transform: translate(-20px, 20px) scale(0.9); }
+                    100% { transform: translate(0px, 0px) scale(1); }
+                }
+                .animate-blob { animation: blob 7s infinite; }
+                .animation-delay-2000 { animation-delay: 2s; }
+            `}</style>
         </div>
     );
 };

@@ -1,267 +1,203 @@
-import React, { useState, useRef } from 'react';
-import { useCourseStore } from '../context/CourseContext';
-import { generateCourseWithGemini, type GenerationConfig } from '../gemini';
-import { extractTextFromPDF } from '../pdfService';
-import { SUBJECT_OPTIONS, GRADE_OPTIONS } from '../courseConstants';
-import { storage } from '../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import React, { useState } from 'react'; // הנה התיקון: הוספנו את useState כאן
+import { useDropzone } from 'react-dropzone';
+import {
+    IconUpload, IconBrain, IconArrowBack, IconSparkles,
+    IconCheck, IconX, IconWand
+} from '../icons';
 
-type WizardStep = 'source' | 'blueprint' | 'generating';
+interface IngestionWizardProps {
+    onComplete: (data: any) => void;
+    onCancel: () => void;
+}
 
-const IngestionWizard: React.FC = () => {
-    const { setCourse, setFullBookContent, setPdfSource } = useCourseStore();
-
-    const [step, setStep] = useState<WizardStep>('source');
-
+const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel }) => {
+    const [step, setStep] = useState(1);
+    const [mode, setMode] = useState<'upload' | 'topic' | null>(null);
+    const [file, setFile] = useState<File | null>(null);
     const [topic, setTopic] = useState('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [inputType, setInputType] = useState<'topic' | 'upload'>('topic');
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    const [gradeLevel, setGradeLevel] = useState('כיתה ט׳ (חטיבת ביניים)');
-    const [subject, setSubject] = useState('היסטוריה');
-    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning');
+    // הגדרות דרופזון להעלאת קבצים
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        accept: { 'application/pdf': ['.pdf'], 'text/plain': ['.txt'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
+        maxFiles: 1,
+        onDrop: (acceptedFiles) => setFile(acceptedFiles[0])
+    });
 
-    // הגדרות מתקדמות
-    const [modulesCount, setModulesCount] = useState(3);
-    const [unitsPerModule, setUnitsPerModule] = useState(3);
-
-    // רמות בלום
-    const [bloomKnowledge, setBloomKnowledge] = useState(30);
-    const [bloomApplication, setBloomApplication] = useState(50);
-    const [bloomReasoning, setBloomReasoning] = useState(20);
-
-    const [sampleQuestion, setSampleQuestion] = useState('');
-
-    const [status, setStatus] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            const file = event.target.files[0];
-            setSelectedFile(file);
-            setTopic(file.name.replace('.pdf', ''));
-            setInputType('upload');
+    const handleNext = async () => {
+        if (step === 1 && mode) {
+            setStep(2);
+        } else if (step === 2) {
+            setIsProcessing(true);
+            setTimeout(() => {
+                onComplete({ mode, file, topic });
+            }, 1500);
         }
     };
-
-    const handleGenerate = async () => {
-        setStep('generating');
-        setStatus('מכין את מרחב העבודה...');
-
-        try {
-            let sourceText = "";
-
-            if (inputType === 'upload' && selectedFile) {
-                setStatus(`קורא ומנתח את הקובץ: ${selectedFile.name}...`);
-                sourceText = await extractTextFromPDF(selectedFile);
-                setFullBookContent(sourceText);
-
-                setStatus('מעלה קובץ מקור לענן המאובטח...');
-                const storageRef = ref(storage, `course_pdfs/${Date.now()}_${selectedFile.name}`);
-                await uploadBytes(storageRef, selectedFile);
-                const url = await getDownloadURL(storageRef);
-                setPdfSource(url);
-            }
-
-            setStatus('בונה את סילבוס המערך בהתאם להגדרות הפדגוגיות...');
-
-            const config: GenerationConfig = {
-                modulesCount,
-                unitsPerModule,
-                questionDistribution: {
-                    knowledge: bloomKnowledge,
-                    application: bloomApplication,
-                    reasoning: bloomReasoning
-                },
-                includeSampleQuestion: sampleQuestion,
-                totalScore: 100
-            };
-
-            const newCourse = await generateCourseWithGemini(topic, gradeLevel, subject, sourceText, config);
-            newCourse.mode = courseMode;
-
-            setCourse(newCourse);
-            setStatus('הושלם! מעביר לעורך...');
-
-        } catch (error) {
-            console.error(error);
-            alert("הייתה בעיה ביצירת המערך. נסה שוב.");
-            setStep('source');
-        }
-    };
-
-    if (step === 'generating') {
-        return (
-            <div className="flex flex-col items-center justify-center h-96 animate-fade-in text-center">
-                <div className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div>
-                <h3 className="text-2xl font-bold text-indigo-900 mb-2">{status}</h3>
-                <p className="text-gray-500">ה-AI עובד על יצירת תוכן איכותי עבורך...</p>
-            </div>
-        );
-    }
 
     return (
-        <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden font-sans">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-8 text-white flex justify-between items-center">
-                <div>
-                    <h2 className="text-3xl font-bold mb-2">סטודיו ליצירת מערכי שיעור 🎓</h2>
-                    <p className="opacity-80">בנה מערך שיעור או מבחן מותאם אישית תוך שניות.</p>
-                </div>
-                <div className="flex gap-2 text-sm font-bold bg-white/20 p-1 rounded-lg">
-                    <div className={`px-4 py-1 rounded-md transition-all ${step === 'source' ? 'bg-white text-indigo-700 shadow' : 'opacity-50'}`}>1. מקור</div>
-                    <div className={`px-4 py-1 rounded-md transition-all ${step === 'blueprint' ? 'bg-white text-indigo-700 shadow' : 'opacity-50'}`}>2. אפיון</div>
-                </div>
-            </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white/90 glass w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[90vh] relative">
 
-            {step === 'source' && (
-                <div className="p-10 animate-slide-up">
-                    <h3 className="text-xl font-bold text-gray-800 mb-6">איך נתחיל היום?</h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div
-                            onClick={() => { setInputType('upload'); fileInputRef.current?.click(); }}
-                            className={`cursor-pointer border-2 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 transition-all hover:shadow-lg ${inputType === 'upload' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
-                        >
-                            <div className="text-5xl bg-white p-4 rounded-full shadow-sm">📄</div>
-                            <div className="text-center">
-                                <div className="font-bold text-lg text-gray-800">העלאת קובץ לימוד</div>
-                                <div className="text-sm text-gray-500 mt-1">PDF, סיכומים, ספרים דיגיטליים</div>
-                            </div>
-                            {selectedFile && <div className="text-indigo-600 font-bold bg-white px-3 py-1 rounded-full text-xs shadow-sm mt-2">נבחר: {selectedFile.name}</div>}
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
-                        </div>
-
-                        <div
-                            onClick={() => setInputType('topic')}
-                            className={`cursor-pointer border-2 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 transition-all hover:shadow-lg ${inputType === 'topic' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'}`}
-                        >
-                            <div className="text-5xl bg-white p-4 rounded-full shadow-sm">💡</div>
-                            <div className="text-center">
-                                <div className="font-bold text-lg text-gray-800">יצירה מנושא חופשי</div>
-                                <div className="text-sm text-gray-500 mt-1">תן ל-AI להציע סילבוס מאפס</div>
-                            </div>
-                            {inputType === 'topic' && (
-                                <input
-                                    type="text"
-                                    placeholder="על מה נלמד היום?"
-                                    className="mt-2 w-full p-2 border-b-2 border-purple-300 bg-transparent text-center focus:outline-none font-bold text-gray-700"
-                                    value={topic}
-                                    onChange={(e) => setTopic(e.target.value)}
-                                    autoFocus
-                                />
-                            )}
-                        </div>
+                {/* Header מודרני */}
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10">
+                        <IconWand className="w-64 h-64" />
                     </div>
 
-                    <div className="flex justify-end">
+                    <div className="relative z-10 flex justify-between items-start">
+                        <div>
+                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white">
+                                <IconSparkles className="w-8 h-8 text-yellow-300" />
+                                סטודיו ליצירת תוכן
+                            </h2>
+                            <p className="text-lg opacity-90 !text-blue-100">בוא נהפוך את החומרים שלך לשיעור אינטראקטיבי</p>
+                        </div>
                         <button
-                            onClick={() => setStep('blueprint')}
-                            disabled={!topic && !selectedFile}
-                            className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold text-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-transform hover:-translate-y-1"
+                            onClick={onCancel}
+                            className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300"
+                            title="סגור חלונית"
                         >
-                            המשך להגדרות מתקדמות ➔
+                            <IconX className="w-6 h-6" />
                         </button>
                     </div>
-                </div>
-            )}
 
-            {step === 'blueprint' && (
-                <div className="p-10 animate-slide-left">
-                    <div className="flex gap-8">
-                        <div className="w-1/3 space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2">מצב פעילות</label>
-                                <div className="flex p-1 bg-gray-100 rounded-xl">
-                                    <button onClick={() => setCourseMode('learning')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${courseMode === 'learning' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}>למידה ✅</button>
-                                    <button onClick={() => setCourseMode('exam')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${courseMode === 'exam' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}>מבחן 🛑</button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2">תחום דעת</label>
-                                <select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:border-indigo-500 outline-none">
-                                    {SUBJECT_OPTIONS.map((g, i) => <optgroup key={i} label={g.label}>{g.options.map(o => <option key={o} value={o}>{o}</option>)}</optgroup>)}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-2">קהל יעד</label>
-                                <select value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)} className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:border-indigo-500 outline-none">
-                                    {GRADE_OPTIONS.map((g, i) => <optgroup key={i} label={g.label}>{g.options.map(o => <option key={o} value={o}>{o}</option>)}</optgroup>)}
-                                </select>
-                            </div>
-
-                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                <h4 className="text-blue-800 font-bold mb-2 text-sm">מבנה המערך</h4>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm text-gray-600">מספר פרקים (Modules):</span>
-                                    <input type="number" min="1" max="10" value={modulesCount} onChange={(e) => setModulesCount(Number(e.target.value))} className="w-16 p-1 text-center border rounded bg-white" />
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">יחידות בכל פרק:</span>
-                                    <input type="number" min="1" max="10" value={unitsPerModule} onChange={(e) => setUnitsPerModule(Number(e.target.value))} className="w-16 p-1 text-center border rounded bg-white" />
-                                </div>
-                            </div>
+                    {/* סרגל התקדמות */}
+                    <div className="flex items-center gap-4 mt-8 relative z-10">
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${step >= 1 ? 'bg-white text-blue-600' : 'bg-blue-800/50 text-blue-200'}`}>
+                            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">1</span>
+                            בחירת מקור
                         </div>
+                        <div className="w-10 h-0.5 bg-blue-400/50"></div>
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${step >= 2 ? 'bg-white text-blue-600' : 'bg-blue-800/50 text-blue-200'}`}>
+                            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">2</span>
+                            אפיון והגדרות
+                        </div>
+                    </div>
+                </div>
 
-                        <div className="flex-1 space-y-8 pl-8 border-r border-gray-100">
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <span>🧠</span> רמות חשיבה (הטקסונומיה של בלום)
-                                </h3>
-                                <p className="text-sm text-gray-400 mb-4">קבע את תמהיל השאלות לפי רמת קושי.</p>
+                {/* תוכן האשף */}
+                <div className="p-10 flex-1 overflow-y-auto bg-gradient-to-b from-white to-blue-50/30 custom-scrollbar">
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="font-bold text-green-700">ידע והבנה (קל)</span>
-                                            <span>{bloomKnowledge}%</span>
-                                        </div>
-                                        <input type="range" className="w-full h-2 bg-green-100 rounded-lg appearance-none cursor-pointer accent-green-600" min="0" max="100" value={bloomKnowledge} onChange={(e) => setBloomKnowledge(Number(e.target.value))} />
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="font-bold text-blue-700">יישום וניתוח (בינוני)</span>
-                                            <span>{bloomApplication}%</span>
-                                        </div>
-                                        <input type="range" className="w-full h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer accent-blue-600" min="0" max="100" value={bloomApplication} onChange={(e) => setBloomApplication(Number(e.target.value))} />
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="font-bold text-purple-700">הערכה ויצירה (קשה)</span>
-                                            <span>{bloomReasoning}%</span>
-                                        </div>
-                                        <input type="range" className="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600" min="0" max="100" value={bloomReasoning} onChange={(e) => setBloomReasoning(Number(e.target.value))} />
-                                    </div>
-                                </div>
-                            </div>
+                    {step === 1 && (
+                        <div className="space-y-8 animate-slide-up">
+                            <h3 className="text-xl font-bold text-gray-700 text-center">איך נתחיל היום?</h3>
 
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-                                    <span>✍️</span> התאמת סגנון (אופציונלי)
-                                </h3>
-                                <textarea
-                                    className="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-300 outline-none text-sm resize-none"
-                                    rows={3}
-                                    placeholder="הדבק כאן שאלה לדוגמה, כדי שה-AI יבין את סגנון הניסוח הרצוי שלך..."
-                                    value={sampleQuestion}
-                                    onChange={(e) => setSampleQuestion(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                                <button onClick={() => setStep('source')} className="text-gray-500 hover:text-gray-800 font-bold">חזרה</button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* כרטיס יצירה חופשית */}
                                 <button
-                                    onClick={handleGenerate}
-                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1"
+                                    onClick={() => setMode('topic')}
+                                    className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right h-64 flex flex-col justify-between overflow-hidden
+                                        ${mode === 'topic'
+                                            ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100'
+                                            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}
                                 >
-                                    צור מערך עכשיו ✨
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-400 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                                    <div className="bg-yellow-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <IconBrain className="w-8 h-8 text-yellow-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 mb-2">יצירה מנושא חופשי</h4>
+                                        <p className="text-sm text-gray-500 leading-relaxed">תן ל-AI להציע סילבוס, ראשי פרקים ותוכן מלא על בסיס נושא שתבחר.</p>
+                                    </div>
+                                    {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
+                                </button>
+
+                                {/* כרטיס העלאת קובץ */}
+                                <button
+                                    onClick={() => setMode('upload')}
+                                    className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right h-64 flex flex-col justify-between overflow-hidden
+                                        ${mode === 'upload'
+                                            ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100'
+                                            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}
+                                >
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-purple-400 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                                    <div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <IconUpload className="w-8 h-8 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 mb-2">העלאת קובץ לימוד</h4>
+                                        <p className="text-sm text-gray-500 leading-relaxed">PDF, סיכומים, ספרים דיגיטליים. המערכת תנתח את הקובץ ותיצור ממנו קורס.</p>
+                                    </div>
+                                    {mode === 'upload' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    )}
+
+                    {step === 2 && (
+                        <div className="max-w-xl mx-auto space-y-6 animate-slide-up">
+                            <button onClick={() => setStep(1)} className="text-gray-400 hover:text-blue-600 flex items-center gap-2 text-sm mb-4 transition-colors">
+                                <IconArrowBack className="w-4 h-4" /> חזרה לבחירה
+                            </button>
+
+                            {mode === 'topic' ? (
+                                <div>
+                                    <label className="block text-lg font-bold text-gray-800 mb-3">באיזה נושא נעסוק היום?</label>
+                                    <input
+                                        type="text"
+                                        value={topic}
+                                        onChange={(e) => setTopic(e.target.value)}
+                                        className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
+                                        placeholder="למשל: המהפכה הצרפתית, יסודות הפיזיקה..."
+                                        autoFocus
+                                    />
+                                    <p className="text-sm text-gray-500 mt-2 flex items-center gap-2">
+                                        <IconSparkles className="w-4 h-4 text-yellow-500" />
+                                        ה-AI יבנה עבורך את המבנה המלא של השיעור
+                                    </p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-lg font-bold text-gray-800 mb-3">העלה את קובץ המקור</label>
+                                    <div
+                                        {...getRootProps()}
+                                        className={`border-3 border-dashed rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[200px]
+                                            ${isDragActive ? 'border-blue-500 bg-blue-50 scale-105' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}
+                                    >
+                                        <input {...getInputProps()} />
+                                        {file ? (
+                                            <div className="bg-blue-100 text-blue-800 px-6 py-3 rounded-xl font-bold flex items-center gap-3">
+                                                <IconCheck className="w-5 h-5" />
+                                                {file.name}
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="bg-gray-100 p-4 rounded-full mb-4">
+                                                    <IconUpload className="w-8 h-8 text-gray-400" />
+                                                </div>
+                                                <p className="text-gray-600 font-medium text-lg">גרור לכאן קובץ או לחץ לבחירה</p>
+                                                <p className="text-sm text-gray-400 mt-2">תומך ב-PDF, Word, TXT</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
-            )}
+
+                {/* Footer עם כפתור פעולה */}
+                <div className="p-6 border-t border-gray-100 bg-gray-50/80 flex justify-end shrink-0">
+                    <button
+                        onClick={handleNext}
+                        disabled={(!mode) || (step === 2 && mode === 'topic' && !topic) || (step === 2 && mode === 'upload' && !file) || isProcessing}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-blue-200/50 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+                    >
+                        {isProcessing ? (
+                            <>
+                                <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                <span>מעבד נתונים...</span>
+                            </>
+                        ) : (
+                            <>
+                                {step === 1 ? 'המשך לשלב הבא' : 'צור את השיעור!'}
+                                <IconArrowBack className="w-5 h-5 rotate-180" />
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
