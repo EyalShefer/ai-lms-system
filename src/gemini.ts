@@ -75,7 +75,7 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
   return result.response.text();
 };
 
-// --- פונקציה 4: יצירת שאלות מטקסט ---
+// --- פונקציה 4: יצירת שאלות מטקסט (רשימה) ---
 export const generateQuestionsFromText = async (text: string, type: 'multiple-choice' | 'open-question') => {
   const prompt = `
     Based on the following text: "${text.substring(0, 1000)}..."
@@ -199,5 +199,32 @@ export const generateSingleOpenQuestion = async (context: string) => {
   } catch (e) {
     console.error("Error generating single question", e);
     return { question: "שגיאה ביצירה", modelAnswer: "" };
+  }
+};
+
+// --- פונקציה 10: יצירת שאלה אמריקאית בודדת (Wizdi Magic) ---
+export const generateSingleMultipleChoiceQuestion = async (context: string) => {
+  const prompt = `
+      Create a single multiple-choice question about: "${context}".
+      Language: Hebrew.
+      Return ONLY valid JSON:
+      {
+        "question": "Question text...",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option B"
+      }
+    `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json|```/g, '').trim();
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Error generating single MC question", e);
+    return {
+      question: "שגיאה ביצירה",
+      options: ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"],
+      correctAnswer: "אפשרות 1"
+    };
   }
 };
