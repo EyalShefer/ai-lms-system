@@ -1,6 +1,5 @@
 {
   "projects": {
-    "default": "ai-lms-app-31c7e",
     "prod": "ai-lms-pro"
   },
   "targets": {},

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 
 const initialEmptyCourse: Course = {
@@ -27,12 +27,9 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-// פונקציית ניקוי וסניטציה לנתונים שמגיעים מ-Firebase
 const sanitizeCourseData = (data: any, docId: string): Course => {
     const course = data.course ? data.course : data;
-
     const syllabus = Array.isArray(course.syllabus) ? course.syllabus : [];
-
     const cleanSyllabus = syllabus.map((mod: any) => {
         const modId = mod.id || uuidv4();
         const learningUnits = Array.isArray(mod.learningUnits) ? mod.learningUnits : [];
@@ -47,12 +44,7 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         });
         return { ...mod, id: modId, learningUnits: cleanUnits };
     });
-
-    return {
-        ...course,
-        id: docId,
-        syllabus: cleanSyllabus
-    } as Course;
+    return { ...course, id: docId, syllabus: cleanSyllabus } as Course;
 };
 
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -61,23 +53,38 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [pdfSource, setPdfSourceState] = useState<string | null>(null);
     const [currentCourseId, setCurrentCourseId] = useState<string | null>(null);
 
-    const loadCourse = (id: string) => {
-        setCurrentCourseId(id);
-    };
+    const loadCourse = (id: string) => setCurrentCourseId(id);
 
     useEffect(() => {
         if (!currentCourseId) return;
 
-        const courseRef = doc(db, "courses", currentCourseId);
-        const unsubscribe = onSnapshot(courseRef, (docSnap) => {
+        // האזנה לשינויים במסמך
+        const unsubscribe = onSnapshot(doc(db, "courses", currentCourseId), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const cleanCourse = sanitizeCourseData(data, docSnap.id);
-
-                setCourseState(cleanCourse);
+                setCourseState(sanitizeCourseData(data, docSnap.id));
                 setFullBookContentState(data.fullBookContent || "");
                 setPdfSourceState(data.pdfSource || null);
+            } else {
+                // --- תיקון: ניקוי שקט אם הקורס נמחק ---
+                console.warn("⚠️ הקורס המבוקש לא קיים. מבצע ריענון נקי.");
+
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('studentCourseId')) {
+                    // מוחקים את הפרמטר מה-URL
+                    url.searchParams.delete('studentCourseId');
+                    // טעינה מחדש של הדף (Hard Reload) כדי לאפס את כל הזיכרון של האפליקציה
+                    window.location.href = url.toString();
+                    return;
+                }
+
+                // איפוס הסטייט אם זה לא לינק חיצוני
+                setCurrentCourseId(null);
+                setCourseState(initialEmptyCourse);
             }
+        }, (error) => {
+            console.error("Error fetching course:", error);
+            setCurrentCourseId(null);
         });
 
         return () => unsubscribe();
@@ -87,51 +94,29 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!currentCourseId) return;
         try {
             const { id, ...courseFields } = newCourse;
-            // הסרת שדות undefined לפני השמירה (Firestore לא תומך ב-undefined)
             const cleanFields = JSON.parse(JSON.stringify(courseFields));
-
             await setDoc(doc(db, "courses", currentCourseId), {
                 ...cleanFields,
                 fullBookContent: newBookContent,
                 pdfSource: newPdf,
                 lastUpdated: new Date()
             }, { merge: true });
-        } catch (e) {
-            console.error("Error saving:", e);
-        }
+        } catch (e) { console.error("Error saving:", e); }
     };
 
-    const setCourse = (newCourse: Course) => {
-        setCourseState(newCourse);
-        saveToCloud(newCourse, fullBookContent, pdfSource);
-    };
-
-    const setFullBookContent = (text: string) => {
-        setFullBookContentState(text);
-        saveToCloud(course, text, pdfSource);
-    };
-
-    const setPdfSource = (data: string) => {
-        setPdfSourceState(data);
-        saveToCloud(course, fullBookContent, data);
-    };
-
+    const setCourse = (newCourse: Course) => { setCourseState(newCourse); saveToCloud(newCourse, fullBookContent, pdfSource); };
+    const setFullBookContent = (text: string) => { setFullBookContentState(text); saveToCloud(course, text, pdfSource); };
+    const setPdfSource = (data: string) => { setPdfSourceState(data); saveToCloud(course, fullBookContent, data); };
     const updateCourseTitle = (newTitle: string) => {
         const updated = { ...course, title: newTitle };
         setCourseState(updated);
         saveToCloud(updated, fullBookContent, pdfSource);
     };
-
     const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
         const updatedCourse = { ...course };
-        updatedCourse.syllabus = updatedCourse.syllabus.map(module => {
-            if (module.id !== moduleId) return module;
-            return {
-                ...module,
-                learningUnits: module.learningUnits.map(unit =>
-                    unit.id === updatedUnit.id ? updatedUnit : unit
-                )
-            };
+        updatedCourse.syllabus = updatedCourse.syllabus.map(m => {
+            if (m.id !== moduleId) return m;
+            return { ...m, learningUnits: m.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u) };
         });
         setCourseState(updatedCourse);
         saveToCloud(updatedCourse, fullBookContent, pdfSource);

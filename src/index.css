@@ -1,91 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* גופן ברירת מחדל נעים לעברית */
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f3f4f6;
-    direction: rtl;
-}
-
-/* אנימציות מותאמות אישית */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
+@layer base {
+    body {
+        font-family: 'Rubik', sans-serif;
+        @apply text-slate-700;
+        /* רקע גרדיאנט עשיר שמבליט את אפקט הזכוכית */
+        background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 50%, #b8d6f6 100%);
+        background-attachment: fixed;
+        min-height: 100vh;
     }
 
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
+    /* כותרות בצבע המותג הכהה */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        color: #0A4D7F !important;
     }
 }
 
-@keyframes slideLeft {
-    from {
-        transform: translateX(-20px);
-        opacity: 0;
+@layer components {
+
+    /* --- הפיכת כל הכרטיסים והרקעים לזכוכית (Glass) --- */
+    .bg-white,
+    .bg-gray-50,
+    .bg-indigo-50 {
+        background: rgba(255, 255, 255, 0.65) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.6) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05) !important;
+        border-radius: 16px !important;
     }
 
-    to {
-        transform: translateX(0);
-        opacity: 1;
+    /* --- שדות קלט (Inputs) --- */
+    input,
+    textarea,
+    select {
+        background: rgba(255, 255, 255, 0.5) !important;
+        border: 1px solid #B8D6F6 !important;
+        /* תכלת בהיר */
+        color: #0A4D7F !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border-color: #24A8D9 !important;
+        /* כחול Wizdi */
+        box-shadow: 0 0 0 3px rgba(36, 168, 217, 0.2) !important;
+        outline: none;
+    }
+
+    /* --- כפתורים מעוצבים (Override) --- */
+
+    /* כפתור ראשי (מחליף את אינדיגו לכחול-Wizdi) */
+    .bg-indigo-600,
+    .bg-blue-600 {
+        background: linear-gradient(135deg, #24A8D9 0%, #1c90be 100%) !important;
+        @apply text-white border-0 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 rounded-xl !important;
+    }
+
+    /* כפתור משני/הדגשה (מחליף את סגול לכתום-Wizdi) */
+    .bg-purple-600,
+    .text-purple-600 {
+        background: linear-gradient(135deg, #F49E2E 0%, #e08e20 100%) !important;
+        color: white !important;
+        @apply shadow-md border-0 !important;
+    }
+
+    /* התאמת צבעי טקסט */
+    .text-indigo-600,
+    .text-blue-600 {
+        color: #24A8D9 !important;
+    }
+
+    .text-purple-600 {
+        color: #F49E2E !important;
+    }
+
+    /* כפתורים משניים עדינים */
+    .bg-indigo-50 {
+        background: rgba(184, 214, 246, 0.3) !important;
+        color: #0A4D7F !important;
+        border: 1px solid #B8D6F6 !important;
+    }
+
+    /* ביטול צללים רגילים שמתנגשים עם הזכוכית */
+    .shadow-sm,
+    .shadow-md,
+    .shadow-lg {
+        box-shadow: none !important;
+        /* ה-Glass מטפל בזה */
+    }
+
+    /* סרגל צד וניווט */
+    aside,
+    header {
+        background: rgba(255, 255, 255, 0.4) !important;
+        backdrop-filter: blur(16px) !important;
+        border: none !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
     }
 }
 
-@keyframes scaleIn {
-    from {
-        transform: scale(0.95);
-        opacity: 0;
+/* אנימציות */
+@keyframes float {
+    0% {
+        transform: translateY(0px);
     }
 
-    to {
-        transform: scale(1);
-        opacity: 1;
+    50% {
+        transform: translateY(-5px);
+    }
+
+    100% {
+        transform: translateY(0px);
     }
 }
 
-/* מחלקות שירות לשימוש בקומפוננטות */
-.animate-fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
+.animate-float {
+    animation: float 4s ease-in-out infinite;
 }
 
-.animate-slide-up {
-    animation: slideUp 0.6s ease-out forwards;
+/* סרגל גלילה מותאם לצבעי המותג */
+::-webkit-scrollbar {
+    width: 10px;
 }
 
-.animate-slide-left {
-    animation: slideLeft 0.5s ease-out forwards;
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-.animate-scale-in {
-    animation: scaleIn 0.3s ease-out forwards;
+::-webkit-scrollbar-thumb {
+    background: #B8D6F6;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background-clip: content-box;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #555;
+::-webkit-scrollbar-thumb:hover {
+    background-color: #24A8D9;
 }
