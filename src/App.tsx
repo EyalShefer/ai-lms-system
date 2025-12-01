@@ -1,19 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, AuthProvider } from './context/AuthContext'; // הוספנו את AuthProvider
+import { useAuth, AuthProvider } from './context/AuthContext';
 import CourseEditor from './components/CourseEditor';
 import CoursePlayer from './components/CoursePlayer';
 import TeacherDashboard from './components/TeacherDashboard';
 import Login from './components/Login';
 import CourseList from './components/CourseList';
-import { useCourseStore, CourseProvider } from './context/CourseContext'; // הוספנו את CourseProvider
-import { auth } from './firebase';
+import { useCourseStore, CourseProvider } from './context/CourseContext';
+import { auth, db } from './firebase';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+
+// --- הגדרות מערכת ---
+const PERFORM_WIPE = false;
+// -------------------------------------------------------
 
 const AuthenticatedApp = () => {
+  // הגדרת מצבים עם טיפוסים (TypeScript)
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
   const { course, loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
 
+  // מנגנון מחיקת חירום (מושבת כרגע)
+  useEffect(() => {
+    const nukeCourses = async () => {
+      if (PERFORM_WIPE && currentUser) {
+        console.log("☢️ Starting Emergency Wipe...");
+        try {
+          const querySnapshot = await getDocs(collection(db, "courses"));
+          if (querySnapshot.empty) {
+            console.log("✅ No courses to delete.");
+          } else {
+            const deletePromises = querySnapshot.docs.map(d => deleteDoc(doc(db, "courses", d.id)));
+            await Promise.all(deletePromises);
+            console.log("✅ All courses deleted.");
+            alert("ניקוי חירום בוצע בהצלחה.");
+          }
+        } catch (error) {
+          console.error("❌ Wipe failed:", error);
+        }
+      }
+    };
+    nukeCourses();
+  }, [currentUser]);
+
+  // בדיקת קישור כניסה
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const studentLinkID = params.get('studentCourseId');
@@ -41,14 +71,14 @@ const AuthenticatedApp = () => {
       <header className="bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-50 border-b border-gray-200">
         <div className="flex items-center gap-4">
           {mode !== 'list' && !isStudentLink && (
-            <button onClick={handleBackToList} className="text-gray-500 hover:bg-gray-100 p-2 rounded-full transition-colors" title="חזור">
+            <button onClick={handleBackToList} className="text-gray-500 hover:bg-gray-100 p-2 rounded-full transition-colors" title="חזור לרשימה">
               🔙
             </button>
           )}
 
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             🚀 AI-LMS: <span className="font-normal text-gray-600">
-              {isStudentLink ? course.title : (mode === 'list' ? 'המרכז למורה' : course.title)}
+              {isStudentLink ? course?.title : (mode === 'list' ? 'המרכז למורה' : course?.title)}
             </span>
           </h1>
         </div>
@@ -71,7 +101,12 @@ const AuthenticatedApp = () => {
       </header>
 
       <main className="container mx-auto px-4 pb-8">
-        {isStudentLink ? (
+        {PERFORM_WIPE ? (
+          <div className="p-10 text-center bg-red-50 border border-red-200 rounded-xl mt-10">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">☢️ מצב ניקוי מופעל</h2>
+            <p>הנתונים נמחקים כעת...</p>
+          </div>
+        ) : isStudentLink ? (
           <CoursePlayer />
         ) : (
           <>
@@ -94,7 +129,6 @@ const AppWrapper = () => {
 
 function App() {
   return (
-    // עטיפת האפליקציה ב-Providers כדי שה-Hooks יעבדו
     <AuthProvider>
       <CourseProvider>
         <AppWrapper />
