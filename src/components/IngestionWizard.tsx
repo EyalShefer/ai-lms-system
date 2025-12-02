@@ -9,30 +9,44 @@ interface IngestionWizardProps {
     onComplete: (data: any) => void;
     onCancel: () => void;
     initialTopic?: string;
+    title?: string;
+    cancelLabel?: string;
+    cancelIcon?: React.ReactNode;
 }
 
 const GRADES = ["גן חובה", "כיתה א'", "כיתה ב'", "כיתה ג'", "כיתה ד'", "כיתה ה'", "כיתה ו'", "כיתה ז'", "כיתה ח'", "כיתה ט'", "כיתה י'", "כיתה יא'", "כיתה יב'"];
 const SUBJECTS = ["חינוך לשוני (עברית)", "מתמטיקה", "אנגלית", "מדע וטכנולוגיה", "היסטוריה", "אזרחות", "תנ\"ך", "ספרות", "גיאוגרפיה", "תרבות ישראל", "של\"ח", "חינוך גופני", "אמנות", "אחר"];
 
-const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel, initialTopic }) => {
-    // אם יש נושא התחלתי, נדלג ישר לשלב 2!
-    const [step, setStep] = useState(initialTopic ? 2 : 1);
+const IngestionWizard: React.FC<IngestionWizardProps> = ({
+    onComplete,
+    onCancel,
+    initialTopic,
+    title = "הגדרות", // שינוי: כותרת ברירת מחדל
+    cancelLabel = "חזרה",
+    cancelIcon = <IconArrowBack className="w-4 h-4" />
+}) => {
+    // אתחול המצבים
+    const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
-
-    const [mode, setMode] = useState<'upload' | 'topic' | null>(initialTopic ? 'topic' : null);
-    const [topic, setTopic] = useState(initialTopic || '');
-
+    const [mode, setMode] = useState<'upload' | 'topic' | null>(null);
+    const [topic, setTopic] = useState('');
     const [file, setFile] = useState<File | null>(null);
 
-    // Step 2 Data
+    // נתוני שלב 2
     const [grade, setGrade] = useState('כיתה ז\'');
     const [subject, setSubject] = useState('היסטוריה');
     const [modulesCount, setModulesCount] = useState(3);
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning');
-
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
 
-    // ... (שאר הלוגיקה נשארת זהה: handleTaxonomyChange, Dropzone וכו') ...
+    useEffect(() => {
+        if (initialTopic && initialTopic !== "טוען..." && initialTopic.trim() !== "") {
+            setTopic(initialTopic);
+            setMode('topic');
+            setStep(2);
+        }
+    }, [initialTopic]);
+
     const handleTaxonomyChange = (changedKey: keyof typeof taxonomy, newValue: number) => {
         const remainingSpace = 100 - newValue;
         const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey) as (keyof typeof taxonomy)[];
@@ -55,18 +69,29 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel,
         if (step === 1 && mode) { setStep(2); }
         else if (step === 2) {
             setIsProcessing(true);
-            setTimeout(() => { onComplete({ mode, file, topic, settings: { grade, subject, modulesCount, taxonomy, courseMode } }); }, 1500);
+            setTimeout(() => {
+                onComplete({
+                    mode,
+                    file,
+                    topic: topic || "General Topic",
+                    settings: { grade, subject, modulesCount, taxonomy, courseMode }
+                });
+            }, 1500);
         }
     };
 
-    // פונקציה לחזרה אחורה (אם יש נושא התחלתי, חזרה תוביל לביטול במקום לשלב 1)
     const handleBack = () => {
-        if (step === 2 && initialTopic) {
-            onCancel(); // אם התחלנו עם נושא, חזרה היא בעצם ביטול
-        } else {
+        // אם התחלנו עם נושא (עריכה), חזרה סוגרת את החלון
+        if (initialTopic) {
+            onCancel();
+        } else if (step === 2) {
+            // אם יצרנו חדש ואנחנו בשלב 2, חוזרים לשלב 1
             setStep(1);
+        } else {
+            // אם אנחנו בשלב 1, חזרה סוגרת
+            onCancel();
         }
-    }
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -77,15 +102,16 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel,
                     <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10"><IconWand className="w-64 h-64" /></div>
                     <div className="relative z-10 flex justify-between items-start">
                         <div>
-                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white"><IconSparkles className="w-8 h-8 text-yellow-300" /> סטודיו ליצירת תוכן</h2>
+                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white"><IconSparkles className="w-8 h-8 text-yellow-300" /> {title}</h2>
                             <p className="text-lg opacity-90 !text-blue-100">
-                                {initialTopic ? `יצירת שיעור בנושא: ${initialTopic}` : 'בוא נהפוך את החומרים שלך לשיעור אינטראקטיבי'}
+                                {mode === 'topic' && topic ? `יצירת שיעור בנושא: ${topic}` : 'בוא נהפוך את החומרים שלך לשיעור אינטראקטיבי'}
                             </p>
                         </div>
-                        <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300"><IconX className="w-6 h-6" /></button>
+                        <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300">
+                            <IconX className="w-6 h-6" />
+                        </button>
                     </div>
 
-                    {/* Progress Bar - מוסתר אם דילגנו על שלב 1 */}
                     {!initialTopic && (
                         <div className="flex items-center gap-4 mt-8 relative z-10">
                             <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${step >= 1 ? 'bg-white text-blue-600' : 'bg-blue-800/50 text-blue-200'}`}><span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">1</span>בחירת מקור</div>
@@ -113,13 +139,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel,
                             {mode === 'topic' && (
                                 <div className="animate-fade-in mt-6">
                                     <label className="block text-lg font-bold text-gray-700 mb-2">באיזה נושא נעסוק היום?</label>
-                                    <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: המהפכה הצרפתית..." autoFocus />
+                                    <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: המהפכה הצרפתית, יסודות הפיזיקה..." autoFocus />
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* --- STEP 2 (Settings) --- */}
                     {step === 2 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-slide-up h-full">
                             <div className="space-y-6">
@@ -140,9 +165,18 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({ onComplete, onCancel,
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50/80 flex justify-between shrink-0 items-center">
-                    {/* אם יש נושא התחלתי, כפתור חזרה לא יופיע (כי מדלגים על שלב 1) */}
-                    {step === 2 && !initialTopic && <button onClick={() => setStep(1)} className="text-gray-500 hover:text-blue-600 font-bold px-4 flex items-center gap-2"><IconArrowBack className="w-4 h-4" /> חזרה</button>}
-                    <button onClick={handleNext} disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || isProcessing} className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed ${step === 1 ? 'w-full justify-center' : 'ml-auto'}`}>{isProcessing ? <><div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div><span>{step === 1 ? 'מעבד...' : 'מייצר שיעור...'}</span></> : <>{step === 1 ? 'המשך להגדרות מתקדמות' : 'צור מערך עכשיו!'}<IconSparkles className="w-5 h-5" /></>}</button>
+                    {/* כפתור חזרה: לוגיקה תוקנה */}
+                    <button onClick={handleBack} className="text-gray-500 hover:text-blue-600 font-bold px-4 flex items-center gap-2 transition-colors">
+                        {cancelIcon} {initialTopic ? cancelLabel : (step === 2 ? 'חזרה' : 'ביטול')}
+                    </button>
+
+                    <button
+                        onClick={handleNext}
+                        disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || isProcessing}
+                        className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed ${step === 1 ? 'w-full justify-center' : 'ml-auto'}`}
+                    >
+                        {isProcessing ? <><div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div><span>{step === 1 ? 'מעבד...' : 'מייצר שיעור...'}</span></> : <>{step === 1 ? 'המשך להגדרות מתקדמות' : 'צור מערך עכשיו!'}<IconSparkles className="w-5 h-5" /></>}
+                    </button>
                 </div>
             </div>
         </div>

@@ -25,6 +25,7 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
     useEffect(() => {
         if (authLoading || !currentUser) return;
 
+        // שאילתה לקבלת הקורסים של המורה הנוכחי
         const q = query(
             collection(db, "courses"),
             where("teacherId", "==", currentUser.uid)
@@ -36,6 +37,7 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
                 ...doc.data()
             })) as Course[];
 
+            // מיון לפי תאריך יצירה (מהחדש לישן)
             coursesData.sort((a, b) => {
                 const dateA = a.createdAt?.seconds || 0;
                 const dateB = b.createdAt?.seconds || 0;
@@ -102,7 +104,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
 
     return (
         <div className="max-w-6xl mx-auto p-8 font-sans pb-24">
-
             {/* Hero Section */}
             <div className="text-center mb-12 relative">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
@@ -182,7 +183,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
                                     {course.title}
                                 </h3>
                                 <div className="flex gap-2 mt-2">
-                                    {/* כאן השינוי: מודולים -> פרקים */}
                                     <span className="text-xs font-bold bg-gray-100 text-gray-500 px-3 py-1 rounded-full border border-gray-200">
                                         {course.syllabus?.length || 0} פרקים
                                     </span>
@@ -203,7 +203,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
                     ))}
                 </div>
             )}
-
             <style>{`
                 @keyframes blob {
                     0% { transform: translate(0px, 0px) scale(1); }
