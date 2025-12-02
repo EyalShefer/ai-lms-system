@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import type { LearningUnit, ActivityBlock, ActivityBlockType } from '../courseTypes';
+// הוספתי את generateFullUnitContent לייבוא
 import {
     generateImagePromptBlock, generateQuestionsFromText, refineContentWithPedagogy,
-    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion
+    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion, generateFullUnitContent
 } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import { v4 as uuidv4 } from 'uuid';
@@ -36,13 +37,37 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
 
+    // מצב טעינה ראשוני לתוכן האוטומטי
+    const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+
     const showScoring = course.mode === 'exam' || unit.type === 'test';
     const AI_ACTIONS = getAiActions(gradeLevel);
-
-    // הגדרת עיצוב אחיד לכפתורי המדיה
     const mediaBtnClass = "cursor-pointer bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-all shadow-sm";
 
-    useEffect(() => { setEditedUnit(unit); }, [unit]);
+    // --- Smart Loading Logic ---
+    useEffect(() => {
+        const initContent = async () => {
+            if (!unit.activityBlocks || unit.activityBlocks.length === 0) {
+                setIsAutoGenerating(true);
+                try {
+                    const newBlocks = await generateFullUnitContent(unit.title, course.title);
+                    const updatedUnit = { ...unit, activityBlocks: newBlocks };
+
+                    setEditedUnit(updatedUnit);
+                    onSave(updatedUnit);
+                } catch (error) {
+                    console.error("Auto generation failed", error);
+                } finally {
+                    setIsAutoGenerating(false);
+                }
+            } else {
+                setEditedUnit(unit);
+            }
+        };
+
+        initContent();
+    }, [unit.id]);
+
 
     const handleAutoDistributePoints = () => {
         const questions = editedUnit.activityBlocks.filter(b => b.type === 'multiple-choice' || b.type === 'open-question');
@@ -234,6 +259,24 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             </div>
         );
     };
+
+    // --- מסך טעינה תוך כדי יצירה אוטומטית של היחידה (מיקום מתוקן) ---
+    if (isAutoGenerating) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+                <div className="relative mb-6">
+                    <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <IconSparkles className="w-8 h-8 text-blue-600 animate-pulse" />
+                    </div>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">ה-AI כותב את תוכן היחידה...</h2>
+                <p className="text-gray-500 mt-2 text-lg">
+                    מייצר הסברים, נקודות מפתח ושאלות עבור: <span className="font-bold text-blue-600">{unit.title}</span>
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen p-8 font-sans pb-24 bg-gray-50/50">

@@ -6,31 +6,25 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// --- פונקציה 1: יצירת סילבוס לקורס ---
+// --- פונקציה 1: יצירת סילבוס לקורס (שלד בלבד - לטעינה מהירה) ---
 export const generateCoursePlan = async (topic: string, mode: string = 'learning') => {
   const prompt = `
     Create a comprehensive course syllabus for the topic: "${topic}".
-    The course mode is: ${mode} (if 'exam', focus on testing; if 'learning', focus on teaching).
+    The course mode is: ${mode}.
     
     Return ONLY a valid JSON object with this structure:
     [
       {
-        "id": "generated-uuid",
         "title": "Module Title",
         "learningUnits": [
-          {
-            "id": "generated-uuid",
-            "title": "Unit Title",
-            "type": "acquisition" | "practice" | "test",
-            "baseContent": "Brief description of what this unit covers...",
-            "activityBlocks": [] 
-          }
+          { "title": "Unit Title", "type": "acquisition" },
+          { "title": "Unit Title", "type": "practice" }
         ]
       }
     ]
-    Create 3-4 modules, with 2-3 units each.
+    Create 3 modules, with 2-3 units each.
     Language: Hebrew.
-    Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
+    Do not include markdown formatting. Just the raw JSON array.
   `;
 
   try {
@@ -40,13 +34,14 @@ export const generateCoursePlan = async (topic: string, mode: string = 'learning
 
     const rawData = JSON.parse(text);
 
+    // המרה למבנה של המערכת - מתחילים עם רשימת בלוקים ריקה (Lazy Loading)
     return rawData.map((mod: any) => ({
       ...mod,
       id: uuidv4(),
       learningUnits: mod.learningUnits.map((unit: any) => ({
         ...unit,
         id: uuidv4(),
-        activityBlocks: []
+        activityBlocks: [] // יתמלא אוטומטית בכניסה ליחידה
       }))
     }));
 
@@ -56,9 +51,55 @@ export const generateCoursePlan = async (topic: string, mode: string = 'learning
   }
 };
 
-// --- פונקציה 2: יצירת תוכן מלא ליחידה ---
-export const generateFullUnitContent = async (unitTitle: string, description: string) => {
-  return [];
+// --- פונקציה 2: יצירת תוכן מלא ליחידה (מופעלת אוטומטית בכניסה ליחידה ריקה) ---
+export const generateFullUnitContent = async (unitTitle: string, courseTopic: string) => {
+  const prompt = `
+      Create rich learning content for a unit titled: "${unitTitle}" (Part of the course: "${courseTopic}").
+      Language: Hebrew.
+      
+      Return ONLY valid JSON with these 3 fields:
+      {
+        "baseContent": "A detailed explanatory paragraph (5-6 sentences) teaching the core concept.",
+        "keyPoints": "A list of 3 key takeaways (bullet points).",
+        "challengeQuestion": "A thought-provoking open question about this unit.",
+        "challengeAnswer": "The expected answer or key points for the teacher."
+      }
+    `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const data = JSON.parse(text);
+
+    // בניית 3 הבלוקים המוכנים
+    return [
+      // 1. בלוק טקסט ראשי
+      {
+        id: uuidv4(),
+        type: 'text',
+        content: data.baseContent,
+        metadata: {}
+      },
+      // 2. בלוק נקודות מפתח
+      {
+        id: uuidv4(),
+        type: 'text',
+        content: `**נקודות חשובות לזכור:**\n${data.keyPoints}`,
+        metadata: {}
+      },
+      // 3. בלוק שאלת חשיבה
+      {
+        id: uuidv4(),
+        type: 'open-question',
+        content: { question: data.challengeQuestion },
+        metadata: { modelAnswer: data.challengeAnswer }
+      }
+    ];
+  } catch (e) {
+    console.error("Error generating unit content", e);
+    // במקרה שגיאה נחזיר מערך ריק כדי לא לתקוע את המערכת
+    return [];
+  }
 };
 
 // --- פונקציה 3: שיפור טקסט פדגוגי ---
@@ -81,10 +122,7 @@ export const generateQuestionsFromText = async (text: string, type: 'multiple-ch
     Based on the following text: "${text.substring(0, 1000)}..."
     Create 3 ${type === 'multiple-choice' ? 'multiple choice questions' : 'open-ended questions'}.
     Language: Hebrew.
-    Return ONLY valid JSON array:
-    ${type === 'multiple-choice' ?
-      `[{ "question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "The correct option text" }]` :
-      `[{ "question": "...", "modelAnswer": "Expected answer key" }]`}
+    Return ONLY valid JSON array.
   `;
 
   try {
@@ -92,31 +130,19 @@ export const generateQuestionsFromText = async (text: string, type: 'multiple-ch
     const textRes = result.response.text().replace(/```json|```/g, '').trim();
     return JSON.parse(textRes);
   } catch (e) {
-    console.error("Error generating questions", e);
     return [];
   }
 };
 
 // --- פונקציה 5: הצעת פרומפט לתמונה ---
 export const generateImagePromptBlock = async (context: string) => {
-  const prompt = `
-      Suggest a creative AI image prompt (in English) to visualize this concept: "${context.substring(0, 200)}".
-      Return ONLY the prompt string.
-    `;
+  const prompt = `Suggest a creative AI image prompt (in English) to visualize: "${context.substring(0, 200)}". Return ONLY the prompt string.`;
   const result = await model.generateContent(prompt);
   return result.response.text();
 };
 
 // --- פונקציה 6: יחידה אדפטיבית ---
 export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) => {
-  const prompt = `
-        A student failed to understand "${originalUnit.title}".
-        Weakness detected: ${weakness}.
-        Create a "Remedial Unit" (Type: remedial) that explains the concept simply with an analogy.
-        Language: Hebrew.
-        Return JSON object of a LearningUnit.
-    `;
-
   return {
     id: uuidv4(),
     title: `חיזוק: ${originalUnit.title}`,
@@ -134,97 +160,48 @@ export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) 
 
 // --- פונקציה 7: ניתוח כיתתי ---
 export const generateClassAnalysis = async (studentsData: any[]) => {
-  const prompt = `
-        Analyze this class data (JSON): ${JSON.stringify(studentsData).substring(0, 1000)}
-        Return JSON with:
-        {
-            "classOverview": "Summary string in Hebrew",
-            "strongSkills": ["skill 1", "skill 2"],
-            "weakSkills": ["skill 1", "skill 2"],
-            "actionItems": ["action 1", "action 2"]
-        }
-    `;
-
+  const prompt = `Analyze class data (JSON): ${JSON.stringify(studentsData).substring(0, 1000)}. Return JSON: { "classOverview": "...", "strongSkills": [], "weakSkills": [], "actionItems": [] } (Hebrew)`;
   try {
     const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
-  } catch (e) {
-    return null;
-  }
+    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+  } catch (e) { return null; }
 };
 
 // --- פונקציה 8: דוח תלמיד ---
 export const generateStudentReport = async (studentData: any) => {
-  const prompt = `
-        Create a report for student: ${JSON.stringify(studentData)}
-        Return JSON:
-        {
-            "studentName": "${studentData.name}",
-            "summary": "Hebrew summary paragraph",
-            "criteria": {
-                "knowledge": "Assessment of knowledge",
-                "depth": "Assessment of depth",
-                "expression": "Assessment of expression",
-                "recommendations": "Future steps"
-            }
-        }
-    `;
+  const prompt = `Create student report (JSON): ${JSON.stringify(studentData)}. Return JSON: { "studentName": "...", "summary": "...", "criteria": { "knowledge": "...", "depth": "...", "expression": "...", "recommendations": "..." } } (Hebrew)`;
   try {
     const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
-  } catch (e) {
-    return null;
-  }
+    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+  } catch (e) { return null; }
 };
 
-// --- פונקציה 9: יצירת שאלה פתוחה בודדת (Wizdi Magic) ---
+// --- פונקציה 9: Wizdi Magic - שאלה פתוחה בודדת ---
 export const generateSingleOpenQuestion = async (context: string) => {
   const prompt = `
       Create a single challenging open-ended question about: "${context}".
-      Include a "Model Answer" (rubric) for the teacher.
-      Language: Hebrew.
-      Return ONLY valid JSON:
-      {
-        "question": "The question text...",
-        "modelAnswer": "The expected answer / key points..."
-      }
+      Include a "Model Answer". Language: Hebrew.
+      Return ONLY valid JSON: { "question": "...", "modelAnswer": "..." }
     `;
-
   try {
     const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
+    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
   } catch (e) {
-    console.error("Error generating single question", e);
     return { question: "שגיאה ביצירה", modelAnswer: "" };
   }
 };
 
-// --- פונקציה 10: יצירת שאלה אמריקאית בודדת (Wizdi Magic) ---
+// --- פונקציה 10: Wizdi Magic - שאלה אמריקאית בודדת ---
 export const generateSingleMultipleChoiceQuestion = async (context: string) => {
   const prompt = `
       Create a single multiple-choice question about: "${context}".
       Language: Hebrew.
-      Return ONLY valid JSON:
-      {
-        "question": "Question text...",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option B"
-      }
+      Return ONLY valid JSON: { "question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "..." }
     `;
-
   try {
     const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
+    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
   } catch (e) {
-    console.error("Error generating single MC question", e);
-    return {
-      question: "שגיאה ביצירה",
-      options: ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"],
-      correctAnswer: "אפשרות 1"
-    };
+    return { question: "שגיאה ביצירה", options: [], correctAnswer: "" };
   }
 };
