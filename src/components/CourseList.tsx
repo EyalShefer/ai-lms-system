@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore'; // הוסר addDoc
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCourseStore } from '../context/CourseContext';
@@ -11,15 +11,13 @@ import {
 
 interface CourseListProps {
     onSelectCourse: (courseId: string) => void;
+    onCreateNew: () => void; // הוספנו את זה כדי לפתוח את הויזארד
 }
 
-const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
+const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) => {
     const { currentUser, loading: authLoading } = useAuth();
-    const { loadCourse } = useCourseStore();
     const [courses, setCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isCreating, setIsCreating] = useState(false);
-    const [newCourseTitle, setNewCourseTitle] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -53,32 +51,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
 
         return () => unsubscribe();
     }, [currentUser, authLoading]);
-
-    const handleCreateNewCourse = async () => {
-        if (!newCourseTitle.trim() || !currentUser) return;
-        setIsCreating(true);
-
-        const newCourseData = {
-            title: newCourseTitle,
-            teacherId: currentUser.uid,
-            targetAudience: "כללי",
-            syllabus: [],
-            mode: 'learning',
-            createdAt: serverTimestamp()
-        };
-
-        try {
-            const docRef = await addDoc(collection(db, "courses"), newCourseData);
-            setNewCourseTitle('');
-            loadCourse(docRef.id);
-            onSelectCourse(docRef.id);
-        } catch (e) {
-            console.error("Error creating course:", e);
-            alert("שגיאה ביצירת מערך שיעור");
-        } finally {
-            setIsCreating(false);
-        }
-    };
 
     const handleDeleteCourse = async (e: React.MouseEvent, courseId: string, courseTitle: string) => {
         e.stopPropagation();
@@ -119,22 +91,15 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
                 </p>
             </div>
 
-            {/* Create Bar */}
-            <div className="glass p-3 rounded-2xl shadow-lg border border-white/50 flex gap-2 max-w-2xl mx-auto mb-16 backdrop-blur-xl relative z-20">
-                <input
-                    type="text"
-                    value={newCourseTitle}
-                    onChange={(e) => setNewCourseTitle(e.target.value)}
-                    placeholder="נושא השיעור החדש..."
-                    className="flex-1 p-4 bg-white/60 border-none rounded-xl focus:ring-2 focus:ring-blue-200 outline-none text-gray-800 placeholder-gray-400 transition-all text-lg"
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewCourse()}
-                />
+            {/* Create Bar - עכשיו רק כפתור */}
+            <div className="flex justify-center mb-16 relative z-20">
                 <button
-                    onClick={handleCreateNewCourse}
-                    disabled={isCreating || !newCourseTitle.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold text-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    onClick={onCreateNew}
+                    className="group relative bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-12 py-4 rounded-2xl font-bold text-xl shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 flex items-center gap-3 overflow-hidden"
                 >
-                    {isCreating ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div> : <><IconPlus className="w-6 h-6" /> צור</>}
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                    <IconPlus className="w-8 h-8" />
+                    צור חדש
                 </button>
             </div>
 
@@ -143,7 +108,7 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse }) => {
                 <div className="text-center py-20 opacity-60 flex flex-col items-center">
                     <IconRocket className="w-24 h-24 text-gray-300 mb-4" />
                     <div className="text-2xl font-bold text-gray-400">אין שיעורים עדיין</div>
-                    <p className="text-gray-400">צור את השיעור הראשון שלך ב-Wizdi Studio 👆</p>
+                    <p className="text-gray-400">לחץ על הכפתור למעלה כדי להתחיל 👆</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

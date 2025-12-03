@@ -5,9 +5,10 @@ import CoursePlayer from './components/CoursePlayer';
 import TeacherDashboard from './components/TeacherDashboard';
 import Login from './components/Login';
 import CourseList from './components/CourseList';
+import IngestionWizard from './components/IngestionWizard'; // הוספנו את הויזארד
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db } from './firebase';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore'; // הוספנו פונקציות ליצירה
 import {
   IconEdit, IconStudent, IconChart,
   IconBack, IconLogOut
@@ -18,6 +19,7 @@ const PERFORM_WIPE = false;
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
+  const [showWizard, setShowWizard] = useState(false); // סטייט להצגת הויזארד
   const { course, loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
 
@@ -42,6 +44,38 @@ const AuthenticatedApp = () => {
     setMode('list');
     // איפוס ה-URL אם היה בו מזהה קורס
     window.history.pushState({}, '', '/');
+  };
+
+  // פונקציה שמטפלת בסיום הויזארד - יצירת הקורס ומעבר לעורך
+  const handleWizardComplete = async (wizardData: any) => {
+    if (!currentUser) return;
+
+    setShowWizard(false); // סגירת הויזארד
+
+    try {
+      // יצירת אובייקט הקורס החדש ב-Firebase
+      const newCourseData = {
+        title: wizardData.topic || "שיעור חדש",
+        teacherId: currentUser.uid,
+        targetAudience: wizardData.settings?.grade || "כללי",
+        subject: wizardData.settings?.subject || "כללי",
+        syllabus: [], // יתמלא בהמשך ע"י ה-AI
+        mode: wizardData.settings?.courseMode || 'learning',
+        createdAt: serverTimestamp(),
+        // שומרים את נתוני הויזארד כדי שהעורך יוכל להשתמש בהם ליצירת תוכן
+        wizardData: wizardData
+      };
+
+      const docRef = await addDoc(collection(db, "courses"), newCourseData);
+
+      // טעינת הקורס החדש ומעבר לעורך
+      loadCourse(docRef.id);
+      setMode('editor');
+
+    } catch (error) {
+      console.error("Error creating course from wizard:", error);
+      alert("אירעה שגיאה ביצירת הקורס");
+    }
   };
 
   return (
@@ -149,13 +183,29 @@ const AuthenticatedApp = () => {
           <CoursePlayer />
         ) : (
           <>
-            {mode === 'list' && <CourseList onSelectCourse={handleCourseSelect} />}
+            {/* כאן החיבור החשוב: העברת הפונקציה לפתיחת הויזארד */}
+            {mode === 'list' && (
+              <CourseList
+                onSelectCourse={handleCourseSelect}
+                onCreateNew={() => setShowWizard(true)}
+              />
+            )}
+
             {mode === 'editor' && <CourseEditor />}
             {mode === 'student' && <CoursePlayer />}
             {mode === 'dashboard' && <TeacherDashboard />}
           </>
         )}
       </main>
+
+      {/* הצגת הויזארד כמודאל מעל הכל */}
+      {showWizard && (
+        <IngestionWizard
+          onComplete={handleWizardComplete}
+          onCancel={() => setShowWizard(false)}
+          title="יצירת שיעור חדש"
+        />
+      )}
     </div>
   );
 };

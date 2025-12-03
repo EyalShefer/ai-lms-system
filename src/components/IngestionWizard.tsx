@@ -21,7 +21,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onComplete,
     onCancel,
     initialTopic,
-    title = "הגדרות", // שינוי: כותרת ברירת מחדל
+    title = "יצירת שיעור חדש",
     cancelLabel = "חזרה",
     cancelIcon = <IconArrowBack className="w-4 h-4" />
 }) => {
@@ -81,14 +81,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     };
 
     const handleBack = () => {
-        // אם התחלנו עם נושא (עריכה), חזרה סוגרת את החלון
         if (initialTopic) {
             onCancel();
         } else if (step === 2) {
-            // אם יצרנו חדש ואנחנו בשלב 2, חוזרים לשלב 1
             setStep(1);
         } else {
-            // אם אנחנו בשלב 1, חזרה סוגרת
             onCancel();
         }
     };
@@ -102,9 +99,15 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10"><IconWand className="w-64 h-64" /></div>
                     <div className="relative z-10 flex justify-between items-start">
                         <div>
-                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white"><IconSparkles className="w-8 h-8 text-yellow-300" /> {title}</h2>
+                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white">
+                                <IconSparkles className="w-8 h-8 text-yellow-300" />
+                                {/* כאן השינוי: הכותרת משתנה דינמית לפי המצב שנבחר */}
+                                {courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת שיעור חדש'}
+                            </h2>
                             <p className="text-lg opacity-90 !text-blue-100">
-                                {mode === 'topic' && topic ? `יצירת שיעור בנושא: ${topic}` : 'בוא נהפוך את החומרים שלך לשיעור אינטראקטיבי'}
+                                {mode === 'topic' && topic
+                                    ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'שיעור'} בנושא: ${topic}`
+                                    : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`}
                             </p>
                         </div>
                         <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300">
@@ -165,7 +168,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50/80 flex justify-between shrink-0 items-center">
-                    {/* כפתור חזרה: לוגיקה תוקנה */}
                     <button onClick={handleBack} className="text-gray-500 hover:text-blue-600 font-bold px-4 flex items-center gap-2 transition-colors">
                         {cancelIcon} {initialTopic ? cancelLabel : (step === 2 ? 'חזרה' : 'ביטול')}
                     </button>
@@ -175,7 +177,17 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || isProcessing}
                         className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed ${step === 1 ? 'w-full justify-center' : 'ml-auto'}`}
                     >
-                        {isProcessing ? <><div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div><span>{step === 1 ? 'מעבד...' : 'מייצר שיעור...'}</span></> : <>{step === 1 ? 'המשך להגדרות מתקדמות' : 'צור מערך עכשיו!'}<IconSparkles className="w-5 h-5" /></>}
+                        {isProcessing ? (
+                            <>
+                                <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                <span>{step === 1 ? 'מעבד...' : (courseMode === 'exam' ? 'מייצר מבחן...' : 'מייצר מערך שיעור...')}</span>
+                            </>
+                        ) : (
+                            <>
+                                {step === 1 ? 'המשך להגדרות מתקדמות' : (courseMode === 'exam' ? 'צור מבחן עכשיו!' : 'צור מערך שיעור עכשיו!')}
+                                <IconSparkles className="w-5 h-5" />
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
