@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore'; // הוסר addDoc
+import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCourseStore } from '../context/CourseContext';
 import type { Course } from '../courseTypes';
 import {
-    IconTrash, IconLink, IconEdit, IconStudent, IconPlus,
-    IconBook, IconRocket, IconCheck
+    IconTrash, IconLink, IconEdit, IconPlus,
+    IconBook, IconRocket, IconCheck, IconList
 } from '../icons';
 
 interface CourseListProps {
     onSelectCourse: (courseId: string) => void;
-    onCreateNew: () => void; // הוספנו את זה כדי לפתוח את הויזארד
+    // השינוי היחיד כאן: הפונקציה מקבלת את סוג הפעילות
+    onCreateNew: (mode: 'learning' | 'exam') => void;
 }
 
 const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) => {
@@ -91,15 +92,34 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                 </p>
             </div>
 
-            {/* Create Bar - עכשיו רק כפתור */}
-            <div className="flex justify-center mb-16 relative z-20">
+            {/* Create Bar - שני כפתורים במקום אחד */}
+            <div className="flex flex-col sm:flex-row justify-center gap-6 mb-16 relative z-20">
+                {/* כפתור יצירת שיעור */}
                 <button
-                    onClick={onCreateNew}
-                    className="group relative bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-12 py-4 rounded-2xl font-bold text-xl shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 flex items-center gap-3 overflow-hidden"
+                    onClick={() => onCreateNew('learning')}
+                    className="group relative bg-white hover:bg-blue-50 border-2 border-blue-100 hover:border-blue-300 text-blue-600 px-6 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center gap-4 min-w-[220px]"
                 >
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                    <IconPlus className="w-8 h-8" />
-                    צור חדש
+                    <div className="bg-blue-100 p-3 rounded-xl group-hover:scale-110 transition-transform text-blue-600">
+                        <IconBook className="w-8 h-8" />
+                    </div>
+                    <div className="text-right">
+                        <div className="text-sm font-normal text-gray-500">פעילות למידה</div>
+                        <div className="text-xl">יצירת שיעור</div>
+                    </div>
+                </button>
+
+                {/* כפתור יצירת מבחן */}
+                <button
+                    onClick={() => onCreateNew('exam')}
+                    className="group relative bg-white hover:bg-red-50 border-2 border-red-100 hover:border-red-300 text-red-600 px-6 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center gap-4 min-w-[220px]"
+                >
+                    <div className="bg-red-100 p-3 rounded-xl group-hover:scale-110 transition-transform text-red-600">
+                        <IconList className="w-8 h-8" />
+                    </div>
+                    <div className="text-right">
+                        <div className="text-sm font-normal text-gray-500">פעילות הערכה</div>
+                        <div className="text-xl">יצירת מבחן</div>
+                    </div>
                 </button>
             </div>
 
@@ -107,8 +127,8 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
             {courses.length === 0 ? (
                 <div className="text-center py-20 opacity-60 flex flex-col items-center">
                     <IconRocket className="w-24 h-24 text-gray-300 mb-4" />
-                    <div className="text-2xl font-bold text-gray-400">אין שיעורים עדיין</div>
-                    <p className="text-gray-400">לחץ על הכפתור למעלה כדי להתחיל 👆</p>
+                    <div className="text-2xl font-bold text-gray-400">אין פעילויות עדיין</div>
+                    <p className="text-gray-400">בחר באחת האפשרויות למעלה כדי להתחיל 👆</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -118,7 +138,7 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                             onClick={() => onSelectCourse(course.id)}
                             className="glass group bg-white/70 hover:bg-white/90 p-6 rounded-3xl border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[240px]"
                         >
-                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-400 to-indigo-400 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                            <div className={`absolute top-0 left-0 w-full h-1.5 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ${course.mode === 'exam' ? 'bg-gradient-to-r from-red-400 to-orange-400' : 'bg-gradient-to-r from-blue-400 to-indigo-400'}`}></div>
 
                             <div className="absolute top-4 left-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                                 <button
@@ -141,8 +161,8 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                             </div>
 
                             <div className="mt-8 text-center flex flex-col items-center">
-                                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-blue-100">
-                                    <IconBook className="w-8 h-8" />
+                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 ${course.mode === 'exam' ? 'bg-red-50 text-red-500 group-hover:bg-red-100' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-100'}`}>
+                                    {course.mode === 'exam' ? <IconList className="w-8 h-8" /> : <IconBook className="w-8 h-8" />}
                                 </div>
                                 <h3 className="text-xl font-extrabold text-gray-800 mb-2 leading-tight group-hover:text-blue-700 transition-colors line-clamp-2">
                                     {course.title}

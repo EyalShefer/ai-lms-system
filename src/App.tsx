@@ -5,10 +5,10 @@ import CoursePlayer from './components/CoursePlayer';
 import TeacherDashboard from './components/TeacherDashboard';
 import Login from './components/Login';
 import CourseList from './components/CourseList';
-import IngestionWizard from './components/IngestionWizard'; // הוספנו את הויזארד
+import IngestionWizard from './components/IngestionWizard';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db } from './firebase';
-import { collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore'; // הוספנו פונקציות ליצירה
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   IconEdit, IconStudent, IconChart,
   IconBack, IconLogOut
@@ -19,11 +19,13 @@ const PERFORM_WIPE = false;
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
-  const [showWizard, setShowWizard] = useState(false); // סטייט להצגת הויזארד
+
+  // כאן השינוי: שומרים את סוג הויזארד שנבחר (למידה או מבחן)
+  const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
+
   const { course, loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
 
-  // בדיקת קישור תלמיד
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const studentLinkID = params.get('studentCourseId');
@@ -42,33 +44,28 @@ const AuthenticatedApp = () => {
 
   const handleBackToList = () => {
     setMode('list');
-    // איפוס ה-URL אם היה בו מזהה קורס
     window.history.pushState({}, '', '/');
   };
 
-  // פונקציה שמטפלת בסיום הויזארד - יצירת הקורס ומעבר לעורך
   const handleWizardComplete = async (wizardData: any) => {
     if (!currentUser) return;
 
-    setShowWizard(false); // סגירת הויזארד
+    setWizardMode(null); // סגירת הויזארד
 
     try {
-      // יצירת אובייקט הקורס החדש ב-Firebase
       const newCourseData = {
         title: wizardData.topic || "שיעור חדש",
         teacherId: currentUser.uid,
         targetAudience: wizardData.settings?.grade || "כללי",
         subject: wizardData.settings?.subject || "כללי",
-        syllabus: [], // יתמלא בהמשך ע"י ה-AI
+        syllabus: [],
         mode: wizardData.settings?.courseMode || 'learning',
         createdAt: serverTimestamp(),
-        // שומרים את נתוני הויזארד כדי שהעורך יוכל להשתמש בהם ליצירת תוכן
         wizardData: wizardData
       };
 
       const docRef = await addDoc(collection(db, "courses"), newCourseData);
 
-      // טעינת הקורס החדש ומעבר לעורך
       loadCourse(docRef.id);
       setMode('editor');
 
@@ -83,9 +80,8 @@ const AuthenticatedApp = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-white/40 shadow-sm px-6 py-4 flex justify-between items-center transition-all">
 
-        {/* צד ימין: לוגו וכפתור חזרה */}
+        {/* צד ימין */}
         <div className="flex items-center gap-6">
-          {/* כפתור חזרה - מופיע תמיד כשאנחנו לא ברשימה הראשית ולא בקישור תלמיד חיצוני */}
           {mode !== 'list' && !isStudentLink && (
             <button
               onClick={handleBackToList}
@@ -97,7 +93,6 @@ const AuthenticatedApp = () => {
             </button>
           )}
 
-          {/* לוגו - לחיצה עליו גם מחזירה לרשימה */}
           <div
             className={`flex items-center gap-3 tracking-tight ${!isStudentLink ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
             onClick={!isStudentLink ? handleBackToList : undefined}
@@ -119,7 +114,7 @@ const AuthenticatedApp = () => {
           </div>
         </div>
 
-        {/* מרכז: תפריט ניווט (מופיע רק כשאנחנו בתוך קורס) */}
+        {/* מרכז */}
         <div className="flex items-center gap-2">
           {mode !== 'list' && !isStudentLink && (
             <div className="flex items-center gap-2 bg-white/40 p-1.5 rounded-2xl border border-white/50 backdrop-blur-md shadow-inner">
@@ -156,7 +151,7 @@ const AuthenticatedApp = () => {
           )}
         </div>
 
-        {/* צד שמאל: משתמש ויציאה */}
+        {/* צד שמאל */}
         <div className="flex items-center gap-4">
           <div className="hidden md:flex flex-col items-end">
             <span className="text-sm font-bold text-gray-700">{currentUser?.email?.split('@')[0]}</span>
@@ -183,11 +178,11 @@ const AuthenticatedApp = () => {
           <CoursePlayer />
         ) : (
           <>
-            {/* כאן החיבור החשוב: העברת הפונקציה לפתיחת הויזארד */}
             {mode === 'list' && (
               <CourseList
                 onSelectCourse={handleCourseSelect}
-                onCreateNew={() => setShowWizard(true)}
+                // מעבירים את הפונקציה שמעדכנת את מצב הויזארד
+                onCreateNew={(selectedMode) => setWizardMode(selectedMode)}
               />
             )}
 
@@ -198,12 +193,12 @@ const AuthenticatedApp = () => {
         )}
       </main>
 
-      {/* הצגת הויזארד כמודאל מעל הכל */}
-      {showWizard && (
+      {/* הויזארד מוצג רק אם נבחר מצב */}
+      {wizardMode && (
         <IngestionWizard
+          initialMode={wizardMode} // מעבירים לויזארד את מה שנבחר (מבחן/שיעור)
           onComplete={handleWizardComplete}
-          onCancel={() => setShowWizard(false)}
-          title="יצירת שיעור חדש"
+          onCancel={() => setWizardMode(null)}
         />
       )}
     </div>

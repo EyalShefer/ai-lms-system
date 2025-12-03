@@ -9,6 +9,8 @@ interface IngestionWizardProps {
     onComplete: (data: any) => void;
     onCancel: () => void;
     initialTopic?: string;
+    // הוספנו את זה: המצב ההתחלתי שהמשתמש בחר בחוץ
+    initialMode?: 'learning' | 'exam';
     title?: string;
     cancelLabel?: string;
     cancelIcon?: React.ReactNode;
@@ -21,7 +23,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onComplete,
     onCancel,
     initialTopic,
-    title = "יצירת שיעור חדש",
+    initialMode = 'learning', // ברירת מחדל
+    title,
     cancelLabel = "חזרה",
     cancelIcon = <IconArrowBack className="w-4 h-4" />
 }) => {
@@ -36,8 +39,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [grade, setGrade] = useState('כיתה ז\'');
     const [subject, setSubject] = useState('היסטוריה');
     const [modulesCount, setModulesCount] = useState(3);
-    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>('learning');
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
+
+    // כאן התיקון החשוב: אנחנו מאתחלים לפי מה שנבחר בחוץ!
+    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
 
     useEffect(() => {
         if (initialTopic && initialTopic !== "טוען..." && initialTopic.trim() !== "") {
@@ -90,6 +95,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         }
     };
 
+    // משתנים לכותרות דינמיות - עכשיו הם יהיו נכונים מהרגע הראשון
+    const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת שיעור חדש';
+    const dynamicSubtitle = mode === 'topic' && topic
+        ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'שיעור'} בנושא: ${topic}`
+        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`;
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-white/90 glass w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[90vh] relative">
@@ -101,13 +112,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div>
                             <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white">
                                 <IconSparkles className="w-8 h-8 text-yellow-300" />
-                                {/* כאן השינוי: הכותרת משתנה דינמית לפי המצב שנבחר */}
-                                {courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת שיעור חדש'}
+                                {dynamicTitle}
                             </h2>
                             <p className="text-lg opacity-90 !text-blue-100">
-                                {mode === 'topic' && topic
-                                    ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'שיעור'} בנושא: ${topic}`
-                                    : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`}
+                                {dynamicSubtitle}
                             </p>
                         </div>
                         <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300">
