@@ -27,24 +27,44 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
+// פונקציה לניקוי וסידור הדאטה שמגיע מ-Firebase
 const sanitizeCourseData = (data: any, docId: string): Course => {
-    const course = data.course ? data.course : data;
-    const syllabus = Array.isArray(course.syllabus) ? course.syllabus : [];
-    const cleanSyllabus = syllabus.map((mod: any) => {
+    // תמיכה גם במבנה ישן (מקונן) וגם במבנה חדש (שטוח)
+    const baseData = data.course ? data.course : data;
+
+    // וידוא שהסילבוס הוא מערך תקין
+    const rawSyllabus = Array.isArray(baseData.syllabus) ? baseData.syllabus : [];
+
+    // ניקוי עמוק של הסילבוס (הוספת IDs חסרים)
+    const cleanSyllabus = rawSyllabus.map((mod: any) => {
         const modId = mod.id || uuidv4();
         const learningUnits = Array.isArray(mod.learningUnits) ? mod.learningUnits : [];
+
         const cleanUnits = learningUnits.map((unit: any) => {
             const unitId = unit.id || uuidv4();
             const activityBlocks = Array.isArray(unit.activityBlocks) ? unit.activityBlocks : [];
+
             const cleanBlocks = activityBlocks.map((block: any) => ({
                 ...block,
                 id: block.id || uuidv4()
             }));
+
             return { ...unit, id: unitId, activityBlocks: cleanBlocks };
         });
+
         return { ...mod, id: modId, learningUnits: cleanUnits };
     });
-    return { ...course, id: docId, syllabus: cleanSyllabus } as Course;
+
+    // החזרת האובייקט המלא כולל שדות חדשים (mode, wizardData)
+    return {
+        id: docId,
+        teacherId: baseData.teacherId || '',
+        title: baseData.title || 'ללא כותרת',
+        targetAudience: baseData.targetAudience || '',
+        syllabus: cleanSyllabus,
+        mode: baseData.mode || 'learning', // חשוב: שומר על מצב מבחן/למידה
+        wizardData: baseData.wizardData || null // חשוב: שומר את המידע מהויזארד
+    } as Course;
 };
 
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -66,24 +86,25 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setFullBookContentState(data.fullBookContent || "");
                 setPdfSourceState(data.pdfSource || null);
             } else {
-                // --- תיקון: ניקוי שקט אם הקורס נמחק ---
-                console.warn("⚠️ הקורס המבוקש לא קיים. מבצע ריענון נקי.");
+                // --- התיקון כאן: טיפול עדין יותר במצב של "לא נמצא" ---
+                console.warn(`⚠️ הקורס המבוקש (${currentCourseId}) לא נמצא או שטרם נוצר.`);
 
                 const url = new URL(window.location.href);
+                // רק אם זה לינק חיצוני של תלמיד - נבצע רענון קשיח
                 if (url.searchParams.has('studentCourseId')) {
-                    // מוחקים את הפרמטר מה-URL
                     url.searchParams.delete('studentCourseId');
-                    // טעינה מחדש של הדף (Hard Reload) כדי לאפס את כל הזיכרון של האפליקציה
                     window.location.href = url.toString();
                     return;
                 }
 
-                // איפוס הסטייט אם זה לא לינק חיצוני
+                // אם אנחנו במצב עריכה רגיל - פשוט נאפס את המצב בלי להרוג את האפליקציה
+                // זה מונע לולאת רענון אם יש עיכוב ביצירת המסמך
                 setCurrentCourseId(null);
                 setCourseState(initialEmptyCourse);
             }
         }, (error) => {
             console.error("Error fetching course:", error);
+            // גם במקרה שגיאה, לא מרעננים בכוח
             setCurrentCourseId(null);
         });
 
@@ -94,7 +115,9 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!currentCourseId) return;
         try {
             const { id, ...courseFields } = newCourse;
+            // מנקים undefined כדי שפיירבייס לא יצעק
             const cleanFields = JSON.parse(JSON.stringify(courseFields));
+
             await setDoc(doc(db, "courses", currentCourseId), {
                 ...cleanFields,
                 fullBookContent: newBookContent,
@@ -107,11 +130,13 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const setCourse = (newCourse: Course) => { setCourseState(newCourse); saveToCloud(newCourse, fullBookContent, pdfSource); };
     const setFullBookContent = (text: string) => { setFullBookContentState(text); saveToCloud(course, text, pdfSource); };
     const setPdfSource = (data: string) => { setPdfSourceState(data); saveToCloud(course, fullBookContent, data); };
+
     const updateCourseTitle = (newTitle: string) => {
         const updated = { ...course, title: newTitle };
         setCourseState(updated);
         saveToCloud(updated, fullBookContent, pdfSource);
     };
+
     const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
         const updatedCourse = { ...course };
         updatedCourse.syllabus = updatedCourse.syllabus.map(m => {

@@ -7,8 +7,11 @@ import Login from './components/Login';
 import CourseList from './components/CourseList';
 import IngestionWizard from './components/IngestionWizard';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
-import { auth, db } from './firebase';
+import { auth, db, storage } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// התיקון כאן: ייבוא מקובץ שכן (באותה תיקייה)
+import { generateCoursePlan } from './gemini';
 import {
   IconEdit, IconStudent, IconChart,
   IconBack, IconLogOut
@@ -19,8 +22,6 @@ const PERFORM_WIPE = false;
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
-
-  // כאן השינוי: שומרים את סוג הויזארד שנבחר (למידה או מבחן)
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
 
   const { course, loadCourse } = useCourseStore();
@@ -47,145 +48,105 @@ const AuthenticatedApp = () => {
     window.history.pushState({}, '', '/');
   };
 
+  // המרת קובץ ל-Base64
+  const fileToGenerativePart = (file: File): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        const base64Data = base64String.split(',')[1];
+        resolve({ base64: base64Data, mimeType: file.type });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleWizardComplete = async (wizardData: any) => {
     if (!currentUser) return;
 
-    setWizardMode(null); // סגירת הויזארד
-
     try {
+      let fileUrl = null;
+      let fileType = null;
+      let fileName = null;
+      let aiFileData = undefined;
+
+      // 1. קובץ: העלאה + הכנה ל-AI
+      if (wizardData.file) {
+        console.log("מעבד קובץ...");
+        try {
+          aiFileData = await fileToGenerativePart(wizardData.file);
+        } catch (e) { console.error("Error converting file", e); }
+
+        const storageRef = ref(storage, `uploads/${currentUser.uid}/${Date.now()}_${wizardData.file.name}`);
+        const snapshot = await uploadBytes(storageRef, wizardData.file);
+        fileUrl = await getDownloadURL(snapshot.ref);
+        fileType = wizardData.file.type;
+        fileName = wizardData.file.name;
+      }
+
+      // 2. AI
+      console.log("שולח ל-AI...");
+      const topicForAI = wizardData.topic || fileName || "נושא כללי";
+      const courseMode = wizardData.settings?.courseMode || 'learning';
+
+      let aiSyllabus = [];
+      try {
+        aiSyllabus = await generateCoursePlan(topicForAI, courseMode, aiFileData);
+        console.log("AI סיים בהצלחה");
+      } catch (aiError) {
+        console.error("AI נכשל:", aiError);
+        aiSyllabus = [{ id: "fallback-" + Date.now(), title: "מבוא", learningUnits: [] }];
+      }
+
+      // 3. שמירה
+      const { file, ...cleanWizardData } = wizardData;
       const newCourseData = {
-        title: wizardData.topic || "שיעור חדש",
+        title: topicForAI,
         teacherId: currentUser.uid,
         targetAudience: wizardData.settings?.grade || "כללי",
         subject: wizardData.settings?.subject || "כללי",
-        syllabus: [],
-        mode: wizardData.settings?.courseMode || 'learning',
+        syllabus: aiSyllabus,
+        mode: courseMode,
         createdAt: serverTimestamp(),
-        wizardData: wizardData
+        wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
       const docRef = await addDoc(collection(db, "courses"), newCourseData);
-
+      setWizardMode(null);
       loadCourse(docRef.id);
       setMode('editor');
 
-    } catch (error) {
-      console.error("Error creating course from wizard:", error);
-      alert("אירעה שגיאה ביצירת הקורס");
+    } catch (error: any) {
+      console.error("Error:", error);
+      alert("שגיאה: " + error.message);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
-      {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-white/40 shadow-sm px-6 py-4 flex justify-between items-center transition-all">
-
-        {/* צד ימין */}
         <div className="flex items-center gap-6">
           {mode !== 'list' && !isStudentLink && (
-            <button
-              onClick={handleBackToList}
-              className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer"
-              title="חזור לרשימת הקורסים"
-            >
-              <IconBack className="w-5 h-5 rotate-180" />
-              <span>חזור לרשימה</span>
+            <button onClick={handleBackToList} className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer">
+              <IconBack className="w-5 h-5 rotate-180" /> <span>חזור לרשימה</span>
             </button>
           )}
-
-          <div
-            className={`flex items-center gap-3 tracking-tight ${!isStudentLink ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-            onClick={!isStudentLink ? handleBackToList : undefined}
-          >
-            <img
-              src="/Logowizdi.png"
-              alt="Wizdi Studio Logo"
-              className="h-10 w-auto object-contain"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700">
-              Wizdi Studio
-            </span>
-            {course?.title && mode !== 'list' && (
-              <span className="font-normal text-gray-400 text-lg border-r border-gray-300 pr-3 mr-1 hidden md:inline-block">
-                {course.title}
-              </span>
-            )}
+          <div className="flex items-center gap-3">
+            <img src="/Logowizdi.png" alt="Logo" className="h-10 w-auto object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700">Wizdi Studio</span>
           </div>
         </div>
 
-        {/* מרכז */}
-        <div className="flex items-center gap-2">
-          {mode !== 'list' && !isStudentLink && (
-            <div className="flex items-center gap-2 bg-white/40 p-1.5 rounded-2xl border border-white/50 backdrop-blur-md shadow-inner">
-              <button
-                onClick={() => setMode('editor')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold text-sm ${mode === 'editor'
-                  ? 'bg-white text-blue-600 shadow-md'
-                  : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
-                  }`}
-              >
-                <IconEdit className="w-4 h-4" /> <span className="hidden sm:inline">עורך</span>
-              </button>
-
-              <button
-                onClick={() => setMode('student')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold text-sm ${mode === 'student'
-                  ? 'bg-white text-green-600 shadow-md'
-                  : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
-                  }`}
-              >
-                <IconStudent className="w-4 h-4" /> <span className="hidden sm:inline">תלמיד</span>
-              </button>
-
-              <button
-                onClick={() => setMode('dashboard')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold text-sm ${mode === 'dashboard'
-                  ? 'bg-white text-purple-600 shadow-md'
-                  : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
-                  }`}
-              >
-                <IconChart className="w-4 h-4" /> <span className="hidden sm:inline">דשבורד</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* צד שמאל */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex flex-col items-end">
-            <span className="text-sm font-bold text-gray-700">{currentUser?.email?.split('@')[0]}</span>
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider">מחובר</span>
-          </div>
-          <button
-            onClick={() => auth.signOut()}
-            className="bg-red-50 hover:bg-red-100 text-red-500 p-2.5 rounded-xl transition-colors border border-red-100 shadow-sm"
-            title="יציאה מהמערכת"
-          >
-            <IconLogOut className="w-5 h-5" />
-          </button>
+          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 p-2.5 rounded-xl transition-colors"><IconLogOut className="w-5 h-5" /></button>
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="container mx-auto px-4 py-8">
-        {PERFORM_WIPE ? (
-          <div className="p-10 text-center bg-red-50 border border-red-200 rounded-xl mt-10">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">☢️ מצב ניקוי מופעל</h2>
-            <p>הנתונים נמחקים כעת...</p>
-          </div>
-        ) : isStudentLink ? (
-          <CoursePlayer />
-        ) : (
+        {isStudentLink ? <CoursePlayer /> : (
           <>
-            {mode === 'list' && (
-              <CourseList
-                onSelectCourse={handleCourseSelect}
-                // מעבירים את הפונקציה שמעדכנת את מצב הויזארד
-                onCreateNew={(selectedMode) => setWizardMode(selectedMode)}
-              />
-            )}
-
+            {mode === 'list' && <CourseList onSelectCourse={handleCourseSelect} onCreateNew={(m) => setWizardMode(m)} />}
             {mode === 'editor' && <CourseEditor />}
             {mode === 'student' && <CoursePlayer />}
             {mode === 'dashboard' && <TeacherDashboard />}
@@ -193,13 +154,8 @@ const AuthenticatedApp = () => {
         )}
       </main>
 
-      {/* הויזארד מוצג רק אם נבחר מצב */}
       {wizardMode && (
-        <IngestionWizard
-          initialMode={wizardMode} // מעבירים לויזארד את מה שנבחר (מבחן/שיעור)
-          onComplete={handleWizardComplete}
-          onCancel={() => setWizardMode(null)}
-        />
+        <IngestionWizard initialMode={wizardMode} onComplete={handleWizardComplete} onCancel={() => setWizardMode(null)} />
       )}
     </div>
   );
