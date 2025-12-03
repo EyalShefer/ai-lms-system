@@ -9,7 +9,6 @@ interface IngestionWizardProps {
     onComplete: (data: any) => void;
     onCancel: () => void;
     initialTopic?: string;
-    // הוספנו את זה: המצב ההתחלתי שהמשתמש בחר בחוץ
     initialMode?: 'learning' | 'exam';
     title?: string;
     cancelLabel?: string;
@@ -23,7 +22,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onComplete,
     onCancel,
     initialTopic,
-    initialMode = 'learning', // ברירת מחדל
+    initialMode = 'learning',
     title,
     cancelLabel = "חזרה",
     cancelIcon = <IconArrowBack className="w-4 h-4" />
@@ -40,8 +39,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [subject, setSubject] = useState('היסטוריה');
     const [modulesCount, setModulesCount] = useState(3);
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
-
-    // כאן התיקון החשוב: אנחנו מאתחלים לפי מה שנבחר בחוץ!
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
 
     useEffect(() => {
@@ -64,9 +61,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         setTaxonomy({ ...taxonomy, [changedKey]: newValue, [keyA]: newA, [keyB]: newB });
     };
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    // השינוי כאן: הוספנו את open ו-noClick: true
+    const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         accept: { 'application/pdf': ['.pdf'], 'text/plain': ['.txt'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
         maxFiles: 1,
+        noClick: true, // אנחנו ננהל את הלחיצה בעצמנו כדי לשלוט על ה-Mode
         onDrop: (acceptedFiles) => { setFile(acceptedFiles[0]); setMode('upload'); }
     });
 
@@ -95,7 +94,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         }
     };
 
-    // משתנים לכותרות דינמיות - עכשיו הם יהיו נכונים מהרגע הראשון
     const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת שיעור חדש';
     const dynamicSubtitle = mode === 'topic' && topic
         ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'שיעור'} בנושא: ${topic}`
@@ -142,7 +140,16 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     <div><h4 className="text-xl font-bold text-gray-800 mb-2">יצירה מנושא חופשי</h4><p className="text-sm text-gray-500 leading-relaxed">תן ל-AI להציע סילבוס ותוכן על בסיס נושא שתבחר.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
-                                <div {...getRootProps()} onClick={() => setMode('upload')} className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}>
+
+                                {/* כאן התיקון: הוספנו onClick שמפעיל גם את open() וגם setMode */}
+                                <div
+                                    {...getRootProps()}
+                                    onClick={() => {
+                                        setMode('upload');
+                                        open();
+                                    }}
+                                    className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
+                                >
                                     <input {...getInputProps()} />
                                     {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחץ להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלאת קובץ לימוד</h4><p className="text-sm text-gray-500 leading-relaxed">לחץ כאן או גרור קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
