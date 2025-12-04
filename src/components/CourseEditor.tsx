@@ -11,12 +11,11 @@ import {
     IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
 } from '../icons';
 
-// הגדרה מקומית של האייקון החסר כדי לא לשנות את קובץ האייקונים שלך
+// אייקון עין
 const IconEye = ({ className = "w-5 h-5" }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );
 
-// פונקציית עזר לתרגום סוגי יחידות לעברית
 const getUnitLabel = (type: string) => {
     switch (type) {
         case 'acquisition': return 'יחידת לימוד';
@@ -27,7 +26,6 @@ const getUnitLabel = (type: string) => {
     }
 };
 
-// רכיב פשוט לתצוגה מקדימה של יחידה בתוך מודל
 const UnitPreviewModal: React.FC<{ unit: LearningUnit; onClose: () => void }> = ({ unit, onClose }) => {
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
@@ -87,8 +85,6 @@ const CourseEditor: React.FC = () => {
 
         try {
             const topicToUse = data.topic || course.title || "General Topic";
-
-            // 1. יצירת השלד (סילבוס)
             const syllabus = await generateCoursePlan(topicToUse, data.mode);
 
             const updatedCourse = {
@@ -97,14 +93,12 @@ const CourseEditor: React.FC = () => {
                 mode: data.settings?.courseMode || 'learning'
             };
 
-            // שמירה בסיסית של השלד
             setCourse(updatedCourse);
             await updateDoc(doc(db, "courses", course.id), {
                 syllabus,
                 mode: data.settings?.courseMode || 'learning'
             });
 
-            // מנגנון Pre-fetching: מייצרים את היחידה הראשונה ברקע, אבל לא נכנסים אליה
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
                 generateFullUnitContent(firstUnit.title, topicToUse).then((newBlocks: ActivityBlock[]) => {
@@ -114,7 +108,6 @@ const CourseEditor: React.FC = () => {
                             u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
                         )
                     }));
-                    // עדכון שקט
                     setCourse({ ...updatedCourse, syllabus: syllabusWithContent });
                     updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
                 });
@@ -134,7 +127,7 @@ const CourseEditor: React.FC = () => {
             learningUnits: mod.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u)
         }));
 
-        // מנגנון יצירה ברקע ליחידה הבאה
+        // מנגנון יצירה ברקע
         let nextUnitToGenerate = null;
         let foundCurrent = false;
 
@@ -234,9 +227,13 @@ const CourseEditor: React.FC = () => {
                         </h1>
                         <p className="text-gray-500 mt-2 text-lg">נהל את הפרקים, היחידות והתוכן של השיעור</p>
                     </div>
-                    <button onClick={() => setShowWizard(true)} className="bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-sm hover:shadow transition-all flex items-center gap-2">
-                        <IconWand className="w-5 h-5" /> חזרה להגדרות
-                    </button>
+
+                    <div className="flex items-center gap-3">
+                        {/* כאן הכפתור הוסר כי הוא עבר ל-Header */}
+                        <button onClick={() => setShowWizard(true)} className="bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-sm hover:shadow transition-all flex items-center gap-2">
+                            <IconWand className="w-5 h-5" /> הגדרות
+                        </button>
+                    </div>
                 </div>
 
                 <div className="space-y-8">
@@ -263,10 +260,9 @@ const CourseEditor: React.FC = () => {
                                             <div>
                                                 <h4 className="font-bold text-gray-800">{unit.title}</h4>
                                                 <div className="flex gap-2 mt-1">
-                                                    {/* תגיות בעברית */}
                                                     <span className={`text-[10px] px-2 py-0.5 rounded border ${unit.type === 'test' ? 'bg-red-50 text-red-600 border-red-100' :
-                                                            unit.type === 'practice' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
-                                                                'bg-gray-100 text-gray-500 border-gray-200'
+                                                        unit.type === 'practice' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
+                                                            'bg-gray-100 text-gray-500 border-gray-200'
                                                         }`}>
                                                         {getUnitLabel(unit.type)}
                                                     </span>
@@ -278,7 +274,6 @@ const CourseEditor: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* כפתורים גלויים תמיד */}
                                         <div className="flex items-center gap-2 transition-opacity">
                                             <button onClick={() => setPreviewUnit(unit)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="תצוגה מקדימה"><IconEye className="w-5 h-5" /></button>
                                             <button onClick={() => setSelectedUnitId(unit.id)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 transition-colors flex items-center gap-2"><IconEdit className="w-4 h-4" /> ערוך</button>

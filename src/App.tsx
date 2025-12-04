@@ -10,21 +10,20 @@ import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-// התיקון כאן: ייבוא מקובץ שכן (באותה תיקייה)
 import { generateCoursePlan } from './gemini';
-import {
-  IconEdit, IconStudent, IconChart,
-  IconBack, IconLogOut
-} from './icons';
+import { IconBack, IconLogOut, IconEdit, IconChart } from './icons';
 
-const PERFORM_WIPE = false;
+// אייקון עין לתצוגה מקדימה
+const IconEye = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+);
 
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState<'list' | 'editor' | 'student' | 'dashboard'>('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
 
-  const { course, loadCourse } = useCourseStore();
+  const { loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -36,7 +35,7 @@ const AuthenticatedApp = () => {
       loadCourse(studentLinkID);
       setMode('student');
     }
-  }, []);
+  }, [loadCourse]);
 
   const handleCourseSelect = (courseId: string) => {
     loadCourse(courseId);
@@ -48,7 +47,14 @@ const AuthenticatedApp = () => {
     window.history.pushState({}, '', '/');
   };
 
-  // המרת קובץ ל-Base64
+  const toggleViewMode = () => {
+    if (mode === 'editor') {
+      setMode('student');
+    } else {
+      setMode('editor');
+    }
+  };
+
   const fileToGenerativePart = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -71,9 +77,8 @@ const AuthenticatedApp = () => {
       let fileName = null;
       let aiFileData = undefined;
 
-      // 1. קובץ: העלאה + הכנה ל-AI
       if (wizardData.file) {
-        console.log("מעבד קובץ...");
+        console.log("Processing file...");
         try {
           aiFileData = await fileToGenerativePart(wizardData.file);
         } catch (e) { console.error("Error converting file", e); }
@@ -85,21 +90,20 @@ const AuthenticatedApp = () => {
         fileName = wizardData.file.name;
       }
 
-      // 2. AI
-      console.log("שולח ל-AI...");
+      console.log("Generating with AI...");
       const topicForAI = wizardData.topic || fileName || "נושא כללי";
       const courseMode = wizardData.settings?.courseMode || 'learning';
 
       let aiSyllabus = [];
       try {
         aiSyllabus = await generateCoursePlan(topicForAI, courseMode, aiFileData);
-        console.log("AI סיים בהצלחה");
+        console.log("AI Success");
       } catch (aiError) {
-        console.error("AI נכשל:", aiError);
-        aiSyllabus = [{ id: "fallback-" + Date.now(), title: "מבוא", learningUnits: [] }];
+        console.error("AI Failed:", aiError);
+        aiSyllabus = [{ id: "fallback-" + Date.now(), title: "מבוא (ידני)", learningUnits: [] }];
+        alert("ה-AI נתקל בבעיה, נוצר שלד בסיסי.");
       }
 
-      // 3. שמירה
       const { file, ...cleanWizardData } = wizardData;
       const newCourseData = {
         title: topicForAI,
@@ -123,32 +127,85 @@ const AuthenticatedApp = () => {
     }
   };
 
+  const headerClass = mode === 'student' && !isStudentLink
+    ? "sticky top-0 z-50 bg-indigo-50/90 backdrop-blur-md border-b border-indigo-100 shadow-sm px-6 py-4 flex justify-between items-center transition-all"
+    : "sticky top-0 z-50 glass border-b border-white/40 shadow-sm px-6 py-4 flex justify-between items-center transition-all";
+
   return (
     <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
-      <header className="sticky top-0 z-50 glass border-b border-white/40 shadow-sm px-6 py-4 flex justify-between items-center transition-all">
-        <div className="flex items-center gap-6">
-          {mode !== 'list' && !isStudentLink && (
-            <button onClick={handleBackToList} className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer">
-              <IconBack className="w-5 h-5 rotate-180" /> <span>חזור לרשימה</span>
-            </button>
-          )}
-          <div className="flex items-center gap-3">
-            <img src="/Logowizdi.png" alt="Logo" className="h-10 w-auto object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700">Wizdi Studio</span>
-          </div>
+      <header className={headerClass}>
+
+        {/* לוגו בלבד */}
+        <div className="flex items-center gap-3 cursor-pointer" onClick={handleBackToList}>
+          <img
+            src="/WizdiLogo.png"
+            alt="Wizdi Studio"
+            className="h-12 w-auto object-contain hover:opacity-90 transition-opacity"
+          />
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 p-2.5 rounded-xl transition-colors"><IconLogOut className="w-5 h-5" /></button>
+
+          {/* כפתור לוח בקרת מורה - מופיע רק בדף הבית */}
+          {mode === 'list' && !isStudentLink && (
+            <button
+              onClick={() => setMode('dashboard')}
+              className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm"
+            >
+              <IconChart className="w-5 h-5" /> <span>לוח בקרת מורה</span>
+            </button>
+          )}
+
+          {/* כפתור חזרה לרשימה - מופיע בכל שאר המצבים */}
+          {mode !== 'list' && !isStudentLink && (
+            <button onClick={handleBackToList} className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm">
+              <IconBack className="w-5 h-5 rotate-180" /> <span>רשימה</span>
+            </button>
+          )}
+
+          {(mode === 'editor' || mode === 'student') && !isStudentLink && (
+            <button
+              onClick={toggleViewMode}
+              className={`px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm ${mode === 'editor'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'
+                }`}
+            >
+              {mode === 'editor' ? (
+                <>
+                  <IconEye className="w-5 h-5" /> <span>תצוגת תלמיד</span>
+                </>
+              ) : (
+                <>
+                  <IconEdit className="w-5 h-5" /> <span>חזור לעריכה</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <div className="h-6 w-px bg-gray-300 mx-1"></div>
+
+          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 p-2.5 rounded-xl transition-colors" title="התנתק">
+            <IconLogOut className="w-5 h-5" />
+          </button>
         </div>
+
       </header>
 
       <main className="container mx-auto px-4 py-8">
         {isStudentLink ? <CoursePlayer /> : (
           <>
-            {mode === 'list' && <CourseList onSelectCourse={handleCourseSelect} onCreateNew={(m) => setWizardMode(m)} />}
+            {mode === 'list' && (
+              <CourseList
+                onSelectCourse={handleCourseSelect}
+                onCreateNew={(m) => setWizardMode(m)}
+              />
+            )}
+
             {mode === 'editor' && <CourseEditor />}
+
             {mode === 'student' && <CoursePlayer />}
+
             {mode === 'dashboard' && <TeacherDashboard />}
           </>
         )}

@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { useCourseStore } from '../context/CourseContext';
 import type { Course } from '../courseTypes';
 import {
-    IconTrash, IconLink, IconEdit, IconPlus,
+    IconTrash, IconLink, IconEdit,
     IconBook, IconRocket, IconCheck, IconList
 } from '../icons';
 
 interface CourseListProps {
     onSelectCourse: (courseId: string) => void;
-    // השינוי היחיד כאן: הפונקציה מקבלת את סוג הפעילות
     onCreateNew: (mode: 'learning' | 'exam') => void;
 }
 
@@ -24,7 +22,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
     useEffect(() => {
         if (authLoading || !currentUser) return;
 
-        // שאילתה לקבלת הקורסים של המורה הנוכחי
         const q = query(
             collection(db, "courses"),
             where("teacherId", "==", currentUser.uid)
@@ -36,7 +33,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                 ...doc.data()
             })) as Course[];
 
-            // מיון לפי תאריך יצירה (מהחדש לישן)
             coursesData.sort((a, b) => {
                 const dateA = a.createdAt?.seconds || 0;
                 const dateB = b.createdAt?.seconds || 0;
@@ -77,24 +73,31 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
 
     return (
         <div className="max-w-6xl mx-auto p-8 font-sans pb-24">
+
             {/* Hero Section */}
             <div className="text-center mb-12 relative">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
                 <div className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
 
-                <h1 className="text-6xl font-black text-gray-900 mb-4 relative z-10 tracking-tight">
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                        Wizdi Studio
-                    </span>
-                </h1>
-                <p className="text-2xl text-gray-500 relative z-10 font-light">
+                {/* לוגו בלבד - ללא טקסט כותרת */}
+                {/* ריווח תחתון מינימלי (mb-1) כדי לקרב את הטקסט */}
+                <div className="flex justify-center mb-1 relative z-10">
+                    <img
+                        src="/WizdiLogo.png"
+                        alt="Wizdi Studio"
+                        className="h-32 w-auto object-contain hover:scale-105 transition-transform duration-500 drop-shadow-sm"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                </div>
+
+                {/* כותרת משנה - צבע כחול-כהה (text-indigo-900) וקרוב יותר */}
+                <p className="text-xl text-indigo-900 relative z-10 font-bold opacity-80 tracking-wide">
                     יצירה, למידה והערכה – הכל במקום אחד
                 </p>
             </div>
 
-            {/* Create Bar - שני כפתורים במקום אחד */}
+            {/* Create Bar */}
             <div className="flex flex-col sm:flex-row justify-center gap-6 mb-16 relative z-20">
-                {/* כפתור יצירת שיעור */}
                 <button
                     onClick={() => onCreateNew('learning')}
                     className="group relative bg-white hover:bg-blue-50 border-2 border-blue-100 hover:border-blue-300 text-blue-600 px-6 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center gap-4 min-w-[220px]"
@@ -108,7 +111,6 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                     </div>
                 </button>
 
-                {/* כפתור יצירת מבחן */}
                 <button
                     onClick={() => onCreateNew('exam')}
                     className="group relative bg-white hover:bg-red-50 border-2 border-red-100 hover:border-red-300 text-red-600 px-6 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center gap-4 min-w-[220px]"
