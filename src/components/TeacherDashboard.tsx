@@ -1,12 +1,11 @@
-import React, { useState, useEffect, Suspense, useMemo } from 'react';
-import { useCourseStore } from '../context/CourseContext';
+import React, { useState, useEffect, useMemo } from 'react';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
-    IconChart, IconStudent, IconBrain, IconList,
-    IconCheck, IconX, IconSparkles, IconEdit, IconSave,
-    IconFilter, IconEye, IconSearch, IconLayer, IconBook, IconRobot, IconArrowBack
+    IconChart, IconBrain, IconX, IconSparkles, IconEdit,
+    IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
+    IconLink, IconCheck, IconStudent
 } from '../icons';
 
 // --- Lazy Load CoursePlayer ---
@@ -14,18 +13,16 @@ const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
-    "כיתה א'", "כיתה ב'", "כיתה ג'", "כיתה ד'", "כיתה ה'", "כיתה ו'",
-    "כיתה ז'", "כיתה ח'", "כיתה ט'", "כיתה י'", "כיתה יא'", "כיתה יב'",
+    "כיתה א׳", "כיתה ב׳", "כיתה ג׳", "כיתה ד׳", "כיתה ה׳", "כיתה ו׳",
+    "כיתה ז׳", "כיתה ח׳", "כיתה ט׳", "כיתה י׳", "כיתה י״א", "כיתה י״ב",
     "מכינה", "סטודנטים"
 ];
 
-// --- Helper: Aggressive Normalization ---
 const normalizeText = (text: string) => {
     if (!text) return "";
     return text.trim().replace(/[׳`´]/g, "'");
 };
 
-// --- Types ---
 interface StudentStat {
     id: string;
     name: string;
@@ -47,17 +44,22 @@ interface CourseAggregation {
     grade: string;
     studentCount: number;
     avgScore: number;
+    completionRate: number; // הוספנו אחוז השלמה
     atRiskCount: number;
-    createdAt?: any; // הוספנו שדה לתאריך כדי שנוכל למיין
+    createdAt?: any;
 }
 
-const TeacherDashboard: React.FC = () => {
+interface TeacherDashboardProps {
+    onEditCourse?: (courseId: string) => void;
+}
+
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
-    // הוספנו createdAt ל-State של המפה
     const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
 
     // Navigation
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -92,7 +94,7 @@ const TeacherDashboard: React.FC = () => {
                         subject: rawSubject,
                         grade: rawGrade,
                         title: data.title || "ללא שם",
-                        createdAt: data.createdAt // שמירת התאריך לצורך מיון
+                        createdAt: data.createdAt
                     };
                 });
                 setCoursesMap(map);
@@ -124,7 +126,6 @@ const TeacherDashboard: React.FC = () => {
 
         return rawStudents.map((data: any) => {
             const courseMeta = coursesMap[data.courseId];
-
             const subject = courseMeta ? courseMeta.subject : "אחר";
             const gradeLevel = courseMeta ? courseMeta.grade : "אחר";
             const courseTitle = courseMeta ? courseMeta.title : "קורס לא נמצא";
@@ -154,7 +155,6 @@ const TeacherDashboard: React.FC = () => {
     }, [rawStudents, coursesMap, isCoursesLoaded]);
 
     // --- 4. Dynamic Filter Lists ---
-
     const availableSubjects = useMemo(() => {
         const subjects = new Set<string>();
         Object.values(coursesMap).forEach(c => {
@@ -168,14 +168,11 @@ const TeacherDashboard: React.FC = () => {
         Object.values(coursesMap).forEach(c => {
             if (c.grade && c.grade !== "כללי") grades.add(c.grade);
         });
-
         return Array.from(grades).sort((a, b) => {
             const normA = normalizeText(a);
             const normB = normalizeText(b);
-
             const indexA = GRADE_ORDER.findIndex(g => normalizeText(g).includes(normA) || normA.includes(normalizeText(g)));
             const indexB = GRADE_ORDER.findIndex(g => normalizeText(g).includes(normB) || normB.includes(normalizeText(g)));
-
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
             if (indexA !== -1) return -1;
             if (indexB !== -1) return 1;
@@ -183,17 +180,14 @@ const TeacherDashboard: React.FC = () => {
         });
     }, [coursesMap]);
 
-
-    // --- Aggregation Logic ---
+    // --- Aggregation Logic (מעודכן עם חישוב אחוזים) ---
     const aggregatedCourses = useMemo(() => {
-        const grouped: Record<string, CourseAggregation> = {};
-
+        const grouped: Record<string, CourseAggregation & { totalProgress: number }> = {};
         Object.entries(coursesMap).forEach(([id, meta]) => {
             const normMetaSubject = normalizeText(meta.subject);
             const normMetaGrade = normalizeText(meta.grade);
             const normFilterSubject = normalizeText(filterSubject);
             const normFilterGrade = normalizeText(filterGrade);
-
             const matchSubject = filterSubject === 'all' || normMetaSubject.includes(normFilterSubject);
             const matchGrade = filterGrade === 'all' || normMetaGrade.includes(normFilterGrade);
             const matchSearch = searchTerm === "" || meta.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -206,8 +200,10 @@ const TeacherDashboard: React.FC = () => {
                     grade: meta.grade,
                     studentCount: 0,
                     avgScore: 0,
+                    totalProgress: 0, // לחישוב ממוצע התקדמות
+                    completionRate: 0,
                     atRiskCount: 0,
-                    createdAt: meta.createdAt // מעבירים את התאריך לאובייקט המקובץ
+                    createdAt: meta.createdAt
                 };
             }
         });
@@ -216,6 +212,10 @@ const TeacherDashboard: React.FC = () => {
             if (grouped[student.courseId]) {
                 grouped[student.courseId].studentCount++;
                 grouped[student.courseId].avgScore += student.score;
+                // חישוב גס להתקדמות (לפי כמות תשובות או ציון)
+                const studentProgress = student.progress > 0 ? 100 : 0;
+                grouped[student.courseId].totalProgress += studentProgress;
+
                 if (student.score < 60) grouped[student.courseId].atRiskCount++;
             }
         });
@@ -223,9 +223,9 @@ const TeacherDashboard: React.FC = () => {
         return Object.values(grouped)
             .map(c => ({
                 ...c,
-                avgScore: c.studentCount > 0 ? Math.round(c.avgScore / c.studentCount) : 0
+                avgScore: c.studentCount > 0 ? Math.round(c.avgScore / c.studentCount) : 0,
+                completionRate: c.studentCount > 0 ? Math.round(c.totalProgress / c.studentCount) : 0
             }))
-            // --- כאן מתבצע המיון ---
             .sort((a, b) => {
                 const getTime = (dateVal: any) => {
                     if (!dateVal) return 0;
@@ -233,13 +233,10 @@ const TeacherDashboard: React.FC = () => {
                     if (dateVal instanceof Date) return dateVal.getTime() / 1000;
                     return 0;
                 };
-                return getTime(b.createdAt) - getTime(a.createdAt); // מהחדש לישן
+                return getTime(b.createdAt) - getTime(a.createdAt);
             });
-        // -----------------------
-
     }, [allData, coursesMap, filterSubject, filterGrade, searchTerm]);
 
-    // --- Specific Course Data ---
     const currentCourseStudents = useMemo(() => {
         if (!selectedCourseId) return [];
         return allData.filter(s => s.courseId === selectedCourseId && s.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -258,6 +255,13 @@ const TeacherDashboard: React.FC = () => {
         });
         return { avg: Math.round(sum / currentCourseStudents.length), high: dist[3], low: dist[0], risk, distribution: dist };
     }, [currentCourseStudents]);
+
+    // --- Helpers ---
+    const getScoreColor = (score: number) => {
+        if (score >= 85) return 'text-teal-500';
+        if (score >= 70) return 'text-orange-500';
+        return 'text-red-500';
+    };
 
     // --- Handlers ---
     const handleClassAnalysis = async () => {
@@ -286,17 +290,19 @@ const TeacherDashboard: React.FC = () => {
         setSelectedStudentIds(newSet);
     };
 
-    const selectAll = () => {
-        if (selectedStudentIds.size === currentCourseStudents.length) setSelectedStudentIds(new Set());
-        else setSelectedStudentIds(new Set(currentCourseStudents.map(s => s.id)));
+    const handleCopyLink = (e: React.MouseEvent, courseId: string) => {
+        e.stopPropagation();
+        const link = `${window.location.origin}/?studentCourseId=${courseId}`;
+        navigator.clipboard.writeText(link);
+        setCopiedId(courseId);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
-    const handleStudentReport = async (student: StudentStat) => {
-        setReportStudent(student);
-        try {
-            const report = await generateStudentReport(student);
-            setReportStudent({ ...student, report });
-        } catch (e) { alert("שגיאה"); setReportStudent(null); }
+    const handleEditClick = (e: React.MouseEvent, courseId: string) => {
+        e.stopPropagation();
+        if (onEditCourse) {
+            onEditCourse(courseId);
+        }
     };
 
     if (loading || !isCoursesLoaded) return <div className="h-screen flex items-center justify-center text-indigo-600 font-bold bg-slate-50">טוען נתונים...</div>;
@@ -327,27 +333,18 @@ const TeacherDashboard: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Filters - Visible Only in Global View */}
                         {!selectedCourseId && (
                             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
                                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
                                     <IconBook className="w-4 h-4 text-slate-400" />
-                                    <select
-                                        className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer"
-                                        value={filterSubject}
-                                        onChange={(e) => setFilterSubject(e.target.value)}
-                                    >
+                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
                                         <option value="all">כל המקצועות</option>
                                         {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
                                     <IconLayer className="w-4 h-4 text-slate-400" />
-                                    <select
-                                        className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer"
-                                        value={filterGrade}
-                                        onChange={(e) => setFilterGrade(e.target.value)}
-                                    >
+                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
                                         <option value="all">כל השכבות</option>
                                         {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
                                     </select>
@@ -355,13 +352,7 @@ const TeacherDashboard: React.FC = () => {
                                 <div className="w-px h-6 bg-slate-300 mx-1"></div>
                                 <div className="relative flex-1 min-w-[200px]">
                                     <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-                                    <input
-                                        type="text"
-                                        placeholder="חיפוש כיתה..."
-                                        className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                                    <input type="text" placeholder="חיפוש כיתה..." className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                             </div>
                         )}
@@ -394,26 +385,66 @@ const TeacherDashboard: React.FC = () => {
                                     >
                                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
 
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.subject}</span>
-                                                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.grade}</span>
-                                            </div>
-                                            <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors line-clamp-2">{c.title}</h3>
+                                        {/* כפתורי פעולה */}
+                                        <div className="absolute top-4 left-4 flex gap-2 z-20">
+                                            <button
+                                                onClick={(e) => handleEditClick(e, c.courseId)}
+                                                className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                title="ערוך שיעור"
+                                            >
+                                                <IconEdit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleCopyLink(e, c.courseId)}
+                                                className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                title="העתק קישור לתלמיד"
+                                            >
+                                                {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
+                                            </button>
                                         </div>
 
-                                        <div className="flex justify-between items-end border-t border-slate-50 pt-4 mt-4">
+                                        {/* Header: שם ופרטים */}
+                                        <div>
+                                            <div className="flex items-start gap-2 mb-2 pl-24">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.subject}</span>
+                                                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.grade}</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors line-clamp-2 pl-24 leading-tight">{c.title}</h3>
+                                        </div>
+
+                                        {/* Body: הנתונים החדשים (ממוצע + אחוז השלמה) */}
+                                        <div className="flex justify-between items-center mt-6 px-2">
+                                            {/* צד ימין: ממוצע */}
                                             <div className="text-center">
-                                                <span className="block text-2xl font-bold text-slate-700">{c.studentCount}</span>
-                                                <span className="text-[10px] text-slate-400">תלמידים</span>
+                                                <span className="text-xs font-bold text-slate-400 block mb-1">ממוצע כיתתי</span>
+                                                <span className={`text-4xl font-black ${getScoreColor(c.avgScore)}`}>
+                                                    {c.avgScore || '-'}
+                                                </span>
                                             </div>
+
+                                            {/* קו מפריד אנכי */}
+                                            <div className="w-px h-10 bg-slate-100"></div>
+
+                                            {/* צד שמאל: אחוז השלמה */}
                                             <div className="text-center">
-                                                <span className={`block text-2xl font-bold ${c.atRiskCount > 0 ? 'text-red-500' : 'text-slate-300'}`}>{c.atRiskCount}</span>
-                                                <span className="text-[10px] text-slate-400">בסיכון</span>
+                                                <span className="text-xs font-bold text-slate-400 block mb-1">אחוז השלמה</span>
+                                                <span className="text-4xl font-black text-slate-700">
+                                                    {c.completionRate}%
+                                                </span>
                                             </div>
-                                            <div className="bg-indigo-50 p-2 rounded-full group-hover:bg-indigo-600 group-hover:text-white transition-colors text-indigo-600">
-                                                <IconArrowBack className="w-5 h-5" />
-                                            </div>
+                                        </div>
+
+                                        {/* Footer: התרעות - בולט וברור */}
+                                        <div className="mt-auto pt-4">
+                                            {c.atRiskCount > 0 ? (
+                                                <div className="bg-red-50 text-red-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-red-100 animate-pulse">
+                                                    ⚠️ {c.atRiskCount} תלמידים דורשים התייחסות
+                                                </div>
+                                            ) : (
+                                                <div className="bg-teal-50 text-teal-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-teal-100">
+                                                    <IconCheck className="w-3 h-3" /> מצב הכיתה מצוין
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -422,6 +453,7 @@ const TeacherDashboard: React.FC = () => {
                     </div>
                 )}
 
+                {/* Selected View... (ללא שינוי) */}
                 {selectedCourseId && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -506,10 +538,10 @@ const TeacherDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* --- Modals --- */}
+                {/* Modals */}
                 {viewingTestStudent && (
                     <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
-                        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
+                        <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
                             <CoursePlayer
                                 reviewMode={true}
                                 studentData={{
@@ -519,7 +551,7 @@ const TeacherDashboard: React.FC = () => {
                                 }}
                                 onExitReview={() => setViewingTestStudent(null)}
                             />
-                        </Suspense>
+                        </React.Suspense>
                     </div>
                 )}
 
