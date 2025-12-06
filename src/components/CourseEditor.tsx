@@ -11,8 +11,8 @@ import {
     IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
 } from '../icons';
 
-// אייקון עין
-const IconEye = ({ className = "w-5 h-5" }: { className?: string }) => (
+// אייקון עין (אם חסר בקובץ אייקונים, למרות שהוספנו אותו)
+const IconEyeLocal = ({ className = "w-5 h-5" }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );
 
@@ -87,16 +87,23 @@ const CourseEditor: React.FC = () => {
             const topicToUse = data.topic || course.title || "General Topic";
             const syllabus = await generateCoursePlan(topicToUse, data.mode);
 
+            // --- התיקון החשוב: שמירת המקצוע והשכבה! ---
             const updatedCourse = {
                 ...course,
                 syllabus,
-                mode: data.settings?.courseMode || 'learning'
+                mode: data.settings?.courseMode || 'learning',
+                subject: data.settings?.subject || "כללי", // שמירה ב-State
+                gradeLevel: data.settings?.grade || "כללי" // שמירה ב-State
             };
 
             setCourse(updatedCourse);
+
+            // שמירה ל-Firebase
             await updateDoc(doc(db, "courses", course.id), {
                 syllabus,
-                mode: data.settings?.courseMode || 'learning'
+                mode: data.settings?.courseMode || 'learning',
+                subject: data.settings?.subject || "כללי", // שמירה ב-DB
+                gradeLevel: data.settings?.grade || "כללי" // שמירה ב-DB
             });
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
@@ -226,10 +233,15 @@ const CourseEditor: React.FC = () => {
                             עורך השיעור: <span className="text-indigo-600">{course.title}</span>
                         </h1>
                         <p className="text-gray-500 mt-2 text-lg">נהל את הפרקים, היחידות והתוכן של השיעור</p>
+
+                        {/* הצגת המטא-דאטה החדש */}
+                        <div className="flex gap-2 mt-3">
+                            {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
+                            {course.gradeLevel && <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">{course.gradeLevel}</span>}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* כאן הכפתור הוסר כי הוא עבר ל-Header */}
                         <button onClick={() => setShowWizard(true)} className="bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-sm hover:shadow transition-all flex items-center gap-2">
                             <IconWand className="w-5 h-5" /> הגדרות
                         </button>
@@ -275,7 +287,7 @@ const CourseEditor: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 transition-opacity">
-                                            <button onClick={() => setPreviewUnit(unit)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="תצוגה מקדימה"><IconEye className="w-5 h-5" /></button>
+                                            <button onClick={() => setPreviewUnit(unit)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="תצוגה מקדימה"><IconEyeLocal className="w-5 h-5" /></button>
                                             <button onClick={() => setSelectedUnitId(unit.id)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 transition-colors flex items-center gap-2"><IconEdit className="w-4 h-4" /> ערוך</button>
                                             <button onClick={() => handleDeleteUnit(unit.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><IconTrash className="w-5 h-5" /></button>
                                         </div>

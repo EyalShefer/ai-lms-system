@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
     IconUpload, IconBrain, IconArrowBack, IconSparkles,
-    IconCheck, IconX, IconWand, IconBook, IconStudent, IconChart, IconList
+    IconCheck, IconX, IconWand, IconBook, IconStudent, IconChart
 } from '../icons';
 
 interface IngestionWizardProps {
@@ -15,8 +15,20 @@ interface IngestionWizardProps {
     cancelIcon?: React.ReactNode;
 }
 
-const GRADES = ["גן חובה", "כיתה א'", "כיתה ב'", "כיתה ג'", "כיתה ד'", "כיתה ה'", "כיתה ו'", "כיתה ז'", "כיתה ח'", "כיתה ט'", "כיתה י'", "כיתה יא'", "כיתה יב'"];
-const SUBJECTS = ["חינוך לשוני (עברית)", "מתמטיקה", "אנגלית", "מדע וטכנולוגיה", "היסטוריה", "אזרחות", "תנ\"ך", "ספרות", "גיאוגרפיה", "תרבות ישראל", "של\"ח", "חינוך גופני", "אמנות", "אחר"];
+// --- רשימות מיושרות עם הדשבורד (גרש עברי תקני) ---
+const GRADES = [
+    "כיתה א׳", "כיתה ב׳", "כיתה ג׳", "כיתה ד׳", "כיתה ה׳", "כיתה ו׳",
+    "כיתה ז׳", "כיתה ח׳", "כיתה ט׳",
+    "כיתה י׳", "כיתה י״א", "כיתה י״ב",
+    "מכינה", "סטודנטים", "הכשרה מקצועית"
+];
+
+const SUBJECTS = [
+    "חינוך לשוני (עברית)", "מתמטיקה", "אנגלית", "מדע וטכנולוגיה",
+    "היסטוריה", "אזרחות", "תנ״ך", "ספרות", "גיאוגרפיה",
+    "פיזיקה", "כימיה", "ביולוגיה", "מדעי המחשב", "הנדסת תוכנה", "רובוטיקה",
+    "חינוך גופני", "חינוך פיננסי", "אמנות", "תקשורת", "פסיכולוגיה", "סוציולוגיה", "אחר"
+];
 
 const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onComplete,
@@ -36,7 +48,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     // נתוני שלב 2
     const [customTitle, setCustomTitle] = useState('');
-    const [grade, setGrade] = useState('כיתה ז\'');
+
+    // תיקון: ברירת המחדל תואמת בדיוק לאחת האפשרויות ברשימה
+    const [grade, setGrade] = useState(GRADES[9]); // כיתה י' כברירת מחדל
     const [subject, setSubject] = useState('היסטוריה');
     const [modulesCount, setModulesCount] = useState(3);
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
@@ -85,13 +99,23 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         }
         else if (step === 2) {
             setIsProcessing(true);
+
+            // הכנת הנתונים לשליחה
+            const finalData = {
+                mode,
+                file,
+                topic: customTitle || topic || "שיעור חדש",
+                settings: {
+                    grade: grade || "כללי", // הבטחה שיש ערך
+                    subject: subject || "כללי",
+                    modulesCount,
+                    taxonomy,
+                    courseMode
+                }
+            };
+
             setTimeout(() => {
-                onComplete({
-                    mode,
-                    file,
-                    topic: customTitle || topic || "שיעור חדש",
-                    settings: { grade, subject, modulesCount, taxonomy, courseMode }
-                });
+                onComplete(finalData);
             }, 1500);
         }
     };
@@ -112,9 +136,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`;
 
     return (
-        // השינוי כאן: החלפנו items-center ב-items-start והוספנו pt-16
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-            {/* השינוי כאן: הקטנו מעט את הגובה המקסימלי ל-85vh כדי שיתאים לריווח מלמעלה */}
             <div className="bg-white/90 glass w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10">
 
                 {/* Header */}
@@ -206,8 +228,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     />
                                 </div>
 
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconBook className="w-4 h-4" /> תחום דעת</label><select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconStudent className="w-4 h-4" /> קהל יעד</label><select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white">{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconBook className="w-4 h-4" /> תחום דעת</label><select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white cursor-pointer">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconStudent className="w-4 h-4" /> קהל יעד</label><select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white cursor-pointer">{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
                                 <div className="pt-4 border-t border-blue-200/50"><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconChart className="w-4 h-4" /> מבנה המערך</label><div className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200"><span className="text-sm text-gray-600">מספר פרקים:</span><div className="flex items-center gap-3"><button onClick={() => setModulesCount(Math.max(1, modulesCount - 1))} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-600">-</button><span className="font-mono font-bold w-4 text-center">{modulesCount}</span><button onClick={() => setModulesCount(Math.min(10, modulesCount + 1))} className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 font-bold text-indigo-600">+</button></div></div></div>
                             </div>
 
