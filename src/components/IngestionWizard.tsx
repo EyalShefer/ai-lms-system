@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // הוספתי useRef שהיה חסר בייבוא
 import { useDropzone } from 'react-dropzone';
 import {
     IconUpload, IconBrain, IconArrowBack, IconSparkles,
-    IconCheck, IconX, IconWand, IconBook, IconStudent, IconChart
+    IconCheck, IconX, IconBook, IconStudent, IconChart
+    // IconWand - הסרתי מכאן כי הוא חסר בקובץ האייקונים וגורם לקריסה
 } from '../icons';
+
+// --- הגדרה מקומית לאייקון החסר (כדי למנוע קריסה) ---
+const IconWand = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M15 4V2" /><path d="M15 16v-2" /><path d="M8 9h2" /><path d="M20 9h2" /><path d="M17.8 11.8 19 13" /><path d="M10.6 19l6.4-6.4" /><path d="m12.6 17 6.4-6.4" />
+        <path d="M3 3l18 18" className="opacity-0" /> {/* Spacer */}
+        <path d="M14.5 4.5l7-7" /><path d="M5.8 12.2L2.2 15.8a3 3 0 0 0 4.2 4.2l3.6-3.6" />
+    </svg>
+);
 
 interface IngestionWizardProps {
     onComplete: (data: any) => void;
@@ -64,6 +74,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             setStep(2);
         }
     }, [initialTopic]);
+
+    // הוספת useEffect לעדכון ה-Mode כשהוא משתנה מבחוץ
+    useEffect(() => {
+        setCourseMode(initialMode);
+    }, [initialMode]);
 
     const handleTaxonomyChange = (changedKey: keyof typeof taxonomy, newValue: number) => {
         const remainingSpace = 100 - newValue;
@@ -136,12 +151,17 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
+            {/* Overlay רקע - לא חלק מהקונטיינר כדי שלא יזוז */}
+            {/* הערה: הרקע הכהה נמצא ברמת ה-App בדרך כלל, אבל כאן נשאיר אותו בקונטיינר */}
+
             <div className="bg-white/90 glass w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10">
 
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10"><IconWand className="w-64 h-64" /></div>
+                    <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10">
+                        <IconWand className="w-64 h-64" /> {/* עכשיו זה יעבוד כי הגדרנו אותו למעלה */}
+                    </div>
                     <div className="relative z-10 flex justify-between items-start">
                         <div>
                             <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white">
