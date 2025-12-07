@@ -162,7 +162,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                 return newState;
             });
         }
-    }, [reviewMode, studentData, activeUnitId]); // Added activeUnitId dependency
+    }, [reviewMode, studentData, activeUnitId]);
 
     if (!course || !course.syllabus) return <div className="h-screen flex items-center justify-center text-gray-500">טוען תוכן...</div>;
 
@@ -180,10 +180,31 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
         setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
     };
 
+    // --- לוגיקה למעבר יחידה ---
     const goToNextUnit = () => {
-        if (reviewMode) return;
-        // לוגיקה פשוטה למעבר יחידה
-        alert("מעבר יחידה (דמו)");
+        if (reviewMode || !course.syllabus) return;
+
+        const currentModuleIndex = course.syllabus.findIndex(m => m.id === activeModuleId);
+        const currentModule = course.syllabus[currentModuleIndex];
+        const currentUnitIndex = currentModule?.learningUnits.findIndex(u => u.id === activeUnitId);
+
+        if (currentModule && currentUnitIndex !== -1) {
+            if (currentUnitIndex < currentModule.learningUnits.length - 1) {
+                const nextUnit = currentModule.learningUnits[currentUnitIndex + 1];
+                setActiveUnitId(nextUnit.id);
+                window.scrollTo(0, 0);
+            }
+            else if (currentModuleIndex < course.syllabus.length - 1) {
+                const nextModule = course.syllabus[currentModuleIndex + 1];
+                setActiveModuleId(nextModule.id);
+                if (nextModule.learningUnits.length > 0) {
+                    setActiveUnitId(nextModule.learningUnits[0].id);
+                }
+                window.scrollTo(0, 0);
+            } else {
+                alert("כל הכבוד! סיימת את כל היחידות בקורס 🎉");
+            }
+        }
     };
 
     const handleContinueClick = async () => {
@@ -270,13 +291,20 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                         <>
                             <h1 className="text-3xl font-bold mb-8">{activeUnit.title}</h1>
                             {activeUnit.activityBlocks?.map(renderBlock)}
-                            <div className="mt-12 flex justify-center">
-                                <button onClick={handleContinueClick} className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700">
-                                    {reviewMode ? 'סגור תצוגה' : 'המשך'}
+                            <div className="mt-12 flex justify-center pb-10">
+                                <button
+                                    onClick={handleContinueClick}
+                                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-all hover:-translate-y-1 flex items-center gap-2"
+                                >
+                                    {reviewMode ? 'סגור תצוגה' : (
+                                        <>
+                                            הבא <IconArrowBack className="w-4 h-4" />
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </>
-                    ) : <div className="text-center mt-20 text-gray-400">בחר יחידה</div>}
+                    ) : <div className="text-center mt-20 text-gray-400">בחר יחידה מהתפריט</div>}
                 </div>
             </main>
         </div>
