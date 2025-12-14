@@ -9,12 +9,16 @@ import {
     IconRobot, IconLink, IconStudent, IconChart
 } from '../icons';
 
-// --- רכיב צ'אט אינטראקטיבי חכם (בעיצוב Glass) ---
+// --- רכיב צ'אט אינטראקטיבי חכם (מוגן) ---
 const InteractiveChatBlock: React.FC<{ block: ActivityBlock; context: { unitTitle: string; unitContent: string } }> = ({ block, context }) => {
     const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
+
+    // FAIL-SAFE: הגנה מפני קריסה אם block.content לא קיים
+    const title = block.content?.title || 'צ׳אט אינטראקטיבי';
+    const description = block.content?.description || 'שוחח עם הדמות על נושא השיעור';
 
     useEffect(() => {
         if (block.metadata?.initialMessage && messages.length === 0) {
@@ -79,8 +83,8 @@ const InteractiveChatBlock: React.FC<{ block: ActivityBlock; context: { unitTitl
             <div className="bg-gradient-to-r from-purple-600/90 to-indigo-600/90 p-4 text-white flex items-center gap-3 shadow-sm">
                 <div className="bg-white/20 p-2 rounded-full"><IconRobot className="w-6 h-6" /></div>
                 <div>
-                    <h3 className="font-bold text-lg">{block.content.title || 'צ׳אט אינטראקטיבי'}</h3>
-                    <p className="text-xs opacity-90">{block.content.description || 'שוחח עם הדמות על נושא השיעור'}</p>
+                    <h3 className="font-bold text-lg">{title}</h3>
+                    <p className="text-xs opacity-90">{description}</p>
                 </div>
             </div>
 
@@ -141,7 +145,7 @@ const CoursePlayer: React.FC = () => {
     const [attempts, setAttempts] = useState<Record<string, number>>({});
     const [isGeneratingAdaptive, setIsGeneratingAdaptive] = useState(false);
     const [showPdf, setShowPdf] = useState(false);
-    const [sidebarOpen, setSidebarOpen] = useState(true); // למובייל
+    const [sidebarOpen, setSidebarOpen] = useState(true);
 
     useEffect(() => {
         if (course?.syllabus?.length > 0) {
@@ -155,10 +159,10 @@ const CoursePlayer: React.FC = () => {
     if (!course || !course.syllabus) return <div className="h-screen flex items-center justify-center text-gray-500">טוען תוכן...</div>;
 
     const activeModule = course.syllabus.find(m => m.id === activeModuleId);
-    const activeUnit = activeModule?.learningUnits.find(u => u.id === activeUnitId);
+    // FAIL-SAFE: הוספת סימן שאלה כדי למנוע קריסה אם המודול לא נמצא
+    const activeUnit = activeModule?.learningUnits?.find(u => u.id === activeUnitId);
     const isExamMode = course.mode === 'exam';
 
-    // עזר לתווית ואייקון היחידה
     const getUnitBadge = (unit: LearningUnit) => {
         if (unit.type === 'acquisition') return { label: 'יחידת לימוד', class: 'bg-blue-100 text-blue-700 border-blue-200', icon: <IconBook className="w-3 h-3" /> };
         if (unit.type === 'practice') return { label: 'יחידת תרגול', class: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: <IconEdit className="w-3 h-3" /> };
@@ -214,7 +218,8 @@ const CoursePlayer: React.FC = () => {
 
     const handleContinueClick = async () => {
         if (!activeUnit) return;
-        const questions = activeUnit.activityBlocks.filter(b => b.type === 'multiple-choice');
+        // FAIL-SAFE: וידוא ש-activityBlocks קיים לפני הפילטור
+        const questions = (activeUnit.activityBlocks || []).filter(b => b.type === 'multiple-choice');
         let score = 100;
 
         if (questions.length > 0) {
@@ -248,8 +253,12 @@ const CoursePlayer: React.FC = () => {
     };
 
     const renderBlock = (block: ActivityBlock) => {
+        // --- FAIL-SAFE AREA: הגנה מפני קריסה כללית ---
+        if (!block) return null;
+
         switch (block.type) {
             case 'text':
+                if (!block.content) return null;
                 return (
                     <div key={block.id} className="prose max-w-none text-gray-800 leading-8 mb-8 whitespace-pre-wrap text-lg glass bg-white/70 p-6 rounded-2xl shadow-sm border border-white/50">
                         {block.content}
@@ -257,10 +266,14 @@ const CoursePlayer: React.FC = () => {
                 );
 
             case 'image':
+                // FAIL-SAFE: בדיקה בשני המקומות לפני הרינדור
+                const imgSrc = block.content || block.metadata?.uploadedFileUrl;
+                if (!imgSrc) return null; // לא מרנדר תמונה שבורה
+
                 return (
                     <div key={block.id} className="mb-8">
                         <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200 group">
-                            <img src={block.content} alt={block.metadata?.fileName || 'Visual'} className="w-full max-h-[500px] object-contain bg-gray-50" />
+                            <img src={imgSrc} alt={block.metadata?.fileName || 'Visual'} className="w-full max-h-[500px] object-contain bg-gray-50" />
                             <div className="absolute bottom-2 right-2 bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-md flex items-center gap-1">
                                 <IconImage className="w-3 h-3" /> תמונה
                             </div>
@@ -270,14 +283,21 @@ const CoursePlayer: React.FC = () => {
                 );
 
             case 'video':
-                const isYoutube = block.content.includes('youtu');
-                const embedUrl = block.content.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/');
+                // FAIL-SAFE: בדיקה כפולה והגנה מפני קריסה של .includes על undefined
+                const vidSrc = block.content || block.metadata?.uploadedFileUrl;
+                if (!vidSrc) return null;
+
+                const isYoutube = vidSrc.includes('youtu');
+                const embedUrl = isYoutube
+                    ? vidSrc.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
+                    : vidSrc;
+
                 return (
                     <div key={block.id} className="mb-8 aspect-video bg-black rounded-2xl overflow-hidden shadow-lg border border-gray-200 relative group">
                         {isYoutube ? (
                             <iframe className="w-full h-full" src={embedUrl} title="Video" allowFullScreen />
                         ) : (
-                            <video src={block.content} className="w-full h-full" controls />
+                            <video src={embedUrl} className="w-full h-full" controls />
                         )}
                         <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-md flex items-center gap-1 pointer-events-none">
                             <IconVideo className="w-3 h-3" /> וידאו
@@ -289,9 +309,13 @@ const CoursePlayer: React.FC = () => {
                 return <InteractiveChatBlock key={block.id} block={block} context={{ unitTitle: activeUnit?.title || "שיעור כללי", unitContent: activeUnit?.baseContent || "" }} />;
 
             case 'multiple-choice':
+                // FAIL-SAFE: הגנה אם התוכן חסר או לא תקין
+                if (!block.content || !block.content.options) return null;
+
                 const isCorrect = userAnswers[block.id] === block.content.correctAnswer;
                 const showFeedback = feedbackVisible[block.id] && !isExamMode;
                 const attemptCount = attempts[block.id] || 0;
+
                 return (
                     <div key={block.id} className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-1 h-full bg-blue-500/50"></div>
@@ -300,7 +324,7 @@ const CoursePlayer: React.FC = () => {
                             {block.metadata?.score > 0 && <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full border border-blue-200">{block.metadata.score} נק׳</span>}
                         </div>
                         <div className="space-y-3 pr-3">
-                            {block.content.options?.map((option: string, idx: number) => {
+                            {block.content.options.map((option: string, idx: number) => {
                                 const isSelected = userAnswers[block.id] === option;
                                 let btnClass = "w-full text-right p-4 rounded-xl border transition-all flex justify-between items-center text-lg shadow-sm ";
                                 if (showFeedback) {
@@ -336,6 +360,7 @@ const CoursePlayer: React.FC = () => {
                 );
 
             case 'open-question':
+                if (!block.content) return null;
                 return (
                     <div key={block.id} className="mb-8 glass bg-orange-50/50 p-6 rounded-2xl border border-orange-100/60 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-1 h-full bg-orange-400/50"></div>
@@ -354,6 +379,7 @@ const CoursePlayer: React.FC = () => {
                 );
 
             case 'gem-link':
+                if (!block.content) return null;
                 return (
                     <div key={block.id} className="mb-8 bg-gradient-to-r from-purple-600 to-indigo-600 p-6 rounded-2xl text-white shadow-xl flex items-center justify-between">
                         <div>
@@ -433,8 +459,8 @@ const CoursePlayer: React.FC = () => {
                             </header>
 
                             <div className="space-y-6">
-                                {activeUnit.activityBlocks?.length === 0 && <div className="text-gray-400 text-center py-20 flex flex-col items-center gap-2"><IconBook className="w-12 h-12 opacity-20" /> אין תוכן ביחידה זו עדיין.</div>}
-                                {activeUnit.activityBlocks?.map(renderBlock)}
+                                {(activeUnit.activityBlocks || []).length === 0 && <div className="text-gray-400 text-center py-20 flex flex-col items-center gap-2"><IconBook className="w-12 h-12 opacity-20" /> אין תוכן ביחידה זו עדיין.</div>}
+                                {(activeUnit.activityBlocks || []).map(renderBlock)}
                             </div>
 
                             <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center pb-10">
