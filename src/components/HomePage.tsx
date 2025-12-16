@@ -6,17 +6,12 @@ import {
     IconCheck, IconLayer, IconStudent, IconWand, IconConstruction
 } from '../icons';
 
-interface HomePageProps {
-    onCreateNew: (mode: 'learning' | 'exam') => void;
-    onNavigateToDashboard: () => void;
-}
-
-const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard }) => {
+const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
     const { currentUser } = useAuth();
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
 
     // פונקציית עזר ללחיצה עם לוג
-    const handleCardClick = (actionName: string, callback: () => void) => {
+    const handleCardClick = (actionName, callback) => {
         console.log(`🚀 Clicked card: ${actionName}`);
         callback();
     };
@@ -51,7 +46,7 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
             {/* --- The Bento Grid (הכרטיסיות) --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-[minmax(180px,auto)] mb-16 relative z-50">
 
-                {/* 1. מחולל שיעורים (ענק - כחול גרדיאנט) */}
+                {/* 1. מחולל פעילויות (ענק - כחול גרדיאנט) */}
                 <div
                     onClick={() => handleCardClick("Learning Generator", () => onCreateNew('learning'))}
                     className="col-span-1 md:col-span-2 row-span-2 bg-gradient-to-br from-[#24A8D9] to-[#0A4D7F] rounded-3xl p-8 text-white shadow-xl shadow-blue-200 cursor-pointer hover:scale-[1.01] transition-transform duration-300 relative overflow-hidden group"
@@ -68,15 +63,16 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
                             </div>
 
                             <h2 className="text-3xl font-black mb-3 leading-tight">
-                                יצירת שיעור <br /> אינטראקטיבי 🪄
+                                יצירת פעילות <br /> אינטראקטיבית 🪄
                             </h2>
 
                             <p className="text-blue-100 text-md opacity-90 leading-relaxed font-medium">
                                 הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד אינטראקטיבית הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל ואדפטיבי.
                             </p>
                         </div>
+                        {/* תיקון לשון רבים */}
                         <div className="mt-6 flex items-center gap-2 font-bold text-white/90 group-hover:translate-x-[-5px] transition-transform">
-                            התחל ליצור עכשיו <IconArrowBack className="w-5 h-5 rotate-180" />
+                            התחילו ליצור עכשיו <IconArrowBack className="w-5 h-5" />
                         </div>
                     </div>
                 </div>
@@ -101,8 +97,9 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
                                 הפכו חומרי לימוד למבחני ידע, שאלונים ומטלות סיכום. המערכת תבדוק עבורכם את התשובות, תעניק ציונים ותציג תמונת מצב כיתתית בזמן אמת.
                             </p>
                         </div>
+                        {/* תיקון חץ (מצביע שמאלה) + ניסוח כללי */}
                         <div className="mt-6 flex items-center gap-2 font-bold text-[#0A4D7F] group-hover:translate-x-[-5px] transition-transform">
-                            ליצירת מבחן <IconArrowBack className="w-5 h-5 rotate-180" />
+                            ליצירת מבחן <IconArrowBack className="w-5 h-5" />
                         </div>
                     </div>
                 </div>
@@ -116,7 +113,7 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
                         <IconUpload className="w-6 h-6" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-[#24A8D9] transition-colors pointer-events-none">
-                        המרת קובץ לשיעור
+                        המרת קובץ לפעילות
                     </h3>
                     <p className="text-slate-500 text-xs leading-relaxed pointer-events-none font-medium">
                         העלו דפי עבודה, סיכומים או מסמכים (PDF/Word) והפכו אותם לפעילות אינטראקטיבית.
@@ -136,7 +133,7 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
                         <h3 className="text-xl font-bold mb-1">הכיתות שלי</h3>
                         <p className="text-[#B8D6F6] text-xs mb-4">דוחות, ציונים ומעקב</p>
                         <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
-                            לדשבורד <IconArrowBack className="w-4 h-4 rotate-180" />
+                            לדשבורד <IconArrowBack className="w-4 h-4" />
                         </div>
                     </div>
                 </div>
@@ -199,7 +196,7 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-wrap justify-around items-center gap-6 relative z-10">
                 <div className="text-center">
                     <div className="text-3xl font-black text-[#0A4D7F]">3</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">שיעורים השבוע</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">פעילויות השבוע</div>
                 </div>
                 <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
                 <div className="text-center">
@@ -212,9 +209,10 @@ const HomePage: React.FC<HomePageProps> = ({ onCreateNew, onNavigateToDashboard 
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">דירוג ממוצע</div>
                 </div>
                 <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
+                {/* תיקון לשון רבים */}
                 <div className="flex items-center gap-3 bg-[#B8D6F6] px-4 py-2 rounded-xl text-[#0A4D7F] font-bold text-sm cursor-pointer hover:bg-[#24A8D9] hover:text-white transition-colors">
                     <IconStar className="w-4 h-4" />
-                    שדרג לפרו
+                    שדרגו לפרו
                 </div>
             </div>
 

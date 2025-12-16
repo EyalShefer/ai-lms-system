@@ -1,31 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'; // הוספתי useRef שהיה חסר בייבוא
+import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
     IconUpload, IconBrain, IconArrowBack, IconSparkles,
-    IconCheck, IconX, IconBook, IconStudent, IconChart
-    // IconWand - הסרתי מכאן כי הוא חסר בקובץ האייקונים וגורם לקריסה
+    IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand
 } from '../icons';
 
-// --- הגדרה מקומית לאייקון החסר (כדי למנוע קריסה) ---
-const IconWand = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M15 4V2" /><path d="M15 16v-2" /><path d="M8 9h2" /><path d="M20 9h2" /><path d="M17.8 11.8 19 13" /><path d="M10.6 19l6.4-6.4" /><path d="m12.6 17 6.4-6.4" />
-        <path d="M3 3l18 18" className="opacity-0" /> {/* Spacer */}
-        <path d="M14.5 4.5l7-7" /><path d="M5.8 12.2L2.2 15.8a3 3 0 0 0 4.2 4.2l3.6-3.6" />
-    </svg>
-);
-
-interface IngestionWizardProps {
-    onComplete: (data: any) => void;
-    onCancel: () => void;
-    initialTopic?: string;
-    initialMode?: 'learning' | 'exam';
-    title?: string;
-    cancelLabel?: string;
-    cancelIcon?: React.ReactNode;
-}
-
-// --- רשימות מיושרות עם הדשבורד (גרש עברי תקני) ---
+// --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
     "כיתה א׳", "כיתה ב׳", "כיתה ג׳", "כיתה ד׳", "כיתה ה׳", "כיתה ו׳",
     "כיתה ז׳", "כיתה ח׳", "כיתה ט׳",
@@ -40,31 +20,31 @@ const SUBJECTS = [
     "חינוך גופני", "חינוך פיננסי", "אמנות", "תקשורת", "פסיכולוגיה", "סוציולוגיה", "אחר"
 ];
 
-const IngestionWizard: React.FC<IngestionWizardProps> = ({
+const IngestionWizard = ({
     onComplete,
     onCancel,
     initialTopic,
     initialMode = 'learning',
     title,
     cancelLabel = "חזרה",
-    cancelIcon = <IconArrowBack className="w-4 h-4" />
+    cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" />
 }) => {
     // אתחול המצבים
     const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<'upload' | 'topic' | null>(null);
+    const [mode, setMode] = useState(null); // 'upload' | 'topic'
     const [topic, setTopic] = useState('');
-    const [file, setFile] = useState<File | null>(null);
+    const [file, setFile] = useState(null);
 
     // נתוני שלב 2
     const [customTitle, setCustomTitle] = useState('');
 
-    // תיקון: ברירת המחדל תואמת בדיוק לאחת האפשרויות ברשימה
+    // ברירת מחדל תואמת לרשימה
     const [grade, setGrade] = useState(GRADES[9]); // כיתה י' כברירת מחדל
     const [subject, setSubject] = useState('היסטוריה');
     const [modulesCount, setModulesCount] = useState(3);
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
-    const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
+    const [courseMode, setCourseMode] = useState(initialMode);
 
     useEffect(() => {
         if (initialTopic && initialTopic !== "טוען..." && initialTopic.trim() !== "") {
@@ -75,14 +55,14 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         }
     }, [initialTopic]);
 
-    // הוספת useEffect לעדכון ה-Mode כשהוא משתנה מבחוץ
+    // עדכון ה-Mode כשהוא משתנה מבחוץ
     useEffect(() => {
         setCourseMode(initialMode);
     }, [initialMode]);
 
-    const handleTaxonomyChange = (changedKey: keyof typeof taxonomy, newValue: number) => {
+    const handleTaxonomyChange = (changedKey, newValue) => {
         const remainingSpace = 100 - newValue;
-        const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey) as (keyof typeof taxonomy)[];
+        const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey);
         const keyA = otherKeys[0];
         const keyB = otherKeys[1];
         const currentOthersTotal = taxonomy[keyA] + taxonomy[keyB];
@@ -119,9 +99,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             const finalData = {
                 mode,
                 file,
-                topic: customTitle || topic || "שיעור חדש",
+                topic: customTitle || topic || "פעילות חדשה",
                 settings: {
-                    grade: grade || "כללי", // הבטחה שיש ערך
+                    grade: grade || "כללי",
                     subject: subject || "כללי",
                     modulesCount,
                     taxonomy,
@@ -145,22 +125,20 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         }
     };
 
-    const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת שיעור חדש';
+    // שינוי טקסטים: "שיעור" -> "פעילות"
+    const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת פעילות חדשה';
     const dynamicSubtitle = mode === 'topic' && topic
-        ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'שיעור'} בנושא: ${topic}`
-        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'שיעור'} אינטראקטיבי`;
+        ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} בנושא: ${topic}`
+        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'} אינטראקטיבית`;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
-            {/* Overlay רקע - לא חלק מהקונטיינר כדי שלא יזוז */}
-            {/* הערה: הרקע הכהה נמצא ברמת ה-App בדרך כלל, אבל כאן נשאיר אותו בקונטיינר */}
-
             <div className="bg-white/90 glass w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10">
 
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
                     <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10">
-                        <IconWand className="w-64 h-64" /> {/* עכשיו זה יעבוד כי הגדרנו אותו למעלה */}
+                        <IconWand className="w-64 h-64" />
                     </div>
                     <div className="relative z-10 flex justify-between items-start">
                         <div>
@@ -204,7 +182,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
                                 <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
                                     <div className="bg-yellow-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-yellow-600" /></div>
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">יצירה מנושא חופשי</h4><p className="text-sm text-gray-500 leading-relaxed">תן ל-AI להציע סילבוס ותוכן על בסיס נושא שתבחר.</p></div>
+                                    {/* תיקון לשון רבים */}
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">יצירה מנושא חופשי</h4><p className="text-sm text-gray-500 leading-relaxed">תנו ל-AI להציע סילבוס ותוכן על בסיס נושא שתבחרו.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
 
@@ -217,7 +196,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
                                 >
                                     <input {...getInputProps()} />
-                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחץ להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלאת קובץ לימוד</h4><p className="text-sm text-gray-500 leading-relaxed">לחץ כאן או גרור קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
+                                    {/* תיקון לשון רבים */}
+                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלאת קובץ לימוד</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
                             </div>
                             {mode === 'topic' && (
@@ -233,11 +213,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-slide-up h-full">
                             {/* עמודה ימנית - הגדרות טכניות */}
                             <div className="space-y-6 bg-blue-50/50 p-6 rounded-3xl border border-blue-100 order-2 md:order-1">
-                                {/* שדה שם השיעור החדש */}
+                                {/* שדה שם הפעילות החדשה */}
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                                         <IconSparkles className="w-4 h-4 text-blue-600" />
-                                        שם השיעור / היחידה
+                                        שם הפעילות / היחידה
                                     </label>
                                     <input
                                         type="text"
@@ -256,7 +236,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             {/* עמודה שמאלית - טקסונומיה */}
                             <div className="space-y-6 order-1 md:order-2">
                                 <div className="flex items-center gap-2 mb-2"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה (טקסונומיה)</h3></div>
-                                <p className="text-sm text-gray-500 mb-6">קבע את תמהיל השאלות והתוכן.</p>
+                                {/* תיקון לשון רבים */}
+                                <p className="text-sm text-gray-500 mb-6">קבעו את תמהיל השאלות והתוכן.</p>
                                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-green-600 text-lg">ידע והבנה</label><span className="font-mono font-bold text-lg bg-green-50 px-2 rounded">{taxonomy.knowledge}%</span></div><input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
                                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-blue-600 text-lg">יישום וניתוח</label><span className="font-mono font-bold text-lg bg-blue-50 px-2 rounded">{taxonomy.application}%</span></div><input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
                                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-orange-600 text-lg">הערכה ויצירה</label><span className="font-mono font-bold text-lg bg-orange-50 px-2 rounded">{taxonomy.evaluation}%</span></div><input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-orange-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
@@ -278,11 +259,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         {isProcessing ? (
                             <>
                                 <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                                <span>{step === 1 ? 'מעבד...' : (courseMode === 'exam' ? 'מייצר מבחן...' : 'מייצר מערך שיעור...')}</span>
+                                <span>{step === 1 ? 'מעבד...' : (courseMode === 'exam' ? 'מייצר מבחן...' : 'מייצר פעילות...')}</span>
                             </>
                         ) : (
                             <>
-                                {step === 1 ? 'המשך להגדרות מתקדמות' : (courseMode === 'exam' ? 'צור מבחן עכשיו!' : 'צור מערך שיעור עכשיו!')}
+                                {/* תיקון לשון רבים */}
+                                {step === 1 ? 'המשיכו להגדרות מתקדמות' : (courseMode === 'exam' ? 'צרו מבחן עכשיו!' : 'צרו פעילות עכשיו!')}
                                 <IconSparkles className="w-5 h-5" />
                             </>
                         )}

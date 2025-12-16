@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
-import { generateAdaptiveUnit } from '../gemini';
 import type { ActivityBlock, LearningUnit, Module } from '../courseTypes';
 import {
     IconChat, IconBook, IconEdit, IconList, IconSparkles,
@@ -134,14 +133,12 @@ const InteractiveChatBlock: React.FC<{
 
 // --- הקומפוננטה הראשית ---
 const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, studentData, onExitReview }) => {
-    const { course, setCourse, pdfSource } = useCourseStore();
+    const { course } = useCourseStore();
 
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
     const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
     const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
-    const [isGeneratingAdaptive, setIsGeneratingAdaptive] = useState(false);
-    const [showPdf, setShowPdf] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     // אתחול
@@ -164,6 +161,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
         }
     }, [reviewMode, studentData, activeUnitId]);
 
+    // בדיקת טעינה
     if (!course || !course.syllabus) return <div className="h-screen flex items-center justify-center text-gray-500">טוען תוכן...</div>;
 
     const activeModule = course.syllabus.find(m => m.id === activeModuleId);
@@ -216,18 +214,48 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
     };
 
     const renderBlock = (block: ActivityBlock) => {
+        // --- 1. חילוץ בטוח של כתובת המדיה ---
+        const getMediaSrc = () => {
+            if (block.content && typeof block.content === 'string' && block.content.startsWith('http')) return block.content;
+            if (block.metadata?.uploadedFileUrl) return block.metadata.uploadedFileUrl;
+            if (block.metadata?.media) return block.metadata.media;
+            return null;
+        };
+
+        const mediaSrc = getMediaSrc();
+
         switch (block.type) {
             case 'text': return <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">{block.content}</div>;
-            case 'image': return <div key={block.id} className="mb-8"><img src={block.content} className="w-full rounded-2xl shadow-lg" alt="" /></div>;
-            case 'video': return <div key={block.id} className="mb-8 aspect-video bg-black rounded-2xl"><video src={block.content} className="w-full h-full" controls /></div>;
+
+            case 'image':
+                if (!mediaSrc) return null; // הגנה מקריסה
+                return <div key={block.id} className="mb-8"><img src={mediaSrc} className="w-full rounded-2xl shadow-lg" alt="תוכן שיעור" /></div>;
+
+            case 'video':
+                if (!mediaSrc) return null; // הגנה מקריסה
+                return <div key={block.id} className="mb-8 aspect-video bg-black rounded-2xl"><video src={mediaSrc} className="w-full h-full" controls /></div>;
+
             case 'interactive-chat': return <InteractiveChatBlock key={block.id} block={block} context={{ unitTitle: activeUnit?.title || "", unitContent: "" }} forcedHistory={reviewMode ? studentData?.chatHistory : undefined} readOnly={reviewMode} />;
+
             case 'multiple-choice':
                 const isSelected = userAnswers[block.id];
-                const isCorrect = userAnswers[block.id] === block.content.correctAnswer;
                 const showFeedback = reviewMode || (feedbackVisible[block.id] && !isExamMode);
+                const qMedia = block.metadata?.media; // בדיקה אם יש מדיה בשאלה
+
                 return (
                     <div key={block.id} className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm">
                         <h3 className="text-xl font-bold mb-4">{block.content.question}</h3>
+
+                        {/* הצגת תמונה/וידאו בשאלה (אם קיים) */}
+                        {qMedia && (
+                            <div className="mb-4 rounded-xl overflow-hidden">
+                                {block.metadata.mediaType === 'video' ?
+                                    <video src={qMedia} controls className="w-full h-48 bg-black" /> :
+                                    <img src={qMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                }
+                            </div>
+                        )}
+
                         <div className="space-y-3">
                             {block.content.options?.map((opt: string, i: number) => {
                                 let btnClass = "w-full text-right p-4 rounded-xl border ";
@@ -249,6 +277,17 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                     <div key={block.id} className="mb-8 glass bg-orange-50/50 p-6 rounded-2xl">
                         <h3 className="font-bold text-lg mb-2">שאלה פתוחה</h3>
                         <p className="mb-4">{block.content.question}</p>
+
+                        {/* הצגת תמונה/וידאו בשאלה פתוחה (אם קיים) */}
+                        {block.metadata?.media && (
+                            <div className="mb-4 rounded-xl overflow-hidden">
+                                {block.metadata.mediaType === 'video' ?
+                                    <video src={block.metadata.media} controls className="w-full h-48 bg-black" /> :
+                                    <img src={block.metadata.media} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                }
+                            </div>
+                        )}
+
                         <textarea className="w-full p-4 border rounded-xl" value={userAnswers[block.id] || ''} onChange={(e) => handleAnswerSelect(block.id, e.target.value)} readOnly={reviewMode} placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."} />
                     </div>
                 );
