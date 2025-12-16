@@ -27,7 +27,7 @@ const IngestionWizard = ({
     initialMode = 'learning',
     title,
     cancelLabel = "חזרה",
-    cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" />
+    cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" /> // חץ ימינה (חזרה)
 }) => {
     // אתחול המצבים
     const [step, setStep] = useState(1);
@@ -79,17 +79,36 @@ const IngestionWizard = ({
         onDrop: (acceptedFiles) => { setFile(acceptedFiles[0]); setMode('upload'); }
     });
 
+    // בדיקת תקינות למעבר שלבים
+    const canProceedToSettings = mode && ((mode === 'topic' && topic) || (mode === 'upload' && file));
+
+    const handleStepClick = (targetStep) => {
+        // מותר תמיד לחזור לשלב 1
+        if (targetStep === 1) {
+            setStep(1);
+        }
+        // מותר להתקדם לשלב 2 רק אם יש נתונים
+        else if (targetStep === 2 && canProceedToSettings) {
+            if (step === 1) updateTitleFromInput();
+            setStep(2);
+        }
+    };
+
+    const updateTitleFromInput = () => {
+        let suggestedTitle = customTitle;
+        if (!suggestedTitle) {
+            if (mode === 'upload' && file) {
+                suggestedTitle = file.name.replace(/\.[^/.]+$/, "");
+            } else if (mode === 'topic' && topic) {
+                suggestedTitle = topic;
+            }
+        }
+        setCustomTitle(suggestedTitle);
+    };
+
     const handleNext = async () => {
         if (step === 1 && mode) {
-            let suggestedTitle = customTitle;
-            if (!suggestedTitle) {
-                if (mode === 'upload' && file) {
-                    suggestedTitle = file.name.replace(/\.[^/.]+$/, "");
-                } else if (mode === 'topic' && topic) {
-                    suggestedTitle = topic;
-                }
-            }
-            setCustomTitle(suggestedTitle);
+            updateTitleFromInput();
             setStep(2);
         }
         else if (step === 2) {
@@ -157,17 +176,31 @@ const IngestionWizard = ({
 
                     {!initialTopic && (
                         <div className="flex items-center justify-center gap-2 mt-8 relative z-10 w-full">
-                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${step >= 1 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}>
+                            {/* כפתור שלב 1 - תמיד לחיץ */}
+                            <button
+                                onClick={() => handleStepClick(1)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all cursor-pointer ${step >= 1 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}
+                            >
                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 1 ? 'bg-blue-100 text-blue-600' : 'bg-blue-800/50 text-white'}`}>1</span>
                                 בחירת מקור
-                            </div>
+                            </button>
+
                             <div className={`w-8 h-0.5 transition-colors ${step >= 2 ? 'bg-white' : 'bg-blue-400/30'}`}></div>
-                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${step >= 2 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}>
+
+                            {/* כפתור שלב 2 - לחיץ רק אם אפשר להתקדם */}
+                            <button
+                                onClick={() => handleStepClick(2)}
+                                disabled={!canProceedToSettings}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${canProceedToSettings ? 'cursor-pointer hover:bg-white/10' : 'cursor-not-allowed opacity-50'} ${step >= 2 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}
+                            >
                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 2 ? 'bg-blue-100 text-blue-600' : 'bg-blue-800/50 text-white'}`}>2</span>
                                 אפיון והגדרות
-                            </div>
+                            </button>
+
                             <div className="w-8 h-0.5 bg-blue-400/30"></div>
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-blue-800/30 text-blue-200 border border-blue-400/30 opacity-70">
+
+                            {/* שלב 3 - לא לחיץ כרגע (תוצאה) */}
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-blue-800/30 text-blue-200 border border-blue-400/30 opacity-70 cursor-default">
                                 <span className="w-6 h-6 rounded-full bg-blue-800/50 text-white flex items-center justify-center text-xs">3</span>
                                 עריכה וסיום
                             </div>
@@ -182,8 +215,7 @@ const IngestionWizard = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
                                 <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
                                     <div className="bg-yellow-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-yellow-600" /></div>
-                                    {/* תיקון לשון רבים */}
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">יצירה מנושא חופשי</h4><p className="text-sm text-gray-500 leading-relaxed">תנו ל-AI להציע סילבוס ותוכן על בסיס נושא שתבחרו.</p></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא לפעילות</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור את התוכן עבורכם.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
 
@@ -196,13 +228,12 @@ const IngestionWizard = ({
                                     className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
                                 >
                                     <input {...getInputProps()} />
-                                    {/* תיקון לשון רבים */}
-                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלאת קובץ לימוד</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
+                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
                             </div>
                             {mode === 'topic' && (
                                 <div className="animate-fade-in mt-6">
-                                    <label className="block text-lg font-bold text-gray-700 mb-2">באיזה נושא נעסוק היום?</label>
+                                    <label className="block text-lg font-bold text-gray-700 mb-2">כתבו כאן את נושא הפעילות:</label>
                                     <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: המהפכה הצרפתית, יסודות הפיזיקה..." autoFocus />
                                 </div>
                             )}
@@ -236,7 +267,6 @@ const IngestionWizard = ({
                             {/* עמודה שמאלית - טקסונומיה */}
                             <div className="space-y-6 order-1 md:order-2">
                                 <div className="flex items-center gap-2 mb-2"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה (טקסונומיה)</h3></div>
-                                {/* תיקון לשון רבים */}
                                 <p className="text-sm text-gray-500 mb-6">קבעו את תמהיל השאלות והתוכן.</p>
                                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-green-600 text-lg">ידע והבנה</label><span className="font-mono font-bold text-lg bg-green-50 px-2 rounded">{taxonomy.knowledge}%</span></div><input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
                                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-blue-600 text-lg">יישום וניתוח</label><span className="font-mono font-bold text-lg bg-blue-50 px-2 rounded">{taxonomy.application}%</span></div><input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
@@ -254,7 +284,14 @@ const IngestionWizard = ({
                     <button
                         onClick={handleNext}
                         disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || isProcessing}
-                        className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-10 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed ${step === 1 ? 'w-full justify-center' : 'ml-auto'}`}
+                        className={`
+                            bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700
+                            text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl
+                            transition-all transform hover:-translate-y-1
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                            flex items-center justify-center gap-3 whitespace-nowrap
+                            ml-auto
+                        `}
                     >
                         {isProcessing ? (
                             <>
@@ -263,9 +300,8 @@ const IngestionWizard = ({
                             </>
                         ) : (
                             <>
-                                {/* תיקון לשון רבים */}
                                 {step === 1 ? 'המשיכו להגדרות מתקדמות' : (courseMode === 'exam' ? 'צרו מבחן עכשיו!' : 'צרו פעילות עכשיו!')}
-                                <IconSparkles className="w-5 h-5" />
+                                <IconArrowBack className="w-5 h-5 shrink-0" />
                             </>
                         )}
                     </button>
