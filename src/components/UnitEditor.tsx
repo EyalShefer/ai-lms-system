@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // הוספתי useRef
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
@@ -51,6 +51,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
     const [isAutoGenerating, setIsAutoGenerating] = useState(false);
 
+    // --- התיקון הקריטי: מניעת ריצה כפולה ---
+    const hasInitialized = useRef(false);
+
     // ניהול מצבי שמירה לחיווי ויזואלי
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -66,24 +69,32 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     useEffect(() => {
         const initContent = async () => {
-            if (!unit.activityBlocks || unit.activityBlocks.length === 0) {
-                setIsAutoGenerating(true);
-                try {
-                    const newBlocks = await generateFullUnitContent(unit.title, course.title);
-                    const updatedUnit = { ...unit, activityBlocks: newBlocks };
-                    setEditedUnit(updatedUnit);
-                    onSave(updatedUnit);
-                } catch (error) {
-                    console.error("Auto generation failed", error);
-                } finally {
-                    setIsAutoGenerating(false);
-                }
-            } else {
+            // אם כבר יש בלוקים, או שהפונקציה כבר רצה פעם אחת - עצור!
+            if ((unit.activityBlocks && unit.activityBlocks.length > 0) || hasInitialized.current) {
                 setEditedUnit(unit);
+                return;
+            }
+
+            // סימון שהתחלנו ריצה כדי למנוע כפילויות
+            hasInitialized.current = true;
+            setIsAutoGenerating(true);
+
+            try {
+                const newBlocks = await generateFullUnitContent(unit.title, course.title, gradeLevel);
+                const updatedUnit = { ...unit, activityBlocks: newBlocks };
+                setEditedUnit(updatedUnit);
+                onSave(updatedUnit);
+            } catch (error) {
+                console.error("Auto generation failed", error);
+                // במקרה של כישלון, אפשר לאפס את הדגל כדי לאפשר ניסיון נוסף ידני בעתיד
+                hasInitialized.current = false;
+            } finally {
+                setIsAutoGenerating(false);
             }
         };
+
         initContent();
-    }, [unit.id]);
+    }, [unit.id]); // הסרתי תלויות מיותרות כדי למנוע ריצות חוזרות
 
     // פונקציית שמירה עם חיווי ויזואלי למשתמש
     const handleSaveWithFeedback = async () => {

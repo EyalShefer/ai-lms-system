@@ -85,30 +85,38 @@ const CourseEditor: React.FC = () => {
 
         try {
             const topicToUse = data.topic || course.title || "General Topic";
-            const syllabus = await generateCoursePlan(topicToUse, data.mode);
 
-            // --- התיקון החשוב: שמירת המקצוע והשכבה! ---
+            // --- התיקון שהוספנו: חילוץ הגיל מההגדרות ---
+            const userGrade = data.settings?.grade || "כללי";
+
+            // העברת הגיל לפונקציית יצירת התוכנית
+            const syllabus = await generateCoursePlan(
+                topicToUse,
+                userGrade,
+                data.file // אם יש קובץ (אופציונלי, בהתאם למימוש ב-gemini)
+            );
+
             const updatedCourse = {
                 ...course,
                 syllabus,
                 mode: data.settings?.courseMode || 'learning',
-                subject: data.settings?.subject || "כללי", // שמירה ב-State
-                gradeLevel: data.settings?.grade || "כללי" // שמירה ב-State
+                subject: data.settings?.subject || "כללי",
+                gradeLevel: userGrade
             };
 
             setCourse(updatedCourse);
-
-            // שמירה ל-Firebase
-            await updateDoc(doc(db, "courses", course.id), {
-                syllabus,
-                mode: data.settings?.courseMode || 'learning',
-                subject: data.settings?.subject || "כללי", // שמירה ב-DB
-                gradeLevel: data.settings?.grade || "כללי" // שמירה ב-DB
-            });
+            await updateDoc(doc(db, "courses", course.id), updatedCourse);
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
-                generateFullUnitContent(firstUnit.title, topicToUse).then((newBlocks: ActivityBlock[]) => {
+
+                // העברת הגיל גם לפונקציית יצירת התוכן
+                generateFullUnitContent(
+                    firstUnit.title,
+                    topicToUse,
+                    userGrade,
+                    data.file
+                ).then((newBlocks: ActivityBlock[]) => {
                     const syllabusWithContent = syllabus.map((mod: any) => ({
                         ...mod,
                         learningUnits: mod.learningUnits.map((u: any) =>
@@ -151,7 +159,7 @@ const CourseEditor: React.FC = () => {
 
         if (nextUnitToGenerate) {
             console.log("Generating next unit in background:", nextUnitToGenerate.title);
-            generateFullUnitContent(nextUnitToGenerate.title, course.title).then((newBlocks: ActivityBlock[]) => {
+            generateFullUnitContent(nextUnitToGenerate.title, course.title, course.gradeLevel).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
                     const backgroundSyllabus = newSyllabus.map(m => ({
                         ...m,
@@ -193,7 +201,7 @@ const CourseEditor: React.FC = () => {
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
     if (activeUnit) {
-        return <UnitEditor unit={activeUnit} onSave={handleSaveUnit} onCancel={handleExitEditor} cancelLabel="חזרה לסילבוס" />;
+        return <UnitEditor unit={activeUnit} gradeLevel={course.gradeLevel} onSave={handleSaveUnit} onCancel={handleExitEditor} cancelLabel="חזרה לסילבוס" />;
     }
 
     return (

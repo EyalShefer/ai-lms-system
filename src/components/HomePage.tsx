@@ -2,16 +2,16 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
     IconBook, IconList, IconSparkles, IconUpload,
-    IconChart, IconRobot, IconArrowBack, IconSearch, IconStar,
+    IconChart, IconRobot, IconBack, IconSearch, IconStar, // שיניתי כאן ל-IconBack
     IconCheck, IconLayer, IconStudent, IconWand, IconConstruction
 } from '../icons';
 
-const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
+const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void }) => {
     const { currentUser } = useAuth();
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
 
     // פונקציית עזר ללחיצה עם לוג
-    const handleCardClick = (actionName, callback) => {
+    const handleCardClick = (actionName: string, callback: () => void) => {
         console.log(`🚀 Clicked card: ${actionName}`);
         callback();
     };
@@ -70,9 +70,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
                                 הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד אינטראקטיבית הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל ואדפטיבי.
                             </p>
                         </div>
-                        {/* תיקון לשון רבים */}
+
                         <div className="mt-6 flex items-center gap-2 font-bold text-white/90 group-hover:translate-x-[-5px] transition-transform">
-                            התחילו ליצור עכשיו <IconArrowBack className="w-5 h-5" />
+                            התחילו ליצור עכשיו <IconBack className="w-5 h-5 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
                 </div>
@@ -97,9 +97,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
                                 הפכו חומרי לימוד למבחני ידע, שאלונים ומטלות סיכום. המערכת תבדוק עבורכם את התשובות, תעניק ציונים ותציג תמונת מצב כיתתית בזמן אמת.
                             </p>
                         </div>
-                        {/* תיקון חץ (מצביע שמאלה) + ניסוח כללי */}
+
                         <div className="mt-6 flex items-center gap-2 font-bold text-[#0A4D7F] group-hover:translate-x-[-5px] transition-transform">
-                            ליצירת מבחן <IconArrowBack className="w-5 h-5" />
+                            ליצירת מבחן <IconBack className="w-5 h-5 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
                 </div>
@@ -133,7 +133,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
                         <h3 className="text-xl font-bold mb-1">הכיתות שלי</h3>
                         <p className="text-[#B8D6F6] text-xs mb-4">דוחות, ציונים ומעקב</p>
                         <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
-                            לדשבורד <IconArrowBack className="w-4 h-4" />
+                            לדשבורד <IconBack className="w-4 h-4 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
                 </div>
@@ -209,7 +209,6 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }) => {
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">דירוג ממוצע</div>
                 </div>
                 <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
-                {/* תיקון לשון רבים */}
                 <div className="flex items-center gap-3 bg-[#B8D6F6] px-4 py-2 rounded-xl text-[#0A4D7F] font-bold text-sm cursor-pointer hover:bg-[#24A8D9] hover:text-white transition-colors">
                     <IconStar className="w-4 h-4" />
                     שדרגו לפרו
