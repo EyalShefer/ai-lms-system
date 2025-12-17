@@ -11,7 +11,6 @@ import {
     IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
 } from '../icons';
 
-// אייקון עין (אם חסר בקובץ אייקונים, למרות שהוספנו אותו)
 const IconEyeLocal = ({ className = "w-5 h-5" }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );
@@ -69,13 +68,21 @@ const CourseEditor: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    // --- לוגיקה לפתיחה אוטומטית של הפעילות (קיצור דרך) ---
     useEffect(() => {
-        if (course && (!course.syllabus || course.syllabus.length === 0)) {
+        if (course?.syllabus?.length > 0 && !showWizard && !isGenerating) {
+            const firstModule = course.syllabus[0];
+            if (firstModule.learningUnits?.length > 0) {
+                const firstUnit = firstModule.learningUnits[0];
+                if (!selectedUnitId) {
+                    console.log("Auto-opening unit:", firstUnit.id);
+                    setSelectedUnitId(firstUnit.id);
+                }
+            }
+        } else if (course && (!course.syllabus || course.syllabus.length === 0)) {
             setShowWizard(true);
-        } else {
-            setShowWizard(false);
         }
-    }, [course?.id]);
+    }, [course, showWizard, isGenerating]);
 
     if (!course) return <div className="flex items-center justify-center h-screen text-gray-500">נא לבחור שיעור...</div>;
 
@@ -84,65 +91,77 @@ const CourseEditor: React.FC = () => {
         setIsGenerating(true);
 
         try {
-            const topicToUse = data.topic || course.title || "General Topic";
+            // התאמה לוויזארד המקורי שלך: המידע נמצא תחת data.settings
+            const topicToUse = data.topic || course.title || "נושא כללי";
 
-            // --- התיקון שהוספנו: חילוץ הגיל מההגדרות ---
+            // כאן התיקון הקריטי: קריאת הגיל מתוך האובייקט settings
+            // אם הוויזארד לא שלח, נשתמש בברירת מחדל, אבל הוויזארד שלך שולח!
             const userGrade = data.settings?.grade || "כללי";
+            const userSubject = data.settings?.subject || "כללי";
 
-            // העברת הגיל לפונקציית יצירת התוכנית
+            console.log("🚀 נתונים שהתקבלו מהוויזארד:", { topicToUse, userGrade, userSubject });
+
+            // יצירת שלד הפעילות (Syllabus)
             const syllabus = await generateCoursePlan(
                 topicToUse,
                 userGrade,
-                data.file // אם יש קובץ (אופציונלי, בהתאם למימוש ב-gemini)
+                data.file
             );
 
+            // עדכון אובייקט הקורס ושמירה ב-Firebase
+            // אנחנו שומרים את ה-gradeLevel בצורה מפורשת כדי שיוצג בכותרת
             const updatedCourse = {
                 ...course,
                 syllabus,
                 mode: data.settings?.courseMode || 'learning',
-                subject: data.settings?.subject || "כללי",
-                gradeLevel: userGrade
+                subject: userSubject,
+                gradeLevel: userGrade, // <--- השורה שדואגת שזה לא יהיה "כללי"
+                title: topicToUse
             };
 
             setCourse(updatedCourse);
             await updateDoc(doc(db, "courses", course.id), updatedCourse);
 
+            // יצירת התוכן ע"י ה-AI (שליחת הגיל לפרומפט)
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
-                // העברת הגיל גם לפונקציית יצירת התוכן
                 generateFullUnitContent(
                     firstUnit.title,
                     topicToUse,
-                    userGrade,
+                    userGrade, // מעבירים את הגיל ל-AI
                     data.file
                 ).then((newBlocks: ActivityBlock[]) => {
+                    // עדכון הבלוקים שחזרו מה-AI
                     const syllabusWithContent = syllabus.map((mod: any) => ({
                         ...mod,
                         learningUnits: mod.learningUnits.map((u: any) =>
                             u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
                         )
                     }));
-                    setCourse({ ...updatedCourse, syllabus: syllabusWithContent });
+
+                    const finalCourse = { ...updatedCourse, syllabus: syllabusWithContent };
+                    setCourse(finalCourse);
                     updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+
+                    // פתיחה אוטומטית של העורך
+                    setSelectedUnitId(firstUnit.id);
                 });
             }
 
         } catch (error) {
             console.error("Failed to generate course:", error);
-            alert("הייתה בעיה ביצירת השיעור. נסה שוב.");
+            alert("הייתה בעיה ביצירת הפעילות. נסה שוב.");
         } finally {
             setIsGenerating(false);
         }
     };
-
     const handleSaveUnit = async (updatedUnit: LearningUnit) => {
         const newSyllabus = course.syllabus.map(mod => ({
             ...mod,
             learningUnits: mod.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u)
         }));
 
-        // מנגנון יצירה ברקע
         let nextUnitToGenerate = null;
         let foundCurrent = false;
 
@@ -201,7 +220,7 @@ const CourseEditor: React.FC = () => {
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
     if (activeUnit) {
-        return <UnitEditor unit={activeUnit} gradeLevel={course.gradeLevel} onSave={handleSaveUnit} onCancel={handleExitEditor} cancelLabel="חזרה לסילבוס" />;
+        return <UnitEditor unit={activeUnit} gradeLevel={course.gradeLevel || "כללי"} onSave={handleSaveUnit} onCancel={handleExitEditor} cancelLabel="חזרה לתפריט" />;
     }
 
     return (
@@ -228,8 +247,8 @@ const CourseEditor: React.FC = () => {
                         <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                         <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את השיעור שלך...</h2>
-                    <p className="text-gray-500 mt-2">כותב סילבוס, מכין מערכים ומייצר שאלות.</p>
+                    <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
+                    <p className="text-gray-500 mt-2">מתאים את התוכן לכיתה שבחרת.</p>
                 </div>
             )}
 
@@ -238,11 +257,10 @@ const CourseEditor: React.FC = () => {
                     <div>
                         <h1 className="text-4xl font-extrabold text-gray-900 flex items-center gap-3">
                             <span className="bg-indigo-100 p-2 rounded-xl text-indigo-600"><IconEdit className="w-8 h-8" /></span>
-                            עורך השיעור: <span className="text-indigo-600">{course.title}</span>
+                            עורך הפעילות: <span className="text-indigo-600">{course.title}</span>
                         </h1>
-                        <p className="text-gray-500 mt-2 text-lg">נהל את הפרקים, היחידות והתוכן של השיעור</p>
+                        <p className="text-gray-500 mt-2 text-lg">נהל את רכיבי הפעילות</p>
 
-                        {/* הצגת המטא-דאטה החדש */}
                         <div className="flex gap-2 mt-3">
                             {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
                             {course.gradeLevel && <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">{course.gradeLevel}</span>}
@@ -251,7 +269,7 @@ const CourseEditor: React.FC = () => {
 
                     <div className="flex items-center gap-3">
                         <button onClick={() => setShowWizard(true)} className="bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-sm hover:shadow transition-all flex items-center gap-2">
-                            <IconWand className="w-5 h-5" /> הגדרות
+                            <IconWand className="w-5 h-5" /> ערוך הגדרות
                         </button>
                     </div>
                 </div>
@@ -260,16 +278,12 @@ const CourseEditor: React.FC = () => {
                     {course.syllabus?.length === 0 && !isGenerating && (
                         <div className="text-center py-20 bg-white/60 glass rounded-3xl border border-dashed border-gray-300">
                             <IconRobot className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-gray-600">השיעור ריק</h3>
-                            <button onClick={() => setShowWizard(true)} className="mt-4 text-indigo-600 font-bold hover:underline">לחץ כאן להפעלת אשף היצירה האוטומטי</button>
+                            <h3 className="text-xl font-bold text-gray-600">הפעילות ריקה</h3>
+                            <button onClick={() => setShowWizard(true)} className="mt-4 text-indigo-600 font-bold hover:underline">לחץ כאן להפעלת אשף היצירה</button>
                         </div>
                     )}
                     {course.syllabus?.map((module, mIndex) => (
                         <div key={module.id} className="glass bg-white/80 rounded-2xl border border-white/60 shadow-sm overflow-hidden animate-slide-up" style={{ animationDelay: `${mIndex * 100}ms` }}>
-                            <div className="bg-indigo-50/50 p-4 border-b border-indigo-100 flex justify-between items-center backdrop-blur-sm">
-                                <h3 className="text-xl font-bold text-indigo-900 flex items-center gap-2"><span className="bg-indigo-200 text-indigo-700 w-8 h-8 flex items-center justify-center rounded-lg text-sm">{mIndex + 1}</span>{module.title}</h3>
-                                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider">פרק לימוד</div>
-                            </div>
                             <div className="p-4 space-y-3">
                                 {module.learningUnits.map((unit) => (
                                     <div key={unit.id} className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-300 hover:shadow-md transition-all group">
@@ -301,7 +315,6 @@ const CourseEditor: React.FC = () => {
                                         </div>
                                     </div>
                                 ))}
-                                <button className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 font-bold hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"><IconPlus className="w-5 h-5" /> הוסף יחידת לימוד ידנית</button>
                             </div>
                         </div>
                     ))}

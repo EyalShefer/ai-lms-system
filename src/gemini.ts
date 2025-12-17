@@ -5,10 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-// --- התיקון: שימוש במודל שזמין לך בוודאות (לפי הצילום ששלחת) ---
+// --- שימוש במודל הגנרי שעבד לך והוכח כיציב ---
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-// --- Helper: Robust JSON Cleaner ---
+// --- פונקציית עזר: ניקוי JSON ---
+// מנקה תגיות Markdown ומחלצת את ה-JSON הנקי מתוך הטקסט
 const cleanJsonString = (text: string): string => {
   try {
     let clean = text.replace(/```json|```/g, '').trim();
@@ -18,6 +19,7 @@ const cleanJsonString = (text: string): string => {
     let startIndex = -1;
     let endIndex = -1;
 
+    // זיהוי האם זה אובייקט או מערך
     if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
       startIndex = firstBracket;
       endIndex = clean.lastIndexOf(']') + 1;
@@ -37,7 +39,7 @@ const cleanJsonString = (text: string): string => {
   }
 };
 
-// --- Helper: Mapping Logic ---
+// --- פונקציית עזר: מיפוי פלט המערכת לבלוקים של הפעילות ---
 const mapSystemItemToBlock = (item: any) => {
   const commonMetadata = {
     bloomLevel: item.bloom_level,
@@ -46,6 +48,7 @@ const mapSystemItemToBlock = (item: any) => {
     sourceReference: item.source_reference
   };
 
+  // 1. שאלות אמריקאיות / נכון-לא נכון
   if (item.type === 'multiple_choice' || item.type === 'true_false') {
     let options = item.content.options || [];
     let correctAnswer = "";
@@ -68,6 +71,7 @@ const mapSystemItemToBlock = (item: any) => {
     };
   }
 
+  // 2. שאלות פתוחות
   if (item.type === 'open_question') {
     return {
       id: uuidv4(),
@@ -84,6 +88,7 @@ const mapSystemItemToBlock = (item: any) => {
     };
   }
 
+  // 3. מיון ורצף (המרה לאמריקאית כרגע)
   if (item.type === 'sorting' || item.type === 'sequencing') {
     const isSorting = item.type === 'sorting';
     return {
@@ -103,7 +108,7 @@ const mapSystemItemToBlock = (item: any) => {
   return null;
 };
 
-// --- פונקציה 1: יצירת שלד הפעילות ---
+// --- פונקציה 1: יצירת תוכנית הלימודים (סטטית כרגע, לפי המודל החדש) ---
 export const generateCoursePlan = async (
   topic: string,
   gradeLevel: string,
@@ -125,7 +130,7 @@ export const generateCoursePlan = async (
   ];
 };
 
-// --- פונקציה 2: יצירת תוכן מלא ליחידה ---
+// --- פונקציה 2: יצירת תוכן מלא ליחידה (הפונקציה הראשית) ---
 export const generateFullUnitContent = async (
   unitTitle: string,
   courseTopic: string,
@@ -133,15 +138,20 @@ export const generateFullUnitContent = async (
   fileData?: { base64: string; mimeType: string }
 ) => {
 
+  // פרומפט מערכת מפורט ומוקפד, כולל הזרקת הגיל
   const systemPrompt = `
     תפקיד (Role):
-    אתה מומחה לפדגוגיה דיגיטלית, מעבד תוכן לימודי, ומעצב חווית משתמש (UX). המטרה שלך היא לנתח חומר לימודי ולייצר ממנו פעילות אינטראקטיבית מודולרית ומדויקת.
+    אתה מומחה לפדגוגיה דיגיטלית, מעבד תוכן לימודי, ומעצב חווית משתמש (UX). 
+    המטרה שלך היא לנתח חומר לימודי ולייצר ממנו פעילות אינטראקטיבית מודולרית ומדויקת.
     
-    הנחיה קריטית – מקור האמת (Source of Truth):
-    אם סופק מסמך: עליך לבסס את כל השאלות אך ורק עליו. אל תמציא עובדות.
-    אם סופק רק נושא: השתמש בידע הפדגוגי שלך.
+    הנחיה קריטית – התאמה לגיל (Grade Level Adaptation):
+    קהל היעד הוא: **${gradeLevel}**.
+    עליך להתאים את השפה, את המושגים, את הדוגמאות ואת רמת הקושי של השאלות *בדיוק* לשכבת גיל זו.
+    - אם מדובר ביסודי: השתמש בשפה פשוטה, ברורה ומעודדת.
+    - אם מדובר בתיכון: השתמש בשפה אקדמית יותר, עם חשיבה ביקורתית.
 
-    התאם את הניסוח לשכבת הגיל: ${gradeLevel}.
+    הנחיה קריטית – מקור האמת (Source of Truth):
+    ${fileData ? "סופק קובץ מקור. עליך לבסס את כל השאלות אך ורק עליו. אל תמציא עובדות שלא מופיעות בקובץ." : "לא סופק קובץ. השתמש בידע הפדגוגי הרחב שלך בנושא."}
 
     מבנה הפלט הטכני (JSON Output Schema):
     החזר אך ורק מערך JSON תקין (Array of Objects). כל פריט במערך יכלול:
@@ -150,33 +160,35 @@ export const generateFullUnitContent = async (
       "bloom_level": "Knowledge" | "Understanding" | "Analysis",
       "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
       "question_text": "ניסוח השאלה...",
-      "source_reference": "ציטוט מהמקור (אופציונלי)",
-      "feedback_correct": "משוב מחזק...",
-      "feedback_incorrect": "הסבר לטעות...",
+      "source_reference": "ציטוט מהמקור (אם יש)",
+      "feedback_correct": "משוב מחזק לתשובה נכונה",
+      "feedback_incorrect": "הסבר לתיקון הטעות",
       "content": {
-         // עבור multiple_choice / true_false
+         // שדות עבור שאלות סגורות
          "options": ["אופציה 1", "אופציה 2", "אופציה 3", "אופציה 4"], 
-         "correct_index": 0, // אינדקס התשובה הנכונה (0-based)
-         
-         // עבור open_question
+         "correct_index": 0, // מספר (0-3)
+
+         // שדות עבור שאלות פתוחות
          "hint": "רמז לתלמיד...",
-         "key_points": ["נקודה 1", "נקודה 2"]
+         "key_points": ["נקודה חשובה 1", "נקודה חשובה 2"]
       }
     }
 
-    Task: צור 6-8 רכיבים מגוונים המכסים את הטקסונומיה (ידע, הבנה, יישום).
-    Return ONLY raw JSON. No markdown.
+    המשימה:
+    צור 6-8 רכיבים מגוונים המכסים את רמות הטקסונומיה השונות (ידע, הבנה, יישום).
+    החזר רק את ה-JSON הגולמי.
   `;
 
   const userRequest = `
     הנושא: ${courseTopic}.
     כותרת היחידה: ${unitTitle}.
-    ${fileData ? "מצורף קובץ מקור. נתח אותו והתבסס עליו." : "לא צורף קובץ, התבסס על הנושא."}
+    שכבת הגיל: ${gradeLevel}.
   `;
 
   try {
     const parts: any[] = [systemPrompt + "\n" + userRequest];
 
+    // הוספת הקובץ אם קיים
     if (fileData) {
       parts.push({
         inlineData: {
@@ -190,18 +202,17 @@ export const generateFullUnitContent = async (
     const text = cleanJsonString(result.response.text());
 
     const generatedItems = JSON.parse(text);
-
     const blocks: any[] = [];
 
-    // בלוק 1: פתיח
+    // 1. הוספת בלוק פתיחה מותאם גיל
     blocks.push({
       id: uuidv4(),
       type: 'text',
-      content: `### ברוכים הבאים לפעילות בנושא: ${unitTitle}\nבפעילות זו נלמד ונתרגל את עקרונות הנושא. בהצלחה!`,
+      content: `### ברוכים הבאים לפעילות בנושא: ${unitTitle}\nפעילות זו מותאמת במיוחד עבור ${gradeLevel}. בהצלחה!`,
       metadata: {}
     });
 
-    // בלוק 2: בוט מלווה
+    // 2. הוספת בוט מלווה מותאם גיל
     blocks.push({
       id: uuidv4(),
       type: 'interactive-chat',
@@ -212,11 +223,11 @@ export const generateFullUnitContent = async (
       metadata: {
         botPersona: 'teacher',
         initialMessage: `שלום! אני כאן כדי לעזור לך להבין את החומר בנושא ${unitTitle}. אפשר להתחיל?`,
-        systemPrompt: `אתה מורה פרטי לכיתה ${gradeLevel} בנושא ${courseTopic}. היה סבלני ומעודד.`
+        systemPrompt: `אתה מורה פרטי המותאם לכיתה ${gradeLevel} בנושא ${courseTopic}. היה סבלני, השתמש בשפה המותאמת לגיל זה, ועודד את התלמיד.`
       }
     });
 
-    // המרת השאלות
+    // 3. המרת השאלות שנוצרו לבלוקים
     if (Array.isArray(generatedItems)) {
       generatedItems.forEach(item => {
         const block = mapSystemItemToBlock(item);
@@ -231,26 +242,45 @@ export const generateFullUnitContent = async (
     return [{
       id: uuidv4(),
       type: 'text',
-      content: "אירעה שגיאה ביצירת התוכן. ייתכן שיש עומס על המערכת, אנא נסה שוב.",
+      content: "אירעה שגיאה ביצירת התוכן. אנא נסה שוב.",
       metadata: {}
     }];
   }
 };
 
-// --- שאר הפונקציות המקוריות (ללא שינוי, העתק מדויק) ---
-
+// --- פונקציה 3: שיפור טקסט פדגוגי ---
 export const refineContentWithPedagogy = async (content: string, instruction: string) => {
-  const prompt = `Act as an expert pedagogical editor. Original text: "${content}". Instruction: ${instruction}. Language: Hebrew. Return ONLY the refined text.`;
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  const prompt = `
+    Act as an expert pedagogical editor.
+    Original text: "${content}"
+    Instruction: ${instruction}
+    Output language: Hebrew.
+    
+    Your goal is to improve the text based on the instruction while maintaining educational value.
+    Return ONLY the refined text.
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (e) {
+    console.error("Refine Error:", e);
+    return content;
+  }
 };
 
+// --- פונקציה 4: יצירת שאלות מתוך טקסט ---
 export const generateQuestionsFromText = async (text: string, type: 'multiple-choice' | 'open-question') => {
   const prompt = `
-    Based on the following text: "${text.substring(0, 1000)}..."
-    Create 3 ${type === 'multiple-choice' ? 'multiple choice questions' : 'open-ended questions'}.
+    Based on the following text: 
+    "${text.substring(0, 1000)}..."
+    
+    Task: Create 3 ${type === 'multiple-choice' ? 'multiple choice questions' : 'open-ended questions'}.
     Language: Hebrew.
-    Return ONLY valid JSON array.
+    
+    Return ONLY a valid JSON array of objects.
+    Example format:
+    [{"question": "...", "options": ["..."], "correctAnswer": "..."}]
   `;
 
   try {
@@ -258,17 +288,32 @@ export const generateQuestionsFromText = async (text: string, type: 'multiple-ch
     const textRes = cleanJsonString(result.response.text());
     return JSON.parse(textRes);
   } catch (e) {
+    console.error("Generate Questions Error:", e);
     return [];
   }
 };
 
+// --- פונקציה 5: הצעת פרומפט לתמונה ---
 export const generateImagePromptBlock = async (context: string) => {
-  const prompt = `Suggest a creative AI image prompt (in English) to visualize: "${context.substring(0, 200)}". Return ONLY the prompt string.`;
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  const prompt = `
+    Suggest a creative AI image prompt (in English) to visualize the following context:
+    "${context.substring(0, 300)}"
+    
+    The prompt should be descriptive, artistic, and suitable for an educational setting.
+    Return ONLY the prompt string.
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (e) {
+    return "A creative educational illustration";
+  }
 };
 
+// --- פונקציה 6: יצירת יחידה אדפטיבית (חיזוק) ---
 export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) => {
+  // כאן הלוגיקה פשוטה יותר כרגע, אך משאירים מקום להרחבה
   return {
     id: uuidv4(),
     title: `חיזוק: ${originalUnit.title}`,
@@ -278,32 +323,72 @@ export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) 
       {
         id: uuidv4(),
         type: 'text',
-        content: `נראה שהתקשית בנושא ${originalUnit.title}. בוא ננסה להסביר את זה אחרת...`
+        content: `נראה שהתקשית בנושא ${originalUnit.title}. בוא ננסה להסביר את זה אחרת... (תוכן מותאם יתווסף בהמשך)`
       }
     ]
   };
 };
 
+// --- פונקציה 7: ניתוח כיתתי ---
 export const generateClassAnalysis = async (studentsData: any[]) => {
-  const prompt = `Analyze class data (JSON): ${JSON.stringify(studentsData).substring(0, 1000)}. Return JSON: { "classOverview": "...", "strongSkills": [], "weakSkills": [], "actionItems": [] } (Hebrew)`;
+  const prompt = `
+    Analyze the following class performance data (JSON):
+    ${JSON.stringify(studentsData).substring(0, 2000)}
+    
+    Please provide a pedagogical analysis in Hebrew.
+    Return valid JSON with the following structure:
+    {
+      "classOverview": "General summary of the class performance",
+      "strongSkills": ["List of skills the class excelled in"],
+      "weakSkills": ["List of skills that need improvement"],
+      "actionItems": ["Concrete recommendations for the teacher"]
+    }
+  `;
+
   try {
     const result = await model.generateContent(prompt);
     return JSON.parse(cleanJsonString(result.response.text()));
-  } catch (e) { return null; }
+  } catch (e) {
+    console.error("Class Analysis Error:", e);
+    return null;
+  }
 };
 
+// --- פונקציה 8: דוח תלמיד אישי ---
 export const generateStudentReport = async (studentData: any) => {
-  const prompt = `Create student report (JSON): ${JSON.stringify(studentData)}. Return JSON: { "studentName": "...", "summary": "...", "criteria": { "knowledge": "...", "depth": "...", "expression": "...", "recommendations": "..." } } (Hebrew)`;
+  const prompt = `
+    Create a personal student report based on this data (JSON):
+    ${JSON.stringify(studentData)}
+    
+    Language: Hebrew.
+    Return valid JSON with structure:
+    {
+      "studentName": "Name",
+      "summary": "Personal feedback paragraph",
+      "criteria": {
+        "knowledge": "Assessment",
+        "depth": "Assessment",
+        "expression": "Assessment",
+        "recommendations": "Actionable advice"
+      }
+    }
+  `;
+
   try {
     const result = await model.generateContent(prompt);
     return JSON.parse(cleanJsonString(result.response.text()));
-  } catch (e) { return null; }
+  } catch (e) {
+    console.error("Student Report Error:", e);
+    return null;
+  }
 };
 
+// --- פונקציה 9: יצירת שאלה פתוחה בודדת (Wizdi Magic) ---
 export const generateSingleOpenQuestion = async (context: string) => {
   const prompt = `
       Create a single challenging open-ended question about: "${context}".
-      Include a "Model Answer". Language: Hebrew.
+      Include a "Model Answer" for the teacher.
+      Language: Hebrew.
       Return ONLY valid JSON: { "question": "...", "modelAnswer": "..." }
     `;
   try {
@@ -314,6 +399,7 @@ export const generateSingleOpenQuestion = async (context: string) => {
   }
 };
 
+// --- פונקציה 10: יצירת שאלה אמריקאית בודדת (Wizdi Magic) ---
 export const generateSingleMultipleChoiceQuestion = async (context: string) => {
   const prompt = `
       Create a single multiple-choice question about: "${context}".
