@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import UnitEditor from './UnitEditor';
 import IngestionWizard from './IngestionWizard';
@@ -6,8 +6,9 @@ import { generateCoursePlan, generateFullUnitContent } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
+// --- התיקון כאן: הוספתי את IconTrash לרשימה ---
 import {
-    IconEdit, IconPlus, IconSparkles, IconTrash,
+    IconEdit, IconSparkles, IconTrash, IconPlus,
     IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
 } from '../icons';
 
@@ -68,71 +69,77 @@ const CourseEditor: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // --- לוגיקה לפתיחה אוטומטית של הפעילות (קיצור דרך) ---
+    // משתנה לעקיפת התצוגה (כדי להראות את הגיל מיד)
+    const [forcedGrade, setForcedGrade] = useState<string>("");
+
+    // מניעת פתיחה חוזרת של הוויזארד
+    const wizardHasRun = useRef(false);
+
     useEffect(() => {
-        if (course?.syllabus?.length > 0 && !showWizard && !isGenerating) {
+        if (wizardHasRun.current || isGenerating) return;
+
+        if (course?.syllabus?.length > 0 && !showWizard) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
                 const firstUnit = firstModule.learningUnits[0];
                 if (!selectedUnitId) {
-                    console.log("Auto-opening unit:", firstUnit.id);
                     setSelectedUnitId(firstUnit.id);
                 }
             }
         } else if (course && (!course.syllabus || course.syllabus.length === 0)) {
             setShowWizard(true);
         }
-    }, [course, showWizard, isGenerating]);
+    }, [course, showWizard, isGenerating, selectedUnitId]);
 
     if (!course) return <div className="flex items-center justify-center h-screen text-gray-500">נא לבחור שיעור...</div>;
 
+    // חישוב הגיל לתצוגה
+    const displayGrade = forcedGrade || course.gradeLevel || "כללי";
+
     const handleWizardComplete = async (data: any) => {
+        wizardHasRun.current = true;
         setShowWizard(false);
         setIsGenerating(true);
 
         try {
-            // התאמה לוויזארד המקורי שלך: המידע נמצא תחת data.settings
-            const topicToUse = data.topic || course.title || "נושא כללי";
+            const topicToUse = data.topic || course.title || "General Topic";
 
-            // כאן התיקון הקריטי: קריאת הגיל מתוך האובייקט settings
-            // אם הוויזארד לא שלח, נשתמש בברירת מחדל, אבל הוויזארד שלך שולח!
-            const userGrade = data.settings?.grade || "כללי";
-            const userSubject = data.settings?.subject || "כללי";
+            // קליטת הגיל
+            const userGrade = data.settings?.grade || data.grade || "כללי";
+            const userSubject = data.settings?.subject || data.subject || "כללי";
 
-            console.log("🚀 נתונים שהתקבלו מהוויזארד:", { topicToUse, userGrade, userSubject });
+            console.log("🎯 Grade Captured:", userGrade);
 
-            // יצירת שלד הפעילות (Syllabus)
-            const syllabus = await generateCoursePlan(
-                topicToUse,
-                userGrade,
-                data.file
-            );
+            // הפעלת העקיפה המקומית
+            setForcedGrade(userGrade);
 
-            // עדכון אובייקט הקורס ושמירה ב-Firebase
-            // אנחנו שומרים את ה-gradeLevel בצורה מפורשת כדי שיוצג בכותרת
-            const updatedCourse = {
+            // עדכון ה-State המקומי
+            const updatedCourseState = {
                 ...course,
-                syllabus,
-                mode: data.settings?.courseMode || 'learning',
+                title: topicToUse,
                 subject: userSubject,
-                gradeLevel: userGrade, // <--- השורה שדואגת שזה לא יהיה "כללי"
-                title: topicToUse
+                gradeLevel: userGrade,
+                mode: data.settings?.courseMode || 'learning'
             };
+            setCourse(updatedCourseState);
 
-            setCourse(updatedCourse);
-            await updateDoc(doc(db, "courses", course.id), updatedCourse);
+            // שמירה ב-DB
+            const syllabus = await generateCoursePlan(topicToUse, userGrade, data.file);
+            const courseToSave = { ...updatedCourseState, syllabus };
 
-            // יצירת התוכן ע"י ה-AI (שליחת הגיל לפרומפט)
+            await updateDoc(doc(db, "courses", course.id), courseToSave);
+            setCourse(courseToSave);
+
+            // יצירת תוכן
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
                 generateFullUnitContent(
                     firstUnit.title,
                     topicToUse,
-                    userGrade, // מעבירים את הגיל ל-AI
+                    userGrade,
                     data.file
                 ).then((newBlocks: ActivityBlock[]) => {
-                    // עדכון הבלוקים שחזרו מה-AI
                     const syllabusWithContent = syllabus.map((mod: any) => ({
                         ...mod,
                         learningUnits: mod.learningUnits.map((u: any) =>
@@ -140,22 +147,22 @@ const CourseEditor: React.FC = () => {
                         )
                     }));
 
-                    const finalCourse = { ...updatedCourse, syllabus: syllabusWithContent };
+                    const finalCourse = { ...courseToSave, syllabus: syllabusWithContent };
                     setCourse(finalCourse);
                     updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
 
-                    // פתיחה אוטומטית של העורך
                     setSelectedUnitId(firstUnit.id);
                 });
             }
 
         } catch (error) {
-            console.error("Failed to generate course:", error);
-            alert("הייתה בעיה ביצירת הפעילות. נסה שוב.");
+            console.error("Error generating:", error);
+            alert("שגיאה ביצירה");
         } finally {
             setIsGenerating(false);
         }
     };
+
     const handleSaveUnit = async (updatedUnit: LearningUnit) => {
         const newSyllabus = course.syllabus.map(mod => ({
             ...mod,
@@ -177,8 +184,7 @@ const CourseEditor: React.FC = () => {
         }
 
         if (nextUnitToGenerate) {
-            console.log("Generating next unit in background:", nextUnitToGenerate.title);
-            generateFullUnitContent(nextUnitToGenerate.title, course.title, course.gradeLevel).then((newBlocks: ActivityBlock[]) => {
+            generateFullUnitContent(nextUnitToGenerate.title, course.title, displayGrade).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
                     const backgroundSyllabus = newSyllabus.map(m => ({
                         ...m,
@@ -196,10 +202,8 @@ const CourseEditor: React.FC = () => {
         setCourse(updatedCourse);
         setIsSaving(true);
         try { await updateDoc(doc(db, "courses", course.id), { syllabus: newSyllabus }); }
-        catch (e) { console.error("Save error:", e); alert("שגיאה בשמירה"); }
-        finally {
-            setIsSaving(false);
-        }
+        catch (e) { console.error("Save error:", e); }
+        finally { setIsSaving(false); }
     };
 
     const handleExitEditor = () => {
@@ -220,13 +224,21 @@ const CourseEditor: React.FC = () => {
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
     if (activeUnit) {
-        return <UnitEditor unit={activeUnit} gradeLevel={course.gradeLevel || "כללי"} onSave={handleSaveUnit} onCancel={handleExitEditor} cancelLabel="חזרה לתפריט" />;
+        return (
+            <UnitEditor
+                unit={activeUnit}
+                gradeLevel={displayGrade}
+                onSave={handleSaveUnit}
+                onCancel={handleExitEditor}
+                cancelLabel="חזרה לתפריט"
+            />
+        );
     }
 
     return (
         <div className="min-h-screen bg-gray-50 p-8 font-sans pb-24">
 
-            {showWizard && (
+            {showWizard && !isGenerating && (
                 <IngestionWizard
                     onComplete={handleWizardComplete}
                     onCancel={() => setShowWizard(false)}
@@ -248,7 +260,7 @@ const CourseEditor: React.FC = () => {
                         <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
-                    <p className="text-gray-500 mt-2">מתאים את התוכן לכיתה שבחרת.</p>
+                    <p className="text-gray-500 mt-2">מתאים את התוכן ל{displayGrade}.</p>
                 </div>
             )}
 
@@ -263,7 +275,9 @@ const CourseEditor: React.FC = () => {
 
                         <div className="flex gap-2 mt-3">
                             {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
-                            {course.gradeLevel && <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">{course.gradeLevel}</span>}
+                            <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">
+                                {displayGrade}
+                            </span>
                         </div>
                     </div>
 
