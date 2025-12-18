@@ -6,9 +6,8 @@ import { generateCoursePlan, generateFullUnitContent } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
-// --- התיקון כאן: הוספתי את IconTrash לרשימה ---
 import {
-    IconEdit, IconSparkles, IconTrash, IconPlus,
+    IconEdit, IconSparkles, IconTrash,
     IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
 } from '../icons';
 
@@ -69,15 +68,17 @@ const CourseEditor: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // משתנה לעקיפת התצוגה (כדי להראות את הגיל מיד)
+    // משתנה לעקיפת התצוגה (כדי להראות את הגיל מיד ולמנוע את הבאג של "כללי")
     const [forcedGrade, setForcedGrade] = useState<string>("");
 
     // מניעת פתיחה חוזרת של הוויזארד
     const wizardHasRun = useRef(false);
 
     useEffect(() => {
+        // Guard clauses - הגנות מפני ריצה מיותרת
         if (wizardHasRun.current || isGenerating) return;
 
+        // בדיקה אם הקורס מלא ויש לבחור יחידה ראשונה אוטומטית
         if (course?.syllabus?.length > 0 && !showWizard) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
@@ -86,78 +87,109 @@ const CourseEditor: React.FC = () => {
                     setSelectedUnitId(firstUnit.id);
                 }
             }
-        } else if (course && (!course.syllabus || course.syllabus.length === 0)) {
-            setShowWizard(true);
+        }
+        // לוגיקה לפתיחה אוטומטית של הוויזארד
+        // התיקון: נפתח רק אם הסילבוס ריק *וגם* אין לקורס כותרת משמעותית
+        else if (course && (!course.syllabus || course.syllabus.length === 0)) {
+            const hasExistingData = course.title && course.title !== "New Course" && course.title !== "קורס חדש";
+            if (!hasExistingData && !showWizard) {
+                setShowWizard(true);
+            }
         }
     }, [course, showWizard, isGenerating, selectedUnitId]);
 
     if (!course) return <div className="flex items-center justify-center h-screen text-gray-500">נא לבחור שיעור...</div>;
 
-    // חישוב הגיל לתצוגה
-    const displayGrade = forcedGrade || course.gradeLevel || "כללי";
+    // --- תיקון לתצוגת הכותרת ---
+    // אנחנו בודקים את כל האפשרויות לתצוגת הגיל הנכון
+    const displayGrade = forcedGrade || course.gradeLevel || course.targetAudience || "כללי";
 
     const handleWizardComplete = async (data: any) => {
         wizardHasRun.current = true;
         setShowWizard(false);
         setIsGenerating(true);
 
-        try {
-            const topicToUse = data.topic || course.title || "General Topic";
+        // --- דיבוג קריטי: בוא נראה בדיוק מה הוויזארד שולח ---
+        console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
 
-            // קליטת הגיל
-            const userGrade = data.settings?.grade || data.grade || "כללי";
+        try {
+            const topicToUse = data.topic || course.title || "נושא כללי";
+
+            // --- חילוץ חכם של הגיל ---
+            let extractedGrade = "כללי";
+
+            if (data.grade) extractedGrade = data.grade;
+            else if (data.gradeLevel) extractedGrade = data.gradeLevel;
+            else if (data.targetAudience) extractedGrade = data.targetAudience;
+            else if (data.settings?.grade) extractedGrade = data.settings.grade;
+            else if (data.settings?.gradeLevel) extractedGrade = data.settings.gradeLevel;
+            else if (data.settings?.targetAudience) extractedGrade = data.settings.targetAudience;
+
+            if (Array.isArray(extractedGrade)) {
+                extractedGrade = extractedGrade[0];
+            }
+
+            console.log("🎯 FINAL GRADE DETECTED:", extractedGrade);
+
             const userSubject = data.settings?.subject || data.subject || "כללי";
 
-            console.log("🎯 Grade Captured:", userGrade);
+            // עדכון ה-State המקומי כדי שהתצוגה תתעדכן מיד
+            setForcedGrade(extractedGrade);
 
-            // הפעלת העקיפה המקומית
-            setForcedGrade(userGrade);
-
-            // עדכון ה-State המקומי
             const updatedCourseState = {
                 ...course,
                 title: topicToUse,
                 subject: userSubject,
-                gradeLevel: userGrade,
+                gradeLevel: extractedGrade,
                 mode: data.settings?.courseMode || 'learning'
             };
+
             setCourse(updatedCourseState);
 
             // שמירה ב-DB
-            const syllabus = await generateCoursePlan(topicToUse, userGrade, data.file);
-            const courseToSave = { ...updatedCourseState, syllabus };
+            await updateDoc(doc(db, "courses", course.id), {
+                title: topicToUse,
+                subject: userSubject,
+                gradeLevel: extractedGrade,
+                mode: updatedCourseState.mode
+            });
 
-            await updateDoc(doc(db, "courses", course.id), courseToSave);
-            setCourse(courseToSave);
+            // יצירת סילבוס
+            const syllabus = await generateCoursePlan(topicToUse, extractedGrade, data.file);
+
+            const courseWithSyllabus = { ...updatedCourseState, syllabus };
+            setCourse(courseWithSyllabus);
+            await updateDoc(doc(db, "courses", course.id), { syllabus });
 
             // יצירת תוכן
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
-                generateFullUnitContent(
+                // שליחת הגיל הנכון לפונקציית ה-AI
+                const newBlocks = await generateFullUnitContent(
                     firstUnit.title,
                     topicToUse,
-                    userGrade,
+                    extractedGrade,
                     data.file
-                ).then((newBlocks: ActivityBlock[]) => {
-                    const syllabusWithContent = syllabus.map((mod: any) => ({
-                        ...mod,
-                        learningUnits: mod.learningUnits.map((u: any) =>
-                            u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
-                        )
-                    }));
+                );
 
-                    const finalCourse = { ...courseToSave, syllabus: syllabusWithContent };
-                    setCourse(finalCourse);
-                    updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+                const syllabusWithContent = syllabus.map((mod: any) => ({
+                    ...mod,
+                    learningUnits: mod.learningUnits.map((u: any) =>
+                        u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
+                    )
+                }));
 
-                    setSelectedUnitId(firstUnit.id);
-                });
+                const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
+                setCourse(finalCourse);
+                await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+
+                setSelectedUnitId(firstUnit.id);
             }
 
         } catch (error) {
-            console.error("Error generating:", error);
-            alert("שגיאה ביצירה");
+            console.error("Error generating content:", error);
+            alert("אירעה שגיאה ביצירת התוכן. אנא נסה שנית.");
         } finally {
             setIsGenerating(false);
         }
@@ -260,7 +292,7 @@ const CourseEditor: React.FC = () => {
                         <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
-                    <p className="text-gray-500 mt-2">מתאים את התוכן ל{displayGrade}.</p>
+                    <p className="text-gray-500 mt-2">מתאים את התוכן ל{displayGrade}...</p>
                 </div>
             )}
 
@@ -269,7 +301,7 @@ const CourseEditor: React.FC = () => {
                     <div>
                         <h1 className="text-4xl font-extrabold text-gray-900 flex items-center gap-3">
                             <span className="bg-indigo-100 p-2 rounded-xl text-indigo-600"><IconEdit className="w-8 h-8" /></span>
-                            עורך הפעילות: <span className="text-indigo-600">{course.title}</span>
+                            עורך הפעילות: <span className="text-indigo-600">{course.title || "טוען..."}</span>
                         </h1>
                         <p className="text-gray-500 mt-2 text-lg">נהל את רכיבי הפעילות</p>
 

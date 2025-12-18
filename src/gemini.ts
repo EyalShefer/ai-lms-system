@@ -108,13 +108,14 @@ const mapSystemItemToBlock = (item: any) => {
   return null;
 };
 
-// --- פונקציה 1: יצירת תוכנית הלימודים (סטטית כרגע, לפי המודל החדש) ---
+// --- פונקציה 1: יצירת תוכנית הלימודים והתוכן הראשוני ---
 export const generateCoursePlan = async (
   topic: string,
   gradeLevel: string,
   fileData?: { base64: string; mimeType: string }
 ) => {
-  return [
+  // 1. יצירת מבנה בסיסי
+  const plan = [
     {
       id: uuidv4(),
       title: "פעילות אינטראקטיבית",
@@ -123,11 +124,32 @@ export const generateCoursePlan = async (
           id: uuidv4(),
           title: topic || "פעילות למידה",
           type: 'practice',
-          activityBlocks: []
+          activityBlocks: [] // נתחיל ריק
         }
       ]
     }
   ];
+
+  // 2. יצירת תוכן עבור היחידה הראשונה מיד (כדי שהמשתמש לא יקבל מסך ריק)
+  // התיקון הקריטי: אנחנו מעבירים את gradeLevel לפונקציה שיוצרת את התוכן!
+  try {
+    const firstUnit = plan[0].learningUnits[0];
+
+    // כאן היתה הבעיה - הגיל לא עבר הלאה
+    const contentBlocks = await generateFullUnitContent(
+      firstUnit.title,
+      topic,
+      gradeLevel, // <--- הנה התיקון: מעבירים את הגיל שהתקבל
+      fileData
+    );
+
+    firstUnit.activityBlocks = contentBlocks;
+
+  } catch (e) {
+    console.error("Error generating initial unit content:", e);
+  }
+
+  return plan;
 };
 
 // --- פונקציה 2: יצירת תוכן מלא ליחידה (הפונקציה הראשית) ---
