@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // הוספתי useRef
+import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
@@ -10,7 +10,7 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconWand, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink
 } from '../icons';
 
 // --- הגדרות מקומיות למניעת תלות בקבצים חיצוניים ---
@@ -27,7 +27,6 @@ const IconLock = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
-// שימוש ב-any כדי למנוע קריסות טיפוסים
 interface UnitEditorProps {
     unit: any;
     gradeLevel?: string;
@@ -51,34 +50,28 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
     const [isAutoGenerating, setIsAutoGenerating] = useState(false);
 
-    // --- התיקון הקריטי: מניעת ריצה כפולה ---
-    const hasInitialized = useRef(false);
+    // מצבי עריכה מקומיים למדיה
+    const [mediaInputMode, setMediaInputMode] = useState<Record<string, 'upload' | 'ai' | 'link' | null>>({});
+    const [mediaInputValue, setMediaInputValue] = useState<Record<string, string>>({});
 
-    // ניהול מצבי שמירה לחיווי ויזואלי
+    const hasInitialized = useRef(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    // הגנה מקריסה אם הקורס לא נטען
     if (!course) return null;
 
-    // זיהוי אם מדובר במבחן
     const showScoring = course.mode === 'exam' || unit.type === 'test';
-
     const AI_ACTIONS = getAiActions(gradeLevel);
     const mediaBtnClass = "cursor-pointer bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-all shadow-sm";
 
     useEffect(() => {
         const initContent = async () => {
-            // אם כבר יש בלוקים, או שהפונקציה כבר רצה פעם אחת - עצור!
             if ((unit.activityBlocks && unit.activityBlocks.length > 0) || hasInitialized.current) {
                 setEditedUnit(unit);
                 return;
             }
-
-            // סימון שהתחלנו ריצה כדי למנוע כפילויות
             hasInitialized.current = true;
             setIsAutoGenerating(true);
-
             try {
                 const newBlocks = await generateFullUnitContent(unit.title, course.title, gradeLevel);
                 const updatedUnit = { ...unit, activityBlocks: newBlocks };
@@ -86,32 +79,22 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 onSave(updatedUnit);
             } catch (error) {
                 console.error("Auto generation failed", error);
-                // במקרה של כישלון, אפשר לאפס את הדגל כדי לאפשר ניסיון נוסף ידני בעתיד
                 hasInitialized.current = false;
             } finally {
                 setIsAutoGenerating(false);
             }
         };
-
         initContent();
-    }, [unit.id]); // הסרתי תלויות מיותרות כדי למנוע ריצות חוזרות
+    }, [unit.id]);
 
-    // פונקציית שמירה עם חיווי ויזואלי למשתמש
     const handleSaveWithFeedback = async () => {
         setIsSaving(true);
         try {
-            // ביצוע השמירה
             await onSave(editedUnit);
-
-            // השהייה קצרה מלאכותית כדי שהמשתמש יראה את הספינר
             setTimeout(() => {
                 setIsSaving(false);
                 setSaveSuccess(true);
-
-                // הסתרת הודעת ההצלחה אחרי 3 שניות
-                setTimeout(() => {
-                    setSaveSuccess(false);
-                }, 3000);
+                setTimeout(() => { setSaveSuccess(false); }, 3000);
             }, 600);
         } catch (error) {
             console.error("Save failed", error);
@@ -123,14 +106,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleAutoDistributePoints = () => {
         const questions = editedUnit.activityBlocks.filter((b: any) => b.type === 'multiple-choice' || b.type === 'open-question');
         if (questions.length === 0) return alert("אין שאלות ביחידה זו לחלוקת ניקוד.");
-
         const targetTotalStr = prompt("מה סך הניקוד הכולל ליחידה זו?", "100");
         const targetTotal = parseInt(targetTotalStr || "0");
         if (!targetTotal || targetTotal <= 0) return;
-
         const totalWeight = questions.reduce((sum: number, block: any) => sum + (block.type === 'open-question' ? 2 : 1), 0);
         const pointValue = targetTotal / totalWeight;
-
         let currentSum = 0;
         const newBlocks = editedUnit.activityBlocks.map((block: any) => {
             if (block.type === 'multiple-choice' || block.type === 'open-question') {
@@ -141,7 +121,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             }
             return block;
         });
-
         if (currentSum !== targetTotal) {
             const diff = targetTotal - currentSum;
             const firstQIndex = newBlocks.findIndex((b: any) => b.type === 'multiple-choice' || b.type === 'open-question');
@@ -165,9 +144,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const generatePedagogicalPrompt = (persona: string, customCharName: string = ""): string => {
         const baseInfo = `אתה מנחה פעילות עבור משתתפים בשכבת גיל: ${gradeLevel}. הנושא הנלמד: "${editedUnit.title}".`;
         const safetyProtocol = `פרוטוקול בטיחות (חובה): 1. שמור על שפה מכבדת. 2. אם המשתתף מביע מצוקה או אלימות - הפסק את השיח ופנה לגורם אחראי.`;
-
         let specificInstructions = "";
-
         if (showScoring) {
             specificInstructions = `מצב מבחן (EXAM MODE): תפקידך הוא משגיח וסייען טכני בלבד. איסור מוחלט לתת תשובות או רמזים.`;
         } else {
@@ -193,12 +170,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             content: type === 'multiple-choice' ? { question: '', options: ['', '', '', ''], correctAnswer: '' }
                 : type === 'open-question' ? { question: '' }
                     : type === 'interactive-chat' ? { title: showScoring ? 'עזרה במבחן' : 'דיאלוג עם המנחה', description: 'צאט...' }
-                        : '',
+                        : '', // For image/video/text, content starts empty string
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
                 initialMessage: showScoring ? 'אני כאן להשגחה בלבד.' : 'שלום! אפשר לשאול אותי כל דבר.',
-                botPersona: initialPersona
+                botPersona: initialPersona,
+                caption: '', // New: For media caption
+                relatedQuestion: null // New: For attached question
             }
         };
         const newBlocks = [...(editedUnit.activityBlocks || [])];
@@ -228,10 +207,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, blockId: string, field: 'content' | 'metadata' = 'content') => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // בדיקת גודל לוידאו
+        if (file.type.startsWith('video') && file.size > 50 * 1024 * 1024) {
+            alert("קובץ הוידאו גדול מדי. הגודל המקסימלי הוא 50MB.");
+            return;
+        }
+
         setUploadingBlockId(blockId);
         try {
             const url = await uploadMediaFile(file, file.type.startsWith('video') ? 'videos' : 'images');
-            if (field === 'content') updateBlock(blockId, url, { fileName: file.name, uploadedFileUrl: url });
+            if (field === 'content') updateBlock(blockId, url, { fileName: file.name, uploadedFileUrl: url, mediaType: file.type.startsWith('video') ? 'video' : 'image' });
             else {
                 const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
                 if (block) updateBlock(blockId, block.content, { media: url, mediaType: file.type.startsWith('video') ? 'video' : 'image' });
@@ -243,6 +229,68 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleSuggestImagePrompt = async (blockId: string) => { setLoadingBlockId(blockId); try { const prompt = await generateImagePromptBlock(editedUnit.baseContent || ""); const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId); if (block) updateBlock(blockId, block.content, { aiPrompt: prompt }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
     const handleAutoGenerateOpenQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleOpenQuestion(editedUnit.title); updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
     const handleAutoGenerateMCQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleMultipleChoiceQuestion(editedUnit.title); updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
+
+    // --- Media & Embedded Question Logic ---
+    const handleAddRelatedQuestion = (blockId: string, type: 'open-question' | 'multiple-choice') => {
+        const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+        if (!block) return;
+
+        const newQuestionData = type === 'multiple-choice'
+            ? { type, question: '', options: ['', '', '', ''], correctAnswer: '' }
+            : { type, question: '' };
+
+        updateBlock(blockId, block.content, { relatedQuestion: newQuestionData });
+    };
+
+    const updateRelatedQuestion = (blockId: string, updatedData: any) => {
+        const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+        if (!block) return;
+        updateBlock(blockId, block.content, { relatedQuestion: { ...block.metadata.relatedQuestion, ...updatedData } });
+    };
+
+    const removeRelatedQuestion = (blockId: string) => {
+        const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+        if (block) updateBlock(blockId, block.content, { relatedQuestion: null });
+    };
+
+    // --- Helper to render the embedded question editor ---
+    const renderRelatedQuestionEditor = (blockId: string, relatedQ: any) => {
+        if (!relatedQ) return null;
+        return (
+            <div className="mt-4 pt-4 border-t border-gray-100 bg-gray-50/50 rounded-xl p-4">
+                <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><IconSparkles className="w-3 h-3" /> שאלה משויכת</span>
+                    <button onClick={() => removeRelatedQuestion(blockId)} className="text-red-400 hover:text-red-600 p-1"><IconTrash className="w-3 h-3" /></button>
+                </div>
+
+                <input
+                    type="text"
+                    className="w-full font-bold p-2 bg-white border border-gray-200 rounded-lg mb-2 focus:border-blue-400 outline-none"
+                    value={relatedQ.question}
+                    onChange={(e) => updateRelatedQuestion(blockId, { question: e.target.value })}
+                    placeholder="כתבו את השאלה כאן..."
+                />
+
+                {relatedQ.type === 'multiple-choice' && (
+                    <div className="space-y-2">
+                        {relatedQ.options?.map((opt: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <button onClick={() => updateRelatedQuestion(blockId, { correctAnswer: opt })} className={`w-5 h-5 rounded-full border flex items-center justify-center ${relatedQ.correctAnswer === opt ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300'}`}>{relatedQ.correctAnswer === opt && <IconCheck className="w-3 h-3" />}</button>
+                                <input type="text" className="flex-1 p-1.5 text-sm border border-gray-200 rounded bg-white" value={opt} onChange={(e) => { const newOpts = [...relatedQ.options]; newOpts[idx] = e.target.value; updateRelatedQuestion(blockId, { options: newOpts }); }} placeholder={`אפשרות ${idx + 1}`} />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // --- Helper for YouTube Links ---
+    const getEmbedUrl = (url: string) => {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : url;
+    };
 
     const InsertMenu = ({ index }: { index: number }) => (
         <div className="relative py-4 flex justify-center z-20">
@@ -355,6 +403,106 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <label className={mediaBtnClass} title="הוסיפו וידאו"><IconVideo className="w-4 h-4" /><input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id, 'metadata')} /></label>
                                             </div>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* IMAGE BLOCK IMPROVED */}
+                                {block.type === 'image' && (
+                                    <div className="p-2">
+                                        {!block.content ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                                                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
+                                                    <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                                                    <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
+                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                                                </label>
+                                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50 hover:bg-purple-50 hover:border-purple-300 transition-all group">
+                                                    <IconPalette className="w-8 h-8 text-purple-400 group-hover:text-purple-600 mb-2" />
+                                                    <span className="font-bold text-purple-500 group-hover:text-purple-700">יצירה ב-AI</span>
+                                                </button>
+                                                {mediaInputMode[block.id] === 'ai' && (
+                                                    <div className="col-span-2 bg-white p-4 rounded-xl border border-purple-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
+                                                        <h4 className="text-sm font-bold text-purple-700 mb-2">תאר את התמונה שברצונך ליצור:</h4>
+                                                        <textarea className="w-full p-2 border rounded-lg mb-2 text-sm" rows={2} placeholder="ילד רץ בשדה חמניות..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}></textarea>
+                                                        <div className="flex gap-2 justify-end">
+                                                            <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
+                                                            <button onClick={() => { updateBlock(block.id, "https://via.placeholder.com/800x400?text=AI+Generated+Image"); setMediaInputMode({ ...mediaInputMode, [block.id]: null }); }} className="bg-purple-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold">צור תמונה (סימולציה)</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <img src={block.content} className="w-full h-64 object-cover rounded-xl shadow-md bg-gray-100" alt="Block Media" />
+                                                <div className="mt-3">
+                                                    <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none p-1 text-sm text-center text-gray-600 placeholder-gray-400" placeholder="הוסיפו כיתוב לתמונה..." value={block.metadata?.caption || ''} onChange={(e) => updateBlock(block.id, block.content, { caption: e.target.value })} />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {block.content && !block.metadata?.relatedQuestion && (
+                                            <div className="flex justify-center mt-4">
+                                                <div className="flex gap-2 bg-white border border-gray-200 rounded-full p-1 shadow-sm">
+                                                    <button onClick={() => handleAddRelatedQuestion(block.id, 'open-question')} className="px-3 py-1 rounded-full text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">הוסף שאלה פתוחה</button>
+                                                    <div className="w-px bg-gray-200"></div>
+                                                    <button onClick={() => handleAddRelatedQuestion(block.id, 'multiple-choice')} className="px-3 py-1 rounded-full text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">הוסף שאלה אמריקאית</button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {renderRelatedQuestionEditor(block.id, block.metadata?.relatedQuestion)}
+                                    </div>
+                                )}
+
+                                {/* VIDEO BLOCK IMPROVED */}
+                                {block.type === 'video' && (
+                                    <div className="p-2">
+                                        {!block.content ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                                                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
+                                                    {uploadingBlockId === block.id ? <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div> : <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />}
+                                                    <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת קובץ (עד 50MB)</span>
+                                                    <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                                                </label>
+                                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'link' })} className="flex flex-col items-center justify-center border-2 border-dashed border-red-200 rounded-xl bg-red-50/50 hover:bg-red-50 hover:border-red-300 transition-all group">
+                                                    <IconLink className="w-8 h-8 text-red-400 group-hover:text-red-600 mb-2" />
+                                                    <span className="font-bold text-red-500 group-hover:text-red-700">קישור חיצוני (YouTube)</span>
+                                                </button>
+                                                {mediaInputMode[block.id] === 'link' && (
+                                                    <div className="col-span-2 bg-white p-4 rounded-xl border border-red-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
+                                                        <h4 className="text-sm font-bold text-red-700 mb-2">הדבק קישור (YouTube / Vimeo):</h4>
+                                                        <input type="text" className="w-full p-2 border rounded-lg mb-2 text-sm" placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
+                                                        <div className="flex gap-2 justify-end">
+                                                            <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
+                                                            <button onClick={() => { updateBlock(block.id, getEmbedUrl(mediaInputValue[block.id] || ""), { mediaType: 'video' }); setMediaInputMode({ ...mediaInputMode, [block.id]: null }); }} className="bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold">הטמע וידאו</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                {block.content.includes('youtube') || block.content.includes('vimeo') ? (
+                                                    <iframe src={block.content} className="w-full h-64 rounded-xl shadow-md bg-black" allowFullScreen title="Video Player"></iframe>
+                                                ) : (
+                                                    <video src={block.content} controls className="w-full h-64 bg-black rounded-xl shadow-md" />
+                                                )}
+                                                <div className="mt-3">
+                                                    <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none p-1 text-sm text-center text-gray-600 placeholder-gray-400" placeholder="הוסיפו כיתוב לוידאו..." value={block.metadata?.caption || ''} onChange={(e) => updateBlock(block.id, block.content, { caption: e.target.value })} />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {block.content && !block.metadata?.relatedQuestion && (
+                                            <div className="flex justify-center mt-4">
+                                                <div className="flex gap-2 bg-white border border-gray-200 rounded-full p-1 shadow-sm">
+                                                    <button onClick={() => handleAddRelatedQuestion(block.id, 'open-question')} className="px-3 py-1 rounded-full text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">הוסף שאלה פתוחה</button>
+                                                    <div className="w-px bg-gray-200"></div>
+                                                    <button onClick={() => handleAddRelatedQuestion(block.id, 'multiple-choice')} className="px-3 py-1 rounded-full text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">הוסף שאלה אמריקאית</button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {renderRelatedQuestionEditor(block.id, block.metadata?.relatedQuestion)}
                                     </div>
                                 )}
 

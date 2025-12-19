@@ -39,6 +39,57 @@ const cleanJsonString = (text: string): string => {
   }
 };
 
+// --- פונקציה חדשה: יצירת תמונה (Imagen) ---
+// פונקציה זו שולחת פרומפט למודל התמונות של גוגל ומחזירה Blob (קובץ) מוכן להעלאה
+export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
+  // כתובת ה-API הישירה למודל התמונות של גוגל
+  // הערה: נדרש שה-API Key שלך יתמוך בגישה ל-Generative Language API
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${API_KEY}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instances: [{ prompt: prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: "4:3" // יחס תמונה סטנדרטי שמתאים למצגות
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Google Image API Error Details:", errText);
+      throw new Error(`Google Image API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // חילוץ ה-Base64 מהתשובה של גוגל
+    if (data.predictions && data.predictions[0]?.bytesBase64Encoded) {
+      const base64Data = data.predictions[0].bytesBase64Encoded;
+
+      // המרה מ-Base64 ל-Blob (קובץ בינארי שניתן להעלות ל-Firebase)
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: "image/png" });
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Error generating image:", e);
+    return null;
+  }
+};
+
 // --- פונקציית עזר: מיפוי פלט המערכת לבלוקים של הפעילות ---
 const mapSystemItemToBlock = (item: any) => {
   const commonMetadata = {
@@ -186,13 +237,13 @@ export const generateFullUnitContent = async (
       "feedback_correct": "משוב מחזק לתשובה נכונה",
       "feedback_incorrect": "הסבר לתיקון הטעות",
       "content": {
-         // שדות עבור שאלות סגורות
-         "options": ["אופציה 1", "אופציה 2", "אופציה 3", "אופציה 4"], 
-         "correct_index": 0, // מספר (0-3)
+          // שדות עבור שאלות סגורות
+          "options": ["אופציה 1", "אופציה 2", "אופציה 3", "אופציה 4"], 
+          "correct_index": 0, // מספר (0-3)
 
-         // שדות עבור שאלות פתוחות
-         "hint": "רמז לתלמיד...",
-         "key_points": ["נקודה חשובה 1", "נקודה חשובה 2"]
+          // שדות עבור שאלות פתוחות
+          "hint": "רמז לתלמיד...",
+          "key_points": ["נקודה חשובה 1", "נקודה חשובה 2"]
       }
     }
 
