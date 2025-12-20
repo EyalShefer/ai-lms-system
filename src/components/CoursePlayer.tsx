@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
-import type { ActivityBlock, LearningUnit, Module } from '../courseTypes';
+import type { ActivityBlock } from '../courseTypes';
 import {
-    IconChat, IconBook, IconEdit, IconList, IconSparkles,
-    IconCheck, IconX, IconArrowBack, IconVideo, IconImage,
-    IconRobot, IconLink, IconStudent, IconChart, IconEye
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX
 } from '../icons';
 
 // --- הגדרות טיפוסים למצב סקירה ---
@@ -139,7 +137,6 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
     const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
     const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
-    const [sidebarOpen, setSidebarOpen] = useState(true);
 
     // אתחול
     useEffect(() => {
@@ -170,6 +167,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
 
     const handleAnswerSelect = (blockId: string, answer: string) => {
         if (reviewMode) return;
+        // לוגיקה זו תומכת גם בשאלות מוצמדות (שה-ID שלהן מכיל _related)
         if (!feedbackVisible[blockId]) setUserAnswers(prev => ({ ...prev, [blockId]: answer }));
     };
 
@@ -213,8 +211,62 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
         goToNextUnit();
     };
 
+    // --- פונקציית עזר לרינדור שאלות מוצמדות ---
+    const renderRelatedQuestion = (parentId: string, relatedQ: any) => {
+        if (!relatedQ || !relatedQ.question) return null;
+
+        const relatedId = `${parentId}_related`;
+        const isSelected = userAnswers[relatedId];
+        const showFeedback = reviewMode || (feedbackVisible[relatedId] && !isExamMode);
+
+        return (
+            <div className="mt-4 pt-4 border-t border-gray-100 bg-blue-50/50 p-4 rounded-xl">
+                <div className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">שאלה קשורה</div>
+                <h4 className="font-bold text-gray-800 mb-3 text-sm">{relatedQ.question}</h4>
+
+                {relatedQ.type === 'multiple-choice' && (
+                    <div className="space-y-2">
+                        {relatedQ.options?.map((opt: string, i: number) => {
+                            let btnClass = "w-full text-right p-2.5 rounded-lg border text-sm transition-all ";
+                            if (showFeedback) {
+                                if (opt === relatedQ.correctAnswer) btnClass += "bg-green-50 border-green-400 text-green-800 font-bold";
+                                else if (isSelected === opt) btnClass += "bg-red-50 border-red-300 text-red-800";
+                                else btnClass += "opacity-50 border-transparent bg-gray-50";
+                            } else {
+                                btnClass += isSelected === opt ? "border-blue-500 bg-white shadow-sm ring-1 ring-blue-200" : "border-gray-200 bg-white hover:bg-gray-50";
+                            }
+                            return (
+                                <button key={i} onClick={() => handleAnswerSelect(relatedId, opt)} className={btnClass} disabled={!!showFeedback}>
+                                    <div className="flex justify-between items-center">
+                                        <span>{opt}</span>
+                                        {showFeedback && opt === relatedQ.correctAnswer && <IconCheck className="w-4 h-4 text-green-600" />}
+                                        {showFeedback && isSelected === opt && opt !== relatedQ.correctAnswer && <IconX className="w-4 h-4 text-red-600" />}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                        {!isExamMode && !showFeedback && !reviewMode && (
+                            <button onClick={() => checkAnswer(relatedId, relatedQ.correctAnswer)} className="mt-2 text-xs text-blue-600 font-bold hover:underline">בדוק תשובה</button>
+                        )}
+                    </div>
+                )}
+
+                {relatedQ.type === 'open-question' && (
+                    <textarea
+                        className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none bg-white"
+                        value={userAnswers[relatedId] || ''}
+                        onChange={(e) => handleAnswerSelect(relatedId, e.target.value)}
+                        readOnly={reviewMode}
+                        placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב את תשובתך כאן..."}
+                        rows={2}
+                    />
+                )}
+            </div>
+        );
+    };
+
     const renderBlock = (block: ActivityBlock) => {
-        // --- 1. חילוץ בטוח של כתובת המדיה ---
+        // --- חילוץ בטוח של כתובת המדיה ---
         const getMediaSrc = () => {
             if (block.content && typeof block.content === 'string' && block.content.startsWith('http')) return block.content;
             if (block.metadata?.uploadedFileUrl) return block.metadata.uploadedFileUrl;
@@ -228,25 +280,46 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
             case 'text': return <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">{block.content}</div>;
 
             case 'image':
-                if (!mediaSrc) return null; // הגנה מקריסה
-                return <div key={block.id} className="mb-8"><img src={mediaSrc} className="w-full rounded-2xl shadow-lg" alt="תוכן שיעור" /></div>;
+                if (!mediaSrc) return null;
+                return (
+                    <div key={block.id} className="mb-8 p-1 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                        <img src={mediaSrc} className="w-full rounded-xl" alt="תוכן שיעור" />
+                        {/* הצגת כיתוב אם קיים */}
+                        {block.metadata?.caption && (
+                            <div className="text-center text-sm text-gray-500 mt-2 pb-2 italic font-medium px-4">{block.metadata.caption}</div>
+                        )}
+                        {/* הצגת שאלה מוצמדת אם קיימת */}
+                        {block.metadata?.relatedQuestion && renderRelatedQuestion(block.id, block.metadata.relatedQuestion)}
+                    </div>
+                );
 
             case 'video':
-                if (!mediaSrc) return null; // הגנה מקריסה
-                return <div key={block.id} className="mb-8 aspect-video bg-black rounded-2xl"><video src={mediaSrc} className="w-full h-full" controls /></div>;
+                if (!mediaSrc) return null;
+                return (
+                    <div key={block.id} className="mb-8 p-1 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                        <div className="aspect-video bg-black rounded-xl overflow-hidden">
+                            <video src={mediaSrc} className="w-full h-full" controls />
+                        </div>
+                        {/* הצגת כיתוב אם קיים */}
+                        {block.metadata?.caption && (
+                            <div className="text-center text-sm text-gray-500 mt-2 pb-2 italic font-medium px-4">{block.metadata.caption}</div>
+                        )}
+                        {/* הצגת שאלה מוצמדת אם קיימת */}
+                        {block.metadata?.relatedQuestion && renderRelatedQuestion(block.id, block.metadata.relatedQuestion)}
+                    </div>
+                );
 
             case 'interactive-chat': return <InteractiveChatBlock key={block.id} block={block} context={{ unitTitle: activeUnit?.title || "", unitContent: "" }} forcedHistory={reviewMode ? studentData?.chatHistory : undefined} readOnly={reviewMode} />;
 
             case 'multiple-choice':
                 const isSelected = userAnswers[block.id];
                 const showFeedback = reviewMode || (feedbackVisible[block.id] && !isExamMode);
-                const qMedia = block.metadata?.media; // בדיקה אם יש מדיה בשאלה
+                const qMedia = block.metadata?.media;
 
                 return (
                     <div key={block.id} className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm">
                         <h3 className="text-xl font-bold mb-4">{block.content.question}</h3>
 
-                        {/* הצגת תמונה/וידאו בשאלה (אם קיים) */}
                         {qMedia && (
                             <div className="mb-4 rounded-xl overflow-hidden">
                                 {block.metadata.mediaType === 'video' ?
@@ -258,15 +331,23 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
 
                         <div className="space-y-3">
                             {block.content.options?.map((opt: string, i: number) => {
-                                let btnClass = "w-full text-right p-4 rounded-xl border ";
+                                let btnClass = "w-full text-right p-4 rounded-xl border transition-all ";
                                 if (showFeedback) {
                                     if (opt === block.content.correctAnswer) btnClass += "bg-green-50 border-green-500 text-green-900";
                                     else if (isSelected === opt) btnClass += "bg-red-50 border-red-300 text-red-900";
                                     else btnClass += "opacity-50";
                                 } else {
-                                    btnClass += isSelected === opt ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50";
+                                    btnClass += isSelected === opt ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200" : "border-gray-200 hover:bg-gray-50";
                                 }
-                                return <button key={i} onClick={() => handleAnswerSelect(block.id, opt)} className={btnClass} disabled={!!showFeedback}>{opt}</button>;
+                                return (
+                                    <button key={i} onClick={() => handleAnswerSelect(block.id, opt)} className={btnClass} disabled={!!showFeedback}>
+                                        <div className="flex justify-between items-center">
+                                            <span>{opt}</span>
+                                            {showFeedback && opt === block.content.correctAnswer && <IconCheck className="w-5 h-5 text-green-600" />}
+                                            {showFeedback && isSelected === opt && opt !== block.content.correctAnswer && <IconX className="w-5 h-5 text-red-600" />}
+                                        </div>
+                                    </button>
+                                );
                             })}
                         </div>
                         {!isExamMode && !showFeedback && !reviewMode && <button onClick={() => checkAnswer(block.id, block.content.correctAnswer)} className="mt-4 text-blue-600 font-bold text-sm">בדיקה</button>}
@@ -278,7 +359,6 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                         <h3 className="font-bold text-lg mb-2">שאלה פתוחה</h3>
                         <p className="mb-4">{block.content.question}</p>
 
-                        {/* הצגת תמונה/וידאו בשאלה פתוחה (אם קיים) */}
                         {block.metadata?.media && (
                             <div className="mb-4 rounded-xl overflow-hidden">
                                 {block.metadata.mediaType === 'video' ?
@@ -288,7 +368,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                             </div>
                         )}
 
-                        <textarea className="w-full p-4 border rounded-xl" value={userAnswers[block.id] || ''} onChange={(e) => handleAnswerSelect(block.id, e.target.value)} readOnly={reviewMode} placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."} />
+                        <textarea className="w-full p-4 border rounded-xl focus:border-orange-300 outline-none" value={userAnswers[block.id] || ''} onChange={(e) => handleAnswerSelect(block.id, e.target.value)} readOnly={reviewMode} placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."} />
                     </div>
                 );
             default: return null;
@@ -296,55 +376,41 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
     };
 
     return (
-        <div className="flex flex-col md:flex-row h-screen bg-gray-50 overflow-hidden relative">
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center">
             {reviewMode && studentData && (
-                <div className="absolute top-0 left-0 right-0 h-10 bg-yellow-400 text-yellow-900 font-bold text-center flex items-center justify-center z-[60] shadow-md">
+                <div className="sticky top-0 w-full h-10 bg-yellow-400 text-yellow-900 font-bold text-center flex items-center justify-center z-[60] shadow-md">
                     <IconEye className="w-5 h-5 ml-2" /> מצב סקירה: {studentData.studentName}
                     <button onClick={onExitReview} className="mr-4 bg-white/30 px-3 py-0.5 rounded text-sm hover:bg-white/50">יציאה</button>
                 </div>
             )}
 
-            <aside className={`w-80 bg-white border-l z-40 flex flex-col ${reviewMode ? 'pt-10' : ''} ${sidebarOpen ? '' : 'hidden md:flex'}`}>
-                <div className="p-4 border-b font-bold text-gray-700 flex justify-between">
-                    <span>תוכן הקורס</span>
-                    <button onClick={() => setSidebarOpen(false)} className="md:hidden"><IconX className="w-5 h-5" /></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {course.syllabus.map((mod: Module) => (
-                        <div key={mod.id}>
-                            <div className="font-bold text-sm text-gray-500 mb-2">{mod.title}</div>
-                            {mod.learningUnits.map((unit: LearningUnit) => (
-                                <button key={unit.id} onClick={() => { setActiveModuleId(mod.id); setActiveUnitId(unit.id); }} className={`w-full text-right p-2 rounded text-sm ${activeUnitId === unit.id ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>
-                                    {unit.title}
-                                </button>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            </aside>
+            <main className="w-full max-w-3xl p-6 md:p-10 pb-24">
+                {activeUnit ? (
+                    <>
+                        <header className="mb-8 text-center">
+                            <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
+                            {/* אפשר להוסיף כאן את שם הפרק אם רוצים */}
+                            {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
+                        </header>
 
-            <main className={`flex-1 overflow-y-auto p-8 relative ${reviewMode ? 'pt-16' : ''}`}>
-                <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden absolute top-4 right-4 z-50 bg-white p-2 rounded shadow"><IconList className="w-6 h-6" /></button>
-                <div className="max-w-4xl mx-auto">
-                    {activeUnit ? (
-                        <>
-                            <h1 className="text-3xl font-bold mb-8">{activeUnit.title}</h1>
+                        <div className="space-y-6">
                             {activeUnit.activityBlocks?.map(renderBlock)}
-                            <div className="mt-12 flex justify-center pb-10">
-                                <button
-                                    onClick={handleContinueClick}
-                                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-all hover:-translate-y-1 flex items-center gap-2"
-                                >
-                                    {reviewMode ? 'סגור תצוגה' : (
-                                        <>
-                                            הבא <IconArrowBack className="w-4 h-4" />
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </>
-                    ) : <div className="text-center mt-20 text-gray-400">בחר יחידה מהתפריט</div>}
-                </div>
+                        </div>
+
+                        <div className="mt-16 flex justify-center">
+                            <button
+                                onClick={handleContinueClick}
+                                className="bg-blue-600 text-white px-10 py-3.5 rounded-full font-bold shadow-xl hover:bg-blue-700 transition-all hover:scale-105 flex items-center gap-3 text-lg"
+                            >
+                                {reviewMode ? 'סגור תצוגה' : (
+                                    <>
+                                        הבא <IconArrowBack className="w-5 h-5" />
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </>
+                ) : <div className="text-center mt-20 text-gray-400">טוען יחידה...</div>}
             </main>
         </div>
     );

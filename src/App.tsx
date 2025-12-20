@@ -96,16 +96,15 @@ const AuthenticatedApp = () => {
         fileName = wizardData.file.name;
       }
 
-      // --- לוג ביקורת: חייב להופיע בקונסול כדי שנדע שהקוד התעדכן ---
+      // --- לוג ביקורת ---
       console.log("🚀 Generating with AI... Wizard Data:", wizardData);
 
       // --- חילוץ חכם של הגיל ---
       let extractedGrade = "כללי";
       if (wizardData.grade) extractedGrade = wizardData.grade;
       else if (wizardData.gradeLevel) extractedGrade = wizardData.gradeLevel;
-      else if (wizardData.settings?.grade) extractedGrade = wizardData.settings.grade; // כאן זה אמור להיתפס
+      else if (wizardData.settings?.grade) extractedGrade = wizardData.settings.grade;
 
-      // הגנה למקרה שזה מערך
       if (Array.isArray(extractedGrade)) extractedGrade = extractedGrade[0];
 
       console.log("🎯 Extracted Grade for AI:", extractedGrade);
@@ -116,7 +115,6 @@ const AuthenticatedApp = () => {
 
       let aiSyllabus = [];
       try {
-        // שליחת הגיל הנכון (extractedGrade) ולא ה-Mode
         aiSyllabus = await generateCoursePlan(topicForAI, extractedGrade, aiFileData);
         console.log("AI Success");
       } catch (aiError) {
@@ -131,7 +129,7 @@ const AuthenticatedApp = () => {
         teacherId: currentUser.uid,
         targetAudience: extractedGrade,
         subject: userSubject,
-        gradeLevel: extractedGrade, // שמירה כפולה ליתר ביטחון
+        gradeLevel: extractedGrade,
         syllabus: aiSyllabus,
         mode: courseMode,
         createdAt: serverTimestamp(),
@@ -163,7 +161,7 @@ const AuthenticatedApp = () => {
         <div className="flex items-center gap-4">
           {mode !== 'list' && !isStudentLink && (
             <button onClick={handleBackToList} className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm">
-              <IconBackSimple /> <span>ראשי</span>
+              <IconBackSimple /> <span>חזרה</span>
             </button>
           )}
           {(mode === 'editor' || mode === 'student') && !isStudentLink && (

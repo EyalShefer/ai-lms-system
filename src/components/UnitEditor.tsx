@@ -3,14 +3,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
     generateImagePromptBlock, refineContentWithPedagogy,
-    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion, generateFullUnitContent
+    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion, generateFullUnitContent,
+    generateAiImage
 } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
-    IconArrowDown, IconCheck, IconX, IconWand, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink
+    IconArrowDown, IconCheck, IconX, IconSave, IconBack,
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand
 } from '../icons';
 
 // --- הגדרות מקומיות למניעת תלות בקבצים חיצוניים ---
@@ -230,6 +231,37 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleAutoGenerateOpenQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleOpenQuestion(editedUnit.title); updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
     const handleAutoGenerateMCQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleMultipleChoiceQuestion(editedUnit.title); updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
 
+    // --- New: Real AI Image Generation Handler ---
+    const handleGenerateAiImage = async (blockId: string) => {
+        const prompt = mediaInputValue[blockId];
+        if (!prompt) return;
+
+        setLoadingBlockId(blockId);
+        try {
+            // 1. יצירת תמונה באמצעות המודל
+            const imageBlob = await generateAiImage(prompt);
+            if (!imageBlob) throw new Error("Failed to generate image");
+
+            // 2. יצירת קובץ להעלאה
+            const fileName = `ai_gen_${uuidv4()}.png`;
+            const file = new File([imageBlob], fileName, { type: "image/png" });
+
+            // 3. העלאה ל-Firebase
+            const url = await uploadMediaFile(file, 'images');
+
+            // 4. עדכון הבלוק
+            updateBlock(blockId, url, { mediaType: 'image', aiPrompt: prompt });
+
+            // 5. איפוס הממשק
+            setMediaInputMode((prev: any) => ({ ...prev, [blockId]: null }));
+        } catch (error) {
+            console.error("AI Generation Error:", error);
+            alert("שגיאה ביצירת התמונה. נסה שוב.");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
+
     // --- Media & Embedded Question Logic ---
     const handleAddRelatedQuestion = (blockId: string, type: 'open-question' | 'multiple-choice') => {
         const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
@@ -350,7 +382,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     {showScoring && (<button onClick={handleAutoDistributePoints} className="px-4 py-2 bg-yellow-100/80 hover:bg-yellow-200 text-yellow-800 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border border-yellow-200"><IconBalance className="w-4 h-4" />חלק ניקוד</button>)}
 
                     <button onClick={onCancel} className="px-5 py-2 rounded-xl text-gray-600 hover:bg-white/50 font-medium transition-colors flex items-center gap-2">
-                        <IconBack className="w-4 h-4 rotate-180" /> {cancelLabel}
+                        <IconBack className="w-4 h-4 rotate-180" /> חזרה
                     </button>
 
                     <button
@@ -406,7 +438,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                 )}
 
-                                {/* IMAGE BLOCK IMPROVED */}
+                                {/* IMAGE BLOCK IMPROVED - REAL AI GENERATION */}
                                 {block.type === 'image' && (
                                     <div className="p-2">
                                         {!block.content ? (
@@ -416,17 +448,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
                                                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
                                                 </label>
-                                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50 hover:bg-purple-50 hover:border-purple-300 transition-all group">
-                                                    <IconPalette className="w-8 h-8 text-purple-400 group-hover:text-purple-600 mb-2" />
-                                                    <span className="font-bold text-purple-500 group-hover:text-purple-700">יצירה ב-AI</span>
+                                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group">
+                                                    <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
+                                                    <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
                                                 </button>
                                                 {mediaInputMode[block.id] === 'ai' && (
-                                                    <div className="col-span-2 bg-white p-4 rounded-xl border border-purple-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
-                                                        <h4 className="text-sm font-bold text-purple-700 mb-2">תאר את התמונה שברצונך ליצור:</h4>
-                                                        <textarea className="w-full p-2 border rounded-lg mb-2 text-sm" rows={2} placeholder="ילד רץ בשדה חמניות..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}></textarea>
+                                                    <div className="col-span-2 bg-white p-4 rounded-xl border border-blue-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
+                                                        <h4 className="text-sm font-bold text-blue-700 mb-2">תאר את התמונה שברצונך ליצור:</h4>
+                                                        <textarea className="w-full p-2 border rounded-lg mb-2 text-sm focus:border-blue-400 outline-none" rows={2} placeholder="ילד רץ בשדה חמניות..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}></textarea>
                                                         <div className="flex gap-2 justify-end">
                                                             <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
-                                                            <button onClick={() => { updateBlock(block.id, "https://via.placeholder.com/800x400?text=AI+Generated+Image"); setMediaInputMode({ ...mediaInputMode, [block.id]: null }); }} className="bg-purple-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold">צור תמונה (סימולציה)</button>
+                                                            <button
+                                                                onClick={() => handleGenerateAiImage(block.id)}
+                                                                disabled={loadingBlockId === block.id}
+                                                                className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                                            >
+                                                                {loadingBlockId === block.id ? (
+                                                                    <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר...</>
+                                                                ) : (
+                                                                    <> <IconWand className="w-3 h-3" /> צור תמונה</>
+                                                                )}
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 )}
