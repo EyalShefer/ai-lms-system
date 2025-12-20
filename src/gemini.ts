@@ -1,18 +1,25 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { v4 as uuidv4 } from 'uuid';
 
-// אתחול הקליינט של ג'מיני
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
+// אתחול הקליינט של ג'מיני (לטקסט - נשאר ללא שינוי)
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+// אתחול מפתח OpenAI (לתמונות בלבד)
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
 // --- שימוש במודל הגנרי שעבד לך והוכח כיציב ---
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
 // --- פונקציית עזר: ניקוי JSON ---
 // מנקה תגיות Markdown ומחלצת את ה-JSON הנקי מתוך הטקסט
+// ** עודכן: כולל תיקון לקריסות SyntaxError נפוצות **
 const cleanJsonString = (text: string): string => {
   try {
+    // 1. הסרת Markdown ותווים מיותרים
     let clean = text.replace(/```json|```/g, '').trim();
+
+    // 2. חילוץ התוכן שבין הסוגריים המסולסלים/מרובעים החיצוניים ביותר
     const firstBrace = clean.indexOf('{');
     const firstBracket = clean.indexOf('[');
 
@@ -32,6 +39,18 @@ const cleanJsonString = (text: string): string => {
       clean = clean.substring(startIndex, endIndex);
     }
 
+    // 3. תיקון "עדין" לשגיאות נפוצות של AI
+    // הוספת מרכאות למפתחות
+    clean = clean.replace(/([a-zA-Z0-9_]+)(?=\s*:)/g, '"$1"');
+
+    // ** תיקון קריטי לשגיאת ה-SyntaxError שקיבלת: הוספת פסיק חסר בין אובייקטים **
+    // הופך }{ ל-},{
+    clean = clean.replace(/}\s*{/g, '}, {');
+
+    // ניקוי פסיקים מיותרים בסוף
+    clean = clean.replace(/,\s*]/g, ']');
+    clean = clean.replace(/,\s*}/g, '}');
+
     return clean;
   } catch (e) {
     console.error("JSON Clean Error:", e);
@@ -39,39 +58,44 @@ const cleanJsonString = (text: string): string => {
   }
 };
 
-// --- פונקציה חדשה: יצירת תמונה (Imagen) ---
-// פונקציה זו שולחת פרומפט למודל התמונות של גוגל ומחזירה Blob (קובץ) מוכן להעלאה
+// --- פונקציה חדשה: יצירת תמונה (OpenAI DALL-E 3) ---
+// פונקציה זו שולחת פרומפט למודל של OpenAI ומחזירה Blob (קובץ) מוכן להעלאה
 export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
-  // כתובת ה-API הישירה למודל התמונות של גוגל
-  // הערה: נדרש שה-API Key שלך יתמוך בגישה ל-Generative Language API
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${API_KEY}`;
+  if (!OPENAI_API_KEY) {
+    console.error("חסר מפתח API של OpenAI (VITE_OPENAI_API_KEY)");
+    alert("נא להגדיר VITE_OPENAI_API_KEY בקובץ ה-.env כדי ליצור תמונות");
+    return null;
+  }
+
+  const url = "https://api.openai.com/v1/images/generations";
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        instances: [{ prompt: prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "4:3" // יחס תמונה סטנדרטי שמתאים למצגות
-        }
+        model: "dall-e-3",
+        prompt: prompt,
+        n: 1,
+        size: "1024x1024",
+        response_format: "b64_json"
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Google Image API Error Details:", errText);
-      throw new Error(`Google Image API Error: ${response.status} ${response.statusText}`);
+      console.error("OpenAI Image API Error Details:", errText);
+      throw new Error(`OpenAI API Error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
 
-    // חילוץ ה-Base64 מהתשובה של גוגל
-    if (data.predictions && data.predictions[0]?.bytesBase64Encoded) {
-      const base64Data = data.predictions[0].bytesBase64Encoded;
+    // חילוץ ה-Base64 מהתשובה של OpenAI
+    if (data.data && data.data[0]?.b64_json) {
+      const base64Data = data.data[0].b64_json;
 
       // המרה מ-Base64 ל-Blob (קובץ בינארי שניתן להעלות ל-Firebase)
       const byteCharacters = atob(base64Data);
@@ -85,7 +109,7 @@ export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
 
     return null;
   } catch (e) {
-    console.error("Error generating image:", e);
+    console.error("Error generating image (DALL-E 3):", e);
     return null;
   }
 };
@@ -227,7 +251,10 @@ export const generateFullUnitContent = async (
     ${fileData ? "סופק קובץ מקור. עליך לבסס את כל השאלות אך ורק עליו. אל תמציא עובדות שלא מופיעות בקובץ." : "לא סופק קובץ. השתמש בידע הפדגוגי הרחב שלך בנושא."}
 
     מבנה הפלט הטכני (JSON Output Schema):
-    החזר אך ורק מערך JSON תקין (Array of Objects). כל פריט במערך יכלול:
+    החזר אך ורק מערך JSON תקין (Array of Objects). 
+    **חשוב מאוד: הקפד על פירמוט JSON תקין. כל המפתחות (Keys) חייבים להיות במרכאות כפולות ("key").**
+    
+    כל פריט במערך יכלול:
     {
       "id": 1,
       "bloom_level": "Knowledge" | "Understanding" | "Analysis",
@@ -312,12 +339,8 @@ export const generateFullUnitContent = async (
 
   } catch (e) {
     console.error("Error generating unit content", e);
-    return [{
-      id: uuidv4(),
-      type: 'text',
-      content: "אירעה שגיאה ביצירת התוכן. אנא נסה שוב.",
-      metadata: {}
-    }];
+    // החזרת מערך ריק במקום טקסט שגיאה, כדי לא לשבור את הממשק
+    return [];
   }
 };
 
