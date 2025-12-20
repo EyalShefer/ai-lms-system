@@ -14,7 +14,7 @@ import {
     IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand
 } from '../icons';
 
-// --- הגדרות מקומיות למניעת תלות בקבצים חיצוניים ---
+// --- הגדרות מקומיות ---
 const IconShield = (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -51,8 +51,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
     const [isAutoGenerating, setIsAutoGenerating] = useState(false);
 
-    // מצבי עריכה מקומיים למדיה
-    const [mediaInputMode, setMediaInputMode] = useState<Record<string, 'upload' | 'ai' | 'link' | null>>({});
+    // מצבי עריכה למדיה: כעת תומך בערכים מורכבים יותר (image_ai, video_link וכו')
+    const [mediaInputMode, setMediaInputMode] = useState<Record<string, string | null>>({});
     const [mediaInputValue, setMediaInputValue] = useState<Record<string, string>>({});
 
     const hasInitialized = useRef(false);
@@ -171,14 +171,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             content: type === 'multiple-choice' ? { question: '', options: ['', '', '', ''], correctAnswer: '' }
                 : type === 'open-question' ? { question: '' }
                     : type === 'interactive-chat' ? { title: showScoring ? 'עזרה במבחן' : 'דיאלוג עם המנחה', description: 'צאט...' }
-                        : '', // For image/video/text, content starts empty string
+                        : '',
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
                 initialMessage: showScoring ? 'אני כאן להשגחה בלבד.' : 'שלום! אפשר לשאול אותי כל דבר.',
                 botPersona: initialPersona,
-                caption: '', // New: For media caption
-                relatedQuestion: null // New: For attached question
+                caption: '',
+                relatedQuestion: null
             }
         };
         const newBlocks = [...(editedUnit.activityBlocks || [])];
@@ -209,7 +209,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // בדיקת גודל לוידאו
         if (file.type.startsWith('video') && file.size > 50 * 1024 * 1024) {
             alert("קובץ הוידאו גדול מדי. הגודל המקסימלי הוא 50MB.");
             return;
@@ -231,28 +230,28 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleAutoGenerateOpenQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleOpenQuestion(editedUnit.title); updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
     const handleAutoGenerateMCQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleMultipleChoiceQuestion(editedUnit.title); updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
 
-    // --- New: Real AI Image Generation Handler ---
-    const handleGenerateAiImage = async (blockId: string) => {
+    // --- שדרוג: טיפול ביצירת תמונה ב-AI (תומך גם בתוכן ראשי וגם במטא-דאטה לשאלות) ---
+    const handleGenerateAiImage = async (blockId: string, targetField: 'content' | 'metadata' = 'content') => {
         const prompt = mediaInputValue[blockId];
         if (!prompt) return;
 
         setLoadingBlockId(blockId);
         try {
-            // 1. יצירת תמונה באמצעות המודל
             const imageBlob = await generateAiImage(prompt);
             if (!imageBlob) throw new Error("Failed to generate image");
 
-            // 2. יצירת קובץ להעלאה
             const fileName = `ai_gen_${uuidv4()}.png`;
             const file = new File([imageBlob], fileName, { type: "image/png" });
-
-            // 3. העלאה ל-Firebase
             const url = await uploadMediaFile(file, 'images');
 
-            // 4. עדכון הבלוק
-            updateBlock(blockId, url, { mediaType: 'image', aiPrompt: prompt });
+            // עדכון בהתאם ליעד (תוכן ראשי או מטא-דאטה של שאלה)
+            if (targetField === 'content') {
+                updateBlock(blockId, url, { mediaType: 'image', aiPrompt: prompt });
+            } else {
+                const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+                if (block) updateBlock(blockId, block.content, { media: url, mediaType: 'image', aiPrompt: prompt });
+            }
 
-            // 5. איפוס הממשק
             setMediaInputMode((prev: any) => ({ ...prev, [blockId]: null }));
         } catch (error) {
             console.error("AI Generation Error:", error);
@@ -262,15 +261,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         }
     };
 
-    // --- Media & Embedded Question Logic ---
     const handleAddRelatedQuestion = (blockId: string, type: 'open-question' | 'multiple-choice') => {
         const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
         if (!block) return;
-
         const newQuestionData = type === 'multiple-choice'
             ? { type, question: '', options: ['', '', '', ''], correctAnswer: '' }
             : { type, question: '' };
-
         updateBlock(blockId, block.content, { relatedQuestion: newQuestionData });
     };
 
@@ -285,7 +281,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         if (block) updateBlock(blockId, block.content, { relatedQuestion: null });
     };
 
-    // --- Helper to render the embedded question editor ---
     const renderRelatedQuestionEditor = (blockId: string, relatedQ: any) => {
         if (!relatedQ) return null;
         return (
@@ -294,15 +289,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><IconSparkles className="w-3 h-3" /> שאלה משויכת</span>
                     <button onClick={() => removeRelatedQuestion(blockId)} className="text-red-400 hover:text-red-600 p-1"><IconTrash className="w-3 h-3" /></button>
                 </div>
-
-                <input
-                    type="text"
-                    className="w-full font-bold p-2 bg-white border border-gray-200 rounded-lg mb-2 focus:border-blue-400 outline-none"
-                    value={relatedQ.question}
-                    onChange={(e) => updateRelatedQuestion(blockId, { question: e.target.value })}
-                    placeholder="כתבו את השאלה כאן..."
-                />
-
+                <input type="text" className="w-full font-bold p-2 bg-white border border-gray-200 rounded-lg mb-2 focus:border-blue-400 outline-none" value={relatedQ.question} onChange={(e) => updateRelatedQuestion(blockId, { question: e.target.value })} placeholder="כתבו את השאלה כאן..." />
                 {relatedQ.type === 'multiple-choice' && (
                     <div className="space-y-2">
                         {relatedQ.options?.map((opt: string, idx: number) => (
@@ -317,12 +304,83 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         );
     };
 
-    // --- Helper for YouTube Links ---
     const getEmbedUrl = (url: string) => {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
         const match = url.match(regExp);
         return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : url;
     };
+
+    // --- New: Unified Media Toolbar for Questions (Upload / AI / Link) ---
+    const renderMediaToolbar = (blockId: string) => {
+        const mode = mediaInputMode[blockId]; // 'image_select', 'video_select', 'image_ai', 'video_link'
+
+        // 1. מצב התחלתי - בחירה בין תמונה לוידאו
+        if (!mode) {
+            return (
+                <div className="flex gap-2">
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_select' })} className={mediaBtnClass} title="הוסיפו תמונה"><IconImage className="w-4 h-4" /> תמונה</button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'video_select' })} className={mediaBtnClass} title="הוסיפו וידאו"><IconVideo className="w-4 h-4" /> וידאו</button>
+                </div>
+            );
+        }
+
+        // 2. תפריט משנה לתמונה (העלאה או AI)
+        if (mode === 'image_select') {
+            return (
+                <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
+                    <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="image/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' })} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
+                </div>
+            );
+        }
+
+        // 3. תפריט משנה לוידאו (העלאה או קישור)
+        if (mode === 'video_select') {
+            return (
+                <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
+                    <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="video/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'video_link' })} className={mediaBtnClass}><IconLink className="w-4 h-4" /> קישור</button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
+                </div>
+            );
+        }
+
+        // 4. ממשק יצירת AI (פרומפט)
+        if (mode === 'image_ai') {
+            return (
+                <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
+                    <span className="text-xs font-bold text-blue-600">תיאור התמונה ליצירה:</span>
+                    <div className="flex gap-2">
+                        <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="למשל: תא ביולוגי מתחת למיקרוסקופ..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <button onClick={() => handleGenerateAiImage(blockId, 'metadata')} disabled={loadingBlockId === blockId} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap">{loadingBlockId === blockId ? '...' : 'צור'}</button>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-5 h-5" /></button>
+                    </div>
+                </div>
+            );
+        }
+
+        // 5. ממשק קישור לוידאו
+        if (mode === 'video_link') {
+            return (
+                <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
+                    <span className="text-xs font-bold text-blue-600">קישור ל-YouTube:</span>
+                    <div className="flex gap-2">
+                        <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="https://youtube.com/..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <button onClick={() => {
+                            const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+                            if (block) updateBlock(blockId, block.content, { media: getEmbedUrl(mediaInputValue[blockId] || ""), mediaType: 'video' });
+                            setMediaInputMode({ ...mediaInputMode, [blockId]: null });
+                        }} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap">הטמע</button>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-5 h-5" /></button>
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
+    };
+
 
     const InsertMenu = ({ index }: { index: number }) => (
         <div className="relative py-4 flex justify-center z-20">
@@ -459,7 +517,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <div className="flex gap-2 justify-end">
                                                             <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
                                                             <button
-                                                                onClick={() => handleGenerateAiImage(block.id)}
+                                                                onClick={() => handleGenerateAiImage(block.id, 'content')}
                                                                 disabled={loadingBlockId === block.id}
                                                                 className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                                                             >
@@ -639,10 +697,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         )}
                                         <div className="mt-3 pt-3 border-t border-gray-200/50 flex justify-between items-center">
                                             <span className="text-xs text-gray-400 font-bold">הוסיפו מדיה לשאלה:</span>
-                                            <div className="flex gap-2">
-                                                <label className={mediaBtnClass} title="הוסיפו תמונה"><IconImage className="w-4 h-4" /> תמונה<input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id, 'metadata')} /></label>
-                                                <label className={mediaBtnClass} title="הוסיפו וידאו"><IconVideo className="w-4 h-4" /> וידאו<input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id, 'metadata')} /></label>
-                                            </div>
+                                            {/* השימוש החדש ברכיב המאוחד */}
+                                            {renderMediaToolbar(block.id)}
                                         </div>
                                     </div>
                                 )}

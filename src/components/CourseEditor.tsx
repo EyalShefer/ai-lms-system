@@ -73,18 +73,21 @@ const CourseEditor: React.FC = () => {
 
     // מניעת פתיחה חוזרת של הוויזארד
     const wizardHasRun = useRef(false);
+    // מניעת בחירה אוטומטית חוזרת של יחידה לאחר חזרה לתפריט
+    const hasAutoSelected = useRef(false);
 
     useEffect(() => {
         // Guard clauses - הגנות מפני ריצה מיותרת
         if (wizardHasRun.current || isGenerating) return;
 
-        // בדיקה אם הקורס מלא ויש לבחור יחידה ראשונה אוטומטית
-        if (course?.syllabus?.length > 0 && !showWizard) {
+        // בדיקה אם הקורס מלא ויש לבחור יחידה ראשונה אוטומטית (רק בפעם הראשונה)
+        if (course?.syllabus?.length > 0 && !showWizard && !hasAutoSelected.current) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
                 const firstUnit = firstModule.learningUnits[0];
                 if (!selectedUnitId) {
                     setSelectedUnitId(firstUnit.id);
+                    hasAutoSelected.current = true; // סימון שבוצעה בחירה ראשונית
                 }
             }
         }
@@ -262,7 +265,7 @@ const CourseEditor: React.FC = () => {
                 gradeLevel={displayGrade}
                 onSave={handleSaveUnit}
                 onCancel={handleExitEditor}
-                cancelLabel="חזרה לתפריט"
+                cancelLabel="חזרה"
             />
         );
     }

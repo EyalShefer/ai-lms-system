@@ -181,7 +181,8 @@ const AuthenticatedApp = () => {
           {isStudentLink ? <CoursePlayer /> : (
             <>
               {mode === 'list' && <HomePage onCreateNew={(m) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
-              {mode === 'editor' && <CourseEditor />}
+              {/* השינוי כאן: מעבירים את handleBackToList כ-prop */}
+              {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
               {mode === 'student' && <CoursePlayer />}
               {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} />}
             </>
