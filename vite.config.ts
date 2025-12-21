@@ -11,5 +11,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // --- הוספת הפרוקסי לפתרון בעיית CORS ---
+    proxy: {
+      '/api/openai': {
+        target: 'https://api.openai.com/v1',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
+      },
+    },
   }
 });

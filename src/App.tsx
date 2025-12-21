@@ -115,7 +115,9 @@ const AuthenticatedApp = () => {
 
       let aiSyllabus = [];
       try {
-        aiSyllabus = await generateCoursePlan(topicForAI, extractedGrade, aiFileData);
+        // --- התיקון כאן: הוספת userSubject כפרמטר רביעי ---
+        // זה מבטיח שהיצירה הראשונית כבר תהיה מותאמת למקצוע
+        aiSyllabus = await generateCoursePlan(topicForAI, extractedGrade, aiFileData, userSubject);
         console.log("AI Success");
       } catch (aiError) {
         console.error("AI Failed:", aiError);
@@ -181,7 +183,6 @@ const AuthenticatedApp = () => {
           {isStudentLink ? <CoursePlayer /> : (
             <>
               {mode === 'list' && <HomePage onCreateNew={(m) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
-              {/* השינוי כאן: מעבירים את handleBackToList כ-prop */}
               {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
               {mode === 'student' && <CoursePlayer />}
               {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} />}

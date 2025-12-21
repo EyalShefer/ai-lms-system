@@ -68,34 +68,40 @@ const CourseEditor: React.FC = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // משתנה לעקיפת התצוגה (כדי להראות את הגיל מיד ולמנוע את הבאג של "כללי")
+    // משתנה לעקיפת התצוגה
     const [forcedGrade, setForcedGrade] = useState<string>("");
 
-    // מניעת פתיחה חוזרת של הוויזארד
     const wizardHasRun = useRef(false);
-    // מניעת בחירה אוטומטית חוזרת של יחידה לאחר חזרה לתפריט
     const hasAutoSelected = useRef(false);
 
+    // --- התיקון הקריטי למניעת 429 ולולאות ---
     useEffect(() => {
-        // Guard clauses - הגנות מפני ריצה מיותרת
+        // הגנה ראשונית: אם כבר רץ וויזארד או שיש תהליך יצירה, עוצרים
         if (wizardHasRun.current || isGenerating) return;
 
-        // בדיקה אם הקורס מלא ויש לבחור יחידה ראשונה אוטומטית (רק בפעם הראשונה)
-        if (course?.syllabus?.length > 0 && !showWizard && !hasAutoSelected.current) {
+        // הגנה משנית: אם אין קורס כלל
+        if (!course) return;
+
+        // בדיקה האם הקורס מאוכלס בסילבוס
+        const hasSyllabus = course.syllabus && course.syllabus.length > 0;
+
+        // בדיקה האם זה קורס אמיתי (שיש לו כבר שם שנשמר ב-DB)
+        // זה מונע מצב שבו הקורס נטען מחדש ופותח שוב את הוויזארד
+        const isRealCourse = course.title && course.title !== "New Course" && course.title !== "קורס חדש";
+
+        if (hasSyllabus && !showWizard && !hasAutoSelected.current) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
                 const firstUnit = firstModule.learningUnits[0];
                 if (!selectedUnitId) {
                     setSelectedUnitId(firstUnit.id);
-                    hasAutoSelected.current = true; // סימון שבוצעה בחירה ראשונית
+                    hasAutoSelected.current = true;
                 }
             }
         }
-        // לוגיקה לפתיחה אוטומטית של הוויזארד
-        // התיקון: נפתח רק אם הסילבוס ריק *וגם* אין לקורס כותרת משמעותית
-        else if (course && (!course.syllabus || course.syllabus.length === 0)) {
-            const hasExistingData = course.title && course.title !== "New Course" && course.title !== "קורס חדש";
-            if (!hasExistingData && !showWizard) {
+        else if (!hasSyllabus) {
+            // פותחים את הוויזארד רק אם זה קורס חדש לחלוטין (ללא שם וללא תוכן)
+            if (!isRealCourse && !showWizard) {
                 setShowWizard(true);
             }
         }
@@ -103,24 +109,21 @@ const CourseEditor: React.FC = () => {
 
     if (!course) return <div className="flex items-center justify-center h-screen text-gray-500">נא לבחור שיעור...</div>;
 
-    // --- תיקון לתצוגת הכותרת ---
-    // אנחנו בודקים את כל האפשרויות לתצוגת הגיל הנכון
     const displayGrade = forcedGrade || course.gradeLevel || course.targetAudience || "כללי";
 
     const handleWizardComplete = async (data: any) => {
+        if (isGenerating) return; // מניעת לחיצות כפולות
+
         wizardHasRun.current = true;
         setShowWizard(false);
         setIsGenerating(true);
 
-        // --- דיבוג קריטי: בוא נראה בדיוק מה הוויזארד שולח ---
         console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
 
         try {
             const topicToUse = data.topic || course.title || "נושא כללי";
 
-            // --- חילוץ חכם של הגיל ---
             let extractedGrade = "כללי";
-
             if (data.grade) extractedGrade = data.grade;
             else if (data.gradeLevel) extractedGrade = data.gradeLevel;
             else if (data.targetAudience) extractedGrade = data.targetAudience;
@@ -136,7 +139,6 @@ const CourseEditor: React.FC = () => {
 
             const userSubject = data.settings?.subject || data.subject || "כללי";
 
-            // עדכון ה-State המקומי כדי שהתצוגה תתעדכן מיד
             setForcedGrade(extractedGrade);
 
             const updatedCourseState = {
@@ -149,7 +151,6 @@ const CourseEditor: React.FC = () => {
 
             setCourse(updatedCourseState);
 
-            // שמירה ב-DB
             await updateDoc(doc(db, "courses", course.id), {
                 title: topicToUse,
                 subject: userSubject,
@@ -157,23 +158,23 @@ const CourseEditor: React.FC = () => {
                 mode: updatedCourseState.mode
             });
 
-            // יצירת סילבוס
-            const syllabus = await generateCoursePlan(topicToUse, extractedGrade, data.file);
+            // יצירת סילבוס עם ה-subject
+            const syllabus = await generateCoursePlan(topicToUse, extractedGrade, data.file, userSubject);
 
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
             await updateDoc(doc(db, "courses", course.id), { syllabus });
 
-            // יצירת תוכן
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
-                // שליחת הגיל הנכון לפונקציית ה-AI
+                // יצירת תוכן ראשוני עם ה-subject
                 const newBlocks = await generateFullUnitContent(
                     firstUnit.title,
                     topicToUse,
                     extractedGrade,
-                    data.file
+                    data.file,
+                    userSubject
                 );
 
                 const syllabusWithContent = syllabus.map((mod: any) => ({
@@ -192,13 +193,15 @@ const CourseEditor: React.FC = () => {
 
         } catch (error) {
             console.error("Error generating content:", error);
-            alert("אירעה שגיאה ביצירת התוכן. אנא נסה שנית.");
+            alert("אירעה שגיאה ביצירת התוכן. ייתכן שיש עומס על השרת.");
         } finally {
             setIsGenerating(false);
         }
     };
 
     const handleSaveUnit = async (updatedUnit: LearningUnit) => {
+        if (isGenerating) return;
+
         const newSyllabus = course.syllabus.map(mod => ({
             ...mod,
             learningUnits: mod.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u)
@@ -219,7 +222,15 @@ const CourseEditor: React.FC = () => {
         }
 
         if (nextUnitToGenerate) {
-            generateFullUnitContent(nextUnitToGenerate.title, course.title, displayGrade).then((newBlocks: ActivityBlock[]) => {
+            const currentSubject = course.subject || "כללי";
+
+            generateFullUnitContent(
+                nextUnitToGenerate.title,
+                course.title,
+                displayGrade,
+                undefined,
+                currentSubject
+            ).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
                     const backgroundSyllabus = newSyllabus.map(m => ({
                         ...m,
@@ -296,6 +307,7 @@ const CourseEditor: React.FC = () => {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
                     <p className="text-gray-500 mt-2">מתאים את התוכן ל{displayGrade}...</p>
+                    <p className="text-gray-400 text-sm mt-1">במבט של: {course.subject || "כללי"}</p>
                 </div>
             )}
 

@@ -165,6 +165,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
     const activeUnit = activeModule?.learningUnits.find(u => u.id === activeUnitId);
     const isExamMode = course.mode === 'exam';
 
+    // חישוב הגיל לתצוגה
+    const displayGrade = course.gradeLevel || course.targetAudience || "כללי";
+
+
     const handleAnswerSelect = (blockId: string, answer: string) => {
         if (reviewMode) return;
         // לוגיקה זו תומכת גם בשאלות מוצמדות (שה-ID שלהן מכיל _related)
@@ -391,6 +395,18 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                             <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
                             {/* אפשר להוסיף כאן את שם הפרק אם רוצים */}
                             {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
+
+                            <div className="flex justify-center gap-2 mt-3">
+                                {course.subject && (
+                                    <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
+                                        {course.subject}
+                                    </span>
+                                )}
+                                <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">
+                                    {displayGrade}
+                                </span>
+                            </div>
+
                         </header>
 
                         <div className="space-y-6">
