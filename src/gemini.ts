@@ -1,31 +1,28 @@
+import { getFirestore, collection, addDoc, onSnapshot, doc } from "firebase/firestore";
+import { getApp } from "firebase/app";
 import OpenAI from "openai";
 import { v4 as uuidv4 } from 'uuid';
 
-// --- אתחול הקליינט של OpenAI ---
+// --- אתחול הקליינט של OpenAI (עבור פונקציות עזר ותמונות) ---
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
 if (!OPENAI_API_KEY) {
   console.error("Missing VITE_OPENAI_API_KEY in .env file");
 }
 
-// הגדרה המאפשרת עבודה מהדפדפן (לצורך פיתוח) דרך ה-Proxy המקומי
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
-  // --- תיקון קריטי: שימוש בכתובת מלאה כדי למנוע שגיאת Invalid URL ---
   baseURL: `${window.location.origin}/api/openai`
 });
 
-// המודל הנבחר - GPT-4o-mini (הכי משתלם, מהיר וחכם)
 const MODEL_NAME = "gpt-4o-mini";
 
-// --- פונקציית עזר: ניקוי JSON ---
+// --- פונקציות עזר ---
+
 const cleanJsonString = (text: string): string => {
   try {
-    // 1. הסרת Markdown ותווים מיותרים
     let clean = text.replace(/```json|```/g, '').trim();
-
-    // 2. חילוץ התוכן שבין הסוגריים המסולסלים/מרובעים החיצוניים ביותר
     const firstBrace = clean.indexOf('{');
     const firstBracket = clean.indexOf('[');
     let startIndex = -1;
@@ -42,10 +39,7 @@ const cleanJsonString = (text: string): string => {
     if (startIndex !== -1 && endIndex !== -1) {
       clean = clean.substring(startIndex, endIndex);
     }
-
-    // 3. תיקונים עדינים למחרוזת
     clean = clean.replace(/}\s*{/g, '}, {');
-
     return clean;
   } catch (e) {
     console.error("JSON cleaning failed, returning original:", e);
@@ -53,40 +47,6 @@ const cleanJsonString = (text: string): string => {
   }
 };
 
-// --- יצירת תמונה (DALL-E 3) ---
-export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
-  if (!OPENAI_API_KEY) {
-    console.error("OpenAI API Key missing for image generation");
-    return null;
-  }
-
-  try {
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      response_format: "b64_json"
-    });
-
-    const base64Data = response.data[0].b64_json;
-    if (base64Data) {
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: "image/png" });
-    }
-    return null;
-  } catch (e) {
-    console.error("Error generating image (DALL-E 3):", e);
-    return null;
-  }
-};
-
-// --- המרה למבנה המערכת ---
 const mapSystemItemToBlock = (item: any) => {
   const commonMetadata = {
     bloomLevel: item.bloom_level,
@@ -144,45 +104,93 @@ const mapSystemItemToBlock = (item: any) => {
   return null;
 };
 
-// --- פונקציה 1: יצירת סילבוס ---
+// --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (
   topic: string,
   gradeLevel: string,
   fileData?: { base64: string; mimeType: string },
   subject: string = "כללי"
 ) => {
-  const plan = [
-    {
-      id: uuidv4(),
-      title: "פעילות אינטראקטיבית",
-      learningUnits: [
-        {
-          id: uuidv4(),
-          title: topic || "פעילות למידה",
-          type: 'practice',
-          activityBlocks: []
-        }
-      ]
-    }
-  ];
+  console.log("Starting cloud generation for:", topic);
+
+  // קבלת ה-DB
+  const db = getFirestore(getApp());
 
   try {
-    const firstUnit = plan[0].learningUnits[0];
-    const contentBlocks = await generateFullUnitContent(
-      firstUnit.title,
+    // 1. יצירת מסמך בקשה בתור
+    const docRef = await addDoc(collection(db, "course_generation_queue"), {
       topic,
       gradeLevel,
-      fileData,
-      subject
-    );
-    firstUnit.activityBlocks = contentBlocks;
+      subject,
+      fileData: fileData || null,
+      status: "pending",
+      createdAt: new Date(),
+    });
+
+    console.log("Request queued with ID:", docRef.id);
+
+    // 2. האזנה לשינויים במסמך
+    return new Promise<any[]>((resolve, reject) => {
+      const unsubscribe = onSnapshot(doc(db, "course_generation_queue", docRef.id), (snapshot) => {
+        const data = snapshot.data();
+
+        if (!data) return;
+
+        console.log("Generation status:", data.status);
+
+        if (data.status === "completed" && data.result) {
+          unsubscribe();
+          resolve(data.result);
+        } else if (data.status === "error") {
+          unsubscribe();
+          reject(new Error(data.error || "Unknown error during generation"));
+        }
+      }, (error) => {
+        console.error("Firestore listener error:", error);
+        reject(error);
+      });
+    });
+
   } catch (e) {
-    console.error("Error generating initial content:", e);
+    console.error("Failed to queue request:", e);
+    throw e;
   }
-  return plan;
 };
 
-// --- פונקציה 2: יצירת תוכן מלא ליחידה (OpenAI) ---
+// --- שאר הפונקציות (נשארו ללא שינוי - Hybrid Mode) ---
+
+export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
+  if (!OPENAI_API_KEY) {
+    console.error("OpenAI API Key missing for image generation");
+    return null;
+  }
+
+  try {
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json"
+    });
+
+    const base64Data = response.data[0].b64_json;
+    if (base64Data) {
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: "image/png" });
+    }
+    return null;
+  } catch (e) {
+    console.error("Error generating image (DALL-E 3):", e);
+    return null;
+  }
+};
+
 export const generateFullUnitContent = async (
   unitTitle: string,
   courseTopic: string,
@@ -195,11 +203,8 @@ export const generateFullUnitContent = async (
     You are an expert pedagogical content generator for the subject: ${subject}.
     Target Audience: ${gradeLevel}.
     Language: Hebrew (Ivrit).
-    
     Subject Lens: Analyze the topic "${courseTopic}" strictly through the perspective of ${subject}.
-    
     Source Material: ${fileData ? "Base all questions on the provided image/document." : "Use your general knowledge."}
-
     Output Format: Provide a VALID JSON array of objects. Do not wrap in markdown.
     Schema per item:
     {
@@ -261,7 +266,6 @@ export const generateFullUnitContent = async (
 
     const blocks: any[] = [];
 
-    // בלוק פתיחה
     blocks.push({
       id: uuidv4(),
       type: 'text',
@@ -269,7 +273,6 @@ export const generateFullUnitContent = async (
       metadata: {}
     });
 
-    // בוט מלווה
     blocks.push({
       id: uuidv4(),
       type: 'interactive-chat',
@@ -296,7 +299,6 @@ export const generateFullUnitContent = async (
   }
 };
 
-// --- פונקציה 3: שיפור טקסט פדגוגי ---
 export const refineContentWithPedagogy = async (content: string, instruction: string) => {
   const prompt = `
     Act as an expert pedagogical editor.
@@ -318,7 +320,6 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
   }
 };
 
-// --- פונקציה 4: יצירת שאלות מתוך טקסט ---
 export const generateQuestionsFromText = async (text: string, type: string) => {
   const prompt = `
     Based on the text below, create 3 ${type} questions.
@@ -341,7 +342,6 @@ export const generateQuestionsFromText = async (text: string, type: string) => {
   }
 };
 
-// --- פונקציה 5: הצעת פרומפט לתמונה ---
 export const generateImagePromptBlock = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
@@ -352,7 +352,6 @@ export const generateImagePromptBlock = async (context: string) => {
   } catch (e) { return "Educational illustration"; }
 };
 
-// --- פונקציה 6: יצירת שאלה פתוחה בודדת ---
 export const generateSingleOpenQuestion = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
@@ -364,7 +363,6 @@ export const generateSingleOpenQuestion = async (context: string) => {
   } catch (e) { return { question: "שגיאה ביצירה", modelAnswer: "" }; }
 };
 
-// --- פונקציה 7: יצירת שאלה אמריקאית בודדת ---
 export const generateSingleMultipleChoiceQuestion = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
@@ -376,7 +374,6 @@ export const generateSingleMultipleChoiceQuestion = async (context: string) => {
   } catch (e) { return { question: "שגיאה ביצירה", options: [], correctAnswer: "" }; }
 };
 
-// --- פונקציה 8: יצירת יחידה אדפטיבית ---
 export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) => {
   return {
     id: uuidv4(),
@@ -393,7 +390,6 @@ export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) 
   };
 };
 
-// --- פונקציה 9: ניתוח כיתתי ---
 export const generateClassAnalysis = async (studentsData: any[]) => {
   const prompt = `
     Analyze the following class performance data:
@@ -422,7 +418,6 @@ export const generateClassAnalysis = async (studentsData: any[]) => {
   }
 };
 
-// --- פונקציה 10: דוח תלמיד אישי ---
 export const generateStudentReport = async (studentData: any) => {
   const prompt = `
     Create a personal student report based on this data:
