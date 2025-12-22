@@ -51,6 +51,8 @@ export interface Course {
     teacherId: string;
     title: string;
     targetAudience: string;
+    gradeLevel?: string;
+    subject?: string;
     mode?: 'learning' | 'exam';
     syllabus: Module[];
     createdAt?: any;

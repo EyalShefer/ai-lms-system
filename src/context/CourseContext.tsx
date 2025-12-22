@@ -63,7 +63,9 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         targetAudience: baseData.targetAudience || '',
         syllabus: cleanSyllabus,
         mode: baseData.mode || 'learning', // חשוב: שומר על מצב מבחן/למידה
-        wizardData: baseData.wizardData || null // חשוב: שומר את המידע מהויזארד
+        wizardData: baseData.wizardData || null, // חשוב: שומר את המידע מהויזארד
+        subject: baseData.subject || '',
+        gradeLevel: baseData.gradeLevel || ''
     } as Course;
 };
 

@@ -274,6 +274,7 @@ const CourseEditor: React.FC = () => {
             <UnitEditor
                 unit={activeUnit}
                 gradeLevel={displayGrade}
+                subject={course.subject}
                 onSave={handleSaveUnit}
                 onCancel={handleExitEditor}
                 cancelLabel="חזרה"
@@ -321,10 +322,10 @@ const CourseEditor: React.FC = () => {
                         <p className="text-gray-500 mt-2 text-lg">נהל את רכיבי הפעילות</p>
 
                         <div className="flex gap-2 mt-3">
-                            {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
                             <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">
                                 {displayGrade}
                             </span>
+                            {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
                         </div>
                     </div>
 

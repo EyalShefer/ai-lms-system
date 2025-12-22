@@ -31,6 +31,7 @@ const IconLock = (props: React.SVGProps<SVGSVGElement>) => (
 interface UnitEditorProps {
     unit: any;
     gradeLevel?: string;
+    subject?: string;
     onSave: (updatedUnit: any) => void;
     onCancel: () => void;
     cancelLabel?: string;
@@ -43,7 +44,7 @@ const getAiActions = (gradeLevel: string) => [
     { label: "העמק תוכן", prompt: `הוסף עומק, דוגמאות והקשר רחב יותר` },
 ];
 
-const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", onSave, onCancel, cancelLabel = "חזרה" }) => {
+const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", subject, onSave, onCancel, cancelLabel = "חזרה" }) => {
     const { course } = useCourseStore();
     const [editedUnit, setEditedUnit] = useState<any>(unit);
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
@@ -432,7 +433,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 <div className="flex-1 min-w-0">
                     <input type="text" value={editedUnit.title} onChange={(e) => setEditedUnit({ ...editedUnit, title: e.target.value })} className="text-2xl font-bold text-gray-800 bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-2 transition-colors placeholder-gray-400 w-full" placeholder="כותרת הפעילות" />
                     <div className="text-sm text-gray-500 px-2 mt-1 flex items-center gap-2">
-                        <span>שכבת גיל: {gradeLevel}</span><span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                        <span>שכבת גיל: {gradeLevel}</span>
+                        {subject && (
+                            <>
+                                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                                <span>תחום דעת: {subject}</span>
+                            </>
+                        )}
+                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
                         <span className={`font-bold ${showScoring ? 'text-blue-800' : 'text-green-700'}`}>{showScoring ? 'מצב מבחן' : 'מצב פעילות'}</span>
                     </div>
                 </div>
@@ -489,8 +497,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 {AI_ACTIONS.map(action => (<button key={action.label} onClick={() => handleAiAction(block.id, block.content, action.prompt)} disabled={loadingBlockId === block.id} className="text-xs bg-white/80 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium shadow-sm disabled:opacity-50">{loadingBlockId === block.id ? '...' : action.label}</button>))}
                                             </div>
                                             <div className="flex gap-1 border-r border-blue-200 pr-2">
-                                                <label className={mediaBtnClass} title="הוסיפו תמונה"><IconImage className="w-4 h-4" /><input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id, 'metadata')} /></label>
-                                                <label className={mediaBtnClass} title="הוסיפו וידאו"><IconVideo className="w-4 h-4" /><input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id, 'metadata')} /></label>
+                                                {renderMediaToolbar(block.id)}
                                             </div>
                                         </div>
                                     </div>

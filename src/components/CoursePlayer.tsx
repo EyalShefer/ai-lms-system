@@ -397,14 +397,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                             {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
 
                             <div className="flex justify-center gap-2 mt-3">
+                                <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
+                                    {displayGrade}
+                                </span>
                                 {course.subject && (
                                     <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
                                         {course.subject}
                                     </span>
                                 )}
-                                <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">
-                                    {displayGrade}
-                                </span>
                             </div>
 
                         </header>
