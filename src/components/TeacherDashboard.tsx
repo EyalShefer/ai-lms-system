@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
-import { collection, query, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; // Added addDoc, serverTimestamp
 import { db } from '../firebase';
 import {
     IconChart, IconBrain, IconX, IconSparkles, IconEdit,
     IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
-    IconLink, IconCheck, IconStudent
+    IconLink, IconCheck, IconStudent, IconCalendar, IconClock, IconList,
+    IconArrowUp, IconArrowDown // Added Arrow Icons
 } from '../icons';
 
 // --- Lazy Load CoursePlayer ---
@@ -18,11 +20,13 @@ const GRADE_ORDER = [
     "מכינה", "סטודנטים"
 ];
 
+// ... (normalizeText function) ... 
 const normalizeText = (text: string) => {
     if (!text) return "";
     return text.trim().replace(/[׳`´]/g, "'");
 };
 
+// ... (Interfaces remain the same) ...
 interface StudentStat {
     id: string;
     name: string;
@@ -56,10 +60,21 @@ interface TeacherDashboardProps {
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
-    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any }>>({});
+    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    // Assignment Modal State
+    const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+    const [assignmentData, setAssignmentData] = useState({
+        courseId: '',
+        courseTitle: '',
+        title: '',
+        dueDate: new Date().toISOString().split('T')[0],
+        dueTime: '23:59',
+        instructions: ''
+    });
 
     // Navigation
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -67,7 +82,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     // Filters
     const [filterSubject, setFilterSubject] = useState<string>('all');
     const [filterGrade, setFilterGrade] = useState<string>('all');
+    const [filterType, setFilterType] = useState<string>('all'); // Added Type Filter
     const [searchTerm, setSearchTerm] = useState("");
+
+    // View State
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // Default to LIST
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
     // Detail View State
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -77,13 +97,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     const [aiLoading, setAiLoading] = useState(false);
     const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
 
+    const [assignmentsMap, setAssignmentsMap] = useState<Record<string, any[]>>({});
+
     // --- 1. Fetch Courses Metadata ---
     useEffect(() => {
         const fetchCourses = async () => {
             try {
                 const q = query(collection(db, "courses"));
                 const snapshot = await getDocs(q);
-                const map: Record<string, { subject: string, grade: string, title: string, createdAt?: any }> = {};
+                // Updated mapped type to include syllabus for type detection
+                const map: Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }> = {};
 
                 snapshot.forEach(doc => {
                     const data = doc.data();
@@ -94,7 +117,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                         subject: rawSubject,
                         grade: rawGrade,
                         title: data.title || "ללא שם",
-                        createdAt: data.createdAt
+                        createdAt: data.createdAt,
+                        syllabus: data.syllabus // Store syllabus
                     };
                 });
                 setCoursesMap(map);
@@ -105,6 +129,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         };
         fetchCourses();
     }, []);
+
+    // --- 1.5 Fetch Assignments for Due Dates ---
+    useEffect(() => {
+        const fetchAssignments = async () => {
+            try {
+                const q = query(collection(db, "assignments"));
+                const snapshot = await getDocs(q);
+                const map: Record<string, any[]> = {};
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (!map[data.courseId]) map[data.courseId] = [];
+                    map[data.courseId].push({
+                        id: doc.id,
+                        dueDate: data.dueDate,
+                        title: data.title
+                    });
+                });
+                setAssignmentsMap(map);
+            } catch (error) {
+                console.error("Error fetching assignments:", error);
+            }
+        };
+        fetchAssignments();
+    }, []);
+
 
     // --- 2. Fetch Students ---
     useEffect(() => {
@@ -180,19 +230,35 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         });
     }, [coursesMap]);
 
-    // --- Aggregation Logic (מעודכן עם חישוב אחוזים) ---
+    // --- Aggregation Logic (Now includes Next Due Date & Sorting) ---
     const aggregatedCourses = useMemo(() => {
-        const grouped: Record<string, CourseAggregation & { totalProgress: number }> = {};
+        const grouped: Record<string, CourseAggregation & { totalProgress: number, nextDueDate?: string }> = {};
+        const today = new Date().toISOString();
+
         Object.entries(coursesMap).forEach(([id, meta]) => {
             const normMetaSubject = normalizeText(meta.subject);
             const normMetaGrade = normalizeText(meta.grade);
             const normFilterSubject = normalizeText(filterSubject);
             const normFilterGrade = normalizeText(filterGrade);
+
+            // Type Filtering Logic
+            const hasTest = meta.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => u.type === 'test'));
+            const matchType = filterType === 'all' ||
+                (filterType === 'test' && hasTest) ||
+                (filterType === 'activity' && !hasTest);
+
             const matchSubject = filterSubject === 'all' || normMetaSubject.includes(normFilterSubject);
             const matchGrade = filterGrade === 'all' || normMetaGrade.includes(normFilterGrade);
             const matchSearch = searchTerm === "" || meta.title.toLowerCase().includes(searchTerm.toLowerCase());
 
-            if (matchSubject && matchGrade && matchSearch) {
+            if (matchSubject && matchGrade && matchSearch && matchType) {
+                // Calculate next due date
+                const courseAssignments = assignmentsMap[id] || [];
+                const upcoming = courseAssignments
+                    .filter(a => a.dueDate >= today)
+                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+                const nextDue = upcoming.length > 0 ? upcoming[0].dueDate : null;
+
                 grouped[id] = {
                     courseId: id,
                     title: meta.title,
@@ -200,10 +266,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                     grade: meta.grade,
                     studentCount: 0,
                     avgScore: 0,
-                    totalProgress: 0, // לחישוב ממוצע התקדמות
+                    totalProgress: 0,
                     completionRate: 0,
                     atRiskCount: 0,
-                    createdAt: meta.createdAt
+                    createdAt: meta.createdAt,
+                    nextDueDate: nextDue // New Field
                 };
             }
         });
@@ -212,7 +279,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
             if (grouped[student.courseId]) {
                 grouped[student.courseId].studentCount++;
                 grouped[student.courseId].avgScore += student.score;
-                // חישוב גס להתקדמות (לפי כמות תשובות או ציון)
                 const studentProgress = student.progress > 0 ? 100 : 0;
                 grouped[student.courseId].totalProgress += studentProgress;
 
@@ -220,22 +286,38 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
             }
         });
 
-        return Object.values(grouped)
+        let result = Object.values(grouped)
             .map(c => ({
                 ...c,
                 avgScore: c.studentCount > 0 ? Math.round(c.avgScore / c.studentCount) : 0,
                 completionRate: c.studentCount > 0 ? Math.round(c.totalProgress / c.studentCount) : 0
-            }))
-            .sort((a, b) => {
-                const getTime = (dateVal: any) => {
-                    if (!dateVal) return 0;
-                    if (dateVal.seconds) return dateVal.seconds;
-                    if (dateVal instanceof Date) return dateVal.getTime() / 1000;
-                    return 0;
-                };
-                return getTime(b.createdAt) - getTime(a.createdAt);
-            });
-    }, [allData, coursesMap, filterSubject, filterGrade, searchTerm]);
+            }));
+
+        // Sorting Logic
+        const { key, direction } = sortConfig;
+        result.sort((a, b) => {
+            let valA = (a as any)[key];
+            let valB = (b as any)[key];
+
+            // Handle specific types
+            if (key === 'createdAt') {
+                const getTime = (d: any) => (d?.seconds ? d.seconds : d instanceof Date ? d.getTime() / 1000 : 0);
+                valA = getTime(valA);
+                valB = getTime(valB);
+            }
+            if (key === 'nextDueDate') {
+                // Empty dates last
+                if (!valA) return 1;
+                if (!valB) return -1;
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return result;
+    }, [allData, coursesMap, assignmentsMap, filterSubject, filterGrade, searchTerm, sortConfig]);
 
     const currentCourseStudents = useMemo(() => {
         if (!selectedCourseId) return [];
@@ -291,11 +373,53 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     };
 
     const handleCopyLink = (e: React.MouseEvent, courseId: string) => {
-        e.stopPropagation();
-        const link = `${window.location.origin}/?studentCourseId=${courseId}`;
-        navigator.clipboard.writeText(link);
-        setCopiedId(courseId);
-        setTimeout(() => setCopiedId(null), 2000);
+        try {
+            console.log("handleCopyLink clicked for:", courseId);
+            e.stopPropagation();
+            const course = coursesMap[courseId];
+            console.log("Found course:", course);
+
+            setAssignmentData({
+                courseId,
+                courseTitle: course ? course.title : "משימה",
+                title: course ? `הגשה: ${course.title}` : "",
+                dueDate: new Date().toISOString().split('T')[0],
+                dueTime: '23:59',
+                instructions: ''
+            });
+            console.log("Setting modal open");
+            setAssignmentModalOpen(true);
+        } catch (error) {
+            console.error("Error in handleCopyLink:", error);
+            alert("שגיאה בפתיחת המשימה");
+        }
+    };
+
+    const handleCreateAssignment = async () => {
+        if (!assignmentData.title || !assignmentData.dueDate) return alert("חסרים פרטים");
+
+        try {
+            const combinedDate = new Date(`${assignmentData.dueDate}T${assignmentData.dueTime}`);
+
+            const docRef = await addDoc(collection(db, "assignments"), {
+                courseId: assignmentData.courseId,
+                title: assignmentData.title,
+                dueDate: combinedDate.toISOString(),
+                instructions: assignmentData.instructions,
+                createdAt: serverTimestamp(),
+                teacherId: "TODO_USER_ID" // Ideally from context
+            });
+
+            const link = `${window.location.origin}/?assignmentId=${docRef.id}`;
+            navigator.clipboard.writeText(link);
+            setCopiedId(assignmentData.courseId);
+            setAssignmentModalOpen(false);
+            setTimeout(() => setCopiedId(null), 2000);
+            alert("קישור משימה הועתק!");
+        } catch (e) {
+            console.error("Error creating assignment", e);
+            alert("שגיאה ביצירת המשימה");
+        }
     };
 
     const handleEditClick = (e: React.MouseEvent, courseId: string) => {
@@ -326,7 +450,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                 <div className="flex items-center gap-3">
                                     <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-md shadow-indigo-200"><IconLayer className="w-6 h-6" /></div>
                                     <div>
-                                        <h1 className="text-xl font-bold text-slate-800">הכיתות שלי</h1>
+                                        <h1 className="text-xl font-bold text-slate-800">המשימות שלי</h1>
                                         <p className="text-xs text-slate-500">פורטל ניהול פדגוגי</p>
                                     </div>
                                 </div>
@@ -335,6 +459,23 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
 
                         {!selectedCourseId && (
                             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                {/* View Toggle */}
+                                <div className="flex bg-slate-200 rounded-lg p-1 gap-1">
+                                    <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת כרטיסיות"><IconLayer className="w-4 h-4" /></button>
+                                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת רשימה"><IconList className="w-4 h-4" /></button>
+                                </div>
+                                <div className="w-px h-6 bg-slate-300 mx-1"></div>
+
+                                {/* Type Filter */}
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                    <IconSparkles className="w-4 h-4 text-slate-400" />
+                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[100px] cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                                        <option value="all">כל הסוגים</option>
+                                        <option value="test">מבחנים</option>
+                                        <option value="activity">פעילויות</option>
+                                    </select>
+                                </div>
+
                                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
                                     <IconBook className="w-4 h-4 text-slate-400" />
                                     <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
@@ -376,199 +517,330 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                 <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="text-indigo-600 font-bold hover:underline">נקה סינונים</button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {aggregatedCourses.map(c => (
-                                    <div
-                                        key={c.courseId}
-                                        onClick={() => setSelectedCourseId(c.courseId)}
-                                        className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1 transition-all cursor-pointer group flex flex-col justify-between h-48 relative overflow-hidden"
-                                    >
-                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
-
-                                        {/* כפתורי פעולה */}
-                                        <div className="absolute top-4 left-4 flex gap-2 z-20">
-                                            <button
-                                                onClick={(e) => handleEditClick(e, c.courseId)}
-                                                className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
-                                                title="ערוך שיעור"
+                            <>
+                                {viewMode === 'grid' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {aggregatedCourses.map(c => (
+                                            <div
+                                                key={c.courseId}
+                                                onClick={() => setSelectedCourseId(c.courseId)}
+                                                className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1 transition-all cursor-pointer group flex flex-col justify-between h-48 relative overflow-hidden"
                                             >
-                                                <IconEdit className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleCopyLink(e, c.courseId)}
-                                                className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
-                                                title="העתק קישור לתלמיד"
-                                            >
-                                                {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
 
-                                        {/* Header: שם ופרטים */}
-                                        <div>
-                                            <div className="flex items-start gap-2 mb-2 pl-24">
-                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.subject}</span>
-                                                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.grade}</span>
-                                            </div>
-                                            <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors line-clamp-2 pl-24 leading-tight">{c.title}</h3>
-                                        </div>
-
-                                        {/* Body: הנתונים החדשים (ממוצע + אחוז השלמה) */}
-                                        <div className="flex justify-between items-center mt-6 px-2">
-                                            {/* צד ימין: ממוצע */}
-                                            <div className="text-center">
-                                                <span className="text-xs font-bold text-slate-400 block mb-1">ממוצע כיתתי</span>
-                                                <span className={`text-4xl font-black ${getScoreColor(c.avgScore)}`}>
-                                                    {c.avgScore || '-'}
-                                                </span>
-                                            </div>
-
-                                            {/* קו מפריד אנכי */}
-                                            <div className="w-px h-10 bg-slate-100"></div>
-
-                                            {/* צד שמאל: אחוז השלמה */}
-                                            <div className="text-center">
-                                                <span className="text-xs font-bold text-slate-400 block mb-1">אחוז השלמה</span>
-                                                <span className="text-4xl font-black text-slate-700">
-                                                    {c.completionRate}%
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Footer: התרעות - בולט וברור */}
-                                        <div className="mt-auto pt-4">
-                                            {c.atRiskCount > 0 ? (
-                                                <div className="bg-red-50 text-red-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-red-100 animate-pulse">
-                                                    ⚠️ {c.atRiskCount} תלמידים דורשים התייחסות
+                                                {/* כפתורי פעולה */}
+                                                <div className="absolute top-4 left-4 flex gap-2 z-20">
+                                                    <button
+                                                        onClick={(e) => handleEditClick(e, c.courseId)}
+                                                        className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                        title="ערוך שיעור"
+                                                    >
+                                                        <IconEdit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleCopyLink(e, c.courseId)}
+                                                        className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                        title="העתק קישור לתלמיד"
+                                                    >
+                                                        {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
+                                                    </button>
                                                 </div>
-                                            ) : (
-                                                <div className="bg-teal-50 text-teal-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-teal-100">
-                                                    <IconCheck className="w-3 h-3" /> מצב הכיתה מצוין
+
+                                                {/* Header: שם ופרטים */}
+                                                <div>
+                                                    <div className="flex items-start gap-2 mb-2 pl-24">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.subject}</span>
+                                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.grade}</span>
+                                                    </div>
+                                                    <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors line-clamp-2 pl-24 leading-tight">{c.title}</h3>
                                                 </div>
-                                            )}
+
+                                                {/* Body: הנתונים החדשים (ממוצע + אחוז השלמה) */}
+                                                <div className="flex justify-between items-center mt-6 px-2">
+                                                    <div className="text-center">
+                                                        <span className="text-xs font-bold text-slate-400 block mb-1">ממוצע כיתתי</span>
+                                                        <span className={`text-4xl font-black ${getScoreColor(c.avgScore)}`}>
+                                                            {c.avgScore || '-'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-px h-10 bg-slate-100"></div>
+                                                    <div className="text-center">
+                                                        <span className="text-xs font-bold text-slate-400 block mb-1">אחוז השלמה</span>
+                                                        <span className="text-4xl font-black text-slate-700">
+                                                            {c.completionRate}%
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Footer: התרעות */}
+                                                <div className="mt-auto pt-4">
+                                                    {c.atRiskCount > 0 ? (
+                                                        <div className="bg-red-50 text-red-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-red-100 animate-pulse">
+                                                            ⚠️ {c.atRiskCount} תלמידים דורשים התייחסות
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-teal-50 text-teal-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-teal-100">
+                                                            <IconCheck className="w-3 h-3" /> מצב הכיתה מצוין
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    /* --- LIST VIEW --- */
+                                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm text-right">
+                                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                                    <tr>
+                                                        <th onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 w-1/4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">שם הקורס {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th onClick={() => setSortConfig({ key: 'subject', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">נושא {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th onClick={() => setSortConfig({ key: 'grade', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">שכבה {sortConfig.key === 'grade' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th onClick={() => setSortConfig({ key: 'nextDueDate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">הגשה קרובה {sortConfig.key === 'nextDueDate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th className="p-4">תלמידים</th>
+                                                        <th onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th onClick={() => setSortConfig({ key: 'completionRate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">השלמה {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
+                                                        <th className="p-4">סטטוס</th>
+                                                        <th className="p-4 w-32">פעולות</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {aggregatedCourses.map(c => (
+                                                        <tr key={c.courseId} onClick={() => setSelectedCourseId(c.courseId)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
+                                                            <td className="p-4">
+                                                                <div className="font-bold text-slate-800 text-base group-hover:text-indigo-700 transition-colors">{c.title}</div>
+                                                                <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
+                                                            </td>
+                                                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
+                                                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
+                                                            <td className="p-4">
+                                                                {c.nextDueDate ? (
+                                                                    <span className="text-slate-700 font-bold bg-orange-50 text-orange-600 px-2 py-1 rounded-md text-xs border border-orange-100">
+                                                                        {new Date(c.nextDueDate).toLocaleDateString('he-IL')}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 text-xs">-</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4 font-bold text-slate-700">{c.studentCount}</td>
+                                                            <td className="p-4 font-black text-lg" style={{ color: c.avgScore >= 80 ? '#10b981' : c.avgScore >= 60 ? '#f59e0b' : '#ef4444' }}>{c.avgScore}</td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-indigo-500" style={{ width: `${c.completionRate}%` }}></div>
+                                                                    </div>
+                                                                    <span className="text-xs font-bold">{c.completionRate}%</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                {c.atRiskCount > 0 ? (
+                                                                    <span className="bg-red-50 text-red-600 px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap">⚠️ {c.atRiskCount} בסיכון</span>
+                                                                ) : (
+                                                                    <span className="bg-teal-50 text-teal-600 px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap">תקין</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm"><IconEdit className="w-4 h-4" /></button>
+                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm"><IconLink className="w-4 h-4" /></button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
 
                 {/* Selected View... (ללא שינוי) */}
-                {selectedCourseId && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                                <span className="text-xs text-slate-400 font-bold">ממוצע כיתתי</span>
-                                <div className="text-2xl font-black text-slate-700 mt-1">{stats.avg}</div>
+                {
+                    selectedCourseId && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                                    <span className="text-xs text-slate-400 font-bold">ממוצע כיתתי</span>
+                                    <div className="text-2xl font-black text-slate-700 mt-1">{stats.avg}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                                    <span className="text-xs text-slate-400 font-bold">מצטיינים</span>
+                                    <div className="text-2xl font-black text-teal-500 mt-1">{stats.high}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-red-50 shadow-sm text-center">
+                                    <span className="text-xs text-red-400 font-bold">תלמידים בסיכון</span>
+                                    <div className="text-2xl font-black text-red-500 mt-1">{stats.risk}</div>
+                                </div>
+                                <div onClick={handleClassAnalysis} className="bg-indigo-600 p-4 rounded-xl shadow-lg shadow-indigo-200 text-white flex flex-col justify-center items-center cursor-pointer hover:bg-indigo-700 transition-colors">
+                                    {aiLoading ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div> : <IconBrain className="w-6 h-6" />}
+                                    <span className="font-bold text-sm">ניתוח כיתתי (AI)</span>
+                                </div>
                             </div>
-                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                                <span className="text-xs text-slate-400 font-bold">מצטיינים</span>
-                                <div className="text-2xl font-black text-teal-500 mt-1">{stats.high}</div>
-                            </div>
-                            <div className="bg-white p-4 rounded-xl border border-red-50 shadow-sm text-center">
-                                <span className="text-xs text-red-400 font-bold">תלמידים בסיכון</span>
-                                <div className="text-2xl font-black text-red-500 mt-1">{stats.risk}</div>
-                            </div>
-                            <div onClick={handleClassAnalysis} className="bg-indigo-600 p-4 rounded-xl shadow-lg shadow-indigo-200 text-white flex flex-col justify-center items-center cursor-pointer hover:bg-indigo-700 transition-colors">
-                                {aiLoading ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div> : <IconBrain className="w-6 h-6" />}
-                                <span className="font-bold text-sm">ניתוח כיתתי (AI)</span>
-                            </div>
-                        </div>
 
-                        {(aiInsight || groupAnalysis) && (
-                            <div className="bg-gradient-to-br from-white to-indigo-50/50 p-6 rounded-3xl border border-indigo-100 shadow-sm relative">
-                                <button onClick={() => { setAiInsight(null); setGroupAnalysis(null) }} className="absolute top-4 left-4 p-1 hover:bg-slate-100 rounded-full"><IconX className="w-4 h-4 text-slate-400" /></button>
-                                <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-4"><IconSparkles className="w-5 h-5 text-indigo-600" />{groupAnalysis ? 'תוצאות ניתוח קבוצתי' : 'תובנות כיתתיות'}</h3>
-                                {groupAnalysis ? <div className="bg-white p-4 rounded-xl border border-indigo-100 text-slate-700 whitespace-pre-line leading-relaxed">{groupAnalysis}</div> : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-teal-600 font-bold block mb-2 border-b border-teal-50 pb-1">חוזקות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.strongSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
-                                        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-red-500 font-bold block mb-2 border-b border-red-50 pb-1">חולשות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.weakSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
-                                        <div className="col-span-full bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-indigo-800 font-medium">💡 המלצה: {aiInsight.actionItems?.[0]}</div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            {(aiInsight || groupAnalysis) && (
+                                <div className="bg-gradient-to-br from-white to-indigo-50/50 p-6 rounded-3xl border border-indigo-100 shadow-sm relative">
+                                    <button onClick={() => { setAiInsight(null); setGroupAnalysis(null) }} className="absolute top-4 left-4 p-1 hover:bg-slate-100 rounded-full"><IconX className="w-4 h-4 text-slate-400" /></button>
+                                    <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-4"><IconSparkles className="w-5 h-5 text-indigo-600" />{groupAnalysis ? 'תוצאות ניתוח קבוצתי' : 'תובנות כיתתיות'}</h3>
+                                    {groupAnalysis ? <div className="bg-white p-4 rounded-xl border border-indigo-100 text-slate-700 whitespace-pre-line leading-relaxed">{groupAnalysis}</div> : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-teal-600 font-bold block mb-2 border-b border-teal-50 pb-1">חוזקות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.strongSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
+                                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-red-500 font-bold block mb-2 border-b border-red-50 pb-1">חולשות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.weakSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
+                                            <div className="col-span-full bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-indigo-800 font-medium">💡 המלצה: {aiInsight.actionItems?.[0]}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                <div className="font-bold text-slate-700 text-sm">רשימת תלמידים ({currentCourseStudents.length})</div>
-                                {selectedStudentIds.size > 0 && (
-                                    <button onClick={handleGroupAnalysis} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1"><IconBrain className="w-3 h-3" /> נתח קבוצה ({selectedStudentIds.size})</button>
-                                )}
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-right">
-                                    <thead className="bg-slate-50 text-slate-500 font-medium">
-                                        <tr>
-                                            <th className="p-4 w-10"></th>
-                                            <th className="p-4">שם תלמיד</th>
-                                            <th className="p-4">פעילות אחרונה</th>
-                                            <th className="p-4">התקדמות</th>
-                                            <th className="p-4">ציון</th>
-                                            <th className="p-4">פעולות</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {currentCourseStudents.map(student => (
-                                            <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-indigo-50/50' : ''}`}>
-                                                <td className="p-4">
-                                                    <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked={selectedStudentIds.has(student.id)} onChange={() => toggleSelection(student.id)} />
-                                                </td>
-                                                <td className="p-4 font-bold text-slate-800">{student.name}</td>
-                                                <td className="p-4 text-slate-500">{student.lastActive}</td>
-                                                <td className="p-4">
-                                                    <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-indigo-500" style={{ width: `${Math.min(student.progress * 10, 100)}%` }}></div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className={`px-2 py-1 rounded font-bold text-xs ${student.score < 60 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{student.score}</span>
-                                                </td>
-                                                <td className="p-4 flex gap-2">
-                                                    <button onClick={() => setViewingTestStudent(student)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="צפה"><IconEye className="w-4 h-4" /></button>
-                                                    <button onClick={() => { setReportStudent(student); generateStudentReport(student).then(r => setReportStudent({ ...student, report: r })); }} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="דוח"><IconEdit className="w-4 h-4" /></button>
-                                                </td>
+                            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                    <div className="font-bold text-slate-700 text-sm">רשימת תלמידים ({currentCourseStudents.length})</div>
+                                    {selectedStudentIds.size > 0 && (
+                                        <button onClick={handleGroupAnalysis} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1"><IconBrain className="w-3 h-3" /> נתח קבוצה ({selectedStudentIds.size})</button>
+                                    )}
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-right">
+                                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                                            <tr>
+                                                <th className="p-4 w-10"></th>
+                                                <th className="p-4">שם תלמיד</th>
+                                                <th className="p-4">פעילות אחרונה</th>
+                                                <th className="p-4">התקדמות</th>
+                                                <th className="p-4">ציון</th>
+                                                <th className="p-4">פעולות</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {currentCourseStudents.length === 0 && <div className="text-center py-10 text-slate-400">לא נמצאו תלמידים בקורס זה</div>}
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {currentCourseStudents.map(student => (
+                                                <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-indigo-50/50' : ''}`}>
+                                                    <td className="p-4">
+                                                        <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked={selectedStudentIds.has(student.id)} onChange={() => toggleSelection(student.id)} />
+                                                    </td>
+                                                    <td className="p-4 font-bold text-slate-800">{student.name}</td>
+                                                    <td className="p-4 text-slate-500">{student.lastActive}</td>
+                                                    <td className="p-4">
+                                                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-indigo-500" style={{ width: `${Math.min(student.progress * 10, 100)}%` }}></div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 rounded font-bold text-xs ${student.score < 60 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{student.score}</span>
+                                                    </td>
+                                                    <td className="p-4 flex gap-2">
+                                                        <button onClick={() => setViewingTestStudent(student)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="צפה"><IconEye className="w-4 h-4" /></button>
+                                                        <button onClick={() => { setReportStudent(student); generateStudentReport(student).then(r => setReportStudent({ ...student, report: r })); }} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="דוח"><IconEdit className="w-4 h-4" /></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {currentCourseStudents.length === 0 && <div className="text-center py-10 text-slate-400">לא נמצאו תלמידים בקורס זה</div>}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Modals */}
-                {viewingTestStudent && (
-                    <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
-                        <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
-                            <CoursePlayer
-                                reviewMode={true}
-                                studentData={{
-                                    studentName: viewingTestStudent.name,
-                                    answers: viewingTestStudent.answers,
-                                    chatHistory: viewingTestStudent.chatHistory
-                                }}
-                                onExitReview={() => setViewingTestStudent(null)}
-                            />
-                        </React.Suspense>
-                    </div>
-                )}
-
-                {reportStudent && reportStudent.report && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold text-slate-800">דוח הערכה: {reportStudent.name}</h3>
-                                <button onClick={() => setReportStudent(null)}><IconX className="w-6 h-6 text-slate-400 hover:text-red-500" /></button>
-                            </div>
-                            <div className="bg-blue-50 p-4 rounded-xl text-blue-900 text-sm leading-relaxed mb-6">{reportStudent.report.summary}</div>
-                            <button onClick={() => window.print()} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">הדפס דוח</button>
+                {
+                    viewingTestStudent && (
+                        <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
+                            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
+                                <CoursePlayer
+                                    reviewMode={true}
+                                    studentData={{
+                                        studentName: viewingTestStudent.name,
+                                        answers: viewingTestStudent.answers,
+                                        chatHistory: viewingTestStudent.chatHistory
+                                    }}
+                                    onExitReview={() => setViewingTestStudent(null)}
+                                />
+                            </React.Suspense>
                         </div>
-                    </div>
-                )}
-            </div>
-        </div>
+                    )
+                }
+
+                {/* Assignment Creation Modal */}
+                {
+                    assignmentModalOpen && createPortal(
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 text-right" dir="rtl">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+                                <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
+                                    <h3 className="font-bold text-lg flex items-center gap-2"><IconLink className="w-5 h-5" /> יצירת קישור למשימה</h3>
+                                    <button onClick={() => setAssignmentModalOpen(false)} className="hover:bg-indigo-700 p-1 rounded-full text-indigo-100"><IconX className="w-5 h-5" /></button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">שם המשימה / מבחן</label>
+                                        <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            value={assignmentData.title} onChange={e => setAssignmentData({ ...assignmentData, title: e.target.value })}
+                                            placeholder="למשל: סיום פרק ב׳ - חזרה למבחן"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1">תאריך הגשה</label>
+                                            <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                                value={assignmentData.dueDate} onChange={e => setAssignmentData({ ...assignmentData, dueDate: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1">שעה</label>
+                                            <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                                value={assignmentData.dueTime} onChange={e => setAssignmentData({ ...assignmentData, dueTime: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">הנחיות לתלמיד (אופציונלי)</label>
+                                        <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none h-20 resize-none"
+                                            value={assignmentData.instructions} onChange={e => setAssignmentData({ ...assignmentData, instructions: e.target.value })}
+                                            placeholder="הנחיות מיוחדות, זמן מומלץ, וכו'..."
+                                        />
+                                    </div>
+
+                                    <button onClick={handleCreateAssignment} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2 mt-2">
+                                        <IconLink className="w-5 h-5" /> צור קישור והעתק
+                                    </button>
+                                    <p className="text-xs text-center text-slate-400">הקישור ישמר בהיסטוריית המשימות של הכיתה</p>
+                                </div>
+                            </div>
+                        </div>
+                        , document.body)
+                }
+
+                {
+                    reportStudent && reportStudent.report && (
+                        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold text-slate-800">דוח הערכה: {reportStudent.name}</h3>
+                                    <button onClick={() => setReportStudent(null)}><IconX className="w-6 h-6 text-slate-400 hover:text-red-500" /></button>
+                                </div>
+                                <div className="bg-blue-50 p-4 rounded-xl text-blue-900 text-sm leading-relaxed mb-6">{reportStudent.report.summary}</div>
+                                <button onClick={() => window.print()} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">הדפס דוח</button>
+                            </div>
+                        </div>
+                    )
+                }
+            </div >
+        </div >
     );
 };
 

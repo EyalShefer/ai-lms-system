@@ -254,6 +254,7 @@ const CourseEditor: React.FC = () => {
 
     const handleExitEditor = () => {
         setSelectedUnitId(null);
+        setShowWizard(true);
     };
 
     const handleDeleteUnit = async (unitId: string) => {
@@ -277,6 +278,7 @@ const CourseEditor: React.FC = () => {
                 subject={course.subject}
                 onSave={handleSaveUnit}
                 onCancel={handleExitEditor}
+                onPreview={() => setPreviewUnit(activeUnit)}
                 cancelLabel="חזרה"
             />
         );

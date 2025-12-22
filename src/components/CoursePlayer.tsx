@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import type { ActivityBlock } from '../courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo
 } from '../icons';
 
 // --- הגדרות טיפוסים למצב סקירה ---
@@ -13,6 +13,7 @@ interface StudentReviewData {
 }
 
 interface CoursePlayerProps {
+    assignment?: any; // Added assignment prop
     reviewMode?: boolean;
     studentData?: StudentReviewData;
     onExitReview?: () => void;
@@ -130,7 +131,7 @@ const InteractiveChatBlock: React.FC<{
 };
 
 // --- הקומפוננטה הראשית ---
-const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, studentData, onExitReview }) => {
+const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview }) => {
     const { course } = useCourseStore();
 
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
@@ -385,6 +386,42 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ reviewMode = false, student
                 <div className="sticky top-0 w-full h-10 bg-yellow-400 text-yellow-900 font-bold text-center flex items-center justify-center z-[60] shadow-md">
                     <IconEye className="w-5 h-5 ml-2" /> מצב סקירה: {studentData.studentName}
                     <button onClick={onExitReview} className="mr-4 bg-white/30 px-3 py-0.5 rounded text-sm hover:bg-white/50">יציאה</button>
+                </div>
+            )}
+
+            {/* --- Assignment Header (If exists) --- */}
+            {assignment && (
+                <div className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-lg sticky top-0 z-[50] animate-slide-down mb-6">
+                    <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-bold border border-white/20">משימה להגשה</span>
+                                <h2 className="font-bold text-lg">{assignment.title || "ללא שם"}</h2>
+                            </div>
+                            {assignment.instructions && (
+                                <div className="text-sm text-blue-100 flex items-center gap-1 opacity-90 mt-1">
+                                    <IconInfo className="w-3 h-3" /> {assignment.instructions}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-4 bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm border border-white/10">
+                            <div className="text-center">
+                                <span className="text-xs text-blue-200 block">מועד הגשה</span>
+                                <div className="font-bold flex items-center gap-1">
+                                    <IconCalendar className="w-4 h-4" />
+                                    {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString('he-IL') : '-'}
+                                </div>
+                            </div>
+                            <div className="w-px h-8 bg-white/20"></div>
+                            <div className="text-center">
+                                <span className="text-xs text-blue-200 block">שעה</span>
+                                <div className="font-bold flex items-center gap-1">
+                                    <IconClock className="w-4 h-4" />
+                                    {assignment.dueDate ? new Date(assignment.dueDate).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

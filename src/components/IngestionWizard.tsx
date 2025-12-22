@@ -135,11 +135,11 @@ const IngestionWizard = ({
     };
 
     const handleBack = () => {
-        if (initialTopic) {
-            onCancel();
-        } else if (step === 2) {
+        // אם אנחנו בשלב 2, תמיד נחזור לשלב 1 (גם אם יש נושא התחלתי - המשתמש רוצה לשנות)
+        if (step === 2) {
             setStep(1);
         } else {
+            // אם אנחנו בשלב 1, יציאה מהאשף
             onCancel();
         }
     };
@@ -277,9 +277,11 @@ const IngestionWizard = ({
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50/80 flex justify-between shrink-0 items-center">
-                    <button onClick={handleBack} className="text-gray-500 hover:text-blue-600 font-bold px-4 flex items-center gap-2 transition-colors">
-                        {cancelIcon} {initialTopic ? cancelLabel : (step === 2 ? 'חזרה' : 'ביטול')}
-                    </button>
+                    {step > 1 ? (
+                        <button onClick={handleBack} className="text-gray-500 hover:text-blue-600 font-bold px-4 flex items-center gap-2 transition-colors">
+                            {cancelIcon} {initialTopic ? cancelLabel : 'חזרה'}
+                        </button>
+                    ) : <div></div>}
 
                     <button
                         onClick={handleNext}

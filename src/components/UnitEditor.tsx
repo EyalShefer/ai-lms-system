@@ -11,7 +11,7 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye
 } from '../icons';
 
 // --- הגדרות מקומיות ---
@@ -34,6 +34,7 @@ interface UnitEditorProps {
     subject?: string;
     onSave: (updatedUnit: any) => void;
     onCancel: () => void;
+    onPreview?: () => void;
     cancelLabel?: string;
 }
 
@@ -44,7 +45,7 @@ const getAiActions = (gradeLevel: string) => [
     { label: "העמק תוכן", prompt: `הוסף עומק, דוגמאות והקשר רחב יותר` },
 ];
 
-const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", subject, onSave, onCancel, cancelLabel = "חזרה" }) => {
+const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", subject, onSave, onCancel, onPreview, cancelLabel = "חזרה" }) => {
     const { course } = useCourseStore();
     const [editedUnit, setEditedUnit] = useState<any>(unit);
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
@@ -450,6 +451,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <button onClick={onCancel} className="px-5 py-2 rounded-xl text-gray-600 hover:bg-white/50 font-medium transition-colors flex items-center gap-2">
                         <IconBack className="w-4 h-4 rotate-180" /> חזרה
                     </button>
+
+                    {onPreview && (
+                        <button onClick={onPreview} className="px-5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold transition-colors flex items-center gap-2 border border-blue-200">
+                            <IconEye className="w-4 h-4" /> תצוגת תלמיד
+                        </button>
+                    )}
 
                     <button
                         onClick={handleSaveWithFeedback}

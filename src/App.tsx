@@ -3,7 +3,7 @@ import { useAuth, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { generateCoursePlan } from './gemini';
 
@@ -31,6 +31,7 @@ const AuthenticatedApp = () => {
   const [mode, setMode] = useState('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [wizardMode, setWizardMode] = useState(null);
+  const [currentAssignment, setCurrentAssignment] = useState(null);
 
   const { loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
@@ -38,12 +39,36 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const studentLinkID = params.get('studentCourseId');
+    const assignmentId = params.get('assignmentId');
 
-    if (studentLinkID) {
-      setIsStudentLink(true);
-      loadCourse(studentLinkID);
-      setMode('student');
-    }
+    const init = async () => {
+      if (assignmentId) {
+        console.log("Detected assignmentId:", assignmentId); // DEBUG
+        setIsStudentLink(true);
+        try {
+          const assignSnap = await getDoc(doc(db, "assignments", assignmentId));
+          if (assignSnap.exists()) {
+            const assignData = assignSnap.data();
+            console.log("Assignment data loaded:", assignData); // DEBUG
+            setCurrentAssignment(assignData);
+            loadCourse(assignData.courseId);
+            setMode('student');
+          } else {
+            console.warn("Assignment not found or expired"); // DEBUG
+            alert("המשימה לא נמצאה or expired.");
+            setMode('list');
+          }
+        } catch (e) {
+          console.error("Error loading assignment", e);
+          alert("שגיאה בטעינת המשימה");
+        }
+      } else if (studentLinkID) {
+        setIsStudentLink(true);
+        loadCourse(studentLinkID);
+        setMode('student');
+      }
+    };
+    init();
   }, [loadCourse]);
 
   const handleCourseSelect = (courseId) => {
@@ -166,25 +191,26 @@ const AuthenticatedApp = () => {
               <IconBackSimple /> <span>חזרה</span>
             </button>
           )}
-          {(mode === 'editor' || mode === 'student') && !isStudentLink && (
-            <button onClick={toggleViewMode} className={`px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm ${mode === 'editor' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'}`}>
-              {mode === 'editor' ? <><IconEyeSimple /> <span>תצוגת תלמיד</span></> : <><IconEditSimple /> <span>חזור לעריכה</span></>}
+          {mode === 'student' && !isStudentLink && (
+            <button onClick={toggleViewMode} className="bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm">
+              <IconEditSimple /> <span>חזור לעריכה</span>
             </button>
           )}
           <div className="h-6 w-px bg-gray-300 mx-1"></div>
-          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 p-2.5 rounded-xl transition-colors" title="התנתק">
+          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="התנתק">
             <IconLogOutSimple />
+            <span>התנתק</span>
           </button>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         <Suspense fallback={<LoadingSpinner />}>
-          {isStudentLink ? <CoursePlayer /> : (
+          {isStudentLink ? <CoursePlayer assignment={currentAssignment} /> : (
             <>
               {mode === 'list' && <HomePage onCreateNew={(m) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
               {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
-              {mode === 'student' && <CoursePlayer />}
+              {mode === 'student' && <CoursePlayer assignment={currentAssignment} />}
               {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} />}
             </>
           )}

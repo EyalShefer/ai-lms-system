@@ -127,13 +127,13 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 >
                     <div className="absolute left-0 bottom-0 w-20 h-20 bg-[#24A8D9] rounded-tr-full opacity-30 pointer-events-none"></div>
                     <div className="relative z-10 pointer-events-none">
-                        <div className="flex items-center gap-2 mb-3 text-[#B8D6F6] text-xs font-bold uppercase">
-                            <IconChart className="w-4 h-4" /> ניהול
+                        <div className="flex items-center gap-2 mb-3 text-[#B8D6F6] text-xl font-bold uppercase">
+                            <IconChart className="w-6 h-6" /> ניהול
                         </div>
-                        <h3 className="text-xl font-bold mb-1">הכיתות שלי</h3>
-                        <p className="text-[#B8D6F6] text-xs mb-4">דוחות, ציונים ומעקב</p>
+                        <h3 className="text-3xl font-bold mb-2 leading-tight">לוח הפעילויות <br /> והמבחנים</h3>
+                        <p className="text-[#B8D6F6] text-lg mb-4 opacity-90">דוחות, ציונים ומעקב</p>
                         <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
-                            לדשבורד <IconBack className="w-4 h-4 rotate-180" /> {/* שימוש ב-IconBack */}
+                            כניסה ללוח <IconBack className="w-4 h-4 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
                 </div>
