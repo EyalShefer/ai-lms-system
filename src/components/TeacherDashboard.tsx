@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
-import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; // Added addDoc, serverTimestamp
+import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore'; // Added deleteDoc, doc
 import { db } from '../firebase';
 import {
-    IconChart, IconBrain, IconX, IconSparkles, IconEdit,
+    IconChart, IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
     IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
     IconLink, IconCheck, IconStudent, IconCalendar, IconClock, IconList,
     IconArrowUp, IconArrowDown // Added Arrow Icons
@@ -51,6 +51,7 @@ interface CourseAggregation {
     completionRate: number; // הוספנו אחוז השלמה
     atRiskCount: number;
     createdAt?: any;
+    type: 'test' | 'activity'; // Added type
 }
 
 interface TeacherDashboardProps {
@@ -64,6 +65,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{ step: 'none' | 'first' | 'second', courseId: string | null }>({ step: 'none', courseId: null });
 
     // Assignment Modal State
     const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
@@ -270,7 +272,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                     completionRate: 0,
                     atRiskCount: 0,
                     createdAt: meta.createdAt,
-                    nextDueDate: nextDue // New Field
+                    nextDueDate: nextDue, // New Field
+                    type: hasTest ? 'test' : 'activity'
                 };
             }
         });
@@ -429,6 +432,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         }
     };
 
+    const handleDeleteCourse = async () => {
+        if (!deleteConfirmation.courseId) return;
+
+        try {
+            await deleteDoc(doc(db, "courses", deleteConfirmation.courseId));
+            // We rely on onSnapshot to update the list, but we should clear selection
+            setSelectedCourseId(null);
+            setDeleteConfirmation({ step: 'none', courseId: null });
+            alert("הכיתה נמחקה בהצלחה.");
+        } catch (error) {
+            console.error("Error deleting course:", error);
+            alert("שגיאה במחיקת הכיתה.");
+        }
+    };
+
     if (loading || !isCoursesLoaded) return <div className="h-screen flex items-center justify-center text-indigo-600 font-bold bg-slate-50">טוען נתונים...</div>;
 
     return (
@@ -438,14 +456,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 {/* 1. TOP BAR */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-4 z-30">
                     <div className="flex flex-col xl:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-3 w-full">
+
+                        {/* RIGHT SIDE (RTL Start) - Title Area */}
+                        <div className="flex items-center gap-3 w-full xl:w-auto">
                             {selectedCourseId ? (
-                                <button
-                                    onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); }}
-                                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors flex items-center gap-2 font-bold shadow-sm border border-indigo-200"
-                                >
-                                    <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה לכל הכיתות
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight text-right line-clamp-1 max-w-[600px]" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
+                                        <span className="text-indigo-600 font-medium ml-1">
+                                            {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.type === 'test' ? 'מבחן:' : 'פעילות:'}
+                                        </span>
+                                        {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title || "קורס נבחר"}
+                                    </h2>
+                                </div>
                             ) : (
                                 <div className="flex items-center gap-3">
                                     <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-md shadow-indigo-200"><IconLayer className="w-6 h-6" /></div>
@@ -457,53 +479,65 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                             )}
                         </div>
 
-                        {!selectedCourseId && (
-                            <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                {/* View Toggle */}
-                                <div className="flex bg-slate-200 rounded-lg p-1 gap-1">
-                                    <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת כרטיסיות"><IconLayer className="w-4 h-4" /></button>
-                                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת רשימה"><IconList className="w-4 h-4" /></button>
+                        {/* LEFT SIDE (RTL End) - Actions / Filters */}
+                        <div className="flex items-center gap-3 w-full xl:w-auto justify-end">
+                            {selectedCourseId ? (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setDeleteConfirmation({ step: 'first', courseId: selectedCourseId })}
+                                        className="px-4 py-2 text-red-600 hover:bg-red-50 bg-white border border-red-100 rounded-xl transition-all font-bold flex items-center gap-2"
+                                        title="מחק פעילות/מבחן"
+                                    >
+                                        <IconTrash className="w-5 h-5" /> מחיקה
+                                    </button>
+                                    <button
+                                        onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); }}
+                                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors flex items-center gap-2 font-bold shadow-sm border border-indigo-200"
+                                    >
+                                        <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה ללוח המשימות
+                                    </button>
                                 </div>
-                                <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                            ) : (
+                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                    {/* View Toggle */}
+                                    <div className="flex bg-slate-200 rounded-lg p-1 gap-1">
+                                        <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת כרטיסיות"><IconLayer className="w-4 h-4" /></button>
+                                        <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת רשימה"><IconList className="w-4 h-4" /></button>
+                                    </div>
+                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
 
-                                {/* Type Filter */}
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                    <IconSparkles className="w-4 h-4 text-slate-400" />
-                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[100px] cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                                        <option value="all">כל הסוגים</option>
-                                        <option value="test">מבחנים</option>
-                                        <option value="activity">פעילויות</option>
-                                    </select>
-                                </div>
+                                    {/* Type Filter */}
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                        <IconSparkles className="w-4 h-4 text-slate-400" />
+                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[100px] cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                                            <option value="all">כל הסוגים</option>
+                                            <option value="test">מבחנים</option>
+                                            <option value="activity">פעילויות</option>
+                                        </select>
+                                    </div>
 
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                    <IconBook className="w-4 h-4 text-slate-400" />
-                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
-                                        <option value="all">כל המקצועות</option>
-                                        {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
-                                    </select>
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                        <IconBook className="w-4 h-4 text-slate-400" />
+                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
+                                            <option value="all">כל המקצועות</option>
+                                            {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                        <IconLayer className="w-4 h-4 text-slate-400" />
+                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
+                                            <option value="all">כל השכבות</option>
+                                            {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                                    <div className="relative flex-1 min-w-[200px]">
+                                        <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                                        <input type="text" placeholder="חיפוש כיתה..." className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                    <IconLayer className="w-4 h-4 text-slate-400" />
-                                    <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
-                                        <option value="all">כל השכבות</option>
-                                        {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
-                                    </select>
-                                </div>
-                                <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                                <div className="relative flex-1 min-w-[200px]">
-                                    <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-                                    <input type="text" placeholder="חיפוש כיתה..." className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                                </div>
-                            </div>
-                        )}
-
-                        {selectedCourseId && (
-                            <div className="bg-indigo-50 px-4 py-2 rounded-xl text-indigo-800 font-bold border border-indigo-100 shadow-sm flex items-center gap-2">
-                                <IconBook className="w-4 h-4" />
-                                {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title || "קורס נבחר"}
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -840,6 +874,74 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                     )
                 }
             </div >
+            {/* --- מודל אישור מחיקה - שלב 1 --- */}
+            {deleteConfirmation.step === 'first' && createPortal(
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
+                        <div className="p-8 text-center">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                                <IconTrash className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-800 mb-2">מחיקת משימה</h3>
+                            <p className="text-gray-500 mb-6 leading-relaxed">
+                                האם אתם בטוחים שברצונכם למחוק את המשימה?
+                                <br />
+                                <span className="font-bold text-red-500">פעולה זו תמחק את כל תוצאות התלמידים והנתונים המשויכים למשימה זו.</span>
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
+                                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+                                >
+                                    ביטול
+                                </button>
+                                <button
+                                    onClick={() => setDeleteConfirmation(prev => ({ ...prev, step: 'second' }))}
+                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors"
+                                >
+                                    המשך למחיקה
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* --- מודל אישור מחיקה - שלב 2 (סופי) --- */}
+            {deleteConfirmation.step === 'second' && createPortal(
+                <div className="fixed inset-0 bg-red-900/80 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-shake border-4 border-red-500">
+                        <div className="p-8 text-center">
+                            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 border-4 border-red-50 animate-pulse">
+                                <IconTrash className="w-10 h-10" />
+                            </div>
+                            <h3 className="text-3xl font-black text-red-600 mb-2 uppercase tracking-tight">אזהרה אחרונה!</h3>
+                            <p className="text-gray-600 mb-8 font-bold text-lg">
+                                פעולה זו היא בלתי הפיכה.
+                                <br />
+                                כל הנתונים יאבדו לנצח.
+                            </p>
+                            <div className="flex gap-3 flex-col">
+                                <button
+                                    onClick={handleDeleteCourse}
+                                    className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-xl rounded-2xl shadow-xl shadow-red-200 transition-transform transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <IconTrash className="w-6 h-6" /> כן, מחק את המשימה לצמיתות
+                                </button>
+                                <button
+                                    onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
+                                    className="w-full py-3 text-gray-500 font-bold hover:text-gray-800 hover:bg-gray-50 rounded-xl transition-colors"
+                                >
+                                    התחרטתי, בטל מחיקה
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
         </div >
     );
 };

@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
     IconBook, IconList, IconSparkles, IconUpload,
-    IconChart, IconRobot, IconBack, IconSearch, IconStar, // שיניתי כאן ל-IconBack
+    IconChart, IconRobot, IconBack, IconSearch, // שיניתי כאן ל-IconBack
     IconCheck, IconLayer, IconStudent, IconWand, IconConstruction
 } from '../icons';
 
@@ -14,6 +14,14 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
     const handleCardClick = (actionName: string, callback: () => void) => {
         console.log(`🚀 Clicked card: ${actionName}`);
         callback();
+    };
+
+    const getTimeBasedGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 12) return "בוקר טוב";
+        if (hour >= 12 && hour < 18) return "צהריים טובים";
+        if (hour >= 18 && hour < 22) return "ערב טוב";
+        return "לילה טוב";
     };
 
     return (
@@ -36,7 +44,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 </div>
 
                 <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-2 relative z-10">
-                    בוקר טוב, {firstName}! ☀️
+                    {getTimeBasedGreeting()}, {firstName}! ☀️
                 </h1>
                 <p className="text-slate-500 text-lg relative z-10">
                     הסטודיו שלך ליצירה, למידה והערכה חכמה.
@@ -104,34 +112,20 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                     </div>
                 </div>
 
-                {/* 3. File Import */}
-                <div
-                    onClick={() => handleCardClick("File Import", () => onCreateNew('learning'))}
-                    className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:border-[#24A8D9] cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
-                >
-                    <div className="bg-[#B8D6F6] w-12 h-12 rounded-xl flex items-center justify-center text-[#0A4D7F] mb-4 group-hover:scale-110 transition-transform pointer-events-none">
-                        <IconUpload className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-[#24A8D9] transition-colors pointer-events-none">
-                        המרת קובץ לפעילות
-                    </h3>
-                    <p className="text-slate-500 text-xs leading-relaxed pointer-events-none font-medium">
-                        העלו דפי עבודה, סיכומים או מסמכים (PDF/Word) והפכו אותם לפעילות אינטראקטיבית.
-                    </p>
-                </div>
-
-                {/* 4. Dashboard Link (כהה) */}
+                {/* 4. Dashboard Link (כהה) - עכשיו תופס 2 עמודות */}
                 <div
                     onClick={() => handleCardClick("Dashboard", onNavigateToDashboard)}
-                    className="bg-[#0A4D7F] rounded-3xl p-6 text-white shadow-lg cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden"
+                    className="col-span-1 md:col-span-2 bg-[#0A4D7F] rounded-3xl p-6 text-white shadow-lg cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden"
                 >
                     <div className="absolute left-0 bottom-0 w-20 h-20 bg-[#24A8D9] rounded-tr-full opacity-30 pointer-events-none"></div>
                     <div className="relative z-10 pointer-events-none">
-                        <div className="flex items-center gap-2 mb-3 text-[#B8D6F6] text-xl font-bold uppercase">
-                            <IconChart className="w-6 h-6" /> ניהול
+                        <div className="flex items-center gap-2 mb-3 text-[#B8D6F6] text-2xl font-bold uppercase">
+                            <IconChart className="w-8 h-8" /> ניהול
                         </div>
                         <h3 className="text-3xl font-bold mb-2 leading-tight">לוח הפעילויות <br /> והמבחנים</h3>
-                        <p className="text-[#B8D6F6] text-lg mb-4 opacity-90">דוחות, ציונים ומעקב</p>
+                        <p className="text-[#B8D6F6] text-lg mb-4 opacity-90 font-medium">
+                            צפייה בנתוני התלמידים, דוחות מפורטים, ציונים ומעקב אחר התקדמות בזמן אמת.
+                        </p>
                         <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
                             כניסה ללוח <IconBack className="w-4 h-4 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
@@ -193,27 +187,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
             </div>
 
             {/* Footer / Stats */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-wrap justify-around items-center gap-6 relative z-10">
-                <div className="text-center">
-                    <div className="text-3xl font-black text-[#0A4D7F]">3</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">פעילויות השבוע</div>
-                </div>
-                <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
-                <div className="text-center">
-                    <div className="text-3xl font-black text-[#24A8D9]">24</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">תלמידים פעילים</div>
-                </div>
-                <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
-                <div className="text-center">
-                    <div className="text-3xl font-black text-[#0A4D7F]">4.8</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">דירוג ממוצע</div>
-                </div>
-                <div className="w-px h-10 bg-slate-100 hidden md:block"></div>
-                <div className="flex items-center gap-3 bg-[#B8D6F6] px-4 py-2 rounded-xl text-[#0A4D7F] font-bold text-sm cursor-pointer hover:bg-[#24A8D9] hover:text-white transition-colors">
-                    <IconStar className="w-4 h-4" />
-                    שדרגו לפרו
-                </div>
-            </div>
+            {/* Footer / Stats removed as per user request */}
 
             <style>{`
                 .animate-fade-in { animation: fadeIn 0.8s ease-out; }

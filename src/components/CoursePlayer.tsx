@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import type { ActivityBlock } from '../courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser
 } from '../icons';
+import { submitAssignment } from '../services/submissionService';
 
 // --- הגדרות טיפוסים למצב סקירה ---
 interface StudentReviewData {
@@ -139,7 +140,18 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
 
-    // אתחול
+    // Submission State
+    const [studentName, setStudentName] = useState('');
+    const [isNameConfirmed, setIsNameConfirmed] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitted, setIsSubmitted] = useState(false);
+
+    // If not an assignment (teacher preview), we don't need name
+    useEffect(() => {
+        if (!assignment) {
+            setIsNameConfirmed(true);
+        }
+    }, [assignment]);
     useEffect(() => {
         if (course?.syllabus?.length > 0) {
             if (!activeModuleId) setActiveModuleId(course.syllabus[0].id);
@@ -161,6 +173,61 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     // בדיקת טעינה
     if (!course || !course.syllabus) return <div className="h-screen flex items-center justify-center text-gray-500">טוען תוכן...</div>;
+
+    // --- 1. מסך הזנת שם (רק למשימות) ---
+    if (assignment && !isNameConfirmed) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <IconUser className="w-8 h-8" />
+                    </div>
+                    <h1 className="text-2xl font-bold mb-2">ברוכים הבאים!</h1>
+                    <p className="text-gray-600 mb-6">לפני שמתחילים במשימה <b>"{assignment.title}"</b>, אנא הכניסו את שמכם המלא.</p>
+
+                    <input
+                        type="text"
+                        placeholder="שם מלא..."
+                        value={studentName}
+                        onChange={(e) => setStudentName(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-xl mb-6 text-lg focus:border-blue-500 outline-none"
+                    />
+
+                    <button
+                        onClick={() => {
+                            if (studentName.trim().length > 1) setIsNameConfirmed(true);
+                        }}
+                        disabled={studentName.trim().length < 2}
+                        className={`w-full py-3 rounded-xl font-bold text-white transition-all ${studentName.trim().length < 2 ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg'
+                            }`}
+                    >
+                        התחל משימה
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- 2. מסך סיום והגשה ---
+    if (isSubmitted) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+                <div className="bg-white p-10 rounded-3xl shadow-xl max-w-lg w-full text-center animate-scale-in">
+                    <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <IconCheck className="w-10 h-10" />
+                    </div>
+                    <h1 className="text-3xl font-black text-gray-800 mb-3">המשימה הוגשה בהצלחה!</h1>
+                    <p className="text-gray-600 text-lg mb-8">
+                        תודה רבה, {studentName}.<br />
+                        התשובות שלך נשמרו והועברו למורה לבדיקה.
+                    </p>
+                    <button onClick={() => window.close()} className="text-gray-400 hover:text-gray-600 text-sm underline">
+                        סגור חלונית
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const activeModule = course.syllabus.find(m => m.id === activeModuleId);
     const activeUnit = activeModule?.learningUnits.find(u => u.id === activeUnitId);
@@ -205,6 +272,27 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             } else {
                 alert("כל הכבוד! סיימת את כל היחידות בקורס 🎉");
             }
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!assignment || !studentName) return;
+
+        if (!window.confirm("האם אתה בטוח שברצונך להגיש את המשימה? לא ניתן לשנות תשובות לאחר ההגשה.")) return;
+
+        setIsSubmitting(true);
+        try {
+            await submitAssignment({
+                assignmentId: assignment.id || 'unknown', // Fallback if ID extracted from URL param outside
+                courseId: course.id,
+                studentName: studentName,
+                answers: userAnswers
+            });
+            setIsSubmitted(true);
+        } catch (e) {
+            alert("אירעה שגיאה בהגשה. נא לנסות שוב.");
+            console.error(e);
+            setIsSubmitting(false);
         }
     };
 
@@ -463,7 +551,28 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </button>
                         </div>
                     </>
-                ) : <div className="text-center mt-20 text-gray-400">טוען יחידה...</div>}
+                ) : (
+                    <div className="text-center mt-20">
+                        {/* מצב סיום קורס / יחידה אחרונה */}
+                        <div className="bg-white p-8 rounded-3xl shadow-lg inline-block">
+                            <h2 className="text-2xl font-bold mb-4">סיימת את כל היחידות! 🎉</h2>
+                            <p className="text-gray-600 mb-8">כל הכבוד על ההשקעה.</p>
+
+                            {assignment ? (
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={isSubmitting}
+                                    className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"
+                                >
+                                    {isSubmitting ? 'שולח...' : 'הגש משימה לבדיקה'}
+                                    {!isSubmitting && <IconCheck className="w-6 h-6" />}
+                                </button>
+                            ) : (
+                                <p className="text-sm text-gray-400">(מצב תצוגה מקדימה - ללא הגשה)</p>
+                            )}
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

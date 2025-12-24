@@ -40,8 +40,8 @@ const IngestionWizard = ({
     const [customTitle, setCustomTitle] = useState('');
 
     // ברירת מחדל תואמת לרשימה
-    const [grade, setGrade] = useState(GRADES[9]); // כיתה י' כברירת מחדל
-    const [subject, setSubject] = useState('היסטוריה');
+    const [grade, setGrade] = useState(GRADES[6]); // כיתה ז' כברירת מחדל
+    const [subject, setSubject] = useState('חינוך לשוני (עברית)');
     const [modulesCount, setModulesCount] = useState(3);
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
     const [courseMode, setCourseMode] = useState(initialMode);
@@ -215,7 +215,7 @@ const IngestionWizard = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
                                 <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
                                     <div className="bg-yellow-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-yellow-600" /></div>
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא לפעילות</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור את התוכן עבורכם.</p></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא ל{courseMode === 'exam' ? 'מבחן' : 'פעילות'}</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
 
@@ -228,12 +228,12 @@ const IngestionWizard = ({
                                     className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
                                 >
                                     <input {...getInputProps()} />
-                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי לנתח אותו.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
+                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי שה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
                             </div>
                             {mode === 'topic' && (
                                 <div className="animate-fade-in mt-6">
-                                    <label className="block text-lg font-bold text-gray-700 mb-2">כתבו כאן את נושא הפעילות:</label>
+                                    <label className="block text-lg font-bold text-gray-700 mb-2">כתבו כאן את נושא {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}:</label>
                                     <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: המהפכה הצרפתית, יסודות הפיזיקה..." autoFocus />
                                 </div>
                             )}

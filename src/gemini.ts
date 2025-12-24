@@ -56,17 +56,34 @@ const mapSystemItemToBlock = (item: any) => {
   };
 
   if (item.type === 'multiple_choice' || item.type === 'true_false') {
-    let options = item.content.options || [];
+    // Robust options extraction
+    let options: string[] = [];
+    if (item.content && Array.isArray(item.content.options)) {
+      options = item.content.options;
+    } else if (Array.isArray(item.options)) {
+      options = item.options;
+    } else if (Array.isArray(item.choices)) {
+      options = item.choices;
+    } else {
+      options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"]; // Fallback
+    }
+
+    // Robust correct answer extraction
     let correctAnswer = "";
-    if (typeof item.content.correct_index === 'number' && options[item.content.correct_index]) {
+    if (item.content?.correct_index !== undefined && options[item.content.correct_index]) {
       correctAnswer = options[item.content.correct_index];
+    } else if (item.correct_index !== undefined && options[item.correct_index]) {
+      correctAnswer = options[item.correct_index];
+    } else if (item.content?.correct_answer && options.includes(item.content.correct_answer)) {
+      correctAnswer = item.content.correct_answer;
     } else {
       correctAnswer = options[0] || "";
     }
+
     return {
       id: uuidv4(),
       type: 'multiple-choice',
-      content: { question: item.question_text, options: options, correctAnswer: correctAnswer },
+      content: { question: item.question_text || item.question || "שאלה ללא טקסט", options: options, correctAnswer: correctAnswer },
       metadata: { ...commonMetadata, score: 10 }
     };
   }
@@ -105,11 +122,13 @@ const mapSystemItemToBlock = (item: any) => {
 };
 
 // --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
+// --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (
   topic: string,
   gradeLevel: string,
   fileData?: { base64: string; mimeType: string },
-  subject: string = "כללי"
+  subject: string = "כללי",
+  sourceText?: string // טקסט שחולץ (PDF/Doc)
 ) => {
   console.log("Starting cloud generation for:", topic);
 
@@ -123,6 +142,7 @@ export const generateCoursePlan = async (
       gradeLevel,
       subject,
       fileData: fileData || null,
+      sourceText: sourceText || null,
       status: "pending",
       createdAt: new Date(),
     });
@@ -196,47 +216,145 @@ export const generateFullUnitContent = async (
   courseTopic: string,
   gradeLevel: string = "כללי",
   fileData?: { base64: string; mimeType: string },
-  subject: string = "כללי"
+  subject: string = "כללי",
+  sourceText?: string,
+  taxonomy?: { knowledge: number; application: number; evaluation: number }
 ) => {
 
-  const systemPrompt = `
-    You are an expert pedagogical content generator for the subject: ${subject}.
-    Target Audience: ${gradeLevel}.
-    Language: Hebrew (Ivrit).
-    Subject Lens: Analyze the topic "${courseTopic}" strictly through the perspective of ${subject}.
-    Source Material: ${fileData ? "Base all questions on the provided image/document." : "Use your general knowledge."}
-    Output Format: Provide a VALID JSON array of objects. Do not wrap in markdown.
-    Schema per item:
-    {
-      "id": 1,
-      "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-      "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
-      "question_text": "Hebrew question...",
-      "source_reference": "Reference if applicable",
-      "feedback_correct": "Positive feedback",
-      "feedback_incorrect": "Constructive feedback",
-      "content": {
-          "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
-          "correct_index": 0, 
-          "hint": "Hebrew hint",
-          "key_points": ["Point 1", "Point 2"]
+  const hasSourceMaterial = !!(fileData || sourceText);
+  let systemPrompt = "";
+  let userMessageContent: any[] = [];
+
+  const taxonomyInstruction = taxonomy
+    ? `\n4. BLOOM'S TAXONOMY DISTRIBUTION (MANDATORY):
+       - Knowledge/Recall: ~${taxonomy.knowledge}%
+       - Application/Analysis: ~${taxonomy.application}%
+       - Evaluation/Creation: ~${taxonomy.evaluation}%
+       Ensure the questions reflect this complexity balance.`
+    : "";
+
+  // --- LOGIC SPLIT: File Agent vs Topic Agent ---
+
+  if (hasSourceMaterial) {
+    // === SITE A: FILE AGENT (STRICT) ===
+    console.log("🤖 Mode: File Agent (Source Based)");
+
+    systemPrompt = `
+      You are a Strict Content Analyst and Pedagogue for the subject: ${subject}.
+      Target Audience: ${gradeLevel}.
+      Language: Hebrew (Ivrit).
+      
+      CORE DIRECTIVE:
+      Your knowledge base is STRICTLY limited to the provided source material (Text/Image).
+      Do NOT use outside knowledge to generate questions.
+      
+      TASK:
+      Create a learning unit based ONLY on the provided content.
+      
+      OUTPUT REQUIREMENTS:
+      1. Provide a VALID JSON array of objects.
+      2. For every question, you must be able to internally justify it based on the text.
+      3. If the content is insufficient for ${subject}, return a JSON with a single "text" block explaining why.
+      
+      Schema per item:
+      {
+        "id": 1,
+        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
+        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "question_text": "Hebrew question...",
+        "source_reference": "Quote or reference from text",
+        "feedback_correct": "Positive feedback",
+        "feedback_incorrect": "Constructive feedback",
+        "content": {
+            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "correct_index": 0, 
+            "hint": "Hebrew hint",
+            "key_points": ["Point 1", "Point 2"]
+        }
       }
+      Schema per item:
+      {
+        "id": 1,
+        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
+        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "question_text": "Hebrew question...",
+        "source_reference": "Quote or reference from text",
+        "feedback_correct": "Positive feedback",
+        "feedback_incorrect": "Constructive feedback",
+        "content": {
+            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "correct_index": 0, 
+            "hint": "Hebrew hint",
+            "key_points": ["Point 1", "Point 2"]
+        }
+      }
+      ${taxonomyInstruction}
+      Create 6-8 items.
+    `;
+
+    if (sourceText) {
+      userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Generate learning unit for "${unitTitle}" based on this text.` });
+    } else {
+      userMessageContent.push({ type: "text", text: `Task: Generate learning unit for "${unitTitle}" based on this image.` });
     }
-    Create 6-8 diverse items.
-  `;
 
-  const userMessageContent: any[] = [
-    { type: "text", text: `Create learning content for topic: ${courseTopic}, Unit: ${unitTitle}.` }
-  ];
+    if (fileData) {
+      const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
+      userMessageContent.push({
+        type: "image_url",
+        image_url: { url: dataUrl }
+      });
+    }
 
-  if (fileData) {
-    const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
-    userMessageContent.push({
-      type: "image_url",
-      image_url: {
-        url: dataUrl
+  } else {
+    // === SITE B: TOPIC AGENT (CREATIVE) ===
+    console.log("🎨 Mode: Topic Agent (Creative)");
+
+    systemPrompt = `
+      You are an expert pedagogical content generator for the subject: ${subject}.
+      Target Audience: ${gradeLevel}.
+      Language: Hebrew (Ivrit).
+      Subject Lens: Analyze the topic "${courseTopic}" strictly through the perspective of ${subject}.
+      Source Material: Use your general knowledge.
+      Output Format: Provide a VALID JSON array of objects. Do not wrap in markdown.
+      
+      Schema per item:
+      {
+        "id": 1,
+        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
+        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "question_text": "Hebrew question...",
+        "source_reference": "General Knowledge",
+        "feedback_correct": "Positive feedback",
+        "feedback_incorrect": "Constructive feedback",
+        "content": {
+            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "correct_index": 0, 
+            "hint": "Hebrew hint",
+            "key_points": ["Point 1", "Point 2"]
+        }
       }
-    });
+      Schema per item:
+      {
+        "id": 1,
+        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
+        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "question_text": "Hebrew question...",
+        "source_reference": "General Knowledge",
+        "feedback_correct": "Positive feedback",
+        "feedback_incorrect": "Constructive feedback",
+        "content": {
+            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "correct_index": 0, 
+            "hint": "Hebrew hint",
+            "key_points": ["Point 1", "Point 2"]
+        }
+      }
+      ${taxonomyInstruction}
+      Create 6-8 diverse items.
+    `;
+
+    userMessageContent.push({ type: "text", text: `Create learning content for topic: ${courseTopic}, Unit: ${unitTitle}.` });
   }
 
   try {
@@ -246,7 +364,7 @@ export const generateFullUnitContent = async (
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessageContent as any }
       ],
-      temperature: 0.7,
+      temperature: hasSourceMaterial ? 0.3 : 0.7, // Lower temperature for strict file analysis
       response_format: { type: "json_object" }
     });
 
@@ -370,7 +488,19 @@ export const generateSingleMultipleChoiceQuestion = async (context: string) => {
       messages: [{ role: "user", content: `Create 1 multiple-choice question about: "${context}". Language: Hebrew. JSON format: {question, options, correctAnswer}` }],
       response_format: { type: "json_object" }
     });
-    return JSON.parse(res.choices[0].message.content || "{}");
+    const text = res.choices[0].message.content || "{}";
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = JSON.parse(cleanJsonString(text));
+    }
+
+    // Validate and fix structure if needed
+    if (!parsed.options || !Array.isArray(parsed.options)) {
+      parsed.options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"];
+    }
+    return parsed;
   } catch (e) { return { question: "שגיאה ביצירה", options: [], correctAnswer: "" }; }
 };
 

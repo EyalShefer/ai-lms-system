@@ -6,10 +6,46 @@ import { generateCoursePlan, generateFullUnitContent } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
-import {
-    IconEdit, IconSparkles, IconTrash,
-    IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX
-} from '../icons';
+import { IconEdit, IconSparkles, IconTrash, IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX } from '../icons';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+).toString();
+
+const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            const result = reader.result as string;
+            // הסרת ה-Prefix של הדפדפן (data:image/jpeg;base64,)
+            const base64 = result.split(',')[1];
+            resolve({ base64, mimeType: file.type });
+        };
+        reader.onerror = error => reject(error);
+    });
+};
+
+const extractTextFromPDF = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = "";
+
+    // קריאה מוגבלת ל-5 עמודים ראשונים למניעת עומס
+    const maxPages = Math.min(pdf.numPages, 5);
+
+    for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+    }
+
+    return fullText;
+};
 
 const IconEyeLocal = ({ className = "w-5 h-5" }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -158,8 +194,43 @@ const CourseEditor: React.FC = () => {
                 mode: updatedCourseState.mode
             });
 
-            // יצירת סילבוס עם ה-subject
-            const syllabus = await generateCoursePlan(topicToUse, extractedGrade, data.file, userSubject);
+            // --- עיבוד הקובץ לפני השליחה ---
+            let processedFileData = undefined; // עבור תמונות
+            let processedSourceText = undefined; // עבור טקסט/PDF
+
+            if (data.file) {
+                const file = data.file;
+                console.log("Processing file:", file.name, file.type);
+
+                try {
+                    if (file.type === 'application/pdf') {
+                        // חילוץ טקסט מ-PDF
+                        processedSourceText = await extractTextFromPDF(file);
+                        console.log("PDF Text Extracted (First 5 pages)");
+                    } else if (file.type.startsWith('image/')) {
+                        // המרה ל-Base64 עבור תמונות
+                        processedFileData = await fileToBase64(file);
+                    } else if (file.type === 'text/plain') {
+                        // קריאת קובץ טקסט
+                        processedSourceText = await file.text();
+                    } else {
+                        console.warn("Unsupported file type for AI analysis, using metadata solely.");
+                    }
+                } catch (fileError) {
+                    console.error("File processing failed:", fileError);
+                    alert("שגיאה בעיבוד הקובץ. המערכת תמשיך על בסיס הנושא בלבד.");
+                }
+            }
+
+            // יצירת סילבוס עם הנתונים המעובדים
+            // שימו לב: אנחנו מעבירים גם processedSourceText כפרמטר חדש (נצטרך לעדכן את gemini.ts)
+            const syllabus = await generateCoursePlan(
+                topicToUse,
+                extractedGrade,
+                processedFileData, // לתמונות
+                userSubject,
+                processedSourceText // לטקסט מחולץ
+            );
 
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
@@ -168,13 +239,15 @@ const CourseEditor: React.FC = () => {
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
-                // יצירת תוכן ראשוני עם ה-subject
+                // יצירת תוכן ראשוני
                 const newBlocks = await generateFullUnitContent(
                     firstUnit.title,
                     topicToUse,
                     extractedGrade,
-                    data.file,
-                    userSubject
+                    processedFileData,
+                    userSubject,
+                    processedSourceText, // העברת הטקסט המחולץ גם לכאן
+                    data.settings?.taxonomy // Pass taxonomy settings
                 );
 
                 const syllabusWithContent = syllabus.map((mod: any) => ({
@@ -272,15 +345,20 @@ const CourseEditor: React.FC = () => {
 
     if (activeUnit) {
         return (
-            <UnitEditor
-                unit={activeUnit}
-                gradeLevel={displayGrade}
-                subject={course.subject}
-                onSave={handleSaveUnit}
-                onCancel={handleExitEditor}
-                onPreview={() => setPreviewUnit(activeUnit)}
-                cancelLabel="חזרה"
-            />
+            <>
+                {previewUnit && (
+                    <UnitPreviewModal unit={previewUnit} onClose={() => setPreviewUnit(null)} />
+                )}
+                <UnitEditor
+                    unit={activeUnit}
+                    gradeLevel={displayGrade}
+                    subject={course.subject}
+                    onSave={handleSaveUnit}
+                    onCancel={handleExitEditor}
+                    onPreview={() => setPreviewUnit(activeUnit)}
+                    cancelLabel="חזרה"
+                />
+            </>
         );
     }
 

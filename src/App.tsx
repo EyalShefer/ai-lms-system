@@ -13,6 +13,28 @@ const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Worker Configuration
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
+
+const extractTextFromPDF = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = "";
+  // Limit to 5 pages
+  const maxPages = Math.min(pdf.numPages, 5);
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map((item: any) => item.str).join(' ');
+    fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+  }
+  return fullText;
+};
 
 // --- Icons ---
 const IconBackSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>;
@@ -106,19 +128,39 @@ const AuthenticatedApp = () => {
       let fileUrl = null;
       let fileType = null;
       let fileName = null;
+
+      // משתנים למעבר ל-AI
       let aiFileData = undefined;
+      let aiSourceText = undefined;
 
       if (wizardData.file) {
-        console.log("Processing file...");
-        try {
-          aiFileData = await fileToGenerativePart(wizardData.file);
-        } catch (e) { console.error("Error converting file", e); }
+        console.log("Processing file:", wizardData.file.name, wizardData.file.type);
+        const file = wizardData.file;
+        fileType = file.type;
+        fileName = file.name;
 
-        const storageRef = ref(storage, `uploads/${currentUser.uid}/${Date.now()}_${wizardData.file.name}`);
-        const snapshot = await uploadBytes(storageRef, wizardData.file);
-        fileUrl = await getDownloadURL(snapshot.ref);
-        fileType = wizardData.file.type;
-        fileName = wizardData.file.name;
+        // 1. העלאה ל-Storage (תמיד כדאי לשמור את המקור)
+        try {
+          const storageRef = ref(storage, `uploads/${currentUser.uid}/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          fileUrl = await getDownloadURL(snapshot.ref);
+        } catch (e) {
+          console.error("Storage upload failed", e);
+        }
+
+        // 2. עיבוד עבור ה-AI
+        try {
+          if (file.type === 'application/pdf') {
+            aiSourceText = await extractTextFromPDF(file);
+            console.log("PDF Text Extracted");
+          } else if (file.type.startsWith('image/')) {
+            aiFileData = await fileToGenerativePart(file);
+          } else if (file.type === 'text/plain') {
+            aiSourceText = await file.text();
+          }
+        } catch (e) {
+          console.error("Error processing file for AI", e);
+        }
       }
 
       // --- לוג ביקורת ---
@@ -140,9 +182,15 @@ const AuthenticatedApp = () => {
 
       let aiSyllabus = [];
       try {
-        // --- התיקון כאן: הוספת userSubject כפרמטר רביעי ---
-        // זה מבטיח שהיצירה הראשונית כבר תהיה מותאמת למקצוע
-        aiSyllabus = await generateCoursePlan(topicForAI, extractedGrade, aiFileData, userSubject);
+        // --- קריאה ל-Generate Course Plan ---
+        // ארגומנטים: topic, grade, imageFile, subject, sourceText
+        aiSyllabus = await generateCoursePlan(
+          topicForAI,
+          extractedGrade,
+          aiFileData,
+          userSubject,
+          aiSourceText
+        );
         console.log("AI Success");
       } catch (aiError) {
         console.error("AI Failed:", aiError);
