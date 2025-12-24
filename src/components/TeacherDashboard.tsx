@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
-import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore'; // Added deleteDoc, doc
+import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import { db } from '../firebase';
 import {
     IconChart, IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
@@ -52,6 +52,7 @@ interface CourseAggregation {
     atRiskCount: number;
     createdAt?: any;
     type: 'test' | 'activity'; // Added type
+    submittedCount: number; // New field for submitted count
 }
 
 interface TeacherDashboardProps {
@@ -61,6 +62,7 @@ interface TeacherDashboardProps {
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
+    const [rawSubmissions, setRawSubmissions] = useState<any[]>([]); // New state for submissions
     const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -98,6 +100,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     const [aiInsight, setAiInsight] = useState<any>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
+
+    // Feedback State
+    const [feedbackText, setFeedbackText] = useState("");
+    const [isSavingFeedback, setIsSavingFeedback] = useState(false);
+
+    useEffect(() => {
+        if (viewingTestStudent) {
+            setFeedbackText((viewingTestStudent as any).rawSubmission?.feedback || "");
+        }
+    }, [viewingTestStudent]);
 
     const [assignmentsMap, setAssignmentsMap] = useState<Record<string, any[]>>({});
 
@@ -158,8 +170,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     }, []);
 
 
-    // --- 2. Fetch Students ---
+    // --- 2. Fetch Students & Submissions ---
     useEffect(() => {
+        // Fetch Submissions
+        const qSub = collection(db, "submissions");
+        const unsubSub = onSnapshot(qSub, (snapshot) => {
+            const subs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setRawSubmissions(subs);
+        });
+
+        // Legend: We might still need student_progress for older data, but for now we focus on submissions for the new flow.
+        // If you want to keep 'student_progress' for "Registered" students who haven't submitted, keep this.
         const q = collection(db, "student_progress");
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const raw = snapshot.docs.map(doc => ({
@@ -169,42 +190,71 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
             setRawStudents(raw);
             setLoading(false);
         });
-        return () => unsubscribe();
+
+        return () => { unsubscribe(); unsubSub(); };
     }, []);
 
     // --- 3. Merge Data ---
     const allData: StudentStat[] = useMemo(() => {
         if (!isCoursesLoaded) return [];
 
-        return rawStudents.map((data: any) => {
+        const studentsMap: Record<string, StudentStat> = {};
+
+        // 1. Process "In Progress" students (rawStudents)
+        rawStudents.forEach((data: any) => {
             const courseMeta = coursesMap[data.courseId];
             const subject = courseMeta ? courseMeta.subject : "אחר";
             const gradeLevel = courseMeta ? courseMeta.grade : "אחר";
             const courseTitle = courseMeta ? courseMeta.title : "קורס לא נמצא";
 
-            let totalScore = 0, count = 0;
-            if (data.grading) {
-                Object.values(data.grading).forEach((g: any) => {
-                    if (typeof g.grade === 'number') { totalScore += g.grade; count++; }
-                });
-            }
-            const finalScore = count > 0 ? Math.round(totalScore / count) : (data.finalScore || 0);
+            // Normalize ID if email exists
+            const id = data.studentEmail || data.id;
 
-            return {
+            studentsMap[id] = {
                 id: data.id,
                 name: data.studentEmail?.split('@')[0] || "אנונימי",
-                score: finalScore,
-                progress: data.answers ? Object.keys(data.answers).length : 0,
+                score: data.finalScore || 0,
+                progress: data.answers ? Object.keys(data.answers).length : 0, // Crude progress
                 lastActive: data.lastActive ? new Date(data.lastActive).toLocaleDateString('he-IL') : '-',
                 answers: data.answers || {},
                 chatHistory: data.chatHistory || [],
                 courseId: data.courseId,
                 subject,
                 gradeLevel,
-                courseTitle
-            };
+                courseTitle,
+                isSubmitted: false // Mark as not submitted initially
+            } as any;
         });
-    }, [rawStudents, coursesMap, isCoursesLoaded]);
+
+        // 2. Process "Submitted" students (rawSubmissions) - Overwrite or Add
+        rawSubmissions.forEach((sub: any) => {
+            const courseMeta = coursesMap[sub.courseId];
+            // Simple unique key strategy: use studentName if no email/ID available
+            const key = sub.studentEmail || sub.studentName || sub.id;
+
+            let score = sub.score || 0;
+            // Logic to use existing score if higher? For now, submission overrides.
+
+            studentsMap[key] = {
+                ...studentsMap[key], // Keep existing metadata if any
+                id: sub.id, // Use submission ID as primary for viewing
+                name: sub.studentName || studentsMap[key]?.name || "אנונימי",
+                score: score,
+                progress: 100,
+                lastActive: sub.submittedAt?.toDate ? sub.submittedAt.toDate().toLocaleDateString('he-IL') : (studentsMap[key]?.lastActive || 'היום'),
+                answers: sub.answers || {},
+                courseId: sub.courseId,
+                subject: courseMeta?.subject || "אחר",
+                gradeLevel: courseMeta?.grade || "אחר",
+                courseTitle: courseMeta?.title || "קורס",
+                source: 'submission',
+                rawSubmission: sub,
+                isSubmitted: true // Mark as submitted
+            } as any;
+        });
+
+        return Object.values(studentsMap);
+    }, [rawSubmissions, rawStudents, coursesMap, isCoursesLoaded]);
 
     // --- 4. Dynamic Filter Lists ---
     const availableSubjects = useMemo(() => {
@@ -273,7 +323,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                     atRiskCount: 0,
                     createdAt: meta.createdAt,
                     nextDueDate: nextDue, // New Field
-                    type: hasTest ? 'test' : 'activity'
+                    type: hasTest ? 'test' : 'activity',
+                    submittedCount: 0
                 };
             }
         });
@@ -281,6 +332,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         allData.forEach(student => {
             if (grouped[student.courseId]) {
                 grouped[student.courseId].studentCount++;
+                if ((student as any).isSubmitted) {
+                    grouped[student.courseId].submittedCount++;
+                }
+
                 grouped[student.courseId].avgScore += student.score;
                 const studentProgress = student.progress > 0 ? 100 : 0;
                 grouped[student.courseId].totalProgress += studentProgress;
@@ -444,6 +499,26 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         } catch (error) {
             console.error("Error deleting course:", error);
             alert("שגיאה במחיקת הכיתה.");
+        }
+    };
+
+    const handleSaveFeedback = async () => {
+        if (!viewingTestStudent) return;
+        const subId = (viewingTestStudent as any).rawSubmission?.id;
+        if (!subId) return alert("לא נמצאה הגשה לשמירה");
+
+        setIsSavingFeedback(true);
+        try {
+            await updateDoc(doc(db, "submissions", subId), {
+                feedback: feedbackText,
+                gradedAt: serverTimestamp()
+            });
+            alert("המשוב נשמר בהצלחה!");
+        } catch (error) {
+            console.error("Error saving feedback:", error);
+            alert("שגיאה בשמירת המשוב");
+        } finally {
+            setIsSavingFeedback(false);
         }
     };
 
@@ -614,7 +689,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                         </div>
                                                     ) : (
                                                         <div className="bg-teal-50 text-teal-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-teal-100">
-                                                            <IconCheck className="w-3 h-3" /> מצב הכיתה מצוין
+                                                            <IconCheck className="w-3 h-3" /> {c.studentCount} הגשות
                                                         </div>
                                                     )}
                                                 </div>
@@ -632,22 +707,23 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                             <div className="flex items-center gap-1">שם הקורס {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'subject', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">נושא {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                            <div className="flex items-center gap-1">תחום דעת {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'grade', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">שכבה {sortConfig.key === 'grade' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                            <div className="flex items-center gap-1">כיתה/קבוצה {sortConfig.key === 'grade' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'nextDueDate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">הגשה קרובה {sortConfig.key === 'nextDueDate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                            <div className="flex items-center gap-1">מועד הגשה {sortConfig.key === 'nextDueDate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
-                                                        <th className="p-4">תלמידים</th>
-                                                        <th onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        <th onClick={() => setSortConfig({ key: 'submittedCount', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">תלמידים (הוגשו/סך הכל) {sortConfig.key === 'submittedCount' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'completionRate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">השלמה {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
-                                                        <th className="p-4">סטטוס</th>
+                                                        <th onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
                                                         <th className="p-4 w-32">פעולות</th>
                                                     </tr>
                                                 </thead>
@@ -669,8 +745,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                                     <span className="text-slate-400 text-xs">-</span>
                                                                 )}
                                                             </td>
-                                                            <td className="p-4 font-bold text-slate-700">{c.studentCount}</td>
-                                                            <td className="p-4 font-black text-lg" style={{ color: c.avgScore >= 80 ? '#10b981' : c.avgScore >= 60 ? '#f59e0b' : '#ef4444' }}>{c.avgScore}</td>
+                                                            <td className="p-4 font-bold text-slate-700">
+                                                                <div className="flex items-center gap-2">
+                                                                    <IconStudent className="w-4 h-4 text-slate-400" />
+                                                                    <span>{c.submittedCount} / <span className="text-slate-400">{c.studentCount}</span></span>
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -679,13 +759,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                                     <span className="text-xs font-bold">{c.completionRate}%</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4">
-                                                                {c.atRiskCount > 0 ? (
-                                                                    <span className="bg-red-50 text-red-600 px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap">⚠️ {c.atRiskCount} בסיכון</span>
-                                                                ) : (
-                                                                    <span className="bg-teal-50 text-teal-600 px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap">תקין</span>
-                                                                )}
-                                                            </td>
+                                                            <td className="p-4 font-black text-lg text-slate-700">{c.avgScore}</td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
                                                                     <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm"><IconEdit className="w-4 h-4" /></button>
@@ -798,14 +872,42 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                             <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
                                 <CoursePlayer
                                     reviewMode={true}
-                                    studentData={{
-                                        studentName: viewingTestStudent.name,
-                                        answers: viewingTestStudent.answers,
-                                        chatHistory: viewingTestStudent.chatHistory
+                                    assignment={{
+                                        ...coursesMap[viewingTestStudent.courseId],
+                                        activeSubmission: (viewingTestStudent as any).rawSubmission
                                     }}
                                     onExitReview={() => setViewingTestStudent(null)}
                                 />
                             </React.Suspense>
+
+                            {/* Feedback Footer */}
+                            <div className="bg-white border-t border-indigo-100 p-4 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
+                                <div className="flex-1 w-full">
+                                    <label className="text-xs font-bold text-slate-500 mb-1 block">משוב המורה לתלמיד:</label>
+                                    <textarea
+                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none h-16 resize-none"
+                                        placeholder="כתוב כאן משוב מילולי..."
+                                        value={feedbackText}
+                                        onChange={(e) => setFeedbackText(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex gap-2 w-full md:w-auto">
+                                    <button
+                                        onClick={handleSaveFeedback}
+                                        disabled={isSavingFeedback}
+                                        className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                                    >
+                                        {isSavingFeedback ? <span className="animate-spin">⏳</span> : <IconCheck className="w-5 h-5" />}
+                                        שמור משוב
+                                    </button>
+                                    <button
+                                        onClick={() => setViewingTestStudent(null)}
+                                        className="flex-1 md:flex-none px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                                    >
+                                        סגור
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )
                 }
@@ -875,72 +977,76 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 }
             </div >
             {/* --- מודל אישור מחיקה - שלב 1 --- */}
-            {deleteConfirmation.step === 'first' && createPortal(
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
-                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
-                        <div className="p-8 text-center">
-                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
-                                <IconTrash className="w-8 h-8" />
-                            </div>
-                            <h3 className="text-2xl font-black text-gray-800 mb-2">מחיקת משימה</h3>
-                            <p className="text-gray-500 mb-6 leading-relaxed">
-                                האם אתם בטוחים שברצונכם למחוק את המשימה?
-                                <br />
-                                <span className="font-bold text-red-500">פעולה זו תמחק את כל תוצאות התלמידים והנתונים המשויכים למשימה זו.</span>
-                            </p>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
-                                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
-                                >
-                                    ביטול
-                                </button>
-                                <button
-                                    onClick={() => setDeleteConfirmation(prev => ({ ...prev, step: 'second' }))}
-                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors"
-                                >
-                                    המשך למחיקה
-                                </button>
+            {
+                deleteConfirmation.step === 'first' && createPortal(
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+                        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
+                            <div className="p-8 text-center">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                                    <IconTrash className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-2xl font-black text-gray-800 mb-2">מחיקת משימה</h3>
+                                <p className="text-gray-500 mb-6 leading-relaxed">
+                                    האם אתם בטוחים שברצונכם למחוק את המשימה?
+                                    <br />
+                                    <span className="font-bold text-red-500">פעולה זו תמחק את כל תוצאות התלמידים והנתונים המשויכים למשימה זו.</span>
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
+                                        className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+                                    >
+                                        ביטול
+                                    </button>
+                                    <button
+                                        onClick={() => setDeleteConfirmation(prev => ({ ...prev, step: 'second' }))}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors"
+                                    >
+                                        המשך למחיקה
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>,
-                document.body
-            )}
+                    </div>,
+                    document.body
+                )
+            }
 
             {/* --- מודל אישור מחיקה - שלב 2 (סופי) --- */}
-            {deleteConfirmation.step === 'second' && createPortal(
-                <div className="fixed inset-0 bg-red-900/80 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
-                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-shake border-4 border-red-500">
-                        <div className="p-8 text-center">
-                            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 border-4 border-red-50 animate-pulse">
-                                <IconTrash className="w-10 h-10" />
-                            </div>
-                            <h3 className="text-3xl font-black text-red-600 mb-2 uppercase tracking-tight">אזהרה אחרונה!</h3>
-                            <p className="text-gray-600 mb-8 font-bold text-lg">
-                                פעולה זו היא בלתי הפיכה.
-                                <br />
-                                כל הנתונים יאבדו לנצח.
-                            </p>
-                            <div className="flex gap-3 flex-col">
-                                <button
-                                    onClick={handleDeleteCourse}
-                                    className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-xl rounded-2xl shadow-xl shadow-red-200 transition-transform transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <IconTrash className="w-6 h-6" /> כן, מחק את המשימה לצמיתות
-                                </button>
-                                <button
-                                    onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
-                                    className="w-full py-3 text-gray-500 font-bold hover:text-gray-800 hover:bg-gray-50 rounded-xl transition-colors"
-                                >
-                                    התחרטתי, בטל מחיקה
-                                </button>
+            {
+                deleteConfirmation.step === 'second' && createPortal(
+                    <div className="fixed inset-0 bg-red-900/80 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+                        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-shake border-4 border-red-500">
+                            <div className="p-8 text-center">
+                                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 border-4 border-red-50 animate-pulse">
+                                    <IconTrash className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-3xl font-black text-red-600 mb-2 uppercase tracking-tight">אזהרה אחרונה!</h3>
+                                <p className="text-gray-600 mb-8 font-bold text-lg">
+                                    פעולה זו היא בלתי הפיכה.
+                                    <br />
+                                    כל הנתונים יאבדו לנצח.
+                                </p>
+                                <div className="flex gap-3 flex-col">
+                                    <button
+                                        onClick={handleDeleteCourse}
+                                        className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-xl rounded-2xl shadow-xl shadow-red-200 transition-transform transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <IconTrash className="w-6 h-6" /> כן, מחק את המשימה לצמיתות
+                                    </button>
+                                    <button
+                                        onClick={() => setDeleteConfirmation({ step: 'none', courseId: null })}
+                                        className="w-full py-3 text-gray-500 font-bold hover:text-gray-800 hover:bg-gray-50 rounded-xl transition-colors"
+                                    >
+                                        התחרטתי, בטל מחיקה
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>,
-                document.body
-            )}
+                    </div>,
+                    document.body
+                )
+            }
 
         </div >
     );

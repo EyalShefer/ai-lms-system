@@ -131,13 +131,21 @@ const InteractiveChatBlock: React.FC<{
     );
 };
 
+interface CoursePlayerProps {
+    assignment?: any;
+    reviewMode?: boolean;
+    onExitReview?: () => void;
+    studentData?: any; // For legacy or future use
+}
+
 // --- הקומפוננטה הראשית ---
 const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview }) => {
     const { course } = useCourseStore();
 
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
     const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
-    const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+    // Initialize userAnswers from submission if available, otherwise empty
+    const [userAnswers, setUserAnswers] = useState<Record<string, string>>(assignment?.activeSubmission?.answers || {});
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
 
     // Submission State
