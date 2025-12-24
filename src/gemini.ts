@@ -268,19 +268,24 @@ export const generateFullUnitContent = async (
       {
         "id": 1,
         "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "type": "multiple_choice" | "true_false" | "open_question",
         "question_text": "Hebrew question...",
         "source_reference": "Quote or reference from text",
         "feedback_correct": "Positive feedback",
         "feedback_incorrect": "Constructive feedback",
         "content": {
-            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "options": ["Concrete Answer 1", "Concrete Answer 2", "Concrete Answer 3", "Answer 4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation of the correct answer and what to look for in student response (for open questions)",
+            "teacher_guidelines": "Detailed explanation",
             "key_points": ["Point 1", "Point 2"]
         }
       }
+      IMPORTANT:
+      - Do NOT create sorting, matching, or sequencing questions.
+      - For Multiple Choice: Options must be CONCRETE TEXT ANSWERS (e.g. "To convert sunlight", "Wind", "Coal"). 
+      - Do NOT use meta-options like "Option A and B are correct" or "All of the above".
+      - Do NOT use abstract options like "The first image", "The sorting order".
       Schema per item:
       {
         "id": 1,
@@ -332,18 +337,23 @@ export const generateFullUnitContent = async (
       {
         "id": 1,
         "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
+        "type": "multiple_choice" | "true_false" | "open_question",
         "question_text": "Hebrew question...",
         "source_reference": "General Knowledge",
         "feedback_correct": "Positive feedback",
         "feedback_incorrect": "Constructive feedback",
         "content": {
-            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
+            "options": ["Concrete Answer 1", "Concrete Answer 2", "Concrete Answer 3", "Answer 4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation of the correct answer and what to look for in student response (for open questions)",
+            "teacher_guidelines": "Detailed explanation",
             "key_points": ["Point 1", "Point 2"]
         }
+      }
+      IMPORTANT:
+      - Do NOT create sorting, matching, or sequencing questions.
+      - For Multiple Choice: Options must be CONCRETE TEXT ANSWERS.
+      - Do NOT use meta-options like "Option A and B are correct" or "All of the above".
       }
       Schema per item:
       {

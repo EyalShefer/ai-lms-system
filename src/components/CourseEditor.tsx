@@ -55,7 +55,7 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
     }, []);
 
     return (
-        <div className="fixed inset-0 z-[100] bg-gray-50 h-screen w-screen flex flex-col animate-fade-in" dir="rtl">
+        <div className="fixed inset-0 z-[100] bg-gray-50 h-screen w-full flex flex-col animate-fade-in" dir="rtl">
             <style>{`
                 .preview-scroll::-webkit-scrollbar {
                     width: 16px;
@@ -76,13 +76,17 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
             `}</style>
 
             {/* כותרת קבועה (לא נגללת) */}
-            <div className="flex-none h-16 bg-white border-b border-gray-200 flex justify-between items-center px-6 shadow-sm z-20">
+            <div className="relative flex-none h-16 bg-white border-b border-gray-200 flex justify-between items-center px-6 shadow-sm z-[200]">
                 <h3 className="text-gray-900 font-bold text-lg flex items-center gap-2">
                     <IconEye className="w-5 h-5 text-indigo-600" />
                     תצוגה מקדימה: {unit.title}
                 </h3>
-                <button onClick={onClose} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg text-sm font-bold transition-colors">
-                    סגור
+                <button
+                    onClick={onClose}
+                    className="flex items-center justify-center w-10 h-10 bg-gray-900 hover:bg-black text-white rounded-full transition-transform hover:scale-110 shadow-lg"
+                    title="סגור תצוגה"
+                >
+                    <span className="font-bold text-lg">X</span>
                 </button>
             </div>
 
