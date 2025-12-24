@@ -8,10 +8,14 @@ console.log("🚀 Main: טוען את App...");
 
 const root = document.getElementById('root');
 
+import { BrowserRouter } from 'react-router-dom';
+
 if (root) {
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </React.StrictMode>,
   )
 } else {

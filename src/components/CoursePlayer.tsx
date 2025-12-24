@@ -47,8 +47,10 @@ const InteractiveChatBlock: React.FC<{
     }, [block, forcedHistory]);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (!readOnly) {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, readOnly]);
 
     const handleSend = async () => {
         if (!input.trim() || readOnly) return;
@@ -135,15 +137,17 @@ interface CoursePlayerProps {
     assignment?: any;
     reviewMode?: boolean;
     onExitReview?: () => void;
-    studentData?: any; // For legacy or future use
+    studentData?: StudentReviewData;
+    forcedUnitId?: string; // New Prop
+    hideReviewHeader?: boolean;
 }
 
 // --- הקומפוננטה הראשית ---
-const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview }) => {
+const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview, forcedUnitId, hideReviewHeader = false }) => {
     const { course } = useCourseStore();
 
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
-    const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
+    const [activeUnitId, setActiveUnitId] = useState<string | null>(forcedUnitId || null);
     // Initialize userAnswers from submission if available, otherwise empty
     const [userAnswers, setUserAnswers] = useState<Record<string, string>>(assignment?.activeSubmission?.answers || {});
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
@@ -161,17 +165,47 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
     }, [assignment]);
     useEffect(() => {
-        if (course?.syllabus?.length > 0) {
+        if (forcedUnitId) {
+            setActiveUnitId(forcedUnitId);
+            const moduleForUnit = course?.syllabus?.find(m => m.learningUnits?.some(u => u.id === forcedUnitId));
+            if (moduleForUnit) setActiveModuleId(moduleForUnit.id);
+        } else if (reviewMode && userAnswers && Object.keys(userAnswers).length > 0 && course?.syllabus) {
+            // Smart Review: Find the first unit where the student has answers
+            let foundUnitId = null;
+            let foundModuleId = null;
+
+            for (const module of course.syllabus) {
+                for (const unit of module.learningUnits) {
+                    const hasAnswer = unit.activityBlocks?.some(block => userAnswers[block.id]);
+                    if (hasAnswer) {
+                        foundUnitId = unit.id;
+                        foundModuleId = module.id;
+                        break;
+                    }
+                }
+                if (foundUnitId) break;
+            }
+
+            if (foundUnitId) {
+                setActiveUnitId(foundUnitId);
+                setActiveModuleId(foundModuleId);
+            } else {
+                // Fallback to first unit if answers exist but don't match (shouldn't happen)
+                if (!activeModuleId) setActiveModuleId(course.syllabus[0].id);
+                if (!activeUnitId && course.syllabus[0].learningUnits?.length > 0) setActiveUnitId(course.syllabus[0].learningUnits[0].id);
+            }
+        } else if (course?.syllabus?.length > 0) {
+            // Default initialization
             if (!activeModuleId) setActiveModuleId(course.syllabus[0].id);
             if (!activeUnitId && course.syllabus[0].learningUnits?.length > 0) setActiveUnitId(course.syllabus[0].learningUnits[0].id);
         }
-    }, [course]);
+    }, [course, forcedUnitId, reviewMode]); // Removed userAnswers dependency to avoid loops, as userAnswers is init from props
 
     // מצב סקירה
     useEffect(() => {
         if (reviewMode && studentData?.answers) {
             setUserAnswers(studentData.answers);
-            setFeedbackVisible(prev => {
+            setFeedbackVisible(() => {
                 const newState: Record<string, boolean> = {};
                 if (activeUnit) activeUnit.activityBlocks.forEach(b => newState[b.id] = true);
                 return newState;
@@ -251,7 +285,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         if (!feedbackVisible[blockId]) setUserAnswers(prev => ({ ...prev, [blockId]: answer }));
     };
 
-    const checkAnswer = (blockId: string, correctAnswer: string) => {
+    const checkAnswer = (blockId: string) => {
         if (isExamMode || reviewMode) return;
         setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
     };
@@ -347,7 +381,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             );
                         })}
                         {!isExamMode && !showFeedback && !reviewMode && (
-                            <button onClick={() => checkAnswer(relatedId, relatedQ.correctAnswer)} className="mt-2 text-xs text-blue-600 font-bold hover:underline">בדוק תשובה</button>
+                            <button onClick={() => checkAnswer(relatedId)} className="mt-2 text-xs text-blue-600 font-bold hover:underline">בדוק תשובה</button>
                         )}
                     </div>
                 )}
@@ -423,7 +457,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                         {qMedia && (
                             <div className="mb-4 rounded-xl overflow-hidden">
-                                {block.metadata.mediaType === 'video' ?
+                                {block.metadata?.mediaType === 'video' ?
                                     <video src={qMedia} controls className="w-full h-48 bg-black" /> :
                                     <img src={qMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
                                 }
@@ -451,7 +485,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 );
                             })}
                         </div>
-                        {!isExamMode && !showFeedback && !reviewMode && <button onClick={() => checkAnswer(block.id, block.content.correctAnswer)} className="mt-4 text-blue-600 font-bold text-sm">בדיקה</button>}
+                        {!isExamMode && !showFeedback && !reviewMode && <button onClick={() => checkAnswer(block.id)} className="mt-4 text-blue-600 font-bold text-sm">בדיקה</button>}
                     </div>
                 );
             case 'open-question':
@@ -470,6 +504,16 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         )}
 
                         <textarea className="w-full p-4 border rounded-xl focus:border-orange-300 outline-none" value={userAnswers[block.id] || ''} onChange={(e) => handleAnswerSelect(block.id, e.target.value)} readOnly={reviewMode} placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."} />
+
+                        {/* הצגת המחוון למורה במצב צפייה */}
+                        {reviewMode && block.metadata?.modelAnswer && (
+                            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
+                                    <IconInfo className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:
+                                </div>
+                                <div className="text-sm text-yellow-900 leading-relaxed whitespace-pre-wrap">{block.metadata.modelAnswer}</div>
+                            </div>
+                        )}
                     </div>
                 );
             default: return null;
@@ -477,8 +521,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-            {reviewMode && studentData && (
+        <div className="min-h-full bg-gray-50 flex flex-col items-center">
+            {reviewMode && studentData && !hideReviewHeader && (
                 <div className="sticky top-0 w-full h-10 bg-yellow-400 text-yellow-900 font-bold text-center flex items-center justify-center z-[60] shadow-md">
                     <IconEye className="w-5 h-5 ml-2" /> מצב סקירה: {studentData.studentName}
                     <button onClick={onExitReview} className="mr-4 bg-white/30 px-3 py-0.5 rounded text-sm hover:bg-white/50">יציאה</button>
@@ -521,7 +565,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
-            <main className="w-full max-w-3xl p-6 md:p-10 pb-24">
+            <main className="w-full max-w-3xl p-6 md:p-10 pb-48">
                 {activeUnit ? (
                     <>
                         <header className="mb-8 text-center">

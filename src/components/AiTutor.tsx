@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCourseStore } from '../context/CourseContext';
+import { useAuth } from '../context/AuthContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { validateInput, checkForDistress } from '../services/securityService';
 
 // נשתמש בקריאה ישירה אם היא לא מיוצאת, או נעתיק אותה לפה לביטחון
-// במצב אידיאלי היינו מייצאים את callGeminiDirect מ-gemini.ts, 
-// אבל לביטחון נממש כאן צ'אט פשוט עם אותו מפתח.
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 interface Message {
@@ -15,6 +17,7 @@ interface Message {
 
 const AiTutor: React.FC = () => {
     const { course } = useCourseStore();
+    const { currentUser } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         { id: '1', role: 'ai', text: 'היי! אני המורה הפרטי שלך לקורס הזה. שאל אותי כל שאלה על החומר! 👋' }
@@ -31,14 +34,58 @@ const AiTutor: React.FC = () => {
     const handleSend = async () => {
         if (!input.trim()) return;
 
+        // 1. Safety Check (Distress/Violence)
+        if (checkForDistress(input)) {
+            // Create Alert in DB
+            try {
+                await addDoc(collection(db, 'safety_alerts'), {
+                    studentId: currentUser?.uid || "anonymous",
+                    studentName: currentUser?.displayName || "Anonymous Student",
+                    courseId: course?.id || "unknown",
+                    content: input,
+                    severity: 'high',
+                    isHandled: false,
+                    timestamp: serverTimestamp()
+                });
+            } catch (e) {
+                console.error("Failed to save safety alert", e);
+            }
+
+            // Show supportive message & Refer to adult
+            const userMsg: Message = { id: uuidv4(), role: 'user', text: input };
+            const safetyMsg: Message = {
+                id: uuidv4(),
+                role: 'ai',
+                text: `אני שומע שאתה נמצא במצוקה או חווה קושי. אני כאן ככלי עזר לימודי, אך חשוב מאוד לא להישאר עם זה לבד. אנא פנה/י בדחיפות לקבלת עזרה ממורה, הורה, יועצת בית הספר או כל מבוגר אחר שאת/ה סומך/ת עליו. הם יוכלו לסייע לך בצורה הטובה ביותר. ❤️`
+            };
+
+            setMessages(prev => [...prev, userMsg, safetyMsg]);
+            setInput('');
+            return;
+        }
+
+        // 2. Security Check (LLM-Filter / PII)
+        const validation = validateInput(input);
+        if (!validation.isValid) {
+            const userMsg: Message = { id: uuidv4(), role: 'user', text: input };
+            const errorMsg: Message = {
+                id: uuidv4(),
+                role: 'ai',
+                text: `🛑 ${validation.reason}`
+            };
+            setMessages(prev => [...prev, userMsg, errorMsg]);
+            setInput('');
+            return;
+        }
+
+        // 3. Normal Flow
         const userMsg: Message = { id: uuidv4(), role: 'user', text: input };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
 
         try {
-            // הקשר: שם הקורס וכותרת כללית
-            const context = `Context: You are a helpful AI tutor for the course "${course.title}". Answer in Hebrew. Keep answers short and encouraging.`;
+            const context = `Context: You are a helpful AI tutor for the course "${course?.title || 'General'}". Answer in Hebrew. Keep answers short and encouraging.`;
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
                 method: "POST",
@@ -88,8 +135,8 @@ const AiTutor: React.FC = () => {
                         {messages.map(msg => (
                             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                        ? 'bg-indigo-600 text-white rounded-br-none'
-                                        : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
+                                    ? 'bg-indigo-600 text-white rounded-br-none'
+                                    : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
                                     }`}>
                                     {msg.text}
                                 </div>

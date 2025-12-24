@@ -13,6 +13,7 @@ const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
+import GeoGuard from './components/GeoGuard';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Worker Configuration
@@ -281,7 +282,11 @@ const AuthenticatedApp = () => {
 const AppWrapper = () => {
   const { currentUser, loading } = useAuth();
   if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען מערכת...</div>;
-  return currentUser ? <AuthenticatedApp /> : <Login />;
+  return currentUser ? (
+    <GeoGuard>
+      <AuthenticatedApp />
+    </GeoGuard>
+  ) : <Login />;
 };
 
 function App() {

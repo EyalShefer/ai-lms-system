@@ -10,17 +10,19 @@ if (!OPENAI_API_KEY) {
   console.error("Missing VITE_OPENAI_API_KEY in .env file");
 }
 
-const openai = new OpenAI({
+export const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
   baseURL: `${window.location.origin}/api/openai`
 });
 
-const MODEL_NAME = "gpt-4o-mini";
+export const MODEL_NAME = "gpt-4o-mini";
 
 // --- פונקציות עזר ---
 
-const cleanJsonString = (text: string): string => {
+// --- פונקציות עזר ---
+
+export const cleanJsonString = (text: string): string => {
   try {
     let clean = text.replace(/```json|```/g, '').trim();
     const firstBrace = clean.indexOf('{');
@@ -64,8 +66,14 @@ const mapSystemItemToBlock = (item: any) => {
       options = item.options;
     } else if (Array.isArray(item.choices)) {
       options = item.choices;
-    } else {
-      options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"]; // Fallback
+    } else if (Array.isArray(item.choices)) {
+      options = item.choices;
+    }
+
+    // Validate options
+    if (!options || options.length < 2 || options.some(o => !o || typeof o !== 'string')) {
+      console.warn("Invalid options detected, using fallback", options);
+      options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"];
     }
 
     // Robust correct answer extraction
@@ -95,7 +103,7 @@ const mapSystemItemToBlock = (item: any) => {
       content: { question: item.question_text },
       metadata: {
         ...commonMetadata,
-        modelAnswer: item.content.key_points ? item.content.key_points.join('\n') : "תשובה מלאה",
+        modelAnswer: item.content.teacher_guidelines || (item.content.key_points ? item.content.key_points.join('\n') : "תשובה מלאה"),
         hint: item.content.hint,
         score: 20
       }
@@ -194,7 +202,7 @@ export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
       response_format: "b64_json"
     });
 
-    const base64Data = response.data[0].b64_json;
+    const base64Data = response.data?.[0]?.b64_json;
     if (base64Data) {
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
@@ -269,6 +277,7 @@ export const generateFullUnitContent = async (
             "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
+            "teacher_guidelines": "Detailed explanation of the correct answer and what to look for in student response (for open questions)",
             "key_points": ["Point 1", "Point 2"]
         }
       }
@@ -285,6 +294,7 @@ export const generateFullUnitContent = async (
             "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
+            "teacher_guidelines": "Detailed explanation of the correct answer",
             "key_points": ["Point 1", "Point 2"]
         }
       }
@@ -331,6 +341,7 @@ export const generateFullUnitContent = async (
             "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
+            "teacher_guidelines": "Detailed explanation of the correct answer and what to look for in student response (for open questions)",
             "key_points": ["Point 1", "Point 2"]
         }
       }
@@ -347,6 +358,7 @@ export const generateFullUnitContent = async (
             "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
             "correct_index": 0, 
             "hint": "Hebrew hint",
+            "teacher_guidelines": "Detailed explanation of the correct answer",
             "key_points": ["Point 1", "Point 2"]
         }
       }

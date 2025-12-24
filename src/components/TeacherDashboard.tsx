@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
-import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
+// type SubmissionData unused removed
+import { gradeBatch } from '../services/gradingService';
+import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import { db } from '../firebase';
 import {
-    IconChart, IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
+    IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
     IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
-    IconLink, IconCheck, IconStudent, IconCalendar, IconClock, IconList,
-    IconArrowUp, IconArrowDown // Added Arrow Icons
+    IconLink, IconCheck, IconStudent, IconList,
+    IconArrowUp, IconArrowDown, IconLoader, IconFlag
 } from '../icons';
 
 // --- Lazy Load CoursePlayer ---
@@ -39,6 +41,7 @@ interface StudentStat {
     gradeLevel: string;
     courseTitle: string;
     courseId: string;
+    hasAlert?: boolean; // New Field
 }
 
 interface CourseAggregation {
@@ -62,7 +65,8 @@ interface TeacherDashboardProps {
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
-    const [rawSubmissions, setRawSubmissions] = useState<any[]>([]); // New state for submissions
+    const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
+    const [safetyAlerts, setSafetyAlerts] = useState<any[]>([]); // New State
     const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -104,6 +108,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     // Feedback State
     const [feedbackText, setFeedbackText] = useState("");
     const [isSavingFeedback, setIsSavingFeedback] = useState(false);
+    const [isGrading, setIsGrading] = useState<Record<string, boolean>>({}); // Loading state per courseId
+    const [showOnlyAlerts, setShowOnlyAlerts] = useState(false); // New Filter State
 
     useEffect(() => {
         if (viewingTestStudent) {
@@ -191,7 +197,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
             setLoading(false);
         });
 
-        return () => { unsubscribe(); unsubSub(); };
+        // Safety Alerts Listener
+        const qAlerts = query(collection(db, "safety_alerts"), where("isHandled", "==", false));
+        const unsubAlerts = onSnapshot(qAlerts, (snapshot) => {
+            const alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSafetyAlerts(alerts);
+        });
+
+        return () => { unsubscribe(); unsubSub(); unsubAlerts(); };
     }, []);
 
     // --- 3. Merge Data ---
@@ -210,6 +223,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
             // Normalize ID if email exists
             const id = data.studentEmail || data.id;
 
+            // Check for alerts
+            const hasAlert = safetyAlerts.some((a: any) => a.studentId === data.id || a.studentName === studentsMap[id].name);
+
             studentsMap[id] = {
                 id: data.id,
                 name: data.studentEmail?.split('@')[0] || "אנונימי",
@@ -222,7 +238,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 subject,
                 gradeLevel,
                 courseTitle,
-                isSubmitted: false // Mark as not submitted initially
+                isSubmitted: false, // Mark as not submitted initially
+                hasAlert
             } as any;
         });
 
@@ -234,6 +251,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
 
             let score = sub.score || 0;
             // Logic to use existing score if higher? For now, submission overrides.
+
+            // Check for alerts
+            const hasAlert = safetyAlerts.some((a: any) => a.studentId === sub.id || a.studentName === sub.studentName);
 
             studentsMap[key] = {
                 ...studentsMap[key], // Keep existing metadata if any
@@ -249,12 +269,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 courseTitle: courseMeta?.title || "קורס",
                 source: 'submission',
                 rawSubmission: sub,
-                isSubmitted: true // Mark as submitted
+                isSubmitted: true, // Mark as submitted
+                hasAlert: studentsMap[key]?.hasAlert || hasAlert
             } as any;
         });
 
         return Object.values(studentsMap);
-    }, [rawSubmissions, rawStudents, coursesMap, isCoursesLoaded]);
+    }, [rawSubmissions, rawStudents, coursesMap, isCoursesLoaded, safetyAlerts]);
 
     // --- 4. Dynamic Filter Lists ---
     const availableSubjects = useMemo(() => {
@@ -341,6 +362,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 grouped[student.courseId].totalProgress += studentProgress;
 
                 if (student.score < 60) grouped[student.courseId].atRiskCount++;
+                if (student.hasAlert) grouped[student.courseId].atRiskCount++; // Increase risk count if safety alert
             }
         });
 
@@ -379,8 +401,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
 
     const currentCourseStudents = useMemo(() => {
         if (!selectedCourseId) return [];
-        return allData.filter(s => s.courseId === selectedCourseId && s.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [allData, selectedCourseId, searchTerm]);
+        let students = allData.filter(s => s.courseId === selectedCourseId && s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (showOnlyAlerts) {
+            students = students.filter(s => s.hasAlert);
+        }
+        return students;
+    }, [allData, selectedCourseId, searchTerm, showOnlyAlerts]);
 
     const stats = useMemo(() => {
         if (currentCourseStudents.length === 0) return { avg: 0, high: 0, low: 0, risk: 0, distribution: [0, 0, 0, 0] };
@@ -487,6 +513,55 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         }
     };
 
+    const handleAutoGrade = async (e: React.MouseEvent, courseId: string) => {
+        e.stopPropagation();
+        if (isGrading[courseId]) return;
+
+        if (!confirm("האם להפעיל בדיקה אוטומטית עבור כל התלמידים בקורס זה? (הפעולה תשלח תשובות לבינה המלאכותית)")) {
+            return;
+        }
+
+        setIsGrading(prev => ({ ...prev, [courseId]: true }));
+        try {
+            // Find course (assignment) data
+            // In a real app we might need to fetch the full structure if 'aggregatedCourses' doesn't have it.
+            // But we have 'assignmentsMap'.
+
+            // We need proper assignment structure with questions.
+            // 'assignmentsMap' holds: Record<courseId, Assignment[]>
+
+            const assignments = assignmentsMap[courseId];
+            if (!assignments || assignments.length === 0) {
+                alert("לא נמצאו מטלות בקורס זה.");
+                return;
+            }
+
+            // Grade ALL assignments in the course? Or just find the relevant one?
+            // For simplicity, grade the first/latest assignment or loop through all.
+            // 'aggregatedCourses' seems to flatten things, but let's assume one active assignment per course for now or grade all.
+
+            // Filter submissions relevant to this course
+            const relevantSubmissions = allData.filter(s => s.courseId === courseId && (s as any).rawSubmission).map(s => (s as any).rawSubmission);
+
+            if (relevantSubmissions.length === 0) {
+                alert("אין הגשות לבדיקה.");
+                return;
+            }
+
+            for (const assignment of assignments) {
+                await gradeBatch(assignment, relevantSubmissions);
+            }
+
+            alert("הבדיקה הסתיימה בהצלחה!");
+
+        } catch (error) {
+            console.error("Error auto-grading:", error);
+            alert("אירעה שגיאה בבדיקה האוטומטית.");
+        } finally {
+            setIsGrading(prev => ({ ...prev, [courseId]: false }));
+        }
+    };
+
     const handleDeleteCourse = async () => {
         if (!deleteConfirmation.courseId) return;
 
@@ -566,7 +641,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                         <IconTrash className="w-5 h-5" /> מחיקה
                                     </button>
                                     <button
-                                        onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); }}
+                                        onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); setShowOnlyAlerts(false); }}
                                         className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors flex items-center gap-2 font-bold shadow-sm border border-indigo-200"
                                     >
                                         <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה ללוח המשימות
@@ -610,6 +685,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                         <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                                         <input type="text" placeholder="חיפוש כיתה..." className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                     </div>
+                                    <button
+                                        onClick={() => setShowOnlyAlerts(!showOnlyAlerts)}
+                                        className={`p-2 rounded-lg transition-colors border ${showOnlyAlerts ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500'}`}
+                                        title="הצג רק התראות אלימות/מצוקה"
+                                    >
+                                        <IconFlag className="w-4 h-4" />
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -762,8 +844,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                             <td className="p-4 font-black text-lg text-slate-700">{c.avgScore}</td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
-                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm"><IconEdit className="w-4 h-4" /></button>
-                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm"><IconLink className="w-4 h-4" /></button>
+                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="עריכה"><IconEdit className="w-4 h-4" /></button>
+                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
+                                                                    <button
+                                                                        onClick={(e) => handleAutoGrade(e, c.courseId)}
+                                                                        className={`p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm ${isGrading[c.courseId] ? 'animate-spin text-indigo-600' : ''}`}
+                                                                        title="בדיקה אוטומטית (AI)"
+                                                                        disabled={isGrading[c.courseId]}
+                                                                    >
+                                                                        {isGrading[c.courseId] ? <IconLoader className="w-4 h-4" /> : <IconBrain className="w-4 h-4" />}
+                                                                    </button>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -840,7 +930,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                     <td className="p-4">
                                                         <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked={selectedStudentIds.has(student.id)} onChange={() => toggleSelection(student.id)} />
                                                     </td>
-                                                    <td className="p-4 font-bold text-slate-800">{student.name}</td>
+                                                    <td className="p-4 font-bold text-slate-800 flex items-center gap-2">
+                                                        {student.name}
+                                                        {student.hasAlert && (
+                                                            <span className="bg-red-100 text-red-600 p-1 rounded-full animate-pulse" title="זוהתה מצוקה">
+                                                                <IconFlag className="w-3 h-3" />
+                                                            </span>
+                                                        )}
+                                                    </td>
                                                     <td className="p-4 text-slate-500">{student.lastActive}</td>
                                                     <td className="p-4">
                                                         <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">

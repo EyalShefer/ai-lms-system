@@ -67,6 +67,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const AI_ACTIONS = getAiActions(gradeLevel);
     const mediaBtnClass = "cursor-pointer bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-all shadow-sm";
 
+    // --- חישוב ניקוד בזמן אמת ---
+    const totalScore = React.useMemo(() => {
+        if (!editedUnit.activityBlocks) return 0;
+        return editedUnit.activityBlocks.reduce((sum: number, block: any) => sum + (block.metadata?.score || 0), 0);
+    }, [editedUnit.activityBlocks]);
+
     useEffect(() => {
         const initContent = async () => {
             if ((unit.activityBlocks && unit.activityBlocks.length > 0) || hasInitialized.current) {
@@ -108,29 +114,46 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     const handleAutoDistributePoints = () => {
         const questions = editedUnit.activityBlocks.filter((b: any) => b.type === 'multiple-choice' || b.type === 'open-question');
-        if (questions.length === 0) return alert("אין שאלות ביחידה זו לחלוקת ניקוד.");
+        const qCount = questions.length;
+        if (qCount === 0) return alert("אין שאלות ביחידה זו לחלוקת ניקוד.");
+
         const targetTotalStr = prompt("מה סך הניקוד הכולל ליחידה זו?", "100");
         const targetTotal = parseInt(targetTotalStr || "0");
         if (!targetTotal || targetTotal <= 0) return;
+
+        // משקלות: פתוחה = 2, אמריקאית = 1
         const totalWeight = questions.reduce((sum: number, block: any) => sum + (block.type === 'open-question' ? 2 : 1), 0);
-        const pointValue = targetTotal / totalWeight;
+        const pointPerWeight = Math.floor(targetTotal / totalWeight);
+
         let currentSum = 0;
+
+        // 1. חלוקה ראשונית לפי משקולות (מעוגל למטה)
         const newBlocks = editedUnit.activityBlocks.map((block: any) => {
             if (block.type === 'multiple-choice' || block.type === 'open-question') {
                 const weight = block.type === 'open-question' ? 2 : 1;
-                const score = Math.round(pointValue * weight);
+                const score = pointPerWeight * weight;
                 currentSum += score;
                 return { ...block, metadata: { ...block.metadata, score } };
             }
             return block;
         });
-        if (currentSum !== targetTotal) {
-            const diff = targetTotal - currentSum;
-            const firstQIndex = newBlocks.findIndex((b: any) => b.type === 'multiple-choice' || b.type === 'open-question');
-            if (firstQIndex !== -1 && newBlocks[firstQIndex].metadata) {
-                newBlocks[firstQIndex].metadata.score = (newBlocks[firstQIndex].metadata.score || 0) + diff;
+
+        // 2. חלוקת שארית (Round Robin)
+        let remainder = targetTotal - currentSum;
+        let i = 0;
+        while (remainder > 0) {
+            const blockIndex = newBlocks.findIndex((b: any, idx: number) => (b.type === 'multiple-choice' || b.type === 'open-question') && idx >= i);
+
+            // אם מצאנו בבלוק נוכחי או הבא
+            if (blockIndex !== -1) {
+                newBlocks[blockIndex].metadata.score += 1;
+                remainder -= 1;
+                i = blockIndex + 1;
+            } else {
+                i = 0; // התחל מחדש אם הגענו לסוף
             }
         }
+
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
     };
 
@@ -687,7 +710,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className={`mt-1 ${block.type === 'multiple-choice' ? 'text-sky-500' : 'text-teal-500'}`}>{block.type === 'multiple-choice' ? <IconList className="w-5 h-5" /> : <IconEdit className="w-5 h-5" />}</div>
                                                 <input type="text" className="flex-1 font-bold text-lg p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400" value={block.content.question} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה..."} />
                                             </div>
-                                            {showScoring && (<div className="flex flex-col items-center ml-2 bg-white/50 p-1 rounded-lg border border-gray-100"><span className="text-[10px] font-bold text-gray-400 uppercase">ניקוד</span><input type="number" className="w-12 text-center p-1 rounded border-none bg-transparent text-sm font-bold" value={block.metadata?.score || 0} onChange={(e) => updateBlock(block.id, block.content, { score: Number(e.target.value) })} /></div>)}
+                                            {showScoring && (<div className="flex flex-col items-center ml-2 bg-white/50 p-1 rounded-lg border border-gray-100"><span className="text-[10px] font-bold text-gray-400 uppercase">ניקוד</span><input type="number" className="w-14 text-center p-1 rounded border-2 border-transparent focus:border-blue-400 bg-white/80 font-bold text-blue-600 focus:bg-white transition-all outline-none" value={block.metadata?.score || 0} onChange={(e) => updateBlock(block.id, block.content, { score: Number(e.target.value) })} /></div>)}
                                         </div>
                                         {renderEmbeddedMedia(block.id, block.metadata)}
 
@@ -705,7 +728,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {block.type === 'open-question' && (
                                             <div className="pr-7 mt-2">
                                                 {!block.content.question && (<div className="flex justify-end mb-2"><button onClick={() => handleAutoGenerateOpenQuestion(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-100 text-teal-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-teal-200 transition-colors"><IconSparkles className="w-3 h-3" /> צרו שאלה</button></div>)}
-                                                <label className="text-xs font-bold text-gray-400 mb-1 block flex items-center gap-1"><IconBrain className="w-3 h-3" /> תשובה לדוגמה:</label>
+                                                <label className="text-xs font-bold text-gray-400 mb-1 block flex items-center gap-1"><IconBrain className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:</label>
                                                 <textarea className="w-full p-3 border border-gray-200/80 rounded-xl bg-white/80 text-sm focus:bg-white transition-colors outline-none focus:border-teal-300" rows={2} value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { modelAnswer: e.target.value })} placeholder="כתבו כאן את התשובה המצופה..." />
                                             </div>
                                         )}
@@ -722,6 +745,34 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     </React.Fragment>
                 ))}
             </div>
+            {/* Sticky Score Footer */}
+            {showScoring && (
+                <div className={`fixed bottom-0 left-0 right-0 p-3 flex justify-between items-center px-10 transition-colors shadow-[0_-5px_20px_rgba(0,0,0,0.1)] backdrop-blur-md border-t z-50 animate-slide-up
+                    ${totalScore === 100 ? 'bg-green-50/90 border-green-200 text-green-900' : 'bg-white/90 border-red-200 text-slate-800'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className={`text-2xl font-black flex items-center gap-2 ${totalScore === 100 ? 'text-green-600' : 'text-red-500'}`}>
+                            <IconBalance className="w-6 h-6" />
+                            {totalScore} / 100
+                        </div>
+                        {totalScore !== 100 && (
+                            <div className="text-sm font-bold text-red-500 bg-red-100 px-3 py-1 rounded-full animate-pulse">
+                                {totalScore < 100 ? `חסרות ${100 - totalScore} נקודות` : `עודף של ${totalScore - 100} נקודות`}
+                            </div>
+                        )}
+                        {totalScore === 100 && (
+                            <div className="text-sm font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full flex items-center gap-1">
+                                <IconCheck className="w-4 h-4" /> סך הכל תקין
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={handleAutoDistributePoints} className="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-bold shadow-sm transition-colors">
+                            חישוב מחדש (אוטומטי)
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 .insert-btn { @apply px-3 py-2 bg-white/50 border border-white/60 rounded-lg text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm; }
                 .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-origin: bottom center; }

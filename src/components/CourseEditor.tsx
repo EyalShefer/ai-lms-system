@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCourseStore } from '../context/CourseContext';
+import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
+import { IconEye, IconSparkles, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
 import { generateCoursePlan, generateFullUnitContent } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
-import { IconEdit, IconSparkles, IconTrash, IconArrowBack, IconBook, IconRobot, IconWand, IconList, IconX } from '../icons';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
@@ -21,7 +23,6 @@ const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }>
         reader.readAsDataURL(file);
         reader.onload = () => {
             const result = reader.result as string;
-            // הסרת ה-Prefix של הדפדפן (data:image/jpeg;base64,)
             const base64 = result.split(',')[1];
             resolve({ base64, mimeType: file.type });
         };
@@ -33,76 +34,88 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let fullText = "";
-
-    // קריאה מוגבלת ל-5 עמודים ראשונים למניעת עומס
     const maxPages = Math.min(pdf.numPages, 5);
-
     for (let i = 1; i <= maxPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item: any) => item.str).join(' ');
         fullText += `--- Page ${i} ---\n${pageText}\n\n`;
     }
-
     return fullText;
 };
 
-const IconEyeLocal = ({ className = "w-5 h-5" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
-);
 
-const getUnitLabel = (type: string) => {
-    switch (type) {
-        case 'acquisition': return 'יחידת לימוד';
-        case 'practice': return 'יחידת תרגול';
-        case 'test': return 'מבחן';
-        case 'remedial': return 'יחידת חיזוק';
-        default: return 'כללי';
-    }
-};
 
-const UnitPreviewModal: React.FC<{ unit: LearningUnit; onClose: () => void }> = ({ unit, onClose }) => {
+// --- תצוגה מקדימה פשוטה - גרסה נקייה (Flex Shell) ---
+const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, onClose }) => {
+    // מניעת גלילה של הדף הראשי
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = 'unset'; };
+    }, []);
+
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-gray-200">
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="text-xl font-bold text-gray-800">{unit.title} <span className="text-sm font-normal text-gray-500">(תצוגה מקדימה)</span></h3>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><IconX className="w-5 h-5" /></button>
-                </div>
-                <div className="p-6 overflow-y-auto bg-gray-50/50 space-y-6">
-                    {unit.activityBlocks?.length === 0 && <div className="text-center text-gray-400 py-10">אין תוכן להצגה</div>}
-                    {unit.activityBlocks?.map(block => (
-                        <div key={block.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                            {block.type === 'text' && <div className="prose max-w-none text-right whitespace-pre-wrap">{block.content}</div>}
-                            {block.type === 'image' && <img src={block.content} alt="" className="w-full h-auto rounded-lg" />}
-                            {block.type === 'video' && <div className="aspect-video bg-black rounded-lg"></div>}
-                            {(block.type === 'multiple-choice' || block.type === 'open-question') && (
-                                <div>
-                                    <h4 className="font-bold text-lg mb-2">{block.content.question}</h4>
-                                    {block.type === 'multiple-choice' && (
-                                        <div className="space-y-2">
-                                            {block.content.options?.map((opt: string, i: number) => (
-                                                <div key={i} className="p-2 border border-gray-200 rounded bg-gray-50">{opt}</div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+        <div className="fixed inset-0 z-[100] bg-gray-50 h-screen w-screen flex flex-col animate-fade-in" dir="rtl">
+            <style>{`
+                .preview-scroll::-webkit-scrollbar {
+                    width: 16px;
+                    display: block; /* Force display */
+                }
+                .preview-scroll::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-left: 1px solid #e5e7eb;
+                }
+                .preview-scroll::-webkit-scrollbar-thumb {
+                    background-color: #9ca3af;
+                    border-radius: 4px;
+                    border: 3px solid #f1f1f1;
+                }
+                .preview-scroll::-webkit-scrollbar-thumb:hover {
+                    background-color: #6b7280;
+                }
+            `}</style>
+
+            {/* כותרת קבועה (לא נגללת) */}
+            <div className="flex-none h-16 bg-white border-b border-gray-200 flex justify-between items-center px-6 shadow-sm z-20">
+                <h3 className="text-gray-900 font-bold text-lg flex items-center gap-2">
+                    <IconEye className="w-5 h-5 text-indigo-600" />
+                    תצוגה מקדימה: {unit.title}
+                </h3>
+                <button onClick={onClose} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg text-sm font-bold transition-colors">
+                    סגור
+                </button>
+            </div>
+
+            {/* אזור התוכן - תופס את כל שאר המקום וגולל עצמאית */}
+            <div className="flex-1 w-full overflow-y-scroll preview-scroll bg-gray-50 relative">
+                <div className="w-full max-w-5xl mx-auto pb-32 pt-8 px-4 min-h-full">
+                    <CoursePlayer
+                        reviewMode={true}
+                        studentData={{
+                            studentName: "תצוגה מקדימה",
+                            answers: {}
+                        }}
+                        onExitReview={onClose}
+                        forcedUnitId={unit.id}
+                        hideReviewHeader={true}
+                    />
+                    {/* מרווח תחתון */}
+                    <div className="h-20 w-full" />
                 </div>
             </div>
         </div>
     );
 };
 
+
+
 const CourseEditor: React.FC = () => {
-    const { course, loadCourse, setCourse } = useCourseStore();
+    const navigate = useNavigate();
+    const { course, setCourse } = useCourseStore();
     const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
     const [previewUnit, setPreviewUnit] = useState<LearningUnit | null>(null);
     const [showWizard, setShowWizard] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
 
     // משתנה לעקיפת התצוגה
     const [forcedGrade, setForcedGrade] = useState<string>("");
@@ -110,7 +123,7 @@ const CourseEditor: React.FC = () => {
     const wizardHasRun = useRef(false);
     const hasAutoSelected = useRef(false);
 
-    // --- התיקון הקריטי למניעת 429 ולולאות ---
+    // --- התיקון לקריטי למניעת 429 ולולאות ---
     useEffect(() => {
         // הגנה ראשונית: אם כבר רץ וויזארד או שיש תהליך יצירה, עוצרים
         if (wizardHasRun.current || isGenerating) return;
@@ -120,10 +133,6 @@ const CourseEditor: React.FC = () => {
 
         // בדיקה האם הקורס מאוכלס בסילבוס
         const hasSyllabus = course.syllabus && course.syllabus.length > 0;
-
-        // בדיקה האם זה קורס אמיתי (שיש לו כבר שם שנשמר ב-DB)
-        // זה מונע מצב שבו הקורס נטען מחדש ופותח שוב את הוויזארד
-        const isRealCourse = course.title && course.title !== "New Course" && course.title !== "קורס חדש";
 
         if (hasSyllabus && !showWizard && !hasAutoSelected.current) {
             const firstModule = course.syllabus[0];
@@ -136,8 +145,8 @@ const CourseEditor: React.FC = () => {
             }
         }
         else if (!hasSyllabus) {
-            // פותחים את הוויזארד רק אם זה קורס חדש לחלוטין (ללא שם וללא תוכן)
-            if (!isRealCourse && !showWizard) {
+            // אם אין תוכן - פותחים את הוויזארד אוטומטית תמיד
+            if (!showWizard) {
                 setShowWizard(true);
             }
         }
@@ -319,69 +328,41 @@ const CourseEditor: React.FC = () => {
 
         const updatedCourse = { ...course, syllabus: newSyllabus };
         setCourse(updatedCourse);
-        setIsSaving(true);
         try { await updateDoc(doc(db, "courses", course.id), { syllabus: newSyllabus }); }
         catch (e) { console.error("Save error:", e); }
-        finally { setIsSaving(false); }
     };
 
-    const handleExitEditor = () => {
-        setSelectedUnitId(null);
-        setShowWizard(true);
-    };
 
-    const handleDeleteUnit = async (unitId: string) => {
-        if (!window.confirm("למחוק את היחידה?")) return;
-        const newSyllabus = course.syllabus.map(mod => ({
-            ...mod,
-            learningUnits: mod.learningUnits.filter(u => u.id !== unitId)
-        }));
-        const updatedCourse = { ...course, syllabus: newSyllabus };
-        setCourse(updatedCourse);
-        await updateDoc(doc(db, "courses", course.id), { syllabus: newSyllabus });
-    };
 
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
-    if (activeUnit) {
-        return (
-            <>
-                {previewUnit && (
-                    <UnitPreviewModal unit={previewUnit} onClose={() => setPreviewUnit(null)} />
-                )}
-                <UnitEditor
-                    unit={activeUnit}
-                    gradeLevel={displayGrade}
-                    subject={course.subject}
-                    onSave={handleSaveUnit}
-                    onCancel={handleExitEditor}
-                    onPreview={() => setPreviewUnit(activeUnit)}
-                    cancelLabel="חזרה"
-                />
-            </>
-        );
-    }
+    // --- Single Activity Logic ---
+    // If a unit exists, show it. If not, show empty state.
+    // Navigation ("Back") opens Wizard overlay.
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8 font-sans pb-24">
-
+        <div className="min-h-screen bg-gray-50 font-sans">
+            {/* Wizard Overlay - ALWAYS available on top */}
             {showWizard && !isGenerating && (
                 <IngestionWizard
                     onComplete={handleWizardComplete}
-                    onCancel={() => setShowWizard(false)}
+                    onCancel={() => {
+                        setShowWizard(false);
+                        // אם עדיין אין תוכן וביטלנו, חוזרים הביתה
+                        if (!course?.syllabus?.length) {
+                            navigate('/');
+                        }
+                    }}
                     initialTopic={course.title}
-                    title="הגדרות"
-                    cancelLabel="חזרה להגדרות"
-                    cancelIcon={<IconArrowBack className="w-6 h-6" />}
+                    title="הגדרות פעילות"
+                    cancelLabel="סגור"
+                    cancelIcon={<IconX className="w-6 h-6" />}
                 />
             )}
 
-            {previewUnit && (
-                <UnitPreviewModal unit={previewUnit} onClose={() => setPreviewUnit(null)} />
-            )}
-
+            {/* Global Loading Overlay */}
             {isGenerating && (
-                <div className="fixed inset-0 bg-white/80 backdrop-blur-md z-50 flex flex-col items-center justify-center animate-fade-in">
+                <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-[70] flex flex-col items-center justify-center animate-fade-in">
                     <div className="relative">
                         <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                         <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
@@ -392,76 +373,31 @@ const CourseEditor: React.FC = () => {
                 </div>
             )}
 
-            <div className="max-w-5xl mx-auto">
-                <div className="flex justify-between items-end mb-10">
-                    <div>
-                        <h1 className="text-4xl font-extrabold text-gray-900 flex items-center gap-3">
-                            <span className="bg-indigo-100 p-2 rounded-xl text-indigo-600"><IconEdit className="w-8 h-8" /></span>
-                            עורך הפעילות: <span className="text-indigo-600">{course.title || "טוען..."}</span>
-                        </h1>
-                        <p className="text-gray-500 mt-2 text-lg">נהל את רכיבי הפעילות</p>
+            {/* Preview Modal */}
+            {previewUnit && (
+                <UnitPreviewModal
+                    unit={previewUnit}
+                    onClose={() => setPreviewUnit(null)}
+                />
+            )}
 
-                        <div className="flex gap-2 mt-3">
-                            <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100">
-                                {displayGrade}
-                            </span>
-                            {course.subject && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">{course.subject}</span>}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setShowWizard(true)} className="bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-sm hover:shadow transition-all flex items-center gap-2">
-                            <IconWand className="w-5 h-5" /> ערוך הגדרות
-                        </button>
-                    </div>
+            {/* Main Content Area */}
+            {activeUnit ? (
+                <UnitEditor
+                    unit={activeUnit}
+                    gradeLevel={displayGrade}
+                    subject={course.subject}
+                    onSave={handleSaveUnit}
+                    onCancel={() => setShowWizard(true)} // "Back" opens Settings
+                    onPreview={() => setPreviewUnit(activeUnit)}
+                    cancelLabel="הגדרות" // RENAME BACK BUTTON
+                />
+            ) : (
+                // Empty State (Only if no units exist) - Minimal loading
+                <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+                    <p className="text-gray-400">טוען הגדרות פעילות...</p>
                 </div>
-
-                <div className="space-y-8">
-                    {course.syllabus?.length === 0 && !isGenerating && (
-                        <div className="text-center py-20 bg-white/60 glass rounded-3xl border border-dashed border-gray-300">
-                            <IconRobot className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-gray-600">הפעילות ריקה</h3>
-                            <button onClick={() => setShowWizard(true)} className="mt-4 text-indigo-600 font-bold hover:underline">לחץ כאן להפעלת אשף היצירה</button>
-                        </div>
-                    )}
-                    {course.syllabus?.map((module, mIndex) => (
-                        <div key={module.id} className="glass bg-white/80 rounded-2xl border border-white/60 shadow-sm overflow-hidden animate-slide-up" style={{ animationDelay: `${mIndex * 100}ms` }}>
-                            <div className="p-4 space-y-3">
-                                {module.learningUnits.map((unit) => (
-                                    <div key={unit.id} className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-300 hover:shadow-md transition-all group">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`p-2 rounded-lg ${unit.type === 'test' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
-                                                {unit.type === 'test' ? <IconList className="w-5 h-5" /> : <IconBook className="w-5 h-5" />}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-gray-800">{unit.title}</h4>
-                                                <div className="flex gap-2 mt-1">
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded border ${unit.type === 'test' ? 'bg-red-50 text-red-600 border-red-100' :
-                                                        unit.type === 'practice' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
-                                                            'bg-gray-100 text-gray-500 border-gray-200'
-                                                        }`}>
-                                                        {getUnitLabel(unit.type)}
-                                                    </span>
-                                                    {unit.activityBlocks?.length > 0 && (
-                                                        <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                                                            • {unit.activityBlocks.length} רכיבים
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 transition-opacity">
-                                            <button onClick={() => setPreviewUnit(unit)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="תצוגה מקדימה"><IconEyeLocal className="w-5 h-5" /></button>
-                                            <button onClick={() => setSelectedUnitId(unit.id)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 transition-colors flex items-center gap-2"><IconEdit className="w-4 h-4" /> ערוך</button>
-                                            <button onClick={() => handleDeleteUnit(unit.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><IconTrash className="w-5 h-5" /></button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            )}
         </div>
     );
 };
