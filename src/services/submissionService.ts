@@ -7,6 +7,8 @@ export interface SubmissionData {
     studentName: string;
     answers: Record<string, any>;
     submittedAt?: any;
+    score?: number;
+    maxScore?: number;
 }
 
 export const submitAssignment = async (data: SubmissionData) => {

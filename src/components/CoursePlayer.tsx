@@ -329,6 +329,36 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
     };
 
+    const calculateScore = () => {
+        if (!course || !course.syllabus) return 0;
+        let totalQuestions = 0;
+        let correctAnswers = 0;
+
+        course.syllabus.forEach(module => {
+            module.learningUnits.forEach(unit => {
+                unit.activityBlocks?.forEach(block => {
+                    if (block.type === 'multiple-choice' && block.content.correctAnswer) {
+                        totalQuestions++;
+                        if (userAnswers[block.id] === block.content.correctAnswer) {
+                            correctAnswers++;
+                        }
+                    }
+                    // Check related questions in metadata
+                    if (block.metadata?.relatedQuestion?.correctAnswer) {
+                        totalQuestions++;
+                        // Reconstruct ID for related question: blockId_related
+                        if (userAnswers[`${block.id}_related`] === block.metadata.relatedQuestion.correctAnswer) {
+                            correctAnswers++;
+                        }
+                    }
+                });
+            });
+        });
+
+        if (totalQuestions === 0) return 0; // No score applicable
+        return Math.round((correctAnswers / totalQuestions) * 100);
+    };
+
     const handleSubmit = async () => {
         if (!assignment || !studentName) return;
 
@@ -336,11 +366,13 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
         setIsSubmitting(true);
         try {
+            const finalScore = calculateScore();
             await submitAssignment({
                 assignmentId: assignment.id || 'unknown', // Fallback if ID extracted from URL param outside
                 courseId: course.id,
                 studentName: studentName,
-                answers: userAnswers
+                answers: userAnswers,
+                score: finalScore
             });
             setIsSubmitted(true);
         } catch (e) {

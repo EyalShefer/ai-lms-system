@@ -230,7 +230,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 id: data.id,
                 name: data.studentEmail?.split('@')[0] || "אנונימי",
                 score: data.finalScore || 0,
-                progress: data.answers ? Object.keys(data.answers).length : 0, // Crude progress
+                progress: data.answers ? Math.min(Object.keys(data.answers).length * 10, 90) : 0, // Estimate percentage (10% per answer, max 90% until submit)
                 lastActive: data.lastActive ? new Date(data.lastActive).toLocaleDateString('he-IL') : '-',
                 answers: data.answers || {},
                 chatHistory: data.chatHistory || [],
@@ -513,54 +513,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         }
     };
 
-    const handleAutoGrade = async (e: React.MouseEvent, courseId: string) => {
-        e.stopPropagation();
-        if (isGrading[courseId]) return;
 
-        if (!confirm("האם להפעיל בדיקה אוטומטית עבור כל התלמידים בקורס זה? (הפעולה תשלח תשובות לבינה המלאכותית)")) {
-            return;
-        }
-
-        setIsGrading(prev => ({ ...prev, [courseId]: true }));
-        try {
-            // Find course (assignment) data
-            // In a real app we might need to fetch the full structure if 'aggregatedCourses' doesn't have it.
-            // But we have 'assignmentsMap'.
-
-            // We need proper assignment structure with questions.
-            // 'assignmentsMap' holds: Record<courseId, Assignment[]>
-
-            const assignments = assignmentsMap[courseId];
-            if (!assignments || assignments.length === 0) {
-                alert("לא נמצאו מטלות בקורס זה.");
-                return;
-            }
-
-            // Grade ALL assignments in the course? Or just find the relevant one?
-            // For simplicity, grade the first/latest assignment or loop through all.
-            // 'aggregatedCourses' seems to flatten things, but let's assume one active assignment per course for now or grade all.
-
-            // Filter submissions relevant to this course
-            const relevantSubmissions = allData.filter(s => s.courseId === courseId && (s as any).rawSubmission).map(s => (s as any).rawSubmission);
-
-            if (relevantSubmissions.length === 0) {
-                alert("אין הגשות לבדיקה.");
-                return;
-            }
-
-            for (const assignment of assignments) {
-                await gradeBatch(assignment, relevantSubmissions);
-            }
-
-            alert("הבדיקה הסתיימה בהצלחה!");
-
-        } catch (error) {
-            console.error("Error auto-grading:", error);
-            alert("אירעה שגיאה בבדיקה האוטומטית.");
-        } finally {
-            setIsGrading(prev => ({ ...prev, [courseId]: false }));
-        }
-    };
 
     const handleDeleteCourse = async () => {
         if (!deleteConfirmation.courseId) return;
@@ -933,8 +886,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                     </td>
                                                     <td className="p-4 text-slate-500">{student.lastActive}</td>
                                                     <td className="p-4">
-                                                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-indigo-500" style={{ width: `${Math.min(student.progress * 10, 100)}%` }}></div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-indigo-500" style={{ width: `${student.progress}%` }}></div>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-500">{student.progress}%</span>
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
