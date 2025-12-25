@@ -51,12 +51,17 @@ const LoadingSpinner = () => (
   </div>
 );
 
+import TicTacToeLoader from './components/TicTacToeLoader'; // Import new Loader
+
+// ... existing imports
+
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
-  const [wizardMode, setWizardMode] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false); // Add isGenerating state
-  const [currentAssignment, setCurrentAssignment] = useState(null);
+  const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
+  const [currentAssignment, setCurrentAssignment] = useState<any>(null);
 
   const { loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
@@ -96,7 +101,7 @@ const AuthenticatedApp = () => {
     init();
   }, [loadCourse]);
 
-  const handleCourseSelect = (courseId) => {
+  const handleCourseSelect = (courseId: string) => {
     loadCourse(courseId);
     setMode('editor');
   };
@@ -110,13 +115,17 @@ const AuthenticatedApp = () => {
     setMode(mode === 'editor' ? 'student' : 'editor');
   };
 
-  const fileToGenerativePart = (file) => {
+  const fileToGenerativePart = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result;
-        const base64Data = base64String.split(',')[1];
-        resolve({ base64: base64Data, mimeType: file.type });
+        if (typeof base64String === 'string') {
+          const base64Data = base64String.split(',')[1];
+          resolve({ base64: base64Data, mimeType: file.type });
+        } else {
+          reject(new Error("Failed to read file"));
+        }
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);
@@ -124,11 +133,12 @@ const AuthenticatedApp = () => {
   };
 
   // --- הפונקציה המתוקנת ---
-  const handleWizardComplete = async (wizardData) => {
+  const handleWizardComplete = async (wizardData: any) => {
     if (!currentUser) return;
 
     // 1. Close Wizard Immediately & Show Loading
     setWizardMode(null);
+    setShowLoader(true); // Show the game loader
     setIsGenerating(true);
 
     try {
@@ -137,8 +147,8 @@ const AuthenticatedApp = () => {
       let fileName = null;
 
       // משתנים למעבר ל-AI
-      let aiFileData = undefined;
-      let aiSourceText = undefined;
+      let aiFileData: { base64: string; mimeType: string } | undefined = undefined;
+      let aiSourceText: string | undefined = undefined;
 
       if (wizardData.file) {
         console.log("Processing file:", wizardData.file.name, wizardData.file.type);
@@ -196,9 +206,23 @@ const AuthenticatedApp = () => {
           extractedGrade,
           aiFileData,
           userSubject,
-          aiSourceText
+          aiSourceText,
+          wizardData.settings?.includeBot ?? false // Default to false per user request, or follow wizard settings
         );
-        console.log("AI Success");
+        console.log("AI Success. Source Text Length:", aiSourceText?.length || 0);
+
+        // --- SANITIZE/OVERRIDE INTRO BLOCK ---
+        if (aiSyllabus.length > 0 && aiSyllabus[0].learningUnits.length > 0) {
+          const firstUnit = aiSyllabus[0].learningUnits[0];
+          if (firstUnit.activityBlocks && firstUnit.activityBlocks.length > 0) {
+            const firstBlock = firstUnit.activityBlocks[0];
+            if (firstBlock.type === 'text') {
+              // Replace generic "Welcome" with "Call to Action"
+              firstBlock.content = `# יוצאים לדרך! 🚀\n\nהפעילות בנושא **${topicForAI}** מתחילה עכשיו.\n\nהמשימה שלכם: לעבור על השאלות ולגלות עד כמה אתם שולטים בחומר. בהצלחה!`;
+            }
+          }
+        }
+
       } catch (aiError) {
         console.error("AI Failed:", aiError);
         aiSyllabus = [{ id: "fallback-" + Date.now(), title: "מבוא (ידני)", learningUnits: [] }];
@@ -215,6 +239,10 @@ const AuthenticatedApp = () => {
         syllabus: aiSyllabus,
         mode: courseMode,
         createdAt: serverTimestamp(),
+        // Persist Source Text Visibility & Content
+        showSourceToStudent: wizardData.settings?.showSourceToStudent ?? true,
+        fullBookContent: aiSourceText || "",
+        pdfSource: fileUrl || null,
         wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
@@ -264,8 +292,8 @@ const AuthenticatedApp = () => {
         <Suspense fallback={<LoadingSpinner />}>
           {isStudentLink ? <CoursePlayer assignment={currentAssignment} /> : (
             <>
-              {mode === 'list' && <HomePage onCreateNew={(m) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
-              {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
+              {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
+              {mode === 'editor' && <CourseEditor />}
               {mode === 'student' && <CoursePlayer assignment={currentAssignment} />}
               {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} />}
             </>
@@ -289,16 +317,12 @@ const AuthenticatedApp = () => {
         </div>
       )}
 
-      {/* Global Loading Overlay */}
-      {isGenerating && (
-        <div className="fixed inset-0 bg-white/95 backdrop-blur-md z-[200] flex flex-col items-center justify-center animate-fade-in" dir="rtl">
-          <div className="relative">
-            <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
-          <p className="text-gray-500 mt-2">התהליך עשוי להימשך כדקה - אנחנו יוצרים חוויה מותאמת אישית.</p>
-        </div>
+      {/* Global Loading Overlay (Tic-Tac-Toe Zen Mode) */}
+      {showLoader && (
+        <TicTacToeLoader
+          isLoading={isGenerating}
+          onContinue={() => setShowLoader(false)}
+        />
       )}
     </div>
   );

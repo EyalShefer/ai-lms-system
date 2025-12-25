@@ -58,6 +58,9 @@ export interface Course {
     syllabus: Module[];
     createdAt?: any;
     updatedAt?: any;
+    fullBookContent?: string; // THe full extracted text
+    showSourceToStudent?: boolean; // Visibility toggle
+    pdfSource?: string | null; // URL of the original PDF file
     settings?: {
         totalScore: number;
         passScore: number;

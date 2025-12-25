@@ -35,7 +35,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onCancel,
     initialTopic,
     initialMode = 'learning',
-    title,
     cancelLabel = "חזרה",
     cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" /> // חץ ימינה (חזרה)
 }) => {
@@ -53,10 +52,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [grade, setGrade] = useState(GRADES[6]); // כיתה ז' כברירת מחדל
     const [subject, setSubject] = useState('חינוך לשוני (עברית)');
     const [activityLength, setActivityLength] = useState<'short' | 'medium' | 'long'>('medium');
-    const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
-    const [includeBot, setIncludeBot] = useState(true);
+    const [taxonomy, setTaxonomy] = useState<{ knowledge: number; application: number; evaluation: number }>({ knowledge: 30, application: 50, evaluation: 20 });
+    const [includeBot, setIncludeBot] = useState(false);
     const [botPersona, setBotPersona] = useState('socratic'); // Default Persona
     const [courseMode, setCourseMode] = useState(initialMode);
+    const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
     useEffect(() => {
         if (initialTopic && initialTopic !== "טוען..." && initialTopic.trim() !== "") {
@@ -74,7 +74,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     const handleTaxonomyChange = (changedKey: keyof typeof taxonomy, newValue: number) => {
         const remainingSpace = 100 - newValue;
-        const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey);
+        // Cast keys to correct type
+        const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey) as (keyof typeof taxonomy)[];
         const keyA = otherKeys[0];
         const keyB = otherKeys[1];
         const currentOthersTotal = taxonomy[keyA] + taxonomy[keyB];
@@ -83,6 +84,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         else { const ratio = taxonomy[keyA] / currentOthersTotal; newA = Math.round(remainingSpace * ratio); newB = remainingSpace - newA; }
         setTaxonomy({ ...taxonomy, [changedKey]: newValue, [keyA]: newA, [keyB]: newB });
     };
+
 
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         accept: { 'application/pdf': ['.pdf'], 'text/plain': ['.txt'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
@@ -137,10 +139,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     taxonomy,
                     includeBot,
                     botPersona: includeBot ? botPersona : null,
-                    courseMode
+                    courseMode,
+                    showSourceToStudent
                 }
-            };
-
+            }
             if (onComplete) {
                 await onComplete(finalData);
             }
@@ -159,7 +161,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת פעילות חדשה';
     const dynamicSubtitle = mode === 'topic' && topic
         ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} בנושא: ${topic}`
-        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'} אינטראקטיבית`;
+        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'}`;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
@@ -252,7 +254,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     )}
 
                     {step === 2 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-slide-up h-full">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-slide-up h-full pb-20">
                             {/* עמודה ימנית - הגדרות טכניות */}
                             <div className="space-y-6 bg-blue-50/50 p-6 rounded-3xl border border-blue-100 order-2 md:order-1">
                                 {/* שדה שם הפעילות החדשה */}
@@ -294,16 +296,34 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 </div>
 
 
+                                {/* Source Text Visibility Toggle */}
+                                <div className="pt-4 border-t border-blue-200/50">
+                                    <label className="flex items-center justify-between cursor-pointer group mb-1 p-3 bg-white/50 rounded-xl border border-blue-100 hover:border-blue-300 transition-colors">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-gray-800 text-sm">הצג מקור לתלמיד</span>
+                                            <span className="text-xs text-gray-500">האם לאפשר לתלמיד לצפות בקובץ/טקסט המקור?</span>
+                                        </div>
+
+                                        <div className="relative">
+                                            <input type="checkbox" checked={showSourceToStudent} onChange={(e) => setShowSourceToStudent(e.target.checked)} className="hidden" />
+                                            <div className={`w-12 h-7 rounded-full transition-all duration-300 ease-in-out ${showSourceToStudent ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                                            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${showSourceToStudent ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </label>
+                                </div>
+
                                 {/* Bot Configuration */}
                                 <div className="pt-4 border-t border-blue-200/50">
-                                    <label className="flex items-center gap-3 cursor-pointer group mb-3">
-                                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${includeBot ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300 group-hover:border-blue-400'}`}>
-                                            {includeBot && <IconCheck className="w-4 h-4 text-white" />}
-                                        </div>
-                                        <input type="checkbox" checked={includeBot} onChange={(e) => setIncludeBot(e.target.checked)} className="hidden" />
+                                    <label className="flex items-center justify-between cursor-pointer group mb-4 p-3 bg-white/50 rounded-xl border border-blue-100 hover:border-blue-300 transition-colors">
                                         <div className="flex flex-col">
-                                            <span className="font-bold text-gray-700 text-sm">המורה הוירטואלי</span>
-                                            <span className="text-xs text-gray-400">הוסף צ'אט בוט לעזרה בתחילת הפעילות</span>
+                                            <span className="font-bold text-gray-800 text-sm">המורה הוירטואלי</span>
+                                            <span className="text-xs text-gray-500">הוסף צ'אט בוט לעזרה בתחילת הפעילות</span>
+                                        </div>
+
+                                        <div className="relative">
+                                            <input type="checkbox" checked={includeBot} onChange={(e) => setIncludeBot(e.target.checked)} className="hidden" />
+                                            <div className={`w-12 h-7 rounded-full transition-all duration-300 ease-in-out ${includeBot ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                                            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${includeBot ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                         </div>
                                     </label>
 
@@ -332,12 +352,30 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             </div>
 
                             {/* עמודה שמאלית - טקסונומיה */}
-                            <div className="space-y-6 order-1 md:order-2">
-                                <div className="flex items-center gap-2 mb-2"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה (טקסונומיה)</h3></div>
-                                <p className="text-sm text-gray-500 mb-6">קבעו את תמהיל השאלות והתוכן.</p>
-                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-green-600 text-lg">ידע והבנה</label><span className="font-mono font-bold text-lg bg-green-50 px-2 rounded">{taxonomy.knowledge}%</span></div><input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
-                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-blue-600 text-lg">יישום וניתוח</label><span className="font-mono font-bold text-lg bg-blue-50 px-2 rounded">{taxonomy.application}%</span></div><input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
-                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><div className="flex justify-between mb-3"><label className="font-bold text-orange-600 text-lg">הערכה ויצירה</label><span className="font-mono font-bold text-lg bg-orange-50 px-2 rounded">{taxonomy.evaluation}%</span></div><input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-orange-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
+                            <div className="space-y-4 order-1 md:order-2">
+                                <div className="flex items-center gap-2 mb-1"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה</h3></div>
+                                <p className="text-sm text-gray-500 mb-4">קבעו את תמהיל השאלות והתוכן.</p>
+                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-green-200 transition-colors">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="font-bold text-green-600 text-base">ידע והבנה</label>
+                                        <span className="font-mono font-bold text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-md">{taxonomy.knowledge}%</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="font-bold text-blue-600 text-base">יישום וניתוח</label>
+                                        <span className="font-mono font-bold text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">{taxonomy.application}%</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-orange-200 transition-colors">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="font-bold text-orange-600 text-base">הערכה ויצירה</label>
+                                        <span className="font-mono font-bold text-sm bg-orange-50 text-orange-700 px-2 py-0.5 rounded-md">{taxonomy.evaluation}%</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-orange-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -376,7 +414,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

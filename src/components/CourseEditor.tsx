@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCourseStore } from '../context/CourseContext';
 import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
-import { IconEye, IconSparkles, IconX } from '../icons';
+import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
 import { generateCoursePlan, generateFullUnitContent } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -113,6 +113,10 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
 
 
 
+import TicTacToeLoader from './TicTacToeLoader';
+
+// ... existing imports ...
+
 const CourseEditor: React.FC = () => {
     const navigate = useNavigate();
     const { course, setCourse } = useCourseStore();
@@ -120,6 +124,7 @@ const CourseEditor: React.FC = () => {
     const [previewUnit, setPreviewUnit] = useState<LearningUnit | null>(null);
     const [showWizard, setShowWizard] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showLoader, setShowLoader] = useState(false); // New state logic
 
     // משתנה לעקיפת התצוגה
     const [forcedGrade, setForcedGrade] = useState<string>("");
@@ -165,6 +170,7 @@ const CourseEditor: React.FC = () => {
 
         wizardHasRun.current = true;
         setShowWizard(false);
+        setShowLoader(true); // Start game loader
         setIsGenerating(true);
 
         console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
@@ -190,26 +196,7 @@ const CourseEditor: React.FC = () => {
 
             setForcedGrade(extractedGrade);
 
-            const updatedCourseState = {
-                ...course,
-                title: topicToUse,
-                subject: userSubject,
-                gradeLevel: extractedGrade,
-                mode: data.settings?.courseMode || 'learning',
-                botPersona: data.settings?.botPersona || null
-            };
-
-            setCourse(updatedCourseState);
-
-            await updateDoc(doc(db, "courses", course.id), {
-                title: topicToUse,
-                subject: userSubject,
-                gradeLevel: extractedGrade,
-                mode: updatedCourseState.mode,
-                botPersona: data.settings?.botPersona || null
-            });
-
-            // --- עיבוד הקובץ לפני השליחה ---
+            // --- עיבוד הקובץ לפני השליחה (הוזז למעלה כדי לשמור ב-DB) ---
             let processedFileData = undefined; // עבור תמונות
             let processedSourceText = undefined; // עבור טקסט/PDF
 
@@ -237,8 +224,30 @@ const CourseEditor: React.FC = () => {
                 }
             }
 
+            const updatedCourseState = {
+                ...course,
+                title: topicToUse,
+                subject: userSubject,
+                gradeLevel: extractedGrade,
+                mode: data.settings?.courseMode || 'learning',
+                botPersona: data.settings?.botPersona || null,
+                showSourceToStudent: data.settings?.showSourceToStudent || false,
+                fullBookContent: processedSourceText || course.fullBookContent || "" // שמירת התוכן המחולץ
+            };
+
+            setCourse(updatedCourseState);
+
+            await updateDoc(doc(db, "courses", course.id), {
+                title: topicToUse,
+                subject: userSubject,
+                gradeLevel: extractedGrade,
+                mode: updatedCourseState.mode,
+                botPersona: data.settings?.botPersona || null,
+                showSourceToStudent: data.settings?.showSourceToStudent || false,
+                fullBookContent: processedSourceText || course.fullBookContent || "" // שמירה לדאטהבייס
+            });
+
             // יצירת סילבוס עם הנתונים המעובדים
-            // שימו לב: אנחנו מעבירים גם processedSourceText כפרמטר חדש (נצטרך לעדכן את gemini.ts)
             const syllabus = await generateCoursePlan(
                 topicToUse,
                 extractedGrade,
@@ -367,17 +376,12 @@ const CourseEditor: React.FC = () => {
                 />
             )}
 
-            {/* Global Loading Overlay */}
-            {isGenerating && (
-                <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-[70] flex flex-col items-center justify-center animate-fade-in">
-                    <div className="relative">
-                        <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                        <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
-                    <p className="text-gray-500 mt-2">מתאים את התוכן ל{displayGrade}...</p>
-                    <p className="text-gray-400 text-sm mt-1">במבט של: {course.subject || "כללי"}</p>
-                </div>
+            {/* Global Loading Overlay (Tic-Tac-Toe Zen Mode) */}
+            {showLoader && (
+                <TicTacToeLoader
+                    isLoading={isGenerating}
+                    onContinue={() => setShowLoader(false)}
+                />
             )}
 
             {/* Preview Modal */}

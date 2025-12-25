@@ -71,11 +71,11 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             </div>
 
                             <h2 className="text-3xl font-black mb-3 leading-tight">
-                                יצירת פעילות <br /> אינטראקטיבית 🪄
+                                יצירת פעילות <br /> חדשה 🪄
                             </h2>
 
                             <p className="text-blue-100 text-md opacity-90 leading-relaxed font-medium">
-                                הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד אינטראקטיבית הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל ואדפטיבי.
+                                הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל ואדפטיבי.
                             </p>
                         </div>
 
@@ -171,7 +171,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             <span className="absolute -top-2 -right-2 bg-[#24A8D9] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">3</span>
                         </div>
                         <h3 className="font-bold text-slate-800 mb-1">התלמיד חווה</h3>
-                        <p className="text-xs text-slate-500 px-4">למידה אינטראקטיבית המותאמת אישית.</p>
+                        <p className="text-xs text-slate-500 px-4">למידה מותאמת אישית.</p>
                     </div>
 
                     {/* Step 4 */}

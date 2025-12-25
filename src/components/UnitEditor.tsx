@@ -292,8 +292,36 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     const handleAiAction = async (blockId: string, text: string, actionPrompt: string) => { if (!text) return; setLoadingBlockId(blockId); try { const res = await refineContentWithPedagogy(text, actionPrompt); updateBlock(blockId, res); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
     const handleSuggestImagePrompt = async (blockId: string) => { setLoadingBlockId(blockId); try { const prompt = await generateImagePromptBlock(editedUnit.baseContent || ""); const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId); if (block) updateBlock(blockId, block.content, { aiPrompt: prompt }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
-    const handleAutoGenerateOpenQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleOpenQuestion(editedUnit.title); updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
-    const handleAutoGenerateMCQuestion = async (blockId: string) => { setLoadingBlockId(blockId); try { const result = await generateSingleMultipleChoiceQuestion(editedUnit.title); updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer }); } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); } };
+    const handleAutoGenerateOpenQuestion = async (blockId: string) => {
+        setLoadingBlockId(blockId);
+        try {
+            const result = await generateSingleOpenQuestion(editedUnit.title);
+            if (result) {
+                updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
+            } else {
+                alert("אירעה שגיאה ביצירת השאלה. אנא נסו שוב.");
+            }
+        } catch (e) {
+            alert("שגיאה");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
+    const handleAutoGenerateMCQuestion = async (blockId: string) => {
+        setLoadingBlockId(blockId);
+        try {
+            const result = await generateSingleMultipleChoiceQuestion(editedUnit.title);
+            if (result) {
+                updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer });
+            } else {
+                alert("אירעה שגיאה ביצירת השאלה. אנא נסו שוב.");
+            }
+        } catch (e) {
+            alert("שגיאה");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
 
     // --- שדרוג: טיפול ביצירת תמונה ב-AI (תומך גם בתוכן ראשי וגם במטא-דאטה לשאלות) ---
     const handleGenerateAiImage = async (blockId: string, targetField: 'content' | 'metadata' = 'content') => {

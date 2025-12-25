@@ -111,10 +111,13 @@ const mapSystemItemToBlock = (item: any) => {
       correctAnswer = options[0] || "";
     }
 
+    // Randomize Options
+    const shuffledOptions = [...options].sort(() => Math.random() - 0.5);
+
     return {
       id: uuidv4(),
       type: 'multiple-choice',
-      content: { question: item.question_text || item.question || "שאלה ללא טקסט", options: options, correctAnswer: correctAnswer },
+      content: { question: item.question_text || item.question || "שאלה ללא טקסט", options: shuffledOptions, correctAnswer: correctAnswer },
       metadata: { ...commonMetadata, score: 10 }
     };
   }
@@ -153,13 +156,13 @@ const mapSystemItemToBlock = (item: any) => {
 };
 
 // --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
-// --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (
   topic: string,
   gradeLevel: string,
   fileData?: { base64: string; mimeType: string },
   subject: string = "כללי",
-  sourceText?: string // טקסט שחולץ (PDF/Doc)
+  sourceText?: string, // טקסט שחולץ (PDF/Doc)
+  includeBot: boolean = true // האם לכלול בוט
 ) => {
   console.log("Starting cloud generation for:", topic);
 
@@ -191,7 +194,30 @@ export const generateCoursePlan = async (
 
         if (data.status === "completed" && data.result) {
           unsubscribe();
-          resolve(data.result);
+
+          // --- CLIENT-SIDE PROCESSING ---
+          console.log("!!! PROCESSING RESULTS CLIENT SIDE !!!", { includeBot, blocksRaw: data.result.length });
+          let processedResult = [...data.result];
+
+          // 1. Enforce Bot Toggle & Randomization (Deep Traversal)
+          processedResult = processedResult.map((module: any) => ({
+            ...module,
+            learningUnits: (module.learningUnits || []).map((unit: any) => ({
+              ...unit,
+              activityBlocks: (unit.activityBlocks || [])
+                .filter((block: any) => includeBot || block.type !== 'interactive-chat')
+                .map((block: any) => {
+                  if (block.type === 'multiple-choice' && Array.isArray(block.content?.options)) {
+                    // Shuffle Options
+                    const shuffled = [...block.content.options].sort(() => Math.random() - 0.5);
+                    return { ...block, content: { ...block.content, options: shuffled } };
+                  }
+                  return block;
+                })
+            }))
+          }));
+
+          resolve(processedResult);
         } else if (data.status === "error") {
           unsubscribe();
           reject(new Error(data.error || "Unknown error during generation"));
@@ -249,7 +275,8 @@ export const generateFullUnitContent = async (
   fileData?: { base64: string; mimeType: string },
   subject: string = "כללי",
   sourceText?: string,
-  taxonomy?: { knowledge: number; application: number; evaluation: number }
+  taxonomy?: { knowledge: number; application: number; evaluation: number },
+  includeBot: boolean = true
 ) => {
 
   const hasSourceMaterial = !!(fileData || sourceText);
@@ -432,23 +459,25 @@ export const generateFullUnitContent = async (
     blocks.push({
       id: uuidv4(),
       type: 'text',
-      content: `### ברוכים הבאים לשיעור ב${subject}\n**נושא:** ${unitTitle}\nמותאם עבור ${gradeLevel}.`,
+      content: `# מתחילים! 🚀\nהפעילות בנושא **${unitTitle}** יוצאת לדרך.\nלפניכם תרגול קצר וממוקד. בהצלחה!`,
       metadata: {}
     });
 
 
     const selectedPersona = taxonomy && (taxonomy as any).botPersona ? BOT_PERSONAS[(taxonomy as any).botPersona as keyof typeof BOT_PERSONAS] : BOT_PERSONAS.socratic;
 
-    blocks.push({
-      id: uuidv4(),
-      type: 'interactive-chat',
-      content: { title: selectedPersona.name, description: `עזרה בנושאי ${subject}` },
-      metadata: {
-        botPersona: selectedPersona.id,
-        initialMessage: selectedPersona.initialMessage,
-        systemPrompt: `${selectedPersona.systemPrompt}\n\nנושא השיעור: ${unitTitle}\nקהל יעד: ${gradeLevel}`
-      }
-    });
+    if (includeBot) {
+      blocks.push({
+        id: uuidv4(),
+        type: 'interactive-chat',
+        content: { title: selectedPersona.name, description: `עזרה בנושאי ${subject}` },
+        metadata: {
+          botPersona: selectedPersona.id,
+          initialMessage: selectedPersona.initialMessage,
+          systemPrompt: `${selectedPersona.systemPrompt}\n\nנושא השיעור: ${unitTitle}\nקהל יעד: ${gradeLevel}`
+        }
+      });
+    }
 
     if (Array.isArray(generatedItems)) {
       generatedItems.forEach((item: any) => {
@@ -526,7 +555,7 @@ export const generateSingleOpenQuestion = async (context: string) => {
       response_format: { type: "json_object" }
     });
     return JSON.parse(res.choices[0].message.content || "{}");
-  } catch (e) { return { question: "שגיאה ביצירה", modelAnswer: "" }; }
+  } catch (e) { return null; }
 };
 
 export const generateSingleMultipleChoiceQuestion = async (context: string) => {
@@ -549,10 +578,10 @@ export const generateSingleMultipleChoiceQuestion = async (context: string) => {
       parsed.options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"];
     }
     return parsed;
-  } catch (e) { return { question: "שגיאה ביצירה", options: [], correctAnswer: "" }; }
+  } catch (e) { return null; }
 };
 
-export const generateAdaptiveUnit = async (originalUnit: any, weakness: string) => {
+export const generateAdaptiveUnit = async (originalUnit: any, _weakness: string) => {
   return {
     id: uuidv4(),
     title: `חיזוק: ${originalUnit.title}`,

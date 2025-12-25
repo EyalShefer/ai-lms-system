@@ -65,7 +65,10 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         mode: baseData.mode || 'learning', // חשוב: שומר על מצב מבחן/למידה
         wizardData: baseData.wizardData || null, // חשוב: שומר את המידע מהויזארד
         subject: baseData.subject || '',
-        gradeLevel: baseData.gradeLevel || ''
+        gradeLevel: baseData.gradeLevel || '',
+        fullBookContent: baseData.fullBookContent || '',
+        showSourceToStudent: baseData.showSourceToStudent ?? true, // Default to true if missing
+        pdfSource: baseData.pdfSource || null
     } as Course;
 };
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import type { ActivityBlock } from '../courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser, IconBook
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
 
@@ -166,6 +166,20 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     const [isNameConfirmed, setIsNameConfirmed] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+
+    // Split View State
+    const [showSplitView, setShowSplitView] = useState(false);
+
+    // Open Split View by default if content exists and enabled
+    const hasAutoOpenedRef = useRef(false);
+    useEffect(() => {
+        if (course?.id && course?.showSourceToStudent && course?.fullBookContent && !hasAutoOpenedRef.current) {
+            setShowSplitView(true);
+            hasAutoOpenedRef.current = true;
+        }
+        // Reset ref if course changes
+        return () => { if (course?.id) hasAutoOpenedRef.current = false; };
+    }, [course?.id, course?.showSourceToStudent, !!course?.fullBookContent]);
 
     // If not an assignment (teacher preview), we don't need name
     useEffect(() => {
@@ -456,7 +470,13 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         const mediaSrc = getMediaSrc();
 
         switch (block.type) {
-            case 'text': return <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">{block.content}</div>;
+            case 'text': return (
+                <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {block.content}
+                    </ReactMarkdown>
+                </div>
+            );
 
             case 'image':
                 if (!mediaSrc) return null;
@@ -597,7 +617,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
-            {/* --- Assignment Header (If exists) --- */}
+
+
+            {/* --- Assignment Header --- */}
             {assignment && (
                 <div className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-lg sticky top-0 z-[50] animate-slide-down mb-6">
                     <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -633,79 +655,125 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
-            <main className="w-full max-w-3xl p-6 md:p-10 pb-48">
-                {activeUnit ? (
-                    <>
-                        <header className="mb-8 text-center">
-                            <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
-                            {/* אפשר להוסיף כאן את שם הפרק אם רוצים */}
-                            {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
+            {/* --- Source Text Toggle --- */}
+            {/* Show button if enabled by teacher, even if content is missing (for debugging/clarity) */}
+            {course.showSourceToStudent && (
+                <div className="fixed left-4 bottom-4 z-50">
+                    <button
+                        onClick={() => setShowSplitView(!showSplitView)}
+                        className={`shadow-xl flex items-center gap-2 px-5 py-3 rounded-full font-bold transition-all transform hover:scale-105 ${showSplitView ? 'bg-gray-800 text-white' : 'bg-blue-600 text-white'}`}
+                    >
+                        <IconBook className="w-5 h-5" />
+                        {showSplitView ? 'סגור טקסט מקור' : 'הצג טקסט מקור'}
+                    </button>
+                </div>
+            )}
 
-                            <div className="flex justify-center gap-2 mt-3">
-                                <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
-                                    {displayGrade}
-                                </span>
-                                {course.subject && (
-                                    <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
-                                        {course.subject}
-                                    </span>
-                                )}
-                            </div>
+            <div className={`flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 ${showSplitView ? 'flex gap-6 items-start' : ''}`}>
 
-                        </header>
-
-                        <div className="space-y-6">
-                            {activeUnit.activityBlocks?.map(renderBlock)}
+                {/* --- Split View Side Panel (Source Text) --- */}
+                {showSplitView && (
+                    <div className="w-1/2 h-[85vh] sticky top-24 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
+                        <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
+                            <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5" /></button>
                         </div>
-
-                        <div className="mt-16 flex justify-center">
-                            <button
-                                onClick={handleContinueClick}
-                                className="bg-blue-600 text-white px-10 py-3.5 rounded-full font-bold shadow-xl hover:bg-blue-700 transition-all hover:scale-105 flex items-center gap-3 text-lg"
-                            >
-                                {reviewMode ? 'סגור תצוגה' : (
-                                    // Calculate if this is the last unit
-                                    (() => {
-                                        const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
-                                            activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
-
-                                        return isLastUnit ? (
-                                            <>
-                                                הגשה <IconCheck className="w-5 h-5" />
-                                            </>
-                                        ) : (
-                                            <>
-                                                הבא <IconArrowBack className="w-5 h-5" />
-                                            </>
-                                        );
-                                    })()
-                                )}
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <div className="text-center mt-20">
-                        {/* מצב סיום קורס / יחידה אחרונה */}
-                        <div className="bg-white p-8 rounded-3xl shadow-lg inline-block">
-                            <h2 className="text-2xl font-bold mb-4">סיימת את כל היחידות! 🎉</h2>
-                            <p className="text-gray-600 mb-8">כל הכבוד על ההשקעה.</p>
-
-                            {assignment ? (
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting}
-                                    className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"
-                                >
-                                    {isSubmitting ? 'שולח...' : 'הגש משימה לבדיקה'}
-                                    {!isSubmitting && <IconCheck className="w-6 h-6" />}
-                                </button>
+                        <div className="flex-1 overflow-y-auto bg-gray-50 h-full relative">
+                            {course.pdfSource ? (
+                                <iframe
+                                    src={course.pdfSource}
+                                    className="w-full h-full absolute inset-0 border-none"
+                                    title="מסמך מקור"
+                                />
                             ) : (
-                                <p className="text-sm text-gray-400">(מצב תצוגה מקדימה - ללא הגשה)</p>
+                                <div className="p-6 prose max-w-none text-sm leading-relaxed">
+                                    {course.fullBookContent ? (
+                                        <div className="whitespace-pre-wrap font-serif text-gray-800">{course.fullBookContent}</div>
+                                    ) : (
+                                        <div className="text-center text-gray-500 mt-10">
+                                            <p className="font-bold">לא נמצא טקסט מקור.</p>
+                                            <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
+                                            <p className="text-xs text-gray-400 mt-2">ID: {course.id}</p>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
                 )}
-            </main>
+
+                {/* --- Main Content Area --- */}
+                <main className={`transition-all duration-500 ${showSplitView ? 'w-1/2' : 'w-full max-w-3xl mx-auto'} ${showSplitView ? '' : 'p-6 md:p-10'} pb-48`}>
+                    {activeUnit ? (
+                        <>
+                            <header className="mb-8 text-center">
+                                <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
+                                {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
+
+                                <div className="flex justify-center gap-2 mt-3">
+                                    <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
+                                        {displayGrade}
+                                    </span>
+                                    {course.subject && (
+                                        <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
+                                            {course.subject}
+                                        </span>
+                                    )}
+                                </div>
+                            </header>
+
+                            <div className="space-y-6">
+                                {activeUnit.activityBlocks?.map(renderBlock)}
+                            </div>
+
+                            <div className="mt-16 flex justify-center">
+                                <button
+                                    onClick={handleContinueClick}
+                                    className="bg-blue-600 text-white px-10 py-3.5 rounded-full font-bold shadow-xl hover:bg-blue-700 transition-all hover:scale-105 flex items-center gap-3 text-lg"
+                                >
+                                    {reviewMode ? 'סגור תצוגה' : (
+                                        (() => {
+                                            const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
+                                                activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
+
+                                            return isLastUnit ? (
+                                                <>
+                                                    הגשה <IconCheck className="w-5 h-5" />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    הבא <IconArrowBack className="w-5 h-5" />
+                                                </>
+                                            );
+                                        })()
+                                    )}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center mt-20">
+                            {/* מצב סיום קורס / יחידה אחרונה */}
+                            <div className="bg-white p-8 rounded-3xl shadow-lg inline-block">
+                                <h2 className="text-2xl font-bold mb-4">סיימת את כל היחידות! 🎉</h2>
+                                <p className="text-gray-600 mb-8">כל הכבוד על ההשקעה.</p>
+
+                                {assignment ? (
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={isSubmitting}
+                                        className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"
+                                    >
+                                        {isSubmitting ? 'שולח...' : 'הגש משימה לבדיקה'}
+                                        {!isSubmitting && <IconCheck className="w-6 h-6" />}
+                                    </button>
+                                ) : (
+                                    <p className="text-sm text-gray-400">(מצב תצוגה מקדימה - ללא הגשה)</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </main>
+            </div>
         </div>
     );
 };
