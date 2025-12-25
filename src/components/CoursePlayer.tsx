@@ -21,6 +21,10 @@ interface CoursePlayerProps {
 }
 
 // --- רכיב צ'אט אינטראקטיבי חכם ---
+import { openai, MODEL_NAME } from '../gemini';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 const InteractiveChatBlock: React.FC<{
     block: ActivityBlock;
     context: { unitTitle: string; unitContent: string };
@@ -31,7 +35,7 @@ const InteractiveChatBlock: React.FC<{
     const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null); // Ref for container instead of bottom element
 
     // טעינת היסטוריה או הודעה ראשונית
     useEffect(() => {
@@ -46,9 +50,10 @@ const InteractiveChatBlock: React.FC<{
         }
     }, [block, forcedHistory]);
 
+    // גלילה חכמה (ללא קפיצות דף)
     useEffect(() => {
-        if (!readOnly) {
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (!readOnly && containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
     }, [messages, readOnly]);
 
@@ -61,7 +66,6 @@ const InteractiveChatBlock: React.FC<{
         setLoading(true);
 
         try {
-            const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
             const systemInstruction = `
             הנחיות מערכת:
             אתה ${block.metadata?.systemPrompt || "מורה עוזר"}.
@@ -70,29 +74,27 @@ const InteractiveChatBlock: React.FC<{
             שמור על בטיחות ושפה נאותה.
             `;
 
-            const history = messages.map(m => ({
-                role: m.role === 'model' ? 'model' : 'user',
-                parts: [{ text: m.text }]
+            const historyMessages = messages.map(m => ({
+                role: m.role === 'model' ? 'assistant' : 'user',
+                content: m.text
             }));
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        { role: "user", parts: [{ text: systemInstruction }] },
-                        ...history,
-                        { role: "user", parts: [{ text: userMsg }] }
-                    ]
-                })
+            // שימוש בקליינט המרכזי של OpenAI (שעובר דרך הפרוקסי)
+            const response = await openai.chat.completions.create({
+                model: MODEL_NAME, // שימוש במודל המוגדר גלובלית
+                messages: [
+                    { role: "system", content: systemInstruction },
+                    ...historyMessages as any,
+                    { role: "user", content: userMsg }
+                ]
             });
 
-            const data = await response.json();
-            const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "שגיאה בתקשורת.";
+            const reply = response.choices[0]?.message?.content || "שגיאה בתקשורת (No content).";
             setMessages(prev => [...prev, { role: 'model', text: reply }]);
 
         } catch (error) {
-            setMessages(prev => [...prev, { role: 'model', text: "שגיאת רשת." }]);
+            console.error("Bot Communication Error (OpenAI):", error);
+            setMessages(prev => [...prev, { role: 'model', text: "מצטער, יש לי קשיי תקשורת רגעיים. אנא נסה שוב מאוחר יותר." }]);
         } finally {
             setLoading(false);
         }
@@ -108,19 +110,26 @@ const InteractiveChatBlock: React.FC<{
                 </div>
             </div>
 
-            <div className="h-96 overflow-y-auto p-4 bg-gray-50/50 space-y-4 scrollbar-thin scrollbar-thumb-gray-300">
+            <div
+                ref={containerRef}
+                className="h-96 overflow-y-auto p-4 bg-gray-50/50 space-y-4 scrollbar-thin scrollbar-thumb-gray-300"
+            >
                 {messages.length === 0 && readOnly && <div className="text-center text-gray-400 mt-20">אין היסטוריית שיחה.</div>}
                 {messages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none'
                             }`}>
                             {readOnly && <div className="text-[10px] opacity-50 mb-1">{msg.role === 'user' ? 'תלמיד' : 'בוט'}</div>}
-                            {msg.text}
+                            <div className="prose prose-sm max-w-none prose-p:my-0 prose-ul:my-0 prose-li:my-0 text-inherit">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {msg.text}
+                                </ReactMarkdown>
+                            </div>
                         </div>
                     </div>
                 ))}
                 {loading && <div className="text-xs text-gray-400 animate-pulse mr-2">מקליד...</div>}
-                <div ref={bottomRef} />
+
             </div>
 
             {!readOnly && (
@@ -300,11 +309,13 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
         if (currentModule && currentUnitIndex !== -1) {
             if (currentUnitIndex < currentModule.learningUnits.length - 1) {
+                // ... (Logic remains same)
                 const nextUnit = currentModule.learningUnits[currentUnitIndex + 1];
                 setActiveUnitId(nextUnit.id);
                 window.scrollTo(0, 0);
             }
             else if (currentModuleIndex < course.syllabus.length - 1) {
+                // ... (Logic remains same)
                 const nextModule = course.syllabus[currentModuleIndex + 1];
                 setActiveModuleId(nextModule.id);
                 if (nextModule.learningUnits.length > 0) {
@@ -312,7 +323,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 }
                 window.scrollTo(0, 0);
             } else {
-                alert("כל הכבוד! סיימת את כל היחידות בקורס 🎉");
+                // Last Unit: Trigger Submit!
+                handleSubmit();
             }
         }
     };
@@ -503,7 +515,31 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         )}
 
-                        <textarea className="w-full p-4 border rounded-xl focus:border-orange-300 outline-none" value={userAnswers[block.id] || ''} onChange={(e) => handleAnswerSelect(block.id, e.target.value)} readOnly={reviewMode} placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."} />
+                        <textarea
+                            className={`w-full p-4 border rounded-xl outline-none transition-colors ${reviewMode || feedbackVisible[block.id] ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white focus:border-orange-300'}`}
+                            value={userAnswers[block.id] || ''}
+                            onChange={(e) => handleAnswerSelect(block.id, e.target.value)}
+                            readOnly={reviewMode || !!feedbackVisible[block.id]}
+                            placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."}
+                        />
+
+                        {/* Student Self-Check Button */}
+                        {!isExamMode && !reviewMode && (
+                            <div className="mt-4">
+                                {!feedbackVisible[block.id] ? (
+                                    <button onClick={() => checkAnswer(block.id)} className="text-blue-600 font-bold text-sm hover:underline">בדוק תשובה</button>
+                                ) : (
+                                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl animate-fade-in">
+                                        <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
+                                            <IconCheck className="w-3 h-3 text-green-600" /> הערכת המערכת לתשובה:
+                                        </div>
+                                        <div className="text-sm text-yellow-900 leading-relaxed whitespace-pre-wrap">
+                                            {block.metadata?.modelAnswer || "אין תשובה זמינה."}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* הצגת המחוון למורה במצב צפייה */}
                         {reviewMode && block.metadata?.modelAnswer && (
@@ -596,9 +632,21 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 className="bg-blue-600 text-white px-10 py-3.5 rounded-full font-bold shadow-xl hover:bg-blue-700 transition-all hover:scale-105 flex items-center gap-3 text-lg"
                             >
                                 {reviewMode ? 'סגור תצוגה' : (
-                                    <>
-                                        הבא <IconArrowBack className="w-5 h-5" />
-                                    </>
+                                    // Calculate if this is the last unit
+                                    (() => {
+                                        const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
+                                            activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
+
+                                        return isLastUnit ? (
+                                            <>
+                                                הגשה <IconCheck className="w-5 h-5" />
+                                            </>
+                                        ) : (
+                                            <>
+                                                הבא <IconArrowBack className="w-5 h-5" />
+                                            </>
+                                        );
+                                    })()
                                 )}
                             </button>
                         </div>

@@ -5,9 +5,9 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { validateInput, checkForDistress } from '../services/securityService';
-
-// נשתמש בקריאה ישירה אם היא לא מיוצאת, או נעתיק אותה לפה לביטחון
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { openai, MODEL_NAME, BOT_PERSONAS } from '../gemini';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
     id: string;
@@ -19,16 +19,23 @@ const AiTutor: React.FC = () => {
     const { course } = useCourseStore();
     const { currentUser } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+
+    // Determine Persona
+    const personaId = course?.botPersona || 'socratic';
+    const persona = BOT_PERSONAS[personaId as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.socratic;
+
     const [messages, setMessages] = useState<Message[]>([
-        { id: '1', role: 'ai', text: 'היי! אני המורה הפרטי שלך לקורס הזה. שאל אותי כל שאלה על החומר! 👋' }
+        { id: '1', role: 'ai', text: persona.initialMessage }
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // גלילה אוטומטית למטה
+    // גלילה אוטומטית למטה (ללא קפיצות דף)
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (isOpen && containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
     }, [messages, isOpen]);
 
     const handleSend = async () => {
@@ -85,23 +92,23 @@ const AiTutor: React.FC = () => {
         setLoading(true);
 
         try {
-            const context = `Context: You are a helpful AI tutor for the course "${course?.title || 'General'}". Answer in Hebrew. Keep answers short and encouraging.`;
+            let context = `Context: ${persona.systemPrompt}\nCourse: "${course?.title || 'General'}". Answer in Hebrew.`;
+            if (course?.botPersona === 'concise') context += " Keep answers very short.";
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        { role: "user", parts: [{ text: context + "\nStudent question: " + input }] }
-                    ]
-                })
+            // שימוש בקליינט של OpenAI (פרוקסי)
+            const response = await openai.chat.completions.create({
+                model: MODEL_NAME,
+                messages: [
+                    { role: "system", content: context },
+                    { role: "user", content: input }
+                ]
             });
 
-            const data = await response.json();
-            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "סליחה, אני מתקשה לענות כרגע.";
-
+            const aiText = response.choices[0]?.message?.content || "סליחה, אני מתקשה לענות כרגע.";
             setMessages(prev => [...prev, { id: uuidv4(), role: 'ai', text: aiText }]);
+
         } catch (error) {
+            console.error("AiTutor Connection Error (OpenAI):", error);
             setMessages(prev => [...prev, { id: uuidv4(), role: 'ai', text: "יש לי בעיית תקשורת קלה, נסה שוב עוד רגע." }]);
         } finally {
             setLoading(false);
@@ -131,14 +138,22 @@ const AiTutor: React.FC = () => {
                         <button onClick={() => setIsOpen(false)} className="hover:bg-indigo-500 p-1 rounded transition-colors">✕</button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
+                    <div
+                        ref={containerRef}
+                        className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4"
+                    >
                         {messages.map(msg => (
                             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
                                     ? 'bg-indigo-600 text-white rounded-br-none'
                                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
                                     }`}>
-                                    {msg.text}
+                                    }`}>
+                                    <div className="prose prose-sm max-w-none prose-p:my-0 prose-ul:my-0 prose-li:my-0 text-inherit">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {msg.text}
+                                        </ReactMarkdown>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -149,7 +164,7 @@ const AiTutor: React.FC = () => {
                                 </div>
                             </div>
                         )}
-                        <div ref={messagesEndRef} />
+
                     </div>
 
                     <div className="p-3 bg-white border-t flex gap-2">

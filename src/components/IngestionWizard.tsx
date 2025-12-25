@@ -20,7 +20,17 @@ const SUBJECTS = [
     "חינוך גופני", "חינוך פיננסי", "אמנות", "תקשורת", "פסיכולוגיה", "סוציולוגיה", "אחר"
 ];
 
-const IngestionWizard = ({
+interface IngestionWizardProps {
+    onComplete: (data: any) => void;
+    onCancel: () => void;
+    initialTopic?: string;
+    initialMode?: 'learning' | 'exam';
+    title?: string;
+    cancelLabel?: string;
+    cancelIcon?: React.ReactNode;
+}
+
+const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onComplete,
     onCancel,
     initialTopic,
@@ -32,9 +42,9 @@ const IngestionWizard = ({
     // אתחול המצבים
     const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState(null); // 'upload' | 'topic'
+    const [mode, setMode] = useState<'upload' | 'topic' | null>(null); // 'upload' | 'topic'
     const [topic, setTopic] = useState('');
-    const [file, setFile] = useState(null);
+    const [file, setFile] = useState<File | null>(null);
 
     // נתוני שלב 2
     const [customTitle, setCustomTitle] = useState('');
@@ -42,8 +52,10 @@ const IngestionWizard = ({
     // ברירת מחדל תואמת לרשימה
     const [grade, setGrade] = useState(GRADES[6]); // כיתה ז' כברירת מחדל
     const [subject, setSubject] = useState('חינוך לשוני (עברית)');
-    const [modulesCount, setModulesCount] = useState(3);
+    const [activityLength, setActivityLength] = useState<'short' | 'medium' | 'long'>('medium');
     const [taxonomy, setTaxonomy] = useState({ knowledge: 30, application: 50, evaluation: 20 });
+    const [includeBot, setIncludeBot] = useState(true);
+    const [botPersona, setBotPersona] = useState('socratic'); // Default Persona
     const [courseMode, setCourseMode] = useState(initialMode);
 
     useEffect(() => {
@@ -60,7 +72,7 @@ const IngestionWizard = ({
         setCourseMode(initialMode);
     }, [initialMode]);
 
-    const handleTaxonomyChange = (changedKey, newValue) => {
+    const handleTaxonomyChange = (changedKey: keyof typeof taxonomy, newValue: number) => {
         const remainingSpace = 100 - newValue;
         const otherKeys = Object.keys(taxonomy).filter(k => k !== changedKey);
         const keyA = otherKeys[0];
@@ -82,7 +94,7 @@ const IngestionWizard = ({
     // בדיקת תקינות למעבר שלבים
     const canProceedToSettings = mode && ((mode === 'topic' && topic) || (mode === 'upload' && file));
 
-    const handleStepClick = (targetStep) => {
+    const handleStepClick = (targetStep: number) => {
         // מותר תמיד לחזור לשלב 1
         if (targetStep === 1) {
             setStep(1);
@@ -120,26 +132,25 @@ const IngestionWizard = ({
                 file,
                 topic: customTitle || topic || "פעילות חדשה",
                 settings: {
-                    grade: grade || "כללי",
                     subject: subject || "כללי",
-                    modulesCount,
+                    activityLength,
                     taxonomy,
+                    includeBot,
+                    botPersona: includeBot ? botPersona : null,
                     courseMode
                 }
             };
 
-            setTimeout(() => {
-                onComplete(finalData);
-            }, 1500);
+            if (onComplete) {
+                await onComplete(finalData);
+            }
         }
     };
 
     const handleBack = () => {
-        // אם אנחנו בשלב 2, תמיד נחזור לשלב 1 (גם אם יש נושא התחלתי - המשתמש רוצה לשנות)
         if (step === 2) {
             setStep(1);
         } else {
-            // אם אנחנו בשלב 1, יציאה מהאשף
             onCancel();
         }
     };
@@ -248,7 +259,7 @@ const IngestionWizard = ({
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                                         <IconSparkles className="w-4 h-4 text-blue-600" />
-                                        שם הפעילות / היחידה
+                                        שם הפעילות
                                     </label>
                                     <input
                                         type="text"
@@ -261,7 +272,63 @@ const IngestionWizard = ({
 
                                 <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconBook className="w-4 h-4" /> תחום דעת</label><select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white cursor-pointer">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                                 <div><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconStudent className="w-4 h-4" /> קהל יעד</label><select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none bg-white cursor-pointer">{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                                <div className="pt-4 border-t border-blue-200/50"><label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconChart className="w-4 h-4" /> מבנה המערך</label><div className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200"><span className="text-sm text-gray-600">מספר פרקים:</span><div className="flex items-center gap-3"><button onClick={() => setModulesCount(Math.max(1, modulesCount - 1))} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-600">-</button><span className="font-mono font-bold w-4 text-center">{modulesCount}</span><button onClick={() => setModulesCount(Math.min(10, modulesCount + 1))} className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 font-bold text-indigo-600">+</button></div></div></div>
+
+                                <div className="pt-4 border-t border-blue-200/50">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconChart className="w-4 h-4" /> אורך הפעילות</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { id: 'short', label: 'קצרה', desc: '~4 שאלות' },
+                                            { id: 'medium', label: 'בינונית', desc: '~8 שאלות' },
+                                            { id: 'long', label: 'ארוכה', desc: '~12 שאלות' }
+                                        ].map((opt) => (
+                                            <button
+                                                key={opt.id}
+                                                onClick={() => setActivityLength(opt.id as any)}
+                                                className={`p-2 rounded-xl text-center transition-all ${activityLength === opt.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                                            >
+                                                <div className="font-bold text-sm">{opt.label}</div>
+                                                <div className={`text-xs ${activityLength === opt.id ? 'text-blue-100' : 'text-gray-400'}`}>{opt.desc}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+
+                                {/* Bot Configuration */}
+                                <div className="pt-4 border-t border-blue-200/50">
+                                    <label className="flex items-center gap-3 cursor-pointer group mb-3">
+                                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${includeBot ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300 group-hover:border-blue-400'}`}>
+                                            {includeBot && <IconCheck className="w-4 h-4 text-white" />}
+                                        </div>
+                                        <input type="checkbox" checked={includeBot} onChange={(e) => setIncludeBot(e.target.checked)} className="hidden" />
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-gray-700 text-sm">המורה הוירטואלי</span>
+                                            <span className="text-xs text-gray-400">הוסף צ'אט בוט לעזרה בתחילת הפעילות</span>
+                                        </div>
+                                    </label>
+
+                                    {includeBot && (
+                                        <div className="grid grid-cols-2 gap-2 pl-9 animate-fade-in">
+                                            {[
+                                                { id: 'socratic', label: 'סוקרטי', desc: 'שואל ומכוון', icon: '🧠' },
+                                                { id: 'teacher', label: 'מורה מלווה', desc: 'מסביר ותומך', icon: '👨‍🏫' },
+                                                { id: 'concise', label: 'תמציתי', desc: 'קצר ולעניין', icon: '⚡' },
+                                                { id: 'coach', label: 'מאמן', desc: 'מאתגר ודורש', icon: '🏆' },
+                                            ].map((p) => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => setBotPersona(p.id)}
+                                                    className={`p-2 rounded-xl text-right transition-all border ${botPersona === p.id ? 'bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:border-blue-300'}`}
+                                                >
+                                                    <div className="font-bold text-xs text-gray-800 flex items-center gap-1">
+                                                        <span>{p.icon}</span> {p.label}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-400 mr-5">{p.desc}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* עמודה שמאלית - טקסונומיה */}

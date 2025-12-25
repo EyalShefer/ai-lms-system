@@ -14,6 +14,7 @@ const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
 import GeoGuard from './components/GeoGuard';
+import { IconSparkles } from './icons'; // Import IconSparkles
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Worker Configuration
@@ -54,6 +55,7 @@ const AuthenticatedApp = () => {
   const [mode, setMode] = useState('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [wizardMode, setWizardMode] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false); // Add isGenerating state
   const [currentAssignment, setCurrentAssignment] = useState(null);
 
   const { loadCourse } = useCourseStore();
@@ -124,6 +126,10 @@ const AuthenticatedApp = () => {
   // --- הפונקציה המתוקנת ---
   const handleWizardComplete = async (wizardData) => {
     if (!currentUser) return;
+
+    // 1. Close Wizard Immediately & Show Loading
+    setWizardMode(null);
+    setIsGenerating(true);
 
     try {
       let fileUrl = null;
@@ -214,13 +220,14 @@ const AuthenticatedApp = () => {
 
       const docRef = await addDoc(collection(db, "courses"), newCourseData);
 
-      setWizardMode(null);
       loadCourse(docRef.id);
       setMode('editor');
 
     } catch (error) {
       console.error("Error:", error);
       alert("שגיאה: " + error.message);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -270,9 +277,27 @@ const AuthenticatedApp = () => {
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-gray-900/50 backdrop-blur-sm">
           <div className="min-h-screen flex items-center justify-center p-4">
             <Suspense fallback={<div className="bg-white p-6 rounded-2xl"><LoadingSpinner /></div>}>
-              <IngestionWizard initialMode={wizardMode} onComplete={handleWizardComplete} onCancel={() => setWizardMode(null)} />
+              <IngestionWizard
+                initialMode={wizardMode}
+                initialTopic=""
+                title="יצירת פעילות חדשה"
+                onComplete={handleWizardComplete}
+                onCancel={() => setWizardMode(null)}
+              />
             </Suspense>
           </div>
+        </div>
+      )}
+
+      {/* Global Loading Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-md z-[200] flex flex-col items-center justify-center animate-fade-in" dir="rtl">
+          <div className="relative">
+            <div className="w-24 h-24 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center"><IconSparkles className="w-8 h-8 text-indigo-600 animate-pulse" /></div>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mt-6">ה-AI בונה את הפעילות שלך...</h2>
+          <p className="text-gray-500 mt-2">התהליך עשוי להימשך כדקה - אנחנו יוצרים חוויה מותאמת אישית.</p>
         </div>
       )}
     </div>

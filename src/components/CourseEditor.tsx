@@ -132,13 +132,13 @@ const CourseEditor: React.FC = () => {
         // הגנה ראשונית: אם כבר רץ וויזארד או שיש תהליך יצירה, עוצרים
         if (wizardHasRun.current || isGenerating) return;
 
-        // הגנה משנית: אם אין קורס כלל
-        if (!course) return;
+        // הגנה משנית: אם אין קורס כלל או שהוא בטעינה
+        if (!course || course.id === 'loading') return;
 
         // בדיקה האם הקורס מאוכלס בסילבוס
         const hasSyllabus = course.syllabus && course.syllabus.length > 0;
 
-        if (hasSyllabus && !showWizard && !hasAutoSelected.current) {
+        if (hasSyllabus && !hasAutoSelected.current) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
                 const firstUnit = firstModule.learningUnits[0];
@@ -195,7 +195,8 @@ const CourseEditor: React.FC = () => {
                 title: topicToUse,
                 subject: userSubject,
                 gradeLevel: extractedGrade,
-                mode: data.settings?.courseMode || 'learning'
+                mode: data.settings?.courseMode || 'learning',
+                botPersona: data.settings?.botPersona || null
             };
 
             setCourse(updatedCourseState);
@@ -204,7 +205,8 @@ const CourseEditor: React.FC = () => {
                 title: topicToUse,
                 subject: userSubject,
                 gradeLevel: extractedGrade,
-                mode: updatedCourseState.mode
+                mode: updatedCourseState.mode,
+                botPersona: data.settings?.botPersona || null
             });
 
             // --- עיבוד הקובץ לפני השליחה ---
@@ -260,7 +262,7 @@ const CourseEditor: React.FC = () => {
                     processedFileData,
                     userSubject,
                     processedSourceText, // העברת הטקסט המחולץ גם לכאן
-                    data.settings?.taxonomy // Pass taxonomy settings
+                    { ...data.settings?.taxonomy, botPersona: data.settings?.botPersona } // Pass taxonomy settings with persona
                 );
 
                 const syllabusWithContent = syllabus.map((mod: any) => ({
@@ -341,8 +343,9 @@ const CourseEditor: React.FC = () => {
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
     // --- Single Activity Logic ---
-    // If a unit exists, show it. If not, show empty state.
-    // Navigation ("Back") opens Wizard overlay.
+    // Fallback: If no unit is selected but units exist, default to the first one immediately.
+    const defaultUnit = course.syllabus?.[0]?.learningUnits?.[0];
+    const unitToRender = activeUnit || defaultUnit;
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
@@ -386,20 +389,30 @@ const CourseEditor: React.FC = () => {
             )}
 
             {/* Main Content Area */}
-            {activeUnit ? (
+            {unitToRender ? (
                 <UnitEditor
-                    unit={activeUnit}
+                    unit={unitToRender}
                     gradeLevel={displayGrade}
                     subject={course.subject}
                     onSave={handleSaveUnit}
                     onCancel={() => setShowWizard(true)} // "Back" opens Settings
-                    onPreview={() => setPreviewUnit(activeUnit)}
+                    onPreview={() => setPreviewUnit(unitToRender)}
                     cancelLabel="הגדרות" // RENAME BACK BUTTON
                 />
             ) : (
                 // Empty State (Only if no units exist) - Minimal loading
-                <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-                    <p className="text-gray-400">טוען הגדרות פעילות...</p>
+                <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-center px-4">
+                    <div className="w-16 h-16 border-4 border-gray-200 border-t-gray-400 rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600 font-medium text-lg">טוען את הפעילות...</p>
+                    <p className="text-gray-400 text-sm mt-2 max-w-md">הנתונים מתעדכנים מהענן. אם זה לוקח זמן רב, נסה לרענן.</p>
+                    <button onClick={() => window.location.reload()} className="mt-6 text-indigo-600 hover:text-indigo-800 text-sm font-bold underline">
+                        רענן עמוד
+                    </button>
+                    {/* Debug Info (Hidden in Prod) */}
+                    <div className="hidden mt-4 text-xs text-left text-gray-300 font-mono">
+                        ID: {course?.id}<br />
+                        Syllabus: {course?.syllabus?.length || 0}
+                    </div>
                 </div>
             )}
         </div>

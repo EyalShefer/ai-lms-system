@@ -16,11 +16,34 @@ export const openai = new OpenAI({
   baseURL: `${window.location.origin}/api/openai`
 });
 
+export const BOT_PERSONAS = {
+  teacher: {
+    id: 'teacher',
+    name: 'המורה המלווה',
+    systemPrompt: "אתה מורה אדיב, סבלני ומקצועי. פנה תמיד בלשון יחיד (אתה/את). אם התלמיד טועה, תקן אותו בעדינות והסבר את הטעות. עודד אותו להמשיך.",
+    initialMessage: "היי! אני כאן אם משהו לא ברור בחומר. מוזמן לשאול כל שאלה! 👋"
+  },
+  socratic: {
+    id: 'socratic',
+    name: 'המנחה הסוקרטי',
+    systemPrompt: "אתה מנחה בשיטה הסוקרטית. המטרה שלך היא לגרות חשיבה. לעולם אל תיתן תשובה ישירה או סיכום מוכן. אם התלמיד שואל, ענה בשאלה מכווינה או ברמז. תוביל אותו לתשובה צעד אחר צעד. היה סקרן ומעורר מחשבה.",
+    initialMessage: "שלום. אני כאן כדי לעזור לך לחשוב. שאל אותי, ואעזור לך למצוא את התשובה בעצמך. 🧠"
+  },
+  concise: {
+    id: 'concise',
+    name: 'התמציתי',
+    systemPrompt: "אתה עוזר לימודי יעיל ותמציתי. ענה אך ורק על מה שנשאלת. תשובות קצרות, ממוקדות (מקסימום 2-3 משפטים). בלי הקדמות מיותרות ובלי 'סמול טוק'.",
+    initialMessage: "היי. אני כאן לתשובות קצרות ומדויקות. מה השאלה? ⚡"
+  },
+  coach: {
+    id: 'coach',
+    name: 'המאמן המאתגר',
+    systemPrompt: "אתה מאמן קשוח אך הוגן. תפקידך לאתגר את התלמיד. אם הוא עונה נכון, הקשה עליו עם שאלת המשך ('האם זה תמיד נכון?'). השתמש בדוגמאות מחיי היומיום. אל תסתפק בתשובות שטחיות.",
+    initialMessage: "מוכן לאתגר? אני לא אעשה לך חיים קלים, אבל אתה תצא מפה חד יותר. בוא נתחיל! 🏆"
+  }
+};
+
 export const MODEL_NAME = "gpt-4o-mini";
-
-// --- פונקציות עזר ---
-
-// --- פונקציות עזר ---
 
 export const cleanJsonString = (text: string): string => {
   try {
@@ -103,8 +126,8 @@ const mapSystemItemToBlock = (item: any) => {
       content: { question: item.question_text },
       metadata: {
         ...commonMetadata,
-        modelAnswer: item.content.teacher_guidelines || (item.content.key_points ? item.content.key_points.join('\n') : "תשובה מלאה"),
-        hint: item.content.hint,
+        modelAnswer: item.content?.teacher_guidelines || (item.content?.key_points ? item.content.key_points.join('\n') : "תשובה מלאה"),
+        hint: item.content?.hint || "",
         score: 20
       }
     };
@@ -413,14 +436,17 @@ export const generateFullUnitContent = async (
       metadata: {}
     });
 
+
+    const selectedPersona = taxonomy && (taxonomy as any).botPersona ? BOT_PERSONAS[(taxonomy as any).botPersona as keyof typeof BOT_PERSONAS] : BOT_PERSONAS.socratic;
+
     blocks.push({
       id: uuidv4(),
       type: 'interactive-chat',
-      content: { title: "המורה הוירטואלי", description: `עזרה בנושאי ${subject}` },
+      content: { title: selectedPersona.name, description: `עזרה בנושאי ${subject}` },
       metadata: {
-        botPersona: 'teacher',
-        initialMessage: `שלום! אני המורה ל${subject}. איך אפשר לעזור בנושא ${unitTitle}?`,
-        systemPrompt: `אתה מורה ל${subject} בכיתה ${gradeLevel}. ענה בעברית רק בהקשר ל${courseTopic}.`
+        botPersona: selectedPersona.id,
+        initialMessage: selectedPersona.initialMessage,
+        systemPrompt: `${selectedPersona.systemPrompt}\n\nנושא השיעור: ${unitTitle}\nקהל יעד: ${gradeLevel}`
       }
     });
 

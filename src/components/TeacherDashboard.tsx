@@ -846,14 +846,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                                 <div className="flex items-center gap-2">
                                                                     <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="עריכה"><IconEdit className="w-4 h-4" /></button>
                                                                     <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
-                                                                    <button
-                                                                        onClick={(e) => handleAutoGrade(e, c.courseId)}
-                                                                        className={`p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm ${isGrading[c.courseId] ? 'animate-spin text-indigo-600' : ''}`}
-                                                                        title="בדיקה אוטומטית (AI)"
-                                                                        disabled={isGrading[c.courseId]}
-                                                                    >
-                                                                        {isGrading[c.courseId] ? <IconLoader className="w-4 h-4" /> : <IconBrain className="w-4 h-4" />}
-                                                                    </button>
+
                                                                 </div>
                                                             </td>
                                                         </tr>

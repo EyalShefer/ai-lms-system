@@ -53,6 +53,7 @@ export interface Course {
     targetAudience: string;
     gradeLevel?: string;
     subject?: string;
+    botPersona?: string;
     mode?: 'learning' | 'exam';
     syllabus: Module[];
     createdAt?: any;

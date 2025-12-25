@@ -4,7 +4,7 @@ import { useCourseStore } from '../context/CourseContext';
 import {
     generateImagePromptBlock, refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion, generateFullUnitContent,
-    generateAiImage
+    generateAiImage, BOT_PERSONAS
 } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import {
@@ -13,6 +13,9 @@ import {
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
     IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye
 } from '../icons';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { createPortal } from 'react-dom';
 
 // --- הגדרות מקומיות ---
 const IconShield = (props: React.SVGProps<SVGSVGElement>) => (
@@ -60,6 +63,42 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const hasInitialized = useRef(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
+
+    // --- Assignment Modal State (Ported) ---
+    const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+    const [assignmentData, setAssignmentData] = useState({
+        title: unit.title || '',
+        dueDate: new Date().toISOString().split('T')[0],
+        dueTime: '23:59',
+        instructions: ''
+    });
+
+    const handleCopyLinkClick = () => {
+        setAssignmentData(prev => ({ ...prev, title: `הגשה: ${unit.title || editedUnit.title}` }));
+        setAssignmentModalOpen(true);
+    };
+
+    const handleCreateAssignment = async () => {
+        if (!assignmentData.title || !assignmentData.dueDate) return alert("חסרים פרטים");
+        try {
+            const combinedDate = new Date(`${assignmentData.dueDate}T${assignmentData.dueTime}`);
+            const docRef = await addDoc(collection(db, "assignments"), {
+                courseId: course.id, // Using current course ID
+                title: assignmentData.title,
+                dueDate: combinedDate.toISOString(),
+                instructions: assignmentData.instructions,
+                createdAt: serverTimestamp(),
+                teacherId: course.teacherId || "unknown"
+            });
+            const link = `${window.location.origin}/?assignmentId=${docRef.id}`;
+            navigator.clipboard.writeText(link);
+            setAssignmentModalOpen(false);
+            alert("קישור משימה הועתק ללוח!");
+        } catch (e) {
+            console.error("Error creating assignment", e);
+            alert("שגיאה ביצירת המשימה");
+        }
+    };
 
     if (!course) return null;
 
@@ -167,41 +206,42 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
     };
 
-    const generatePedagogicalPrompt = (persona: string, customCharName: string = ""): string => {
+    const generatePedagogicalPrompt = (personaId: string, customCharName: string = ""): string => {
         const baseInfo = `אתה מנחה פעילות עבור משתתפים בשכבת גיל: ${gradeLevel}. הנושא הנלמד: "${editedUnit.title}".`;
         const safetyProtocol = `פרוטוקול בטיחות (חובה): 1. שמור על שפה מכבדת. 2. אם המשתתף מביע מצוקה או אלימות - הפסק את השיח ופנה לגורם אחראי.`;
         let specificInstructions = "";
+
         if (showScoring) {
             specificInstructions = `מצב מבחן (EXAM MODE): תפקידך הוא משגיח וסייען טכני בלבד. איסור מוחלט לתת תשובות או רמזים.`;
         } else {
-            let personaGuidance = "";
-            switch (persona) {
-                case 'teacher': personaGuidance = "הייה מנחה סבלני ומעודד."; break;
-                case 'socratic': personaGuidance = "השתמש בשיטה הסוקרטית (שאלות מנחות)."; break;
-                case 'historical': personaGuidance = `כנס לדמות של ${customCharName || 'דמות היסטורית'}.`; break;
-                case 'debate': personaGuidance = "הייה יריב לדיבייט."; break;
-                default: personaGuidance = "הייה עוזר מועיל.";
+            const persona = BOT_PERSONAS[personaId as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.socratic;
+            if (personaId === 'historical') {
+                specificInstructions = `כנס לדמות של ${customCharName || 'דמות היסטורית'}.`;
+            } else {
+                specificInstructions = persona.systemPrompt;
             }
-            specificInstructions = `מצב פעילות: ${personaGuidance}. אל תיתן תשובה מיד, אלא רמזים תחילה.`;
         }
         return `${baseInfo}\n${specificInstructions}\n${safetyProtocol}`;
     };
 
     const addBlockAtIndex = (type: string, index: number) => {
-        const initialPersona = 'teacher';
-        const safeSystemPrompt = type === 'interactive-chat' ? generatePedagogicalPrompt(initialPersona) : '';
+        // Use course default persona if available, otherwise Socratic
+        const initialPersonaId = course.botPersona || 'socratic';
+        const personaData = BOT_PERSONAS[initialPersonaId as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.socratic;
+
+        const safeSystemPrompt = type === 'interactive-chat' ? generatePedagogicalPrompt(initialPersonaId) : '';
         const newBlock = {
             id: uuidv4(),
             type: type,
             content: type === 'multiple-choice' ? { question: '', options: ['', '', '', ''], correctAnswer: '' }
                 : type === 'open-question' ? { question: '' }
-                    : type === 'interactive-chat' ? { title: showScoring ? 'עזרה במבחן' : 'דיאלוג עם המנחה', description: 'צאט...' }
+                    : type === 'interactive-chat' ? { title: personaData.name, description: 'צ\'אט...' }
                         : '',
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
-                initialMessage: showScoring ? 'אני כאן להשגחה בלבד.' : 'שלום! אפשר לשאול אותי כל דבר.',
-                botPersona: initialPersona,
+                initialMessage: showScoring ? 'אני כאן להשגחה בלבד.' : personaData.initialMessage,
+                botPersona: initialPersonaId,
                 caption: '',
                 relatedQuestion: null
             }
@@ -481,6 +521,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         </button>
                     )}
 
+                    <button onClick={handleCopyLinkClick} className="px-5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold transition-colors flex items-center gap-2 border border-indigo-200">
+                        <IconLink className="w-4 h-4" /> קישור לתלמיד
+                    </button>
+
                     <button
                         onClick={handleSaveWithFeedback}
                         disabled={isSaving}
@@ -679,11 +723,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <span>תפקיד הבוט (Persona)</span>
                                                     {showScoring && <span className="text-slate-500 flex items-center gap-1"><IconLock className="w-3 h-3" /> נעול במבחן</span>}
                                                 </label>
-                                                <select className="w-full p-2.5 border border-indigo-200 rounded-lg bg-white/70 focus:bg-white transition-colors cursor-pointer text-sm" value={block.metadata?.botPersona || 'teacher'} onChange={(e) => handlePersonaChange(block.id, e.target.value, block.content, block.metadata)} disabled={showScoring}>
-                                                    <option value="teacher">מנחה פעילות</option>
-                                                    <option value="socratic">מנחה סוקרטי (שואל שאלות)</option>
-                                                    <option value="historical">דמות היסטורית</option>
-                                                    <option value="debate">יריב לדיבייט</option>
+                                                <select className="w-full p-2.5 border border-indigo-200 rounded-lg bg-white/70 focus:bg-white transition-colors cursor-pointer text-sm" value={block.metadata?.botPersona || 'socratic'} onChange={(e) => handlePersonaChange(block.id, e.target.value, block.content, block.metadata)} disabled={showScoring}>
+                                                    <option value="socratic">🧠 מנחה סוקרטי (מומלץ)</option>
+                                                    <option value="teacher">👨‍🏫 מורה מלווה</option>
+                                                    <option value="concise">⚡ תמציתי</option>
+                                                    <option value="coach">🏆 מאמן מאתגר</option>
+                                                    <option value="historical">📜 דמות היסטורית</option>
+                                                    <option value="debate">🗣️ יריב לדיבייט</option>
                                                 </select>
                                             </div>
 
@@ -778,6 +824,54 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-origin: bottom center; }
                 @keyframes scaleIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
             `}</style>
+
+            {/* Assignment Creation Modal (Portal) */}
+            {assignmentModalOpen && createPortal(
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 text-right" dir="rtl">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+                        <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
+                            <h3 className="font-bold text-lg flex items-center gap-2"><IconLink className="w-5 h-5" /> יצירת קישור למשימה</h3>
+                            <button onClick={() => setAssignmentModalOpen(false)} className="hover:bg-indigo-700 p-1 rounded-full text-indigo-100"><IconX className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">שם המשימה / מבחן</label>
+                                <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    value={assignmentData.title} onChange={e => setAssignmentData({ ...assignmentData, title: e.target.value })}
+                                    placeholder="למשל: סיום פרק ב׳ - חזרה למבחן"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">תאריך הגשה</label>
+                                    <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                        value={assignmentData.dueDate} onChange={e => setAssignmentData({ ...assignmentData, dueDate: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">שעה</label>
+                                    <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                        value={assignmentData.dueTime} onChange={e => setAssignmentData({ ...assignmentData, dueTime: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">הנחיות לתלמיד (אופציונלי)</label>
+                                <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none h-20 resize-none"
+                                    value={assignmentData.instructions} onChange={e => setAssignmentData({ ...assignmentData, instructions: e.target.value })}
+                                    placeholder="הנחיות מיוחדות, זמן מומלץ, וכו'..."
+                                />
+                            </div>
+
+                            <button onClick={handleCreateAssignment} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2 mt-2">
+                                <IconLink className="w-5 h-5" /> צור קישור והעתק
+                            </button>
+                            <p className="text-xs text-center text-slate-400">הקישור ישמר בהיסטוריית המשימות של הכיתה</p>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
