@@ -425,7 +425,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     // --- Helpers ---
     const getScoreColor = (score: number) => {
         if (score >= 85) return 'text-teal-500';
-        if (score >= 70) return 'text-orange-500';
+        if (score >= 70) return 'text-yellow-600';
         return 'text-red-500';
     };
 
@@ -773,7 +773,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                             <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
                                                             <td className="p-4">
                                                                 {c.nextDueDate ? (
-                                                                    <span className="text-slate-700 font-bold bg-orange-50 text-orange-600 px-2 py-1 rounded-md text-xs border border-orange-100">
+                                                                    <span className="text-slate-700 font-bold bg-yellow-50 text-yellow-700 px-2 py-1 rounded-md text-xs border border-yellow-100">
                                                                         {new Date(c.nextDueDate).toLocaleDateString('he-IL')}
                                                                     </span>
                                                                 ) : (

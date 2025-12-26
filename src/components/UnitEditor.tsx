@@ -11,7 +11,7 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer
 } from '../icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -236,7 +236,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             content: type === 'multiple-choice' ? { question: '', options: ['', '', '', ''], correctAnswer: '' }
                 : type === 'open-question' ? { question: '' }
                     : type === 'interactive-chat' ? { title: personaData.name, description: 'צ\'אט...' }
-                        : '',
+                        : type === 'fill_in_blanks' ? "השלימו את המשפט: [מילה] חסרה."
+                            : type === 'ordering' ? { instruction: 'סדרו את ...', correct_order: ['פריט 1', 'פריט 2', 'פריט 3'] }
+                                : type === 'categorization' ? { question: 'מיינו לקטגוריות...', categories: ['קטגוריה 1', 'קטגוריה 2'], items: [{ text: 'פריט 1', category: 'קטגוריה 1' }] }
+                                    : type === 'memory_game' ? { pairs: [{ card_a: 'חתול', card_b: 'Cat' }, { card_a: 'כלב', card_b: 'Dog' }] }
+                                        : '',
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
@@ -484,10 +488,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn"><IconText className="w-4 h-4" /><span>טקסט</span></button>
                         <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn"><IconImage className="w-4 h-4" /><span>תמונה</span></button>
                         <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn"><IconVideo className="w-4 h-4" /><span>וידאו</span></button>
-                        <div className="w-px h-6 bg-gray-300 mx-2 hidden sm:block"></div>
                         <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>אמריקאית</span></button>
                         <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>פתוחה</span></button>
-                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn text-indigo-600 border-indigo-100 hover:bg-indigo-50"><IconChat className="w-4 h-4" /><span>צ'אט AI</span></button>
+                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn"><IconChat className="w-4 h-4" /><span>צ'אט AI</span></button>
+
+                        <button onClick={() => addBlockAtIndex('fill_in_blanks', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>השלמה</span></button>
+                        <button onClick={() => addBlockAtIndex('ordering', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>סידור</span></button>
+                        <button onClick={() => addBlockAtIndex('categorization', index)} className="insert-btn"><IconLayer className="w-4 h-4" /><span>מיון</span></button>
+                        <button onClick={() => addBlockAtIndex('memory_game', index)} className="insert-btn"><IconBrain className="w-4 h-4" /><span>זיכרון</span></button>
+
                         <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
                     </div>
                 ) : (
@@ -810,6 +819,126 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <span className="text-xs text-gray-400 font-bold">הוסיפו מדיה לשאלה:</span>
                                             {/* השימוש החדש ברכיב המאוחד */}
                                             {renderMediaToolbar(block.id)}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* FILL IN BLANKS */}
+                                {block.type === 'fill_in_blanks' && (
+                                    <div className="bg-purple-50/50 p-5 rounded-xl border border-purple-100">
+                                        <div className="flex items-center gap-2 mb-2 text-purple-700 font-bold"><IconEdit className="w-5 h-5" /> השלמת משפטים (Cloze)</div>
+                                        <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
+                                        <textarea className="w-full p-4 border border-purple-200/60 bg-white rounded-xl focus:ring-2 focus:ring-purple-100 outline-none transition-all text-gray-800 text-lg leading-relaxed min-h-[100px]" dir="rtl" value={block.content} onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                    </div>
+                                )}
+
+                                {/* ORDERING */}
+                                {block.type === 'ordering' && (
+                                    <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                                        <div className="flex items-center gap-2 mb-4 text-blue-700 font-bold"><IconList className="w-5 h-5" /> סידור רצף</div>
+                                        <input type="text" className="w-full p-2 mb-4 border border-blue-200 rounded-lg bg-white" placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)" value={block.content.instruction || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
+                                        <div className="space-y-2">
+                                            {block.content.correct_order?.map((item: string, idx: number) => (
+                                                <div key={idx} className="flex gap-2">
+                                                    <span className="font-bold text-blue-300 w-6">{idx + 1}.</span>
+                                                    <input type="text" className="flex-1 p-2 border rounded bg-white" value={item} onChange={(e) => { const newItems = [...block.content.correct_order]; newItems[idx] = e.target.value; updateBlock(block.id, { ...block.content, correct_order: newItems }); }} />
+                                                    <button onClick={() => { const newItems = block.content.correct_order.filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, correct_order: newItems }); }} className="text-red-400 hover:text-red-600"><IconTrash className="w-4 h-4" /></button>
+                                                </div>
+                                            ))}
+                                            <button onClick={() => updateBlock(block.id, { ...block.content, correct_order: [...(block.content.correct_order || []), "פריט חדש"] })} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-full mt-2">+ הוסף פריט</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CATEGORIZATION - TEAL THEME (NO ORANGE) */}
+                                {block.type === 'categorization' && (
+                                    <div className="bg-teal-50/50 p-5 rounded-xl border border-teal-100">
+                                        <div className="flex items-center gap-2 mb-4 text-teal-700 font-bold"><IconLayer className="w-5 h-5" /> מיון לקטגוריות</div>
+
+                                        <input type="text" className="w-full p-2 mb-4 border border-teal-200 rounded-lg bg-white" placeholder="הנחיה..." value={block.content.question || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="text-xs font-bold text-teal-400 uppercase mb-2">קטגוריות</h4>
+                                                <div className="space-y-2">
+                                                    {block.content.categories?.map((cat: string, idx: number) => (
+                                                        <div key={idx} className="flex gap-2">
+                                                            <input type="text" className="flex-1 p-2 border rounded bg-white border-teal-200" value={cat} onChange={(e) => { const newCats = [...block.content.categories]; newCats[idx] = e.target.value; updateBlock(block.id, { ...block.content, categories: newCats }); }} placeholder={`קטגוריה ${idx + 1}`} />
+                                                            <button onClick={() => { const newCats = block.content.categories.filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, categories: newCats }); }} className="text-red-400"><IconTrash className="w-4 h-4" /></button>
+                                                        </div>
+                                                    ))}
+                                                    <button onClick={() => updateBlock(block.id, { ...block.content, categories: [...(block.content.categories || []), "קטגוריה חדשה"] })} className="text-xs font-bold text-teal-600 bg-teal-100 hover:bg-teal-200 px-3 py-1 rounded-full">+ קטגוריה</button>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h4 className="text-xs font-bold text-teal-400 uppercase mb-2">פריטים למיון</h4>
+                                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
+                                                    {block.content.items?.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex gap-2 items-center bg-white p-2 rounded border border-teal-100">
+                                                            <input type="text" className="flex-1 p-1 text-sm border-b border-gray-200 focus:border-teal-400 outline-none" value={item.text} onChange={(e) => { const newItems = [...block.content.items]; newItems[idx].text = e.target.value; updateBlock(block.id, { ...block.content, items: newItems }); }} placeholder="טקסט הפריט" />
+                                                            <select className="text-xs p-1 bg-gray-50 rounded border-none outline-none" value={item.category} onChange={(e) => { const newItems = [...block.content.items]; newItems[idx].category = e.target.value; updateBlock(block.id, { ...block.content, items: newItems }); }}>
+                                                                <option value="" disabled>בחר קטגוריה</option>
+                                                                {block.content.categories?.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            <button onClick={() => { const newItems = block.content.items.filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, items: newItems }); }} className="text-red-400 hover:text-red-600"><IconTrash className="w-3 h-3" /></button>
+                                                        </div>
+                                                    ))}
+                                                    <button onClick={() => updateBlock(block.id, { ...block.content, items: [...(block.content.items || []), { text: "פריט חדש", category: block.content.categories?.[0] || "" }] })} className="text-xs font-bold text-teal-600 bg-teal-100 hover:bg-teal-200 px-3 py-1 rounded-full">+ פריט למיון</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* MEMORY GAME */}
+                                {block.type === 'memory_game' && (
+                                    <div className="bg-pink-50/50 p-5 rounded-xl border border-pink-100">
+                                        <div className="flex items-center gap-2 mb-4 text-pink-700 font-bold"><IconBrain className="w-5 h-5" /> משחק זיכרון</div>
+                                        <p className="text-xs text-gray-500 mb-4">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {block.content.pairs?.map((pair: any, idx: number) => (
+                                                <div key={idx} className="bg-white p-3 rounded-xl border border-pink-100 shadow-sm relative group/pair">
+                                                    <div className="mb-2">
+                                                        <label className="text-[10px] font-bold text-gray-400 block mb-1">צד א' (גלוי תחילה / שאלה)</label>
+                                                        <input type="text" className="w-full p-2 border rounded bg-gray-50 focus:bg-white transition-colors text-sm" value={pair.card_a} onChange={(e) => { const newPairs = [...block.content.pairs]; newPairs[idx].card_a = e.target.value; updateBlock(block.id, { ...block.content, pairs: newPairs }); }} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 block mb-1">צד ב' (התאמה)</label>
+                                                        <input type="text" className="w-full p-2 border rounded bg-gray-50 focus:bg-white transition-colors text-sm" value={pair.card_b} onChange={(e) => { const newPairs = [...block.content.pairs]; newPairs[idx].card_b = e.target.value; updateBlock(block.id, { ...block.content, pairs: newPairs }); }} />
+                                                    </div>
+                                                    <button onClick={() => { const newPairs = block.content.pairs.filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, pairs: newPairs }); }} className="absolute -top-2 -left-2 bg-white text-red-500 p-1 rounded-full shadow border border-gray-100 opacity-0 group-hover/pair:opacity-100 transition-opacity"><IconX className="w-3 h-3" /></button>
+                                                </div>
+                                            ))}
+                                            <button onClick={() => updateBlock(block.id, { ...block.content, pairs: [...(block.content.pairs || []), { card_a: "", card_b: "" }] })} className="min-h-[140px] border-2 border-dashed border-pink-200 rounded-xl flex flex-col items-center justify-center text-pink-400 hover:bg-pink-50 hover:border-pink-300 transition-all">
+                                                <IconPlus className="w-6 h-6 mb-1" />
+                                                <span className="text-xs font-bold">הוסף זוג</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TRUE/FALSE SPEED */}
+                                {block.type === 'true_false_speed' && (
+                                    <div className="bg-red-50/50 p-5 rounded-xl border border-red-100">
+                                        <div className="flex items-center gap-2 mb-4 text-red-700 font-bold"><IconClock className="w-5 h-5" /> אמת או שקר (ספיד)</div>
+                                        <p className="text-xs text-gray-500 mb-4">משחק מהירות: התלמיד צריך להחליט במהירות אם המשפט נכון או לא.</p>
+
+                                        <div className="space-y-2">
+                                            {block.content.statements?.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex items-center gap-4 bg-white p-2 rounded-lg border border-red-100">
+                                                    <span className="font-bold text-red-100 text-lg w-6 text-center">{idx + 1}</span>
+                                                    <input type="text" className="flex-1 p-2 text-sm border-b border-transparent focus:border-red-200 outline-none" value={item.text} onChange={(e) => { const newStmts = [...block.content.statements]; newStmts[idx].text = e.target.value; updateBlock(block.id, { ...block.content, statements: newStmts }); }} placeholder="כתבו עובדה..." />
+
+                                                    <button onClick={() => { const newStmts = [...block.content.statements]; newStmts[idx].is_true = !newStmts[idx].is_true; updateBlock(block.id, { ...block.content, statements: newStmts }); }} className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${item.is_true ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                                        {item.is_true ? 'אמת' : 'שקר'}
+                                                    </button>
+
+                                                    <button onClick={() => { const newStmts = block.content.statements.filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, statements: newStmts }); }} className="text-gray-300 hover:text-red-500"><IconTrash className="w-4 h-4" /></button>
+                                                </div>
+                                            ))}
+                                            <button onClick={() => updateBlock(block.id, { ...block.content, statements: [...(block.content.statements || []), { text: "", is_true: true }] })} className="w-full py-2 border-2 border-dashed border-red-200 rounded-lg text-red-400 font-bold text-sm hover:bg-red-50">+ הוסף שאלה</button>
                                         </div>
                                     </div>
                                 )}

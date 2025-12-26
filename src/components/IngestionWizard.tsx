@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
-    IconUpload, IconBrain, IconArrowBack, IconSparkles,
-    IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand
+    IconBrain, IconArrowBack, IconSparkles,
+    IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand, IconCloudUpload
 } from '../icons';
 
 // --- רשימות מיושרות עם הדשבורד ---
@@ -41,9 +41,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     // אתחול המצבים
     const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<'upload' | 'topic' | null>(null); // 'upload' | 'topic'
+    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | null>(null); // 'upload' | 'topic' | 'text'
     const [topic, setTopic] = useState('');
     const [file, setFile] = useState<File | null>(null);
+    const [pastedText, setPastedText] = useState('');
 
     // נתוני שלב 2
     const [customTitle, setCustomTitle] = useState('');
@@ -94,7 +95,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     });
 
     // בדיקת תקינות למעבר שלבים
-    const canProceedToSettings = mode && ((mode === 'topic' && topic) || (mode === 'upload' && file));
+    const canProceedToSettings = mode && ((mode === 'topic' && topic) || (mode === 'upload' && file) || (mode === 'text' && pastedText));
 
     const handleStepClick = (targetStep: number) => {
         // מותר תמיד לחזור לשלב 1
@@ -115,6 +116,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 suggestedTitle = file.name.replace(/\.[^/.]+$/, "");
             } else if (mode === 'topic' && topic) {
                 suggestedTitle = topic;
+            } else if (mode === 'text' && pastedText) {
+                suggestedTitle = "פעילות טקסט חופשי"; // Default title for text
             }
         }
         setCustomTitle(suggestedTitle);
@@ -132,6 +135,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             const finalData = {
                 mode,
                 file,
+                pastedText,
                 topic: customTitle || topic || "פעילות חדשה",
                 settings: {
                     subject: subject || "כללי",
@@ -161,7 +165,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const dynamicTitle = courseMode === 'exam' ? 'יצירת מבחן חדש' : 'יצירת פעילות חדשה';
     const dynamicSubtitle = mode === 'topic' && topic
         ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} בנושא: ${topic}`
-        : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'}`;
+        : mode === 'text'
+            ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} מטקסט חופשי`
+            : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'}`;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
@@ -225,10 +231,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     {step === 1 && (
                         <div className="space-y-8 animate-slide-up">
                             <h3 className="text-xl font-bold text-gray-700 text-center">איך נתחיל היום?</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
-                                <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
-                                    <div className="bg-yellow-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-yellow-600" /></div>
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא ל{courseMode === 'exam' ? 'מבחן' : 'פעילות'}</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-64">
+                                <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-pink-500 bg-pink-50/50 shadow-lg ring-4 ring-pink-100' : 'border-gray-200 bg-white hover:border-pink-300 hover:shadow-md'}`}>
+                                    <div className="bg-pink-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-pink-600" /></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
 
@@ -241,13 +247,24 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
                                 >
                                     <input {...getInputProps()} />
-                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconUpload className="w-8 h-8 text-purple-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי שה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconUpload className="w-4 h-4" /></div>}</>)}
+                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconCloudUpload className="w-8 h-8 text-indigo-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי שה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconCloudUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
+                                <button onClick={() => setMode('text')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'text' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
+                                    <div className="bg-green-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBook className="w-8 h-8 text-green-600" /></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הדביקו טקסט</h4><p className="text-sm text-gray-500 leading-relaxed">הדביקו מאמר, סיכום או כל טקסט אחר.</p></div>
+                                    {mode === 'text' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
+                                </button>
                             </div>
                             {mode === 'topic' && (
                                 <div className="animate-fade-in mt-6">
                                     <label className="block text-lg font-bold text-gray-700 mb-2">כתבו כאן את נושא {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}:</label>
                                     <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: המהפכה הצרפתית, יסודות הפיזיקה..." autoFocus />
+                                </div>
+                            )}
+                            {mode === 'text' && (
+                                <div className="animate-fade-in mt-6">
+                                    <label className="block text-lg font-bold text-gray-700 mb-2">הדביקו כאן את הטקסט:</label>
+                                    <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm min-h-[150px]" placeholder="הדביקו תוכן כאן..." autoFocus />
                                 </div>
                             )}
                         </div>
@@ -369,12 +386,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     </div>
                                     <input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-orange-200 transition-colors">
+                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
                                     <div className="flex justify-between items-center mb-2">
-                                        <label className="font-bold text-orange-600 text-base">הערכה ויצירה</label>
-                                        <span className="font-mono font-bold text-sm bg-orange-50 text-orange-700 px-2 py-0.5 rounded-md">{taxonomy.evaluation}%</span>
+                                        <label className="font-bold text-indigo-600 text-base">הערכה ויצירה</label>
+                                        <span className="font-mono font-bold text-sm bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">{taxonomy.evaluation}%</span>
                                     </div>
-                                    <input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-orange-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
+                                    <input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                 </div>
                             </div>
                         </div>
@@ -390,7 +407,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                     <button
                         onClick={handleNext}
-                        disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || isProcessing}
+                        disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || (step === 1 && mode === 'text' && !pastedText) || isProcessing}
                         className={`
                             bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700
                             text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl

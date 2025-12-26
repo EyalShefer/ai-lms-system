@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import type { ActivityBlock } from '../courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser, IconBook
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser, IconBook, IconEdit
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
+import ClozeQuestion from './ClozeQuestion';
+import OrderingQuestion from './OrderingQuestion';
+import CategorizationQuestion from './CategorizationQuestion';
+import MemoryGameQuestion from './MemoryGameQuestion';
 
 // --- הגדרות טיפוסים למצב סקירה ---
 interface StudentReviewData {
@@ -313,6 +317,13 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
     };
 
+    const handleGameComplete = (blockId: string, score: number) => {
+        if (reviewMode) return;
+        // Save score as string or generic obj
+        setUserAnswers(prev => ({ ...prev, [blockId]: `Score: ${score}` }));
+        setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+    };
+
     // --- לוגיקה למעבר יחידה ---
     const goToNextUnit = () => {
         if (reviewMode || !course.syllabus) return;
@@ -345,32 +356,49 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     const calculateScore = () => {
         if (!course || !course.syllabus) return 0;
-        let totalQuestions = 0;
-        let correctAnswers = 0;
+
+        let totalWeightedScore = 0;
+        let totalMaxWeight = 0;
 
         course.syllabus.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
+                    const weight = block.metadata?.score || 10; // Default weight is 10 if not specified
+
+                    // 1. Multiple Choice
                     if (block.type === 'multiple-choice' && block.content.correctAnswer) {
-                        totalQuestions++;
+                        totalMaxWeight += weight;
                         if (userAnswers[block.id] === block.content.correctAnswer) {
-                            correctAnswers++;
+                            totalWeightedScore += weight;
                         }
                     }
-                    // Check related questions in metadata
+
+                    // 2. Interactive Questions (Stored as "Score: X" string, X is 0-100)
+                    else if (['fill_in_blanks', 'ordering', 'categorization', 'memory_game'].includes(block.type)) {
+                        totalMaxWeight += weight;
+                        const answerStr = userAnswers[block.id];
+                        if (answerStr && typeof answerStr === 'string' && answerStr.startsWith('Score: ')) {
+                            const numericScore = parseInt(answerStr.replace('Score: ', '')) || 0;
+                            // Add proportional score based on weight
+                            totalWeightedScore += (numericScore / 100) * weight;
+                        }
+                    }
+
+                    // 3. Related Questions (Metadata)
                     if (block.metadata?.relatedQuestion?.correctAnswer) {
-                        totalQuestions++;
+                        const relatedWeight = 5; // Fixed weight for related questions
+                        totalMaxWeight += relatedWeight;
                         // Reconstruct ID for related question: blockId_related
                         if (userAnswers[`${block.id}_related`] === block.metadata.relatedQuestion.correctAnswer) {
-                            correctAnswers++;
+                            totalWeightedScore += relatedWeight;
                         }
                     }
                 });
             });
         });
 
-        if (totalQuestions === 0) return 0; // No score applicable
-        return Math.round((correctAnswers / totalQuestions) * 100);
+        if (totalMaxWeight === 0) return 0; // No score applicable
+        return Math.round((totalWeightedScore / totalMaxWeight) * 100);
     };
 
     const handleSubmit = async () => {
@@ -554,9 +582,17 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 );
             case 'open-question':
                 return (
-                    <div key={block.id} className="mb-8 glass bg-orange-50/50 p-6 rounded-2xl">
-                        <h3 className="font-bold text-lg mb-2">שאלה פתוחה</h3>
-                        <p className="mb-4">{block.content.question}</p>
+                    <div key={block.id} className="mb-8 glass bg-indigo-50/50 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="bg-indigo-100 p-2 rounded-lg">
+                                <IconEdit className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">שאלה פתוחה</h3>
+                        </div>
+
+                        <div className="mb-4 text-lg font-medium text-gray-700 leading-relaxed">
+                            {block.content.question}
+                        </div>
 
                         {block.metadata?.media && (
                             <div className="mb-4 rounded-xl overflow-hidden">
@@ -568,11 +604,12 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         )}
 
                         <textarea
-                            className={`w-full p-4 border rounded-xl outline-none transition-colors ${reviewMode || feedbackVisible[block.id] ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white focus:border-orange-300'}`}
                             value={userAnswers[block.id] || ''}
                             onChange={(e) => handleAnswerSelect(block.id, e.target.value)}
-                            readOnly={reviewMode || !!feedbackVisible[block.id]}
-                            placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב תשובה..."}
+                            placeholder={reviewMode ? "התלמיד לא ענה" : "כתבו את התשובה כאן..."}
+                            rows={4}
+                            className={`w-full p-4 border rounded-xl outline-none transition-colors ${reviewMode || feedbackVisible[block.id] ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white focus:border-indigo-300'}`}
+                            disabled={reviewMode || feedbackVisible[block.id]}
                         />
 
                         {/* Student Self-Check Button */}
@@ -604,6 +641,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         )}
                     </div>
                 );
+            case 'fill_in_blanks':
+                return <ClozeQuestion key={block.id} block={block} onComplete={(score) => handleGameComplete(block.id, score)} />;
+            case 'ordering':
+                return <OrderingQuestion key={block.id} block={block} onComplete={(score) => handleGameComplete(block.id, score)} />;
+            case 'categorization':
+                return <CategorizationQuestion key={block.id} block={block} onComplete={(score) => handleGameComplete(block.id, score)} />;
+            case 'memory_game':
+                return <MemoryGameQuestion key={block.id} block={block} onComplete={(score) => handleGameComplete(block.id, score)} />;
             default: return null;
         }
     };
@@ -656,8 +701,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             )}
 
             {/* --- Source Text Toggle --- */}
-            {/* Show button if enabled by teacher, even if content is missing (for debugging/clarity) */}
-            {course.showSourceToStudent && (
+            {/* Show button only if enabled AND content exists */}
+            {course.showSourceToStudent && (course.fullBookContent || course.pdfSource) && (
                 <div className="fixed left-4 bottom-4 z-50">
                     <button
                         onClick={() => setShowSplitView(!showSplitView)}

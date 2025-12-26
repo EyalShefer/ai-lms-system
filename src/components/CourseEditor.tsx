@@ -222,6 +222,9 @@ const CourseEditor: React.FC = () => {
                     console.error("File processing failed:", fileError);
                     alert("שגיאה בעיבוד הקובץ. המערכת תמשיך על בסיס הנושא בלבד.");
                 }
+            } else if (data.pastedText) {
+                console.log("Using pasted text as source");
+                processedSourceText = data.pastedText;
             }
 
             const updatedCourseState = {

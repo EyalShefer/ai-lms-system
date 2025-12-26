@@ -1,7 +1,20 @@
 export type LearningUnitType = 'acquisition' | 'practice' | 'test';
 
-// סוגי הפעילויות האפשריים (כולל הצ'אט החדש)
-export type ActivityBlockType = 'text' | 'video' | 'image' | 'pdf' | 'multiple-choice' | 'open-question' | 'interactive-chat' | 'gem-link';
+// סוגי הפעילויות האפשריים (כולל הצ'אט החדש והמשחקים)
+export type ActivityBlockType =
+    | 'text'
+    | 'video'
+    | 'image'
+    | 'pdf'
+    | 'multiple-choice'
+    | 'open-question'
+    | 'interactive-chat'
+    | 'gem-link'
+    // New Types
+    | 'fill_in_blanks'
+    | 'ordering'
+    | 'categorization'
+    | 'memory_game';
 
 export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
 

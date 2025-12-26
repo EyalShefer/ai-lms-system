@@ -140,7 +140,7 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                             onClick={() => onSelectCourse(course.id)}
                             className="glass group bg-white/70 hover:bg-white/90 p-6 rounded-3xl border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[240px]"
                         >
-                            <div className={`absolute top-0 left-0 w-full h-1.5 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ${course.mode === 'exam' ? 'bg-gradient-to-r from-red-400 to-orange-400' : 'bg-gradient-to-r from-blue-400 to-indigo-400'}`}></div>
+                            <div className={`absolute top-0 left-0 w-full h-1.5 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ${course.mode === 'exam' ? 'bg-gradient-to-r from-red-400 to-pink-500' : 'bg-gradient-to-r from-blue-400 to-indigo-400'}`}></div>
 
                             <div className="absolute top-4 left-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                                 <button
