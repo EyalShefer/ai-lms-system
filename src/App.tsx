@@ -195,6 +195,7 @@ const AuthenticatedApp = () => {
 
       const topicForAI = wizardData.topic || fileName || "נושא כללי";
       const courseMode = wizardData.settings?.courseMode || 'learning';
+      const activityLength = wizardData.settings?.activityLength || 'medium'; // NEW
       const userSubject = wizardData.settings?.subject || "כללי";
 
       let aiSyllabus = [];
@@ -207,20 +208,40 @@ const AuthenticatedApp = () => {
           aiFileData,
           userSubject,
           aiSourceText,
-          wizardData.settings?.includeBot ?? false // Default to false per user request, or follow wizard settings
+          wizardData.settings?.includeBot ?? false
         );
         console.log("AI Success. Source Text Length:", aiSourceText?.length || 0);
 
-        // --- SANITIZE/OVERRIDE INTRO BLOCK ---
+        // --- CRITICAL FIX: Force Client-Side Content Generation (Activity Mode) ---
+        // The Cloud generation provides the syllabus, but we want our NEW Activity Logic for the content.
         if (aiSyllabus.length > 0 && aiSyllabus[0].learningUnits.length > 0) {
           const firstUnit = aiSyllabus[0].learningUnits[0];
-          if (firstUnit.activityBlocks && firstUnit.activityBlocks.length > 0) {
-            const firstBlock = firstUnit.activityBlocks[0];
-            if (firstBlock.type === 'text') {
-              // Replace generic "Welcome" with "Call to Action"
-              firstBlock.content = `# יוצאים לדרך! 🚀\n\nהפעילות בנושא **${topicForAI}** מתחילה עכשיו.\n\nהמשימה שלכם: לעבור על השאלות ולגלות עד כמה אתם שולטים בחומר. בהצלחה!`;
-            }
-          }
+          console.log("🚀 FORCE GENERATING CONTENT CLIENT-SIDE FOR:", firstUnit.title);
+
+          // Import this function dynamically or ensure it's imported at top
+          const { generateFullUnitContent } = await import('./gemini');
+
+          const newBlocks = await generateFullUnitContent(
+            firstUnit.title,
+            topicForAI,
+            extractedGrade,
+            aiFileData,
+            userSubject,
+            aiSourceText,
+            { ...wizardData.settings?.taxonomy, botPersona: wizardData.settings?.botPersona },
+            wizardData.settings?.includeBot,
+            courseMode, // Explicitly pass the mode ('learning' or 'exam')
+            activityLength // NEW: Pass length
+          );
+
+          // Overwrite the content in the syllabus
+          aiSyllabus = aiSyllabus.map((mod: any) => ({
+            ...mod,
+            learningUnits: mod.learningUnits.map((u: any) =>
+              u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
+            )
+          }));
+          console.log("✅ Client-Side Content Generation Complete");
         }
 
       } catch (aiError) {
@@ -238,6 +259,7 @@ const AuthenticatedApp = () => {
         gradeLevel: extractedGrade,
         syllabus: aiSyllabus,
         mode: courseMode,
+        activityLength, // NEW: Persist length
         createdAt: serverTimestamp(),
         // Persist Source Text Visibility & Content
         showSourceToStudent: wizardData.settings?.showSourceToStudent ?? true,
@@ -246,7 +268,10 @@ const AuthenticatedApp = () => {
         wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
-      const docRef = await addDoc(collection(db, "courses"), newCourseData);
+      // Deep sanitize to remove any 'undefined' values (Firestore rejects them)
+      const dataToSave = JSON.parse(JSON.stringify(newCourseData));
+
+      const docRef = await addDoc(collection(db, "courses"), dataToSave);
 
       loadCourse(docRef.id);
       setMode('editor');

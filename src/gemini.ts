@@ -129,7 +129,7 @@ const mapSystemItemToBlock = (item: any) => {
       content: { question: item.question_text },
       metadata: {
         ...commonMetadata,
-        modelAnswer: item.content?.teacher_guidelines || (item.content?.key_points ? item.content.key_points.join('\n') : "תשובה מלאה"),
+        modelAnswer: item.content?.teacher_guidelines || (item?.key_points ? item.key_points.join('\n') : "תשובה מלאה"),
         hint: item.content?.hint || "",
         score: 20
       }
@@ -276,157 +276,217 @@ export const generateFullUnitContent = async (
   subject: string = "כללי",
   sourceText?: string,
   taxonomy?: { knowledge: number; application: number; evaluation: number },
-  includeBot: boolean = true
+  includeBot: boolean = true,
+  mode: 'learning' | 'exam' = 'learning', // NEW: Mode parameter defaults to learning
+  activityLength: 'short' | 'medium' | 'long' = 'medium' // NEW: Activity length
 ) => {
+  console.log("generateFullUnitContent RECEIVED MODE:", mode, "LENGTH:", activityLength);
 
   const hasSourceMaterial = !!(fileData || sourceText);
   let systemPrompt = "";
   let userMessageContent: any[] = [];
 
-  const taxonomyInstruction = taxonomy
-    ? `\n4. BLOOM'S TAXONOMY DISTRIBUTION (MANDATORY):
-       - Knowledge/Recall: ~${taxonomy.knowledge}%
-       - Application/Analysis: ~${taxonomy.application}%
-       - Evaluation/Creation: ~${taxonomy.evaluation}%
-       Ensure the questions reflect this complexity balance.`
-    : "";
+  // Determine Step Count & Distribution
+  let stepInstruction = "";
+  let stepCount = 3;
 
-  // --- LOGIC SPLIT: File Agent vs Topic Agent ---
+  if (activityLength === 'short') {
+    stepCount = 3;
+    stepInstruction = `
+      ## STEP 1: FOUNDATION (Remember/Understand)
+      - **Goal:** Establish facts and definitions.
+      - **Allowed Types:** multiple_choice, true_false.
 
-  if (hasSourceMaterial) {
-    // === SITE A: FILE AGENT (STRICT) ===
-    console.log("🤖 Mode: File Agent (Source Based)");
+      ## STEP 2: CONNECTION (Apply/Analyze)
+      - **Goal:** Understand relationships.
+      - **Allowed Types:** ordering, grouping.
 
-    systemPrompt = `
-      You are a Strict Content Analyst and Pedagogue for the subject: ${subject}.
-      Target Audience: ${gradeLevel}.
-      Language: Hebrew (Ivrit).
-      
-      CORE DIRECTIVE:
-      Your knowledge base is STRICTLY limited to the provided source material (Text/Image).
-      Do NOT use outside knowledge to generate questions.
-      
-      TASK:
-      Create a learning unit based ONLY on the provided content.
-      
-      OUTPUT REQUIREMENTS:
-      1. Provide a VALID JSON array of objects.
-      2. For every question, you must be able to internally justify it based on the text.
-      3. If the content is insufficient for ${subject}, return a JSON with a single "text" block explaining why.
-      
-      Schema per item:
-      {
-        "id": 1,
-        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question",
-        "question_text": "Hebrew question...",
-        "source_reference": "Quote or reference from text",
-        "feedback_correct": "Positive feedback",
-        "feedback_incorrect": "Constructive feedback",
-        "content": {
-            "options": ["Concrete Answer 1", "Concrete Answer 2", "Concrete Answer 3", "Answer 4"], 
-            "correct_index": 0, 
-            "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation",
-            "key_points": ["Point 1", "Point 2"]
-        }
-      }
-      IMPORTANT:
-      - Do NOT create sorting, matching, or sequencing questions.
-      - For Multiple Choice: Options must be CONCRETE TEXT ANSWERS (e.g. "To convert sunlight", "Wind", "Coal"). 
-      - Do NOT use meta-options like "Option A and B are correct" or "All of the above".
-      - Do NOT use abstract options like "The first image", "The sorting order".
-      Schema per item:
-      {
-        "id": 1,
-        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
-        "question_text": "Hebrew question...",
-        "source_reference": "Quote or reference from text",
-        "feedback_correct": "Positive feedback",
-        "feedback_incorrect": "Constructive feedback",
-        "content": {
-            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
-            "correct_index": 0, 
-            "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation of the correct answer",
-            "key_points": ["Point 1", "Point 2"]
-        }
-      }
-      ${taxonomyInstruction}
-      Create 6-8 items.
-    `;
+      ## STEP 3: SYNTHESIS (Evaluate/Create)
+      - **Goal:** Critical thinking.
+      - **Allowed Types:** multiple_choice (Scenario), open_question.
+      `;
+  } else if (activityLength === 'long') {
+    stepCount = 7;
+    stepInstruction = `
+      ## STEPS 1-2: FOUNDATION (Remember/Understand)
+      - **Goal:** Solidify base knowledge.
+      - **Allowed Types:** multiple_choice, true_false.
 
-    if (sourceText) {
-      userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Generate learning unit for "${unitTitle}" based on this text.` });
-    } else {
-      userMessageContent.push({ type: "text", text: `Task: Generate learning unit for "${unitTitle}" based on this image.` });
-    }
+      ## STEPS 3-5: CONNECTION (Apply/Analyze)
+      - **Goal:** Deep dive into processes and categories.
+      - **Allowed Types:** ordering (Process/Timeline), grouping (Categorization), matching.
 
-    if (fileData) {
-      const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
-      userMessageContent.push({
-        type: "image_url",
-        image_url: { url: dataUrl }
-      });
-    }
-
+      ## STEPS 6-7: SYNTHESIS (Evaluate/Create)
+      - **Goal:** Complex scenarios and creation.
+      - **Allowed Types:** multiple_choice (Complex Scenario), open_question.
+      `;
   } else {
-    // === SITE B: TOPIC AGENT (CREATIVE) ===
-    console.log("🎨 Mode: Topic Agent (Creative)");
+    // Medium (Default) - 5 Steps
+    stepCount = 5;
+    stepInstruction = `
+      ## STEPS 1-2: FOUNDATION (Remember/Understand)
+      - **Goal:** Establish facts.
+      - **Allowed Types:** multiple_choice, true_false.
+
+      ## STEPS 3-4: CONNECTION (Apply/Analyze)
+      - **Goal:** Connect concepts.
+      - **Allowed Types:** ordering, grouping, matching.
+
+      ## STEP 5: SYNTHESIS (Evaluate/Create)
+      - **Goal:** Critical thinking.
+      - **Allowed Types:** multiple_choice (Scenario), open_question.
+      `;
+  }
+
+  // === MODE 1: LEARNING ACTIVITY (The "Journey") ===
+  if (mode === 'learning') {
+    console.log("🚀 Mode: Learning (Activity)");
 
     systemPrompt = `
-      You are an expert pedagogical content generator for the subject: ${subject}.
-      Target Audience: ${gradeLevel}.
-      Language: Hebrew (Ivrit).
-      Subject Lens: Analyze the topic "${courseTopic}" strictly through the perspective of ${subject}.
-      Source Material: Use your general knowledge.
-      Output Format: Provide a VALID JSON array of objects. Do not wrap in markdown.
-      
-      Schema per item:
+      # ROLE
+      You are an expert Pedagogical Architect and engaging Storyteller. 
+      Subject: ${subject}. Target Audience: ${gradeLevel}.
+      Language: Hebrew.
+
+      # GOAL
+      Create a ${stepCount}-step scaffolded learning activity.
+      Do NOT use the same question type for every step. Analyze the content and select the BEST interaction type.
+
+      # DYNAMIC INTERACTION STRATEGY
+      ${stepInstruction}
+
+      # JSON OUTPUT FORMAT
       {
-        "id": 1,
-        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question",
-        "question_text": "Hebrew question...",
-        "source_reference": "General Knowledge",
-        "feedback_correct": "Positive feedback",
-        "feedback_incorrect": "Constructive feedback",
-        "content": {
-            "options": ["Concrete Answer 1", "Concrete Answer 2", "Concrete Answer 3", "Answer 4"], 
-            "correct_index": 0, 
-            "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation",
-            "key_points": ["Point 1", "Point 2"]
+        "learning_unit": {
+          "title": "${unitTitle}",
+          "steps": [
+            {
+              "step_number": 1,
+              "bloom_level": "Foundation",
+              "selected_interaction": "multiple_choice",
+              "teach_content": "Short engaging explanation...",
+              "data": {
+                "question": "Question text...",
+                "options": ["Opt1", "Opt2", "Opt3", "Opt4"],
+                "correct_answer": "Opt1",
+                "feedback_correct": "Good job!",
+                "feedback_incorrect": "Hint..."
+              }
+            },
+            // ... Generate exactly ${stepCount} steps following the strategy above
+          ]
         }
       }
-      IMPORTANT:
-      - Do NOT create sorting, matching, or sequencing questions.
-      - For Multiple Choice: Options must be CONCRETE TEXT ANSWERS.
-      - Do NOT use meta-options like "Option A and B are correct" or "All of the above".
-      }
-      Schema per item:
-      {
-        "id": 1,
-        "bloom_level": "Knowledge" | "Understanding" | "Analysis",
-        "type": "multiple_choice" | "true_false" | "open_question" | "sorting" | "sequencing",
-        "question_text": "Hebrew question...",
-        "source_reference": "General Knowledge",
-        "feedback_correct": "Positive feedback",
-        "feedback_incorrect": "Constructive feedback",
-        "content": {
-            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], 
-            "correct_index": 0, 
-            "hint": "Hebrew hint",
-            "teacher_guidelines": "Detailed explanation of the correct answer",
-            "key_points": ["Point 1", "Point 2"]
-        }
-      }
-      ${taxonomyInstruction}
-      Create 6-8 diverse items.
+
+      # APPENDIX: DATA STRUCTURE RULES
+      - **ordering**: "items" list in CORRECT order.
+      - **grouping**: "items" list with "group_index" mapping to "groups".
+      - **matching**: treat as **grouping** (Left side = groups, Right side = items).
+      - **open_question**: "data" has "question" and "model_answer".
+
+      # OUTPUT FORMAT (JSON ONLY)
+      Return a VALID JSON object with the "learning_unit" root.
     `;
 
-    userMessageContent.push({ type: "text", text: `Create learning content for topic: ${courseTopic}, Unit: ${unitTitle}.` });
+    // User Message Construction
+    if (sourceText) {
+      userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Create Learning Journey for "${unitTitle}".` });
+    } else {
+      userMessageContent.push({ type: "text", text: `Task: Create Learning Journey for "${unitTitle}" (Topic: ${courseTopic}).` });
+    }
+
+  }
+  // === MODE 2: EXAM / ASSESSMENT (Old Logic) ===
+  else {
+    console.log("📝 Mode: Exam (Assessment)");
+
+    const taxonomyInstruction = taxonomy
+      ? `\n4. BLOOM'S TAXONOMY DISTRIBUTION (MANDATORY):
+           - Knowledge/Recall: ~${taxonomy.knowledge}%
+           - Application/Analysis: ~${taxonomy.application}%
+           - Evaluation/Creation: ~${taxonomy.evaluation}%
+           Ensure the questions reflect this complexity balance.`
+      : "";
+
+    if (hasSourceMaterial) {
+      // ... (Existing Site A Prompt Logic)
+      systemPrompt = `
+          You are a Strict Content Analyst and Pedagogue.
+          Target Audience: ${gradeLevel}.
+          Language: Hebrew.
+          
+          TASK: Create a ${mode} unit based ONLY on the provided content.
+          
+          OUTPUT JSON Array of items:
+          [
+            {
+              "type": "multiple_choice",
+              "question_text": "...",
+              "content": { "options": ["A","B"], "correct_answer": "A" }
+            }
+          ]
+          
+          ${taxonomyInstruction}
+          Create 6-8 items.
+        `;
+      if (sourceText) {
+        userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Generate Exam for "${unitTitle}" based on this text.` });
+      } else {
+        userMessageContent.push({ type: "text", text: `Task: Generate Exam for "${unitTitle}" based on this image.` });
+      }
+    } else {
+      systemPrompt = `
+        You are a captivating Storyteller and Private Tutor.
+        Subject: ${subject}. Target Audience: ${gradeLevel}.
+        Language: Hebrew.
+
+        TASK: Create a specific "Learning Journey" (NOT A QUIZ).
+        
+        TONE & STYLE:
+        - Fascinating, engaging, and narrative-driven.
+        - Do NOT use dry "textbook" language. Use phrases like "Imagine that...", "Surprisingly...", "Let's dive into...".
+        - The "content_to_read" must feel like a micro-story or a fascinating fact, not a definition.
+        
+        For the topic: "${courseTopic}", Unit: "${unitTitle}".
+
+        Create a JSON with "learning_unit" containing "cards".
+        CRITICAL: Teach first, then ask.
+
+        # EXAMPLE JSON (STRICTLY FOLLOW THIS STRUCTURE)
+        {
+          "learning_unit": {
+             "title": "Topic Name",
+             "cards": [
+                {
+                  "type": "teach_then_ask",
+                  "content_to_read": "Imagine a world where money has lost all value. In 1923 Germany, a loaf of bread cost millions of marks! This chaos made people desperate for a strong leader who promised order.",
+                  "interactive_question": {
+                     "text": "Why were people in Germany willing to listen to extreme leaders like Hitler?",
+                     "options": ["They were bored", "They were desperate for stability", "They wanted to experiment"],
+                     "correct_answer": "They were desperate for stability",
+                     "feedback_correct": "Exactly! Desperate times often push people toward extreme solutions.",
+                     "feedback_incorrect": "Think about the chaos of paying millions for bread. They wanted Order."
+                  }
+                }
+             ]
+          }
+        }
+
+        # OUTPUT FORMAT (JSON ONLY)
+        Return a VALID JSON object with the "learning_unit" root. Do not wrap in markdown code blocks.
+      `;
+      // User string remains simple to avoid overriding system instructions
+      userMessageContent.push({ type: "text", text: `Topic: ${courseTopic}. Create the Learning Journey.` });
+    }
+  }
+
+  // Common Image Attachment
+  if (fileData) {
+    const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
+    userMessageContent.push({
+      type: "image_url",
+      image_url: { url: dataUrl }
+    });
   }
 
   try {
@@ -436,25 +496,142 @@ export const generateFullUnitContent = async (
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessageContent as any }
       ],
-      temperature: hasSourceMaterial ? 0.3 : 0.7, // Lower temperature for strict file analysis
+      temperature: mode === 'learning' ? 0.7 : 0.3, // Creative for learning, strict for exam
       response_format: { type: "json_object" }
     });
 
     const responseText = completion.choices[0].message.content || "[]";
+    let generatedItems: any[] = []; // Stores the final list of items to map
+    const blocks: any[] = [];
 
-    let generatedItems;
+    // Parse Response
     try {
       const parsed = JSON.parse(responseText);
-      if (Array.isArray(parsed)) {
-        generatedItems = parsed;
-      } else {
-        generatedItems = Object.values(parsed)[0];
+
+      // === NEW LOGIC: Dynamic Learning Unit ===
+      if (mode === 'learning') {
+        console.log("🚀 Parsing Strategy: Dynamic Learning Unit");
+
+        const steps = parsed.learning_unit?.steps || parsed.learning_unit?.cards || [];
+
+        if (Array.isArray(steps)) {
+          steps.forEach((step: any) => {
+
+            // 1. Content Block (The Teach)
+            if (step.teach_content) {
+              blocks.push({
+                id: uuidv4(),
+                type: 'text',
+                content: step.teach_content,
+                metadata: { note: `Step ${step.step_number}: ${step.bloom_level}` }
+              });
+            }
+
+            // 2. Interaction Block (The Ask)
+            const type = step.selected_interaction;
+            const data = step.data;
+
+            if (data) {
+              const commonMeta = {
+                score: 10,
+                feedbackCorrect: data.feedback_correct || "Correct!",
+                feedbackIncorrect: data.feedback_incorrect || "Try again.",
+                bloomLevel: step.bloom_level
+              };
+
+              if (type === 'ordering') {
+                blocks.push({
+                  id: uuidv4(),
+                  type: 'ordering',
+                  content: {
+                    question: data.question || "Order these items:",
+                    items: data.items || []
+                  },
+                  metadata: { ...commonMeta, score: 15 }
+                });
+              }
+              else if (type === 'grouping' || type === 'categorization' || type === 'matching') {
+                // Map to 'categorization' block
+                let adaptedItems = [];
+                let adaptedCategories = data.groups || data.categories || [];
+
+                if (data.items && data.items.length > 0) {
+                  if (typeof data.items[0] === 'string') {
+                    adaptedItems = data.items.map((t: string) => ({ id: uuidv4(), text: t, categoryId: "unknown" }));
+                  } else {
+                    adaptedItems = data.items.map((item: any) => ({
+                      id: uuidv4(),
+                      text: item.text,
+                      categoryId: adaptedCategories[item.group_index] || "unknown"
+                    }));
+                  }
+                }
+
+                blocks.push({
+                  id: uuidv4(),
+                  type: 'categorization',
+                  content: {
+                    question: data.question || "Sort these items:",
+                    categories: adaptedCategories,
+                    items: adaptedItems
+                  },
+                  metadata: { ...commonMeta, score: 20 }
+                });
+              }
+              else if (type === 'open_question') {
+                blocks.push({
+                  id: uuidv4(),
+                  type: 'open-question',
+                  content: {
+                    question: data.question || "Explain..."
+                  },
+                  metadata: {
+                    ...commonMeta,
+                    modelAnswer: data.model_answer || "See teacher guidelines",
+                    score: 20
+                  }
+                });
+              }
+              else {
+                // Fallback: Multiple Choice
+                blocks.push({
+                  id: uuidv4(),
+                  type: 'multiple-choice',
+                  content: {
+                    question: data.question,
+                    options: data.options || ["Yes", "No"],
+                    correctAnswer: data.correct_answer || data.options?.[0]
+                    // Add implicit feedback if missing in data but present in fallback logic? 
+                    // Current prompt asks for feedback in data object, so it should be there.
+                  },
+                  metadata: commonMeta
+                });
+              }
+            }
+          });
+
+          if (blocks.length > 0) return blocks;
+        }
       }
+
+      // === FALLBACK: Exam / Legacy Strategy ===
+      {
+        // Fallback or Exam Mode: Standard Array
+        if (Array.isArray(parsed)) {
+          generatedItems = parsed;
+        } else if (parsed.items && Array.isArray(parsed.items)) { // Common wrapper
+          generatedItems = parsed.items;
+        } else {
+          // Try to find any array in the object
+          generatedItems = Object.values(parsed).find(val => Array.isArray(val)) as any[] || [];
+        }
+      }
+
     } catch (e) {
-      generatedItems = JSON.parse(cleanJsonString(responseText));
+      console.error("JSON Parse Error", e);
+      generatedItems = [];
     }
 
-    const blocks: any[] = [];
 
     blocks.push({
       id: uuidv4(),

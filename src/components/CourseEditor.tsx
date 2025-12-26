@@ -233,6 +233,7 @@ const CourseEditor: React.FC = () => {
                 subject: userSubject,
                 gradeLevel: extractedGrade,
                 mode: data.settings?.courseMode || 'learning',
+                activityLength: data.settings?.activityLength || 'medium',
                 botPersona: data.settings?.botPersona || null,
                 showSourceToStudent: data.settings?.showSourceToStudent || false,
                 fullBookContent: processedSourceText || course.fullBookContent || "" // שמירת התוכן המחולץ
@@ -245,6 +246,7 @@ const CourseEditor: React.FC = () => {
                 subject: userSubject,
                 gradeLevel: extractedGrade,
                 mode: updatedCourseState.mode,
+                activityLength: updatedCourseState.activityLength,
                 botPersona: data.settings?.botPersona || null,
                 showSourceToStudent: data.settings?.showSourceToStudent || false,
                 fullBookContent: processedSourceText || course.fullBookContent || "" // שמירה לדאטהבייס
@@ -274,8 +276,12 @@ const CourseEditor: React.FC = () => {
                     processedFileData,
                     userSubject,
                     processedSourceText, // העברת הטקסט המחולץ גם לכאן
-                    { ...data.settings?.taxonomy, botPersona: data.settings?.botPersona } // Pass taxonomy settings with persona
+                    { ...data.settings?.taxonomy, botPersona: data.settings?.botPersona }, // Pass taxonomy settings with persona
+                    data.settings?.includeBot,
+                    data.settings?.courseMode || 'learning',
+                    data.settings?.activityLength || 'medium'
                 );
+                console.log("Called generateFullUnitContent with mode:", data.settings?.courseMode || 'learning');
 
                 const syllabusWithContent = syllabus.map((mod: any) => ({
                     ...mod,
@@ -329,7 +335,12 @@ const CourseEditor: React.FC = () => {
                 course.title,
                 displayGrade,
                 undefined,
-                currentSubject
+                currentSubject,
+                undefined, // sourceText
+                undefined, // taxonomy
+                true, // includeBot (default)
+                course.mode || 'learning', // Pass course mode
+                course.activityLength || 'medium'
             ).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
                     const backgroundSyllabus = newSyllabus.map(m => ({

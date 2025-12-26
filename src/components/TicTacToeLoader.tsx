@@ -34,7 +34,7 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
 
     const resetGame = useCallback(() => {
         setBoard(Array(9).fill(null));
-        setIsXNext(true); // Human always starts fresh or alternates? Let's keep it simple: human starts.
+        setIsXNext(Math.random() < 0.5); // Randomize start
         setWinner(null);
         setStatusMessage('');
     }, []);

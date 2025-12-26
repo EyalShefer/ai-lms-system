@@ -171,7 +171,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
-            <div className="bg-white/90 glass w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10">
+            <div className={`bg-white/90 glass w-full ${courseMode === 'exam' ? 'max-w-6xl' : 'max-w-4xl'} rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-300`}>
 
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
@@ -296,9 +296,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconChart className="w-4 h-4" /> אורך הפעילות</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {[
-                                            { id: 'short', label: 'קצרה', desc: '~4 שאלות' },
-                                            { id: 'medium', label: 'בינונית', desc: '~8 שאלות' },
-                                            { id: 'long', label: 'ארוכה', desc: '~12 שאלות' }
+                                            { id: 'short', label: 'קצרה', desc: '3 שלבי לימוד' },
+                                            { id: 'medium', label: 'בינונית', desc: '5 שלבי לימוד (מומלץ)' },
+                                            { id: 'long', label: 'ארוכה', desc: '7 שלבי לימוד' }
                                         ].map((opt) => (
                                             <button
                                                 key={opt.id}
@@ -313,21 +313,23 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 </div>
 
 
-                                {/* Source Text Visibility Toggle */}
-                                <div className="pt-4 border-t border-blue-200/50">
-                                    <label className="flex items-center justify-between cursor-pointer group mb-1 p-3 bg-white/50 rounded-xl border border-blue-100 hover:border-blue-300 transition-colors">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-gray-800 text-sm">הצג מקור לתלמיד</span>
-                                            <span className="text-xs text-gray-500">האם לאפשר לתלמיד לצפות בקובץ/טקסט המקור?</span>
-                                        </div>
+                                {/* Source Text Visibility Toggle (Only for File Upload mode) */}
+                                {mode === 'upload' && (
+                                    <div className="pt-4 border-t border-blue-200/50">
+                                        <label className="flex items-center justify-between cursor-pointer group mb-1 p-3 bg-white/50 rounded-xl border border-blue-100 hover:border-blue-300 transition-colors">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-gray-800 text-sm">הצג מקור לתלמיד</span>
+                                                <span className="text-xs text-gray-500">האם לאפשר לתלמיד לצפות בקובץ/טקסט המקור?</span>
+                                            </div>
 
-                                        <div className="relative">
-                                            <input type="checkbox" checked={showSourceToStudent} onChange={(e) => setShowSourceToStudent(e.target.checked)} className="hidden" />
-                                            <div className={`w-12 h-7 rounded-full transition-all duration-300 ease-in-out ${showSourceToStudent ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-                                            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${showSourceToStudent ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                                        </div>
-                                    </label>
-                                </div>
+                                            <div className="relative">
+                                                <input type="checkbox" checked={showSourceToStudent} onChange={(e) => setShowSourceToStudent(e.target.checked)} className="hidden" />
+                                                <div className={`w-12 h-7 rounded-full transition-all duration-300 ease-in-out ${showSourceToStudent ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                                                <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${showSourceToStudent ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
 
                                 {/* Bot Configuration */}
                                 <div className="pt-4 border-t border-blue-200/50">
@@ -368,32 +370,34 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 </div>
                             </div>
 
-                            {/* עמודה שמאלית - טקסונומיה */}
-                            <div className="space-y-4 order-1 md:order-2">
-                                <div className="flex items-center gap-2 mb-1"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה</h3></div>
-                                <p className="text-sm text-gray-500 mb-4">קבעו את תמהיל השאלות והתוכן.</p>
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-green-200 transition-colors">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="font-bold text-green-600 text-base">ידע והבנה</label>
-                                        <span className="font-mono font-bold text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-md">{taxonomy.knowledge}%</span>
+                            {/* עמודה שמאלית - טקסונומיה (רק במצב מבחן) */}
+                            {courseMode === 'exam' && (
+                                <div className="space-y-4 order-1 md:order-2">
+                                    <div className="flex items-center gap-2 mb-1"><IconBrain className="w-6 h-6 text-pink-500" /><h3 className="text-xl font-bold text-gray-800">רמות חשיבה</h3></div>
+                                    <p className="text-sm text-gray-500 mb-4">קבעו את תמהיל השאלות והתוכן.</p>
+                                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-green-200 transition-colors">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="font-bold text-green-600 text-base">ידע והבנה</label>
+                                            <span className="font-mono font-bold text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-md">{taxonomy.knowledge}%</span>
+                                        </div>
+                                        <input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                     </div>
-                                    <input type="range" min="0" max="100" value={taxonomy.knowledge} onChange={(e) => handleTaxonomyChange('knowledge', parseInt(e.target.value))} className="w-full accent-green-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="font-bold text-blue-600 text-base">יישום וניתוח</label>
-                                        <span className="font-mono font-bold text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">{taxonomy.application}%</span>
+                                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="font-bold text-blue-600 text-base">יישום וניתוח</label>
+                                            <span className="font-mono font-bold text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">{taxonomy.application}%</span>
+                                        </div>
+                                        <input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                     </div>
-                                    <input type="range" min="0" max="100" value={taxonomy.application} onChange={(e) => handleTaxonomyChange('application', parseInt(e.target.value))} className="w-full accent-blue-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="font-bold text-indigo-600 text-base">הערכה ויצירה</label>
-                                        <span className="font-mono font-bold text-sm bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">{taxonomy.evaluation}%</span>
+                                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-indigo-200 transition-colors">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="font-bold text-indigo-600 text-base">הערכה ויצירה</label>
+                                            <span className="font-mono font-bold text-sm bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">{taxonomy.evaluation}%</span>
+                                        </div>
+                                        <input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                     </div>
-                                    <input type="range" min="0" max="100" value={taxonomy.evaluation} onChange={(e) => handleTaxonomyChange('evaluation', parseInt(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>

@@ -68,6 +68,7 @@ export interface Course {
     subject?: string;
     botPersona?: string;
     mode?: 'learning' | 'exam';
+    activityLength?: 'short' | 'medium' | 'long';
     syllabus: Module[];
     createdAt?: any;
     updatedAt?: any;
