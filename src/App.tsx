@@ -190,14 +190,17 @@ const AuthenticatedApp = () => {
       console.log("🚀 Generating with AI... Wizard Data:", wizardData);
 
       // --- חילוץ חכם של הגיל ---
-      let extractedGrade = "כללי";
-      if (wizardData.grade) extractedGrade = wizardData.grade;
-      else if (wizardData.gradeLevel) extractedGrade = wizardData.gradeLevel;
-      else if (wizardData.settings?.grade) extractedGrade = wizardData.settings.grade;
+      // --- חילוץ חכם של הגיל (ROBUST EXTRACTION) ---
+      let extractedGrade =
+        (Array.isArray(wizardData.targetAudience) ? wizardData.targetAudience[0] : wizardData.targetAudience) ||
+        (Array.isArray(wizardData.grade) ? wizardData.grade[0] : wizardData.grade) ||
+        (Array.isArray(wizardData.gradeLevel) ? wizardData.gradeLevel[0] : wizardData.gradeLevel) ||
+        (wizardData.settings?.targetAudience) ||
+        (wizardData.settings?.grade) ||
+        (wizardData.settings?.gradeLevel) ||
+        "כללי";
 
-      if (Array.isArray(extractedGrade)) extractedGrade = extractedGrade[0];
-
-      console.log("🎯 Extracted Grade for AI:", extractedGrade);
+      console.log("🎯 Extracted Grade for AI (App.tsx):", extractedGrade);
 
       // Use originalTopic if available (for precise Topic Mode), otherwise title, or filename
       const topicForAI = wizardData.originalTopic || wizardData.topic || fileName || "נושא כללי";

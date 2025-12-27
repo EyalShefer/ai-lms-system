@@ -141,13 +141,16 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 topic: customTitle || topic || "פעילות חדשה", // Kept for backward compatibility if needed, but we should use title/originalTopic
                 settings: {
                     subject: subject || "כללי",
+                    grade: grade, // Fix: Explicitly include grade
+                    targetAudience: grade, // Fix: Also map to targetAudience for compatibility
                     activityLength,
                     taxonomy,
                     includeBot,
                     botPersona: includeBot ? botPersona : null,
                     courseMode,
                     showSourceToStudent
-                }
+                },
+                targetAudience: grade // Fix: Top-level backup
             }
             if (onComplete) {
                 await onComplete(finalData);

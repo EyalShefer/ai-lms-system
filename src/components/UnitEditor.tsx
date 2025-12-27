@@ -264,15 +264,18 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 // But we can await it to save the final result to DB.
                 await Promise.all(promises);
 
-                // Final Save
-                console.log("🏁 All steps generated. Saving...");
-                onSave({ ...unit, activityBlocks: finalPlaceholders }); // Note: state might be ahead, but onSave usually takes current state in a real app. 
-                // Actually, due to closure stale closure, 'finalPlaceholders' is old. 
-                // We should rely on the state updates. The 'onSave' prop might need the LATEST data.
-                // For safety, let's trigger a save after a short delay or rely on user manual save.
-                // Or better: Use functional update if onSave supported it, but it doesn't.
-                // We will skip auto-save of the final state here to avoid overwriting with stale data, 
-                // and trust that the user will save, OR we trigger a re-sync.
+                // Final Save: Ensure the generated content is persisted to Firestore!
+                console.log("🏁 All steps generated. Auto-Saving to Firestore...");
+
+                // Use a functional update to ensure we get the absolute latest state from the previous async operations
+                setEditedUnit((finalUnitState: any) => {
+                    // Trigger save with the final state
+                    onSave(finalUnitState);
+                    return finalUnitState;
+                });
+
+                // Mark generation as done
+                setIsAutoGenerating(false);
 
             } catch (error) {
                 console.error("Incremental Auto Generation Failed", error);
@@ -1039,7 +1042,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div>
                                                 <h4 className="text-xs font-bold text-teal-400 uppercase mb-2">קטגוריות</h4>
                                                 <div className="space-y-2">
-                                                    {(block.content?.categories || []).map((cat: string, idx: number) => (
+                                                    {(Array.isArray(block.content?.categories) ? block.content.categories : []).map((cat: string, idx: number) => (
                                                         <div key={idx} className="flex gap-2">
                                                             <input type="text" className="flex-1 p-2 border rounded bg-white border-teal-200" value={cat || ''} onChange={(e) => { const newCats = [...(block.content?.categories || [])]; newCats[idx] = e.target.value; updateBlock(block.id, { ...block.content, categories: newCats }); }} placeholder={`קטגוריה ${idx + 1}`} />
                                                             <button onClick={() => { const newCats = (block.content?.categories || []).filter((_: any, i: number) => i !== idx); updateBlock(block.id, { ...block.content, categories: newCats }); }} className="text-red-400"><IconTrash className="w-4 h-4" /></button>

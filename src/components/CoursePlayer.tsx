@@ -658,11 +658,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                         {block.metadata?.feedbackCorrect || "תשובה נכונה! כל הכבוד."}
                                     </div>
                                 ) : (
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         <div className="text-red-800 font-bold flex items-center gap-2">
                                             <IconX className="w-5 h-5" />
                                             {(() => {
-                                                // 1. Try to find specific feedback for the selected option (Rich Options)
                                                 const richOptions = block.metadata?.richOptions;
                                                 if (richOptions && Array.isArray(richOptions)) {
                                                     const selectedOpt = richOptions.find((o: any) => o.text === userAnswers[block.id]);
@@ -670,7 +669,6 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                                         return selectedOpt.feedback;
                                                     }
                                                 }
-                                                // 2. Fallback to generic incorrect feedback
                                                 return block.metadata?.feedbackIncorrect || "תשובה לא נכונה, נסו שוב.";
                                             })()}
                                         </div>
@@ -681,6 +679,15 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                                 </div>
                                                 {block.metadata.sourceHint}
                                             </div>
+                                        )}
+                                        {/* Retry Button for Learning Mode */}
+                                        {!isExamMode && !reviewMode && (
+                                            <button
+                                                onClick={() => setFeedbackVisible(prev => ({ ...prev, [block.id]: false }))}
+                                                className="flex items-center gap-2 text-red-600 bg-white border border-red-200 px-4 py-2 rounded-full text-sm font-bold shadow-sm hover:bg-red-50 transition-all mt-2"
+                                            >
+                                                <IconArrowBack className="w-4 h-4" /> אל תתייאש, נסה שוב!
+                                            </button>
                                         )}
                                     </div>
                                 )}

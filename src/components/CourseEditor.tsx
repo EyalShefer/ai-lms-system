@@ -178,17 +178,14 @@ const CourseEditor: React.FC = () => {
         try {
             const topicToUse = data.topic || course.title || "נושא כללי";
 
-            let extractedGrade = "כללי";
-            if (data.grade) extractedGrade = data.grade;
-            else if (data.gradeLevel) extractedGrade = data.gradeLevel;
-            else if (data.targetAudience) extractedGrade = data.targetAudience;
-            else if (data.settings?.grade) extractedGrade = data.settings.grade;
-            else if (data.settings?.gradeLevel) extractedGrade = data.settings.gradeLevel;
-            else if (data.settings?.targetAudience) extractedGrade = data.settings.targetAudience;
-
-            if (Array.isArray(extractedGrade)) {
-                extractedGrade = extractedGrade[0];
-            }
+            const extractedGrade =
+                (Array.isArray(data.targetAudience) ? data.targetAudience[0] : data.targetAudience) ||
+                (Array.isArray(data.gradeLevel) ? data.gradeLevel[0] : data.gradeLevel) ||
+                (Array.isArray(data.grade) ? data.grade[0] : data.grade) ||
+                (data.settings?.targetAudience) ||
+                (data.settings?.gradeLevel) ||
+                (data.settings?.grade) ||
+                "כללי";
 
             console.log("🎯 FINAL GRADE DETECTED:", extractedGrade);
 
@@ -241,16 +238,19 @@ const CourseEditor: React.FC = () => {
 
             setCourse(updatedCourseState);
 
-            await updateDoc(doc(db, "courses", course.id), {
+            // SANITIZE FOR FIRESTORE (Remove undefined)
+            const cleanDataForFirestore = JSON.parse(JSON.stringify({
                 title: topicToUse,
                 subject: userSubject,
                 gradeLevel: extractedGrade,
                 mode: updatedCourseState.mode,
                 activityLength: updatedCourseState.activityLength,
-                botPersona: data.settings?.botPersona || null,
-                showSourceToStudent: data.settings?.showSourceToStudent || false,
-                fullBookContent: processedSourceText || course.fullBookContent || "" // שמירה לדאטהבייס
-            });
+                botPersona: updatedCourseState.botPersona,
+                showSourceToStudent: updatedCourseState.showSourceToStudent,
+                fullBookContent: updatedCourseState.fullBookContent
+            }));
+
+            await updateDoc(doc(db, "courses", course.id), cleanDataForFirestore);
 
             // יצירת סילבוס עם הנתונים המעובדים
             const syllabus = await generateCoursePlan(

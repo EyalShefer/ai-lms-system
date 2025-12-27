@@ -78,14 +78,24 @@ export const mapSystemItemToBlock = (item: any) => {
   if (!item) return null;
 
   // 1. ROBUST DATA NORMALIZATION
+  console.log("Raw AI Item for Mapping:", JSON.stringify(item)); // DEBUG LOG
+
   // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
-  const rawData = item.data || item.interactive_question || item;
+  // Sometimes AI returns data: { data: { ... } }
+  const rawData = item.data?.data || item.data || item.interactive_question || item;
 
   // Extract Type
   const type = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
 
-  // Extract Question Text (Handle all known variations)
-  const questionText = rawData.question || rawData.question_text || rawData.text || rawData.instruction || "שאלה ללא טקסט";
+  // Extract Question Text (Handle all known variations - Check Root AND Data)
+  const questionText =
+    rawData.question?.text || // Handle { question: { text: "..." } }
+    rawData.question ||
+    item.question ||
+    rawData.question_text ||
+    rawData.text ||
+    rawData.instruction ||
+    "שאלה ללא טקסט";
 
   const commonMetadata = {
     bloomLevel: item.bloom_level || "General",
@@ -99,6 +109,7 @@ export const mapSystemItemToBlock = (item: any) => {
     // Robust Options Extraction
     let options: any[] = [];
     if (Array.isArray(rawData.options)) options = rawData.options;
+    else if (Array.isArray(item.options)) options = item.options; // Check root as fallback
     else if (Array.isArray(rawData.choices)) options = rawData.choices;
     else if (Array.isArray(rawData.answers)) options = rawData.answers;
 
@@ -165,7 +176,19 @@ export const mapSystemItemToBlock = (item: any) => {
 
   // === CASE C: ORDERING / SEQUENCING ===
   if (type === 'ordering' || type === 'sequencing') {
-    const items = rawData.items || rawData.steps || rawData.correct_order || [];
+    const rawItems = rawData.items || rawData.steps || rawData.correct_order || [];
+    // Ensure items are strings
+    const items = rawItems.map((i: any) => {
+      if (typeof i === 'string') return i;
+      return i.text || i.step || i.content || i.description || JSON.stringify(i);
+    });
+
+    // Valid Sequence Check
+    if (items.length < 2) {
+      console.warn("Ordering items missing or too few, adding fallback.");
+      items.push("פריט ראשון לדוגמה", "פריט שני לדוגמה");
+    }
+
     return {
       id: uuidv4(),
       type: 'ordering',
@@ -199,14 +222,31 @@ export const mapSystemItemToBlock = (item: any) => {
       const rawItems = rawData.items || [];
       // Map items with group index if needed
       items = rawItems.map((item: any) => {
-        if (typeof item === 'object' && item.group_index !== undefined) {
-          return { text: item.text, category: categories[item.group_index] };
-        }
+        // If item is object with 'category' prop
         if (typeof item === 'object' && item.category) {
-          return { text: item.text, category: item.category };
+          return { text: item.text || item.content, category: item.category };
         }
-        return { text: typeof item === 'string' ? item : JSON.stringify(item), category: categories[0] }; // Fallback
+        // If item has group_index
+        if (typeof item === 'object' && item.group_index !== undefined && categories[item.group_index]) {
+          return { text: item.text || item.content, category: categories[item.group_index] };
+        }
+        // Fallback: If AI returns items as simple strings but didn't assign categories, we can't guess.
+        // But if AI returns { text: "X", group: "Y" } handle that.
+        if (typeof item === 'object' && item.group) return { text: item.text, category: item.group };
+
+        // Fallback for simple strings (default to first category to prevent crash, or mark as Uncategorized)
+        return {
+          text: typeof item === 'string' ? item : (item.text || JSON.stringify(item)),
+          category: categories[0] || "כללי"
+        };
       });
+    }
+
+    // Fallback for empty items
+    if (items.length === 0) {
+      console.warn("Categorization items missing, adding callback.");
+      categories = ["קטגוריה לדוגמה"];
+      items = [{ text: "פריט לדוגמה", category: "קטגוריה לדוגמה" }];
     }
 
     return {
@@ -239,23 +279,23 @@ export const generateUnitSkeleton = async (
   if (activityLength === 'short') {
     stepCount = 3;
     structureGuide = `
-      STEP 1: Foundation (Remember/Understand). Type: multiple_choice.
-      STEP 2: Connection (Apply/Analyze). Type: ordering OR categorization.
+      STEP 1: Foundation (Remember/Understand). Type: memory_game OR multiple_choice.
+      STEP 2: Connection (Apply/Analyze). Type: fill_in_blanks OR categorization.
       STEP 3: Synthesis (Evaluate/Create). Type: open_question OR multiple_choice (scenario).
     `;
   } else if (activityLength === 'long') {
     stepCount = 7;
     structureGuide = `
-      STEPS 1-2: Foundation. Type: multiple_choice / true_false.
-      STEPS 3-5: Connection. Type: ordering / categorization / matching.
+      STEPS 1-2: Foundation. Type: memory_game / multiple_choice / true_false.
+      STEPS 3-5: Connection. Type: fill_in_blanks / ordering / categorization / matching.
       STEPS 6-7: Synthesis. Type: open_question / multiple_choice.
     `;
   } else {
     // Medium
     stepCount = 5;
     structureGuide = `
-      STEPS 1-2: Foundation (Remember). Type: multiple_choice.
-      STEPS 3-4: Connection (Analyze). Type: ordering OR categorization.
+      STEPS 1-2: Foundation (Remember). Type: memory_game OR multiple_choice.
+      STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
       STEP 5: Synthesis (Create). Type: open_question.
     `;
   }
@@ -265,28 +305,40 @@ export const generateUnitSkeleton = async (
     : `Topic: "${topic}"`;
 
   const prompt = `
-    Role: Pedagogical Architect.
+    Role: Pedagogical Architect (The Brain).
     Task: Create a "Skeleton" for a learning unit.
     ${contextPart}
     Target Audience: ${gradeLevel}.
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
 
-    CRITICAL PEDAGOGICAL ROADMAP:
+    MISSION:
+    1. **Holistic Analysis:** Read the ENTIRE source text first. Understand the "Big Picture".
+    2. **SEGMENTATION STRATEGY (CRITICAL):**
+       - **Action:** Divorce the Source Text into ${stepCount} DISTINCT, NON-OVERLAPPING logical chunks (Chunk A, Chunk B, Chunk C...).
+       - **Constraint:** Chunk A must end completely before Chunk B begins.
+       - **Anti-Merging:** Do NOT compress distinct major events (e.g., "Industrial Revolution" and "WWII") into one step. Split them.
+       - **Anti-Repetition:** If Step 1 covers "Middle Ages", Step 2 MUST NOT mention "Middle Ages".
+
+    3. **Topic Policing (The Output):**
+       - For each step, define a strict **narrative_focus** (Allowed Content) and **forbidden_topics** (Banned Content from future/past steps).
+
+    4. **Structure Guide:**
     ${structureGuide}
 
-    Output FORMAT (JSON ONLY):
+    Output JSON Structure:
     {
-      "title": "Engaging Unit Title",
+      "unit_title": "String",
       "steps": [
-        { 
-          "step_number": 1, 
-          "title": "Foundation Concept", 
-          "description": "Brief description...",
+        {
+          "step_number": 1,
+          "title": "Unique Title for Chunk A",
+          "narrative_focus": "Discuss ONLY [Specific Concept A]. Do not mention [Concept B].",
+          "forbidden_topics": ["Concept B", "Concept C", "Future Events"],
           "bloom_level": "Remember",
-          "suggested_interaction_type": "multiple_choice"
+          "suggested_interaction_type": "memory_game" // OR multiple_choice
         },
-        // ... total ${stepCount} steps
+        // ...
       ]
     }
   `;
@@ -327,25 +379,74 @@ export const generateStepContent = async (
     ${contextText}
 
     MANDATORY REQUIREMENTS:
-    1. **Pedagogy:** Strictly follow the Bloom Level (${stepInfo.bloom_level}) and Interaction Type (${stepInfo.suggested_interaction_type}) defined in Step Info.
-    2. **Teach Content:** Engaging, clear explanation suitable for the level.
-    3. **Interaction:**
-       - IF 'ordering': Ensure items have a STRICT logical/chronological order. "instruction" key is required.
-       - IF 'categorization': Ensure items belong clearly to categories. "categories" array required.
-       - IF 'open_question': Provide a 'model_answer'.
+    1. **Pedagogy:** Strictly follow the Bloom Level (${stepInfo.bloom_level}) and Interaction Type (${stepInfo.suggested_interaction_type}).
+    2. **TOPIC POLICING (Crucial):**
+       - **Narrative Focus:** ${stepInfo.narrative_focus || "Discuss the current step's topic only."}
+       - **FORBIDDEN TOPICS:** ${JSON.stringify(stepInfo.forbidden_topics || [])}
+       - **Rule:** Do NOT mention, summarize, or preview the forbidden topics. Stay in your lane.
+    
+    3. **Complexity Adaptation (Age: ${gradeLevel}):** 
+       - Simplify academic text. Rewrite long paragraphs.
+       - **Age Adaptation (Grades 1-6):** Every technical term MUST have a concrete analogy (e.g., "Chlorophyll is like a solar panel").
+       - **Tone (Grade 7+):** STRICTLY NEGATIVE CONSTRAINT: Do NOT use "Second-Person" narrative (e.g., "Imagine yourself...", "How would you feel..."). Use an **Objective, Historical Tone**.
+
+    4. **Strict Grounding (Anti-Hallucination):**
+       - **Rule:** Use ONLY the provided Source Text.
+       - **Prohibition:** Do NOT add external examples (e.g., "Cyberbullying", "Smartphones") unless they appear in the Source Text.
+       - **Fact Check:** If it's not in the PDF, it doesn't exist for this lesson.
+
+    5. **Micro-Learning Progression (Anti-Amnesia):**
+       - Treat this step as "Chapter ${stepInfo.step_number}" of a continuous story.
+       - Focus ONLY on the new sub-topic found in the Source Text.
+
+    6. **Interaction Specific Rules:**
+       - **Ordering (Anti-Spoiler):** The 'teach_content' MUST be a narrative story (paragraphs). NO BULLET POINTS. Items must be paraphrased.
+       - **Categorization:** Categories must be **Function/Binary** (e.g., "Cause/Effect", "Problem/Solution"). do NOT use abstract themes.
+       - **Open Question:** Provide "Evaluator Guidelines" instead of a static answer. **MUST BE IN HEBREW.**
+       - **Fill Blanks (Cloze):** Use for "Understand" level. Remove KEYWORDS that require context to guess.
+       - **True/False:** Use for "Interpretation". "Does the text imply X?".
+       - **Language:** OUTPUT VALUES MUST BE IN HEBREW. \`model_answer\` must be in Hebrew.
+
+    7. **Scaffolding:**
+       - **Progressive Hints:** Provide 3 levels (General, Specific, Almost Answer).
+       - **Feedback:** Explain WHY an answer is wrong with a text reference.
+       - **Source Reference:** Quote the text.
 
     Output FORMAT (JSON ONLY):
     {
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}", 
-       "teach_content": "Full explanation text...",
+       "teach_content": "Full explanation text (Simplified for ${gradeLevel}, Narrative flow, complying with Focus)...",
        "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
-          // Fields vary by type:
-          // multiple_choice: question, options (with is_correct, feedback)
-          // ordering: question (instruction), items (in correct order)
-          // categorization: question, categories, items (with category prop)
-          // open_question: question, model_answer
+          "progressive_hints": ["Hint 1", "Hint 2", "Hint 3"],
+          "source_reference_hint": "See section '...'",
+          
+          // EXAMPLES (MUST FOLLOW):
+          // IF Multiple Choice / True False:
+          // "question": "The question string",
+          // "options": [{ "text": "A", "is_correct": true, "feedback": "..." }, { "text": "B", "is_correct": false }]
+
+          // IF Linking/Memory Game:
+          // "question": "Match the pairs:",
+          // "pairs": [{ "card_a": "Term", "card_b": "Definition" }, { "card_a": "Image Description", "card_b": "Concept" }]
+
+          // IF Fill In Blanks:
+          // "question": "Complete the sentence:",
+          // "sentence": "The [term] is the powerhouse of the [cell]." (Use brackets [] for blanks)
+
+          // IF Ordering:
+          // "question": "Arrange the steps...",
+          // "items": ["First Step", "Second Step", "Third Step"] 
+
+          // IF Categorization:
+          // "question": "Sort into groups...",
+          // "categories": ["Category A", "Category B"],
+          // "items": [{ "text": "Item 1", "category": "Category A" }, { "text": "Item 2", "category": "Category B" }]
+
+          // IF Open Question:
+          // "question": "Explain why...",
+          // "model_answer": "Evaluator Guidelines: Check if student mentions X and Y..."
        }
     }
   `;
