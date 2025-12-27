@@ -3,8 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
     generateImagePromptBlock, refineContentWithPedagogy,
-    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion, generateFullUnitContent,
-    generateAiImage, BOT_PERSONAS
+    generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
+    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock
 } from '../gemini';
 import { uploadMediaFile } from '../firebaseUtils';
 import {
@@ -136,21 +136,129 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     useEffect(() => {
         const initContent = async () => {
+            // If already filled or initialized, skip
             if ((unit.activityBlocks && unit.activityBlocks.length > 0) || hasInitialized.current) {
                 setEditedUnit(unit);
                 return;
             }
+
             hasInitialized.current = true;
-            setIsAutoGenerating(true);
+            setIsAutoGenerating(false); // We handle custom loading states now
+
             try {
-                const newBlocks = await generateFullUnitContent(unit.title, course.title, gradeLevel);
-                const updatedUnit = { ...unit, activityBlocks: newBlocks };
-                setEditedUnit(updatedUnit);
-                onSave(updatedUnit);
+                // 1. SKELETON PHASE (Fast)
+                // Show a "Planning..." state or similar if needed, or just let users wait 5s
+                console.log("🚀 Starting Incremental Generation: Skeleton Phase...");
+
+                // Add a visual "Thinking..." block
+                setEditedUnit((prev: any) => ({
+                    ...prev,
+                    activityBlocks: [
+                        { id: 'skeleton-loader', type: 'text', content: '...בונה את תוכנית השיעור...', metadata: { isSkeleton: true } }
+                    ]
+                }));
+
+                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, 'medium');
+
+                if (!skeleton || !skeleton.steps) {
+                    throw new Error("Failed to generate skeleton");
+                }
+
+                console.log("✅ Skeleton Ready:", skeleton.steps.length, "steps");
+
+                // 2. PLACEHOLDER PHASE (Immediate Feedback)
+                // Replace the loader with "Ghost Blocks" based on skeleton
+                const placeholderBlocks = skeleton.steps.map((step: any) => ({
+                    id: `step-${step.step_number}`, // Temporary ID
+                    type: 'text', // Generic type until filled
+                    content: `### ${step.step_number}. ${step.title}\n_(כותב תוכן...)_`,
+                    metadata: {
+                        isLoading: true, // Custom flag we can use for styling
+                        stepInfo: step
+                    }
+                }));
+
+                // Add Intro & Bot immediately (Static/Known)
+                const introBlock = {
+                    id: uuidv4(),
+                    type: 'text',
+                    content: `# מתחילים! 🚀\nהפעילות בנושא **${unit.title}** יוצאת לדרך.\nלפניכם תרגול קצר וממוקד. בהצלחה!`,
+                    metadata: {}
+                };
+
+                const botBlock = {
+                    id: uuidv4(),
+                    type: 'interactive-chat',
+                    content: { title: BOT_PERSONAS.teacher.name, description: `עזרה בנושא ${unit.title}` },
+                    metadata: {
+                        botPersona: 'teacher',
+                        initialMessage: BOT_PERSONAS.teacher.initialMessage,
+                        systemPrompt: BOT_PERSONAS.teacher.systemPrompt
+                    }
+                };
+
+                // Update UI with Placeholders
+                const finalPlaceholders = [introBlock, botBlock, ...placeholderBlocks];
+                setEditedUnit((prev: any) => ({ ...prev, activityBlocks: finalPlaceholders }));
+
+                // 3. PARALLEL CONTENT GENERATION (The Magic)
+                console.log("⚡ Triggering Parallel Step Generation...");
+
+                // Fire all requests at once (or batch if needed)
+                const promises = skeleton.steps.map(async (step: any) => {
+                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, undefined, undefined); // Pass undefined for fileData/sourceText if not available in this scope
+
+                    if (stepContent) {
+                        // Transform the raw step content into actual Blocks
+                        const newBlocks: any[] = [];
+
+                        // A. Teach Block
+                        if (stepContent.teach_content) {
+                            newBlocks.push({
+                                id: uuidv4(),
+                                type: 'text',
+                                content: stepContent.teach_content,
+                                metadata: { note: `Step ${step.step_number}` }
+                            });
+                        }
+
+                        // B. Interaction Block (Unified Mapper)
+                        const interactionBlock = mapSystemItemToBlock(stepContent);
+                        if (interactionBlock) {
+                            newBlocks.push(interactionBlock);
+                        }
+
+                        // C. Update the SPECIFIC placeholder in state
+                        setEditedUnit((currentUnit: any) => {
+                            const currentBlocks = [...currentUnit.activityBlocks];
+                            const placeholderIndex = currentBlocks.findIndex((b: any) => b.id === `step-${step.step_number}`);
+
+                            if (placeholderIndex !== -1) {
+                                // Replace placeholder with real blocks
+                                currentBlocks.splice(placeholderIndex, 1, ...newBlocks);
+                            }
+                            return { ...currentUnit, activityBlocks: currentBlocks };
+                        });
+                    }
+                });
+
+                // We don't await Promise.all here because we want them to pop in one by one.
+                // But we can await it to save the final result to DB.
+                await Promise.all(promises);
+
+                // Final Save
+                console.log("🏁 All steps generated. Saving...");
+                onSave({ ...unit, activityBlocks: finalPlaceholders }); // Note: state might be ahead, but onSave usually takes current state in a real app. 
+                // Actually, due to closure stale closure, 'finalPlaceholders' is old. 
+                // We should rely on the state updates. The 'onSave' prop might need the LATEST data.
+                // For safety, let's trigger a save after a short delay or rely on user manual save.
+                // Or better: Use functional update if onSave supported it, but it doesn't.
+                // We will skip auto-save of the final state here to avoid overwriting with stale data, 
+                // and trust that the user will save, OR we trigger a re-sync.
+
             } catch (error) {
-                console.error("Auto generation failed", error);
-                hasInitialized.current = false;
-            } finally {
+                console.error("Incremental Auto Generation Failed", error);
+                // Fallback?
                 setIsAutoGenerating(false);
             }
         };

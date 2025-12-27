@@ -74,7 +74,7 @@ export const cleanJsonString = (text: string): string => {
   }
 };
 
-const mapSystemItemToBlock = (item: any) => {
+export const mapSystemItemToBlock = (item: any) => {
   if (!item) return null;
 
   // 1. ROBUST DATA NORMALIZATION
@@ -223,6 +223,113 @@ const mapSystemItemToBlock = (item: any) => {
 
   return null;
 };
+
+// === PERFORMANCE OPTIMIZATION START ===
+
+// 1. Generate Skeleton (Fast Structure)
+export const generateUnitSkeleton = async (
+  topic: string,
+  gradeLevel: string,
+  activityLength: 'short' | 'medium' | 'long'
+) => {
+  let stepCount = 5;
+  if (activityLength === 'short') stepCount = 3;
+  if (activityLength === 'long') stepCount = 7;
+
+  const prompt = `
+    Role: Pedagogical Architect.
+    Task: Create a "Skeleton" for a learning unit on "${topic}" for ${gradeLevel}.
+    Count: Exactly ${stepCount} steps.
+    Language: Hebrew.
+
+    Output FORMAT (JSON ONLY):
+    {
+      "title": "Engaging Unit Title",
+      "steps": [
+        { "step_number": 1, "title": "Foundation Concept", "description": "Brief description of what will be taught" },
+        // ... total ${stepCount} steps
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME, // Fast model
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Skeleton Gen Error:", e);
+    return null;
+  }
+};
+
+// 2. Generate Single Step Content (Detailed & Slow - Run in Parallel)
+export const generateStepContent = async (
+  topic: string,
+  stepInfo: any,
+  gradeLevel: string,
+  sourceText?: string,
+  fileData?: any
+) => {
+  const contextText = sourceText ? `Source Material:\n"""${sourceText.substring(0, 3000)}..."""` : `Topic: ${topic}`;
+
+  const prompt = `
+    Role: Content Writer & Teacher.
+    Task: Write FULL content for ONE step of a unit.
+    Step Info: ${JSON.stringify(stepInfo)}
+    Target Audience: ${gradeLevel}.
+    Language: Hebrew.
+
+    ${contextText}
+
+    Requirements:
+    1. **Teach Content:** Engaging, clear explanation.
+    2. **Interaction:** A valid question/interaction based on the content.
+    3. **Robust Data:** Include 'question', 'options' (with 'is_correct', 'feedback'), 'bloom_level'.
+
+    Output FORMAT (JSON ONLY):
+    {
+       "step_number": ${stepInfo.step_number},
+       "bloom_level": "Apply", 
+       "teach_content": "Full explanation text...",
+       "selected_interaction": "multiple_choice", 
+       "data": {
+          "question": "The question text",
+          "options": [
+             {"text": "Opt1", "is_correct": true, "feedback": "Yes!"},
+             {"text": "Opt2", "is_correct": false, "feedback": "No..."}
+          ]
+       }
+    }
+  `;
+
+  const userContent: any[] = [{ type: "text", text: prompt }];
+  if (fileData) {
+    userContent.push({ type: "image_url", image_url: { url: `data:${fileData.mimeType};base64,${fileData.base64}` } });
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: userContent as any }],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (e) {
+    console.error(`Step Gen Error (Step ${stepInfo.step_number}):`, e);
+    return null;
+  }
+};
+
+// === PERFORMANCE OPTIMIZATION END ===
 
 // --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (

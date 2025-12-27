@@ -1,4 +1,5 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https"; // Added for Proxy
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -11,6 +12,53 @@ initializeApp();
 const db = getFirestore();
 const openAiApiKey = defineSecret("OPENAI_API_KEY");
 const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
+
+// --- PROXY FUNCTION (Production Fix) ---
+export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, async (req, res) => {
+    // 1. Validate Method
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    try {
+        const apiKey = openAiApiKey.value();
+        // 2. Extract Path (e.g., /chat/completions)
+        // req.path will include the full path from the rewrite. 
+        // If local rewrite is /api/openai -> proxy, we need to extract the OpenAI endpoint.
+        // Assuming rewrite sends /api/openai/v1/chat/completions -> proxy/v1/chat/completions
+        const endpoint = req.path.replace('/api/openai', '');
+
+        const url = `https://api.openai.com/v1${endpoint}`;
+
+        logger.info(`Proxying request to: ${url}`);
+
+        // 3. Forward Request
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(req.body)
+        });
+
+        // 4. Handle Response
+        if (!response.ok) {
+            const errorText = await response.text();
+            logger.error(`OpenAI Error (${response.status}):`, errorText);
+            res.status(response.status).send(errorText);
+            return;
+        }
+
+        const data = await response.json();
+        res.json(data);
+
+    } catch (error: any) {
+        logger.error("Proxy Internal Error:", error);
+        res.status(500).send({ error: error.message });
+    }
+});
 
 // --- פונקציות עזר ---
 

@@ -26,6 +26,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/openai/**",
+        "function": "openaiProxy"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
