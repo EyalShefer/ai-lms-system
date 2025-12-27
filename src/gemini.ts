@@ -230,23 +230,62 @@ export const mapSystemItemToBlock = (item: any) => {
 export const generateUnitSkeleton = async (
   topic: string,
   gradeLevel: string,
-  activityLength: 'short' | 'medium' | 'long'
+  activityLength: 'short' | 'medium' | 'long',
+  sourceText?: string
 ) => {
   let stepCount = 5;
-  if (activityLength === 'short') stepCount = 3;
-  if (activityLength === 'long') stepCount = 7;
+  let structureGuide = "";
+
+  if (activityLength === 'short') {
+    stepCount = 3;
+    structureGuide = `
+      STEP 1: Foundation (Remember/Understand). Type: multiple_choice.
+      STEP 2: Connection (Apply/Analyze). Type: ordering OR categorization.
+      STEP 3: Synthesis (Evaluate/Create). Type: open_question OR multiple_choice (scenario).
+    `;
+  } else if (activityLength === 'long') {
+    stepCount = 7;
+    structureGuide = `
+      STEPS 1-2: Foundation. Type: multiple_choice / true_false.
+      STEPS 3-5: Connection. Type: ordering / categorization / matching.
+      STEPS 6-7: Synthesis. Type: open_question / multiple_choice.
+    `;
+  } else {
+    // Medium
+    stepCount = 5;
+    structureGuide = `
+      STEPS 1-2: Foundation (Remember). Type: multiple_choice.
+      STEPS 3-4: Connection (Analyze). Type: ordering OR categorization.
+      STEP 5: Synthesis (Create). Type: open_question.
+    `;
+  }
+
+  const contextPart = sourceText
+    ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
+    : `Topic: "${topic}"`;
 
   const prompt = `
     Role: Pedagogical Architect.
-    Task: Create a "Skeleton" for a learning unit on "${topic}" for ${gradeLevel}.
+    Task: Create a "Skeleton" for a learning unit.
+    ${contextPart}
+    Target Audience: ${gradeLevel}.
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
+
+    CRITICAL PEDAGOGICAL ROADMAP:
+    ${structureGuide}
 
     Output FORMAT (JSON ONLY):
     {
       "title": "Engaging Unit Title",
       "steps": [
-        { "step_number": 1, "title": "Foundation Concept", "description": "Brief description of what will be taught" },
+        { 
+          "step_number": 1, 
+          "title": "Foundation Concept", 
+          "description": "Brief description...",
+          "bloom_level": "Remember",
+          "suggested_interaction_type": "multiple_choice"
+        },
         // ... total ${stepCount} steps
       ]
     }
@@ -254,7 +293,7 @@ export const generateUnitSkeleton = async (
 
   try {
     const completion = await openai.chat.completions.create({
-      model: MODEL_NAME, // Fast model
+      model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.7
@@ -287,23 +326,26 @@ export const generateStepContent = async (
 
     ${contextText}
 
-    Requirements:
-    1. **Teach Content:** Engaging, clear explanation.
-    2. **Interaction:** A valid question/interaction based on the content.
-    3. **Robust Data:** Include 'question', 'options' (with 'is_correct', 'feedback'), 'bloom_level'.
+    MANDATORY REQUIREMENTS:
+    1. **Pedagogy:** Strictly follow the Bloom Level (${stepInfo.bloom_level}) and Interaction Type (${stepInfo.suggested_interaction_type}) defined in Step Info.
+    2. **Teach Content:** Engaging, clear explanation suitable for the level.
+    3. **Interaction:**
+       - IF 'ordering': Ensure items have a STRICT logical/chronological order. "instruction" key is required.
+       - IF 'categorization': Ensure items belong clearly to categories. "categories" array required.
+       - IF 'open_question': Provide a 'model_answer'.
 
     Output FORMAT (JSON ONLY):
     {
        "step_number": ${stepInfo.step_number},
-       "bloom_level": "Apply", 
+       "bloom_level": "${stepInfo.bloom_level}", 
        "teach_content": "Full explanation text...",
-       "selected_interaction": "multiple_choice", 
+       "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
-          "question": "The question text",
-          "options": [
-             {"text": "Opt1", "is_correct": true, "feedback": "Yes!"},
-             {"text": "Opt2", "is_correct": false, "feedback": "No..."}
-          ]
+          // Fields vary by type:
+          // multiple_choice: question, options (with is_correct, feedback)
+          // ordering: question (instruction), items (in correct order)
+          // categorization: question, categories, items (with category prop)
+          // open_question: question, model_answer
        }
     }
   `;

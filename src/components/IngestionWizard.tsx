@@ -117,7 +117,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             } else if (mode === 'topic' && topic) {
                 suggestedTitle = topic;
             } else if (mode === 'text' && pastedText) {
-                suggestedTitle = "פעילות טקסט חופשי"; // Default title for text
+                suggestedTitle = topic || "פעילות טקסט חופשי"; // Use topic if provided, else default
             }
         }
         setCustomTitle(suggestedTitle);
@@ -173,7 +173,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
-            <div className={`bg-white/90 glass w-full ${courseMode === 'exam' ? 'max-w-6xl' : 'max-w-4xl'} rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-300`}>
+            <div className={`bg-white/90 glass w-full ${courseMode === 'exam' ? 'max-w-6xl' : (step === 1 ? 'max-w-4xl' : 'max-w-2xl')} rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-500 ease-in-out`}>
 
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
@@ -265,6 +265,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             )}
                             {mode === 'text' && (
                                 <div className="animate-fade-in mt-6">
+                                    <label className="block text-lg font-bold text-gray-700 mb-2">נושא הטקסט (מומלץ):</label>
+                                    <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-4 mb-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm" placeholder="למשל: תקציר הספר, מאמר דעה..." />
+
                                     <label className="block text-lg font-bold text-gray-700 mb-2">הדביקו כאן את הטקסט:</label>
                                     <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)} className="w-full p-4 text-lg border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm min-h-[150px]" placeholder="הדביקו תוכן כאן..." autoFocus />
                                 </div>
@@ -273,7 +276,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     )}
 
                     {step === 2 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-slide-up h-full pb-20">
+                        <div className={`grid grid-cols-1 ${courseMode === 'exam' ? 'md:grid-cols-2' : ''} gap-10 animate-slide-up h-full pb-20`}>
                             {/* עמודה ימנית - הגדרות טכניות */}
                             <div className="space-y-6 bg-blue-50/50 p-6 rounded-3xl border border-blue-100 order-2 md:order-1">
                                 {/* שדה שם הפעילות החדשה */}

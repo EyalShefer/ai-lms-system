@@ -154,11 +154,23 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 setEditedUnit((prev: any) => ({
                     ...prev,
                     activityBlocks: [
-                        { id: 'skeleton-loader', type: 'text', content: '...בונה את תוכנית השיעור...', metadata: { isSkeleton: true } }
+                        { id: 'skeleton-loader', type: 'text', content: 'נא להמתין מספר שניות, המערכת מייצרת עבורכם את התוכן...', metadata: { isSkeleton: true } }
                     ]
                 }));
 
-                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, 'medium');
+                // Extract settings from course wizard data
+                const settings = (course as any)?.wizardData?.settings || {};
+                const targetLength = settings.activityLength || 'medium';
+                const shouldIncludeBot = settings.includeBot !== false; // Default to true if missing, or check exact logic
+                // Actually, wizard defaults includeBot to false usually? In Wizard it defaults to false.
+                // Let's check the user preference. Passing it safely.
+                const safeIncludeBot = settings.includeBot === true;
+
+                // Extract Source Text (PDF or Pasted)
+                const sourceText = course?.fullBookContent || (course as any)?.wizardData?.pastedText || "";
+                console.log("📚 Source Text Length:", sourceText?.length || 0);
+
+                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, targetLength, sourceText);
 
                 if (!skeleton || !skeleton.steps) {
                     throw new Error("Failed to generate skeleton");
@@ -186,19 +198,25 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     metadata: {}
                 };
 
-                const botBlock = {
-                    id: uuidv4(),
-                    type: 'interactive-chat',
-                    content: { title: BOT_PERSONAS.teacher.name, description: `עזרה בנושא ${unit.title}` },
-                    metadata: {
-                        botPersona: 'teacher',
-                        initialMessage: BOT_PERSONAS.teacher.initialMessage,
-                        systemPrompt: BOT_PERSONAS.teacher.systemPrompt
-                    }
-                };
+                let botBlock = null;
+                if (safeIncludeBot) {
+                    const personaId = settings.botPersona || 'socratic';
+                    const personaData = BOT_PERSONAS[personaId as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.socratic;
+
+                    botBlock = {
+                        id: uuidv4(),
+                        type: 'interactive-chat',
+                        content: { title: personaData.name, description: `עזרה בנושא ${unit.title}` },
+                        metadata: {
+                            botPersona: personaId,
+                            initialMessage: personaData.initialMessage,
+                            systemPrompt: personaData.systemPrompt
+                        }
+                    };
+                }
 
                 // Update UI with Placeholders
-                const finalPlaceholders = [introBlock, botBlock, ...placeholderBlocks];
+                const finalPlaceholders = [introBlock, ...(botBlock ? [botBlock] : []), ...placeholderBlocks];
                 setEditedUnit((prev: any) => ({ ...prev, activityBlocks: finalPlaceholders }));
 
                 // 3. PARALLEL CONTENT GENERATION (The Magic)
@@ -206,7 +224,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 // Fire all requests at once (or batch if needed)
                 const promises = skeleton.steps.map(async (step: any) => {
-                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, undefined, undefined); // Pass undefined for fileData/sourceText if not available in this scope
+                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined); // Pass sourceText
 
                     if (stepContent) {
                         // Transform the raw step content into actual Blocks
@@ -740,7 +758,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 {/* TEXT BLOCK */}
                                 {block.type === 'text' && (
                                     <div>
-                                        <textarea className="w-full p-4 border border-gray-200/60 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-gray-700 leading-relaxed resize-y min-h-[120px]" value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} placeholder="כתבו כאן את תוכן הפעילות..." />
+                                        {block.metadata?.isLoading || block.metadata?.isSkeleton ? (
+                                            <div className="w-full p-6 border border-blue-100 bg-blue-50/40 rounded-xl flex flex-col items-center justify-center text-center gap-3 animate-pulse min-h-[120px]">
+                                                <IconSparkles className="w-6 h-6 text-blue-400" />
+                                                <div className="text-blue-600 font-bold text-lg">{block.content}</div>
+                                                <div className="text-blue-300 text-xs">ה-AI עובד על זה...</div>
+                                            </div>
+                                        ) : (
+                                            <textarea className="w-full p-4 border border-gray-200/60 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-gray-700 leading-relaxed resize-y min-h-[120px]" value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} placeholder="כתבו כאן את תוכן הפעילות..." />
+                                        )}
                                         {renderEmbeddedMedia(block.id, block.metadata)}
                                         <div className="flex flex-wrap items-center gap-2 mt-3 bg-blue-50/40 p-2 rounded-xl border border-blue-100/50 backdrop-blur-sm justify-between">
                                             <div className="flex gap-2 items-center">

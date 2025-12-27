@@ -138,7 +138,9 @@ const AuthenticatedApp = () => {
 
     // 1. Close Wizard Immediately & Show Loading
     setWizardMode(null);
-    setShowLoader(true); // Show the game loader
+    // 1. Close Wizard Immediately
+    setWizardMode(null);
+    setShowLoader(false); // DIRECT ENTRY: Skip game loader, go straight to editor
     setIsGenerating(true);
 
     try {
@@ -209,75 +211,47 @@ const AuthenticatedApp = () => {
 
       let aiSyllabus = [];
       try {
-        // --- קריאה ל-Generate Course Plan ---
-        // ארגומנטים: topic, grade, imageFile, subject, sourceText
-        aiSyllabus = await generateCoursePlan(
-          topicForAI,
-          extractedGrade,
-          aiFileData,
-          userSubject,
-          aiSourceText,
-          wizardData.settings?.includeBot ?? false
-        );
-        console.log("AI Success. Source Text Length:", aiSourceText?.length || 0);
+        // --- NEW: Instant "Skeleton" Generation Strategy ---
+        // Instead of waiting for Cloud Function, we create an EMPTY shell and let UnitEditor fill it.
+        console.log("🚀 Skipping Cloud Gen -> Starting Instant Skeleton Strategy");
 
-        // --- CRITICAL FIX: Force Client-Side Content Generation (Activity Mode) ---
-        // The Cloud generation provides the syllabus, but we want our NEW Activity Logic for the content.
-        if (aiSyllabus.length > 0 && aiSyllabus[0].learningUnits.length > 0) {
-          const firstUnit = aiSyllabus[0].learningUnits[0];
-          console.log("🚀 FORCE GENERATING CONTENT CLIENT-SIDE FOR:", firstUnit.title);
-
-          // Import this function dynamically or ensure it's imported at top
-          const { generateFullUnitContent } = await import('./gemini');
-
-          const newBlocks = await generateFullUnitContent(
-            firstUnit.title,
-            topicForAI,
-            extractedGrade,
-            aiFileData,
-            userSubject,
-            aiSourceText,
-            { ...wizardData.settings?.taxonomy, botPersona: wizardData.settings?.botPersona },
-            wizardData.settings?.includeBot,
-            courseMode, // Explicitly pass the mode ('learning' or 'exam')
-            activityLength // NEW: Pass length
-          );
-
-          // Overwrite the content in the syllabus
-          aiSyllabus = aiSyllabus.map((mod: any) => ({
-            ...mod,
-            learningUnits: mod.learningUnits.map((u: any) =>
-              u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
-            )
-          }));
-          console.log("✅ Client-Side Content Generation Complete");
-        }
+        // Create a basic syllabus shell
+        aiSyllabus = [{
+          id: crypto.randomUUID(),
+          title: "פעילות חדשה",
+          learningUnits: [{
+            id: crypto.randomUUID(),
+            title: topicForAI,
+            type: 'practice',
+            activityBlocks: [] // Empty blocks trigger the UnitEditor's useEffect!
+          }]
+        }];
 
       } catch (aiError) {
-        console.error("AI Failed:", aiError);
-        aiSyllabus = [{ id: "fallback-" + Date.now(), title: "מבוא (ידני)", learningUnits: [] }];
-        alert("ה-AI נתקל בבעיה, נוצר שלד בסיסי.");
+        console.error("AI Init Failed (Non-fatal):", aiError);
+        // Fallback
+        aiSyllabus = [{ id: "fallback-" + Date.now(), title: "פעילות חדשה", learningUnits: [] }];
       }
 
       const { file, ...cleanWizardData } = wizardData;
+
       const newCourseData = {
-        title: courseTitle, // Use the correct title
+        title: courseTitle,
         teacherId: currentUser.uid,
         targetAudience: extractedGrade,
         subject: userSubject,
         gradeLevel: extractedGrade,
         syllabus: aiSyllabus,
         mode: courseMode,
-        activityLength, // NEW: Persist length
+        activityLength,
         createdAt: serverTimestamp(),
-        // Persist Source Text Visibility & Content
         showSourceToStudent: wizardData.settings?.showSourceToStudent ?? true,
         fullBookContent: aiSourceText || "",
         pdfSource: fileUrl || null,
         wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
-      // Deep sanitize to remove any 'undefined' values (Firestore rejects them)
+      // Deep sanitize
       const dataToSave = JSON.parse(JSON.stringify(newCourseData));
 
       const docRef = await addDoc(collection(db, "courses"), dataToSave);
@@ -285,9 +259,9 @@ const AuthenticatedApp = () => {
       loadCourse(docRef.id);
       setMode('editor');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error:", error);
-      alert("שגיאה: " + error.message);
+      alert("שגיאה: " + (error?.message || "Unknown error"));
     } finally {
       setIsGenerating(false);
     }
@@ -324,7 +298,12 @@ const AuthenticatedApp = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Suspense fallback={<LoadingSpinner />}>
-          {isStudentLink ? <CoursePlayer assignment={currentAssignment} /> : (
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh]">
+              <LoadingSpinner />
+              <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
+            </div>
+          ) : isStudentLink ? <CoursePlayer assignment={currentAssignment} /> : (
             <>
               {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
               {mode === 'editor' && <CourseEditor />}
