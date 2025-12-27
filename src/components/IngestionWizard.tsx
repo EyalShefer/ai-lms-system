@@ -136,7 +136,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 mode,
                 file,
                 pastedText,
-                topic: customTitle || topic || "פעילות חדשה",
+                title: customTitle || topic || "פעילות חדשה",
+                originalTopic: topic,
+                topic: customTitle || topic || "פעילות חדשה", // Kept for backward compatibility if needed, but we should use title/originalTopic
                 settings: {
                     subject: subject || "כללי",
                     activityLength,
@@ -234,7 +236,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-64">
                                 <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-pink-500 bg-pink-50/50 shadow-lg ring-4 ring-pink-100' : 'border-gray-200 bg-white hover:border-pink-300 hover:shadow-md'}`}>
                                     <div className="bg-pink-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-pink-600" /></div>
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם {courseMode === 'exam' ? 'מבחן' : 'פעילות'} עשירה על בסיס הידע הרחב שלו.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
 
@@ -247,11 +249,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
                                 >
                                     <input {...getInputProps()} />
-                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן לעיבוד</p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconCloudUpload className="w-8 h-8 text-indigo-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">לחצו כאן או גררו קובץ PDF/Word כדי שה-AI ייצור עבורכם את {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}.</p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconCloudUpload className="w-4 h-4" /></div>}</>)}
+                                    {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן. <br /><span className="font-bold text-blue-600">שימו לב: הפעילות תתבסס רק על המידע שבקובץ.</span></p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconCloudUpload className="w-8 h-8 text-indigo-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">העלו קובץ PDF/Word. <span className="font-bold text-indigo-600 block mt-1">ה-AI ייצור {courseMode === 'exam' ? 'מבחן' : 'פעילות'} בהסתמך אך ורק על תוכן הקובץ.</span></p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconCloudUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
                                 <button onClick={() => setMode('text')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'text' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
                                     <div className="bg-green-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBook className="w-8 h-8 text-green-600" /></div>
-                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הדביקו טקסט</h4><p className="text-sm text-gray-500 leading-relaxed">הדביקו מאמר, סיכום או כל טקסט אחר.</p></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">הדביקו טקסט</h4><p className="text-sm text-gray-500 leading-relaxed">הדביקו מאמר או סיכום. <span className="font-bold text-green-600 block mt-1">הפעילות תיווצר אך ורק על בסיס הטקסט שתדביקו.</span></p></div>
                                     {mode === 'text' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
                             </div>

@@ -13,7 +13,9 @@ if (!OPENAI_API_KEY) {
 export const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
-  baseURL: `${window.location.origin}/api/openai`
+  baseURL: `${window.location.origin}/api/openai`,
+  timeout: 60000, // Default timeout: 1 minute
+  maxRetries: 2
 });
 
 export const BOT_PERSONAS = {
@@ -73,82 +75,149 @@ export const cleanJsonString = (text: string): string => {
 };
 
 const mapSystemItemToBlock = (item: any) => {
+  if (!item) return null;
+
+  // 1. ROBUST DATA NORMALIZATION
+  // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
+  const rawData = item.data || item.interactive_question || item;
+
+  // Extract Type
+  const type = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
+
+  // Extract Question Text (Handle all known variations)
+  const questionText = rawData.question || rawData.question_text || rawData.text || rawData.instruction || "שאלה ללא טקסט";
+
   const commonMetadata = {
-    bloomLevel: item.bloom_level,
-    feedbackCorrect: item.feedback_correct,
-    feedbackIncorrect: item.feedback_incorrect,
-    sourceReference: item.source_reference
+    bloomLevel: item.bloom_level || "General",
+    feedbackCorrect: rawData.feedback_correct || rawData.feedback || "תשובה נכונה!",
+    feedbackIncorrect: rawData.feedback_incorrect || "נסו שוב.",
+    sourceReference: rawData.source_reference || rawData.source_reference_hint || null
   };
 
-  if (item.type === 'multiple_choice' || item.type === 'true_false') {
-    // Robust options extraction
-    let options: string[] = [];
-    if (item.content && Array.isArray(item.content.options)) {
-      options = item.content.options;
-    } else if (Array.isArray(item.options)) {
-      options = item.options;
-    } else if (Array.isArray(item.choices)) {
-      options = item.choices;
-    } else if (Array.isArray(item.choices)) {
-      options = item.choices;
+  // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
+  if (type === 'multiple_choice' || type === 'true_false' || type === 'teach_then_ask') {
+    // Robust Options Extraction
+    let options: any[] = [];
+    if (Array.isArray(rawData.options)) options = rawData.options;
+    else if (Array.isArray(rawData.choices)) options = rawData.choices;
+    else if (Array.isArray(rawData.answers)) options = rawData.answers;
+
+    // Normalize Options to Strings for Content, Keep Rich Data in Metadata
+    const normalizedOptions = options.map((o: any) => typeof o === 'string' ? o : (o.text || o.label || ""));
+
+    // Fallback if empty options
+    if (normalizedOptions.length < 2) {
+      console.warn("Invalid options detected, adding specific fallback placeholders");
+      normalizedOptions.push("אפשרות א", "אפשרות ב");
     }
 
-    // Validate options
-    if (!options || options.length < 2 || options.some(o => !o || typeof o !== 'string')) {
-      console.warn("Invalid options detected, using fallback", options);
-      options = ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"];
-    }
-
-    // Robust correct answer extraction
+    // Robust Correct Answer Extraction
     let correctAnswer = "";
-    if (item.content?.correct_index !== undefined && options[item.content.correct_index]) {
-      correctAnswer = options[item.content.correct_index];
-    } else if (item.correct_index !== undefined && options[item.correct_index]) {
-      correctAnswer = options[item.correct_index];
-    } else if (item.content?.correct_answer && options.includes(item.content.correct_answer)) {
-      correctAnswer = item.content.correct_answer;
-    } else {
-      correctAnswer = options[0] || "";
-    }
 
-    // Randomize Options
-    const shuffledOptions = [...options].sort(() => Math.random() - 0.5);
+    // 1. Check for "is_correct" flag in rich objects
+    const correctOptObj = options.find((o: any) => typeof o === 'object' && (o.is_correct || o.isCorrect === true));
+    if (correctOptObj) {
+      correctAnswer = correctOptObj.text || correctOptObj.label;
+    }
+    // 2. Check for explicit correct answer string
+    else if (rawData.correct_answer && typeof rawData.correct_answer === 'string') {
+      correctAnswer = rawData.correct_answer;
+    }
+    // 3. Check for correct index
+    else if (rawData.correct_index !== undefined && normalizedOptions[rawData.correct_index]) {
+      correctAnswer = normalizedOptions[rawData.correct_index];
+    }
+    // 4. Fallback to first option
+    else {
+      correctAnswer = normalizedOptions[0];
+    }
 
     return {
       id: uuidv4(),
       type: 'multiple-choice',
-      content: { question: item.question_text || item.question || "שאלה ללא טקסט", options: shuffledOptions, correctAnswer: correctAnswer },
-      metadata: { ...commonMetadata, score: 10 }
+      content: {
+        question: questionText,
+        options: normalizedOptions,
+        correctAnswer: correctAnswer
+      },
+      metadata: {
+        ...commonMetadata,
+        score: 10,
+        progressiveHints: rawData.progressive_hints || [],
+        richOptions: options.some(o => typeof o === 'object') ? options : undefined
+      }
     };
   }
 
-  if (item.type === 'open_question') {
+  // === CASE B: OPEN QUESTION ===
+  if (type === 'open_question' || type === 'open_ended') {
     return {
       id: uuidv4(),
       type: 'open-question',
-      content: { question: item.question_text },
+      content: { question: questionText },
       metadata: {
         ...commonMetadata,
-        modelAnswer: item.content?.teacher_guidelines || (item?.key_points ? item.key_points.join('\n') : "תשובה מלאה"),
-        hint: item.content?.hint || "",
+        modelAnswer: rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key || "התשובה נמצאת בחומר הלימוד.",
         score: 20
       }
     };
   }
 
-  if (item.type === 'sorting' || item.type === 'sequencing') {
-    const isSorting = item.type === 'sorting';
+  // === CASE C: ORDERING / SEQUENCING ===
+  if (type === 'ordering' || type === 'sequencing') {
+    const items = rawData.items || rawData.steps || rawData.correct_order || [];
     return {
       id: uuidv4(),
-      type: 'multiple-choice',
+      type: 'ordering',
       content: {
-        question: item.question_text + (isSorting ? " (בחר את ההתאמה הנכונה)" : " (בחר את הסדר הנכון)"),
-        options: isSorting
-          ? ["התאמה נכונה של הפריטים לקטגוריות", "התאמה שגויה", "התאמה חלקית", "אף תשובה אינה נכונה"]
-          : ["הסדר הנכון כפי שנלמד", "סדר הפוך", "סדר אקראי א", "סדר אקראי ב"],
-        correctAnswer: isSorting ? "התאמה נכונה של הפריטים לקטגוריות" : "הסדר הנכון כפי שנלמד"
+        instruction: questionText !== "שאלה ללא טקסט" ? questionText : "סדרו את היומיום לפי הסדר הנכון:",
+        correct_order: items
       },
-      metadata: { ...commonMetadata, note: "הומר אוטומטית משאלת מיון/רצף" }
+      metadata: { ...commonMetadata, score: 15 }
+    };
+  }
+
+  // === CASE D: CATEGORIZATION / GROUPING / MATCHING ===
+  if (type === 'categorization' || type === 'grouping' || type === 'matching') {
+    let categories: string[] = [];
+    let items: any[] = [];
+
+    // Handle Matching (Pairs)
+    if (type === 'matching' || rawData.pairs) {
+      const pairs = rawData.pairs || [];
+      const uniqueCats = new Set<string>();
+      pairs.forEach((p: any) => uniqueCats.add(p.right || p.category));
+      categories = Array.from(uniqueCats);
+      items = pairs.map((p: any) => ({
+        text: p.left || p.item,
+        category: p.right || p.category
+      }));
+    }
+    // Handle Standard Grouping
+    else {
+      categories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
+      const rawItems = rawData.items || [];
+      // Map items with group index if needed
+      items = rawItems.map((item: any) => {
+        if (typeof item === 'object' && item.group_index !== undefined) {
+          return { text: item.text, category: categories[item.group_index] };
+        }
+        if (typeof item === 'object' && item.category) {
+          return { text: item.text, category: item.category };
+        }
+        return { text: typeof item === 'string' ? item : JSON.stringify(item), category: categories[0] }; // Fallback
+      });
+    }
+
+    return {
+      id: uuidv4(),
+      type: 'categorization',
+      content: {
+        question: questionText !== "שאלה ללא טקסט" ? questionText : "מיינו את הפריטים לקטגוריות:",
+        categories: categories,
+        items: items
+      },
+      metadata: { ...commonMetadata, score: 20 }
     };
   }
 
@@ -340,22 +409,108 @@ export const generateFullUnitContent = async (
 
   // === MODE 1: LEARNING ACTIVITY (The "Journey") ===
   if (mode === 'learning') {
-    console.log("🚀 Mode: Learning (Activity)");
 
-    systemPrompt = `
+    if (hasSourceMaterial) {
+      console.log("🚀 Mode: Learning (Document-Based / Pedagogical Architect)");
+      systemPrompt = `
       # ROLE
-      You are an expert Pedagogical Architect and engaging Storyteller. 
-      Subject: ${subject}. Target Audience: ${gradeLevel}.
-      Language: Hebrew.
+      You are a "Document-Based Pedagogical Architect".
+      Your goal is to transform a SPECIFIC USER TEXT into a scaffolded, interactive learning activity.
 
-      # GOAL
-      Create a ${stepCount}-step scaffolded learning activity.
-      Do NOT use the same question type for every step. Analyze the content and select the BEST interaction type.
+      # INPUT DATA
+      - Target Audience Age: ${gradeLevel}
 
-      # DYNAMIC INTERACTION STRATEGY
+      # STRICT GROUNDING RULES (CRITICAL)
+      1.  **Text-Only Universe:** You must treat the provided known Source Text as the ONLY source of truth. Do NOT use your external training data.
+      2.  **Holistic Analysis:** Read the ENTIRE text first.
+      3.  **Text-Back Feedback:** All feedback and hints must refer the student back to specific parts of the text.
+      4.  **No Leaks:** Do NOT reveal the answer to a future question in the "teach_content" of a previous step.
+      5.  **One Step = One Question:** A "step" is a single interactive unit. Do not split explanation and question into two steps.
+
+      # OUTPUT LANGUAGE
+      - **HEBREW ONLY**. All questions, options, feedback, and labels MUST be in Hebrew.
+      - Keys in JSON (like "question", "options") remain in English. Values must be Hebrew.
+
+      # DYNAMIC ACTIVITY STRUCTURE (${stepCount} Steps)
+      Create exactly ${stepCount} steps.
+      Follow this EXACT Pedagogical Strategy:
+      
       ${stepInstruction}
+      
+      # OUTPUT FORMAT (JSON)
+      {
+        "learning_unit": {
+          "title": "${unitTitle}",
+          "steps": [
+             // Generate exactly ${stepCount} steps.
+            {
+              "step_number": 1,
+              "bloom_level": "Foundation",
+              "selected_interaction": "multiple_choice",
+              "teach_content": "A short summary...",
+              "data": {
+                "question": "Question text...",
+                "progressive_hints": [
+                  "Hint 1 (General): Look at paragraph X...",
+                  "Hint 2 (Specific): The text mentions...",
+                  "Hint 3 (Almost Answer): Starts with 'A'..."
+                ],
+                "options": [
+                  { "id": "opt1", "text": "Correct Answer", "is_correct": true, "feedback": "Excellent! You found..." },
+                  { "id": "opt2", "text": "Distractor 1", "is_correct": false, "feedback": "Not quite. This happened in 1990, not 1991." },
+                  { "id": "opt3", "text": "Distractor 2", "is_correct": false, "feedback": "Incorrect. The text actually says..." }
+                ],
+                "source_reference_hint": "Read the section starting with '...' (In Hebrew)"
+              }
+            },
+            // ... Continue for all ${stepCount} steps
+          ]
+        }
+      }
 
-      # JSON OUTPUT FORMAT
+      # INTERACTION SPECIFIC RULES
+      - **Ordering Questions (CRITICAL):**
+        1. **Chronological Authority:** If the text mentions events out of order (e.g., "B happened after A"), you must order them LOGICALLY (A then B), NOT by their appearance in the text.
+        2. **Process over Description:** Only ask to order steps in a process, timeline, or lifecycle. Do NOT ask to order arbitrary list items just because they appear in a list.
+        3. **Valid Sequence:** Ensure the sequence has ONE indisputable logical order.
+      
+      - **Categorization/Grouping (CRITICAL):**
+        1. **Exclusive Categories:** Ensure items belong UNDISPUTABLY to only one category based on the text.
+        2. **Avoid Semantic Traps:** Do NOT use distractors that sound logically correct (synonyms/related terms) if the text distinguishes them. For example, if "A does X" and "B does Y", do not list B as a candidate for X just because X and Y are similar, unless the distinction is sharp and clear.
+        3. **Unambiguous Mapping:** If multiple terms describe similar things, ensure the category definition is specific enough to exclude the "almost correct" answers.
+
+      # APPENDIX: DATA STRUCTURES
+      - IF \`ordering\`: { "instruction": "Order these events in their logical/chronological sequence:", "items": ["Step 1", "Step 2", "Step 3"], "correct_sequence": ["Step 1", "Step 2", "Step 3"] }
+        (Note: Provide the items in the 'items' array. The system assumes a correct Order check).
+      - IF \`matching\`: { "instruction": "Match the term to its definition in the text:", "pairs": [{"left": "Term", "right": "Definition"}] }
+      `;
+
+      // User Message Construction for Document-Based
+      if (sourceText) {
+        userMessageContent.push({ type: "text", text: `Source Text: \n"""${sourceText}"""\n\nTask: Create Document - Based Learning Activity for "${unitTitle}".` });
+      } else {
+        // Fallback if image but no text (shouldn't happen with hasSourceMaterial logic but safe to keep)
+        userMessageContent.push({ type: "text", text: `Task: Create Activity based on the attached image content.` });
+      }
+
+    } else {
+      // === EXISTING STORYTELLER MODE (No Source Text) ===
+      console.log("🚀 Mode: Learning (Storyteller / Topic-Based)");
+
+      systemPrompt = `
+        # ROLE
+        You are an expert Pedagogical Architect and engaging Storyteller.
+        Subject: ${subject}. Target Audience: ${gradeLevel}.
+      Language: Hebrew.
+  
+        # GOAL
+        Create a ${stepCount} -step scaffolded learning activity.
+        Do NOT use the same question type for every step.Analyze the content and select the BEST interaction type.
+  
+        # DYNAMIC INTERACTION STRATEGY
+        ${stepInstruction}
+  
+        # JSON OUTPUT FORMAT
       {
         "learning_unit": {
           "title": "${unitTitle}",
@@ -367,32 +522,30 @@ export const generateFullUnitContent = async (
               "teach_content": "Short engaging explanation...",
               "data": {
                 "question": "Question text...",
-                "options": ["Opt1", "Opt2", "Opt3", "Opt4"],
-                "correct_answer": "Opt1",
-                "feedback_correct": "Good job!",
-                "feedback_incorrect": "Hint..."
+                "progressive_hints": ["Hint 1", "Hint 2", "Hint 3"],
+                "options": [
+                  { "id": "o1", "text": "Opt1", "is_correct": true, "feedback": "Good job!" },
+                  { "id": "o2", "text": "Opt2", "is_correct": false, "feedback": "Hint..." }
+                ],
+                // "correct_answer" is now implicit in options, but keep for fallback
               }
             },
             // ... Generate exactly ${stepCount} steps following the strategy above
           ]
         }
       }
+  
+        # APPENDIX: DATA STRUCTURE RULES
+        - ** ordering **: "items" list in CORRECT order.
+        - ** grouping **: "items" list with "group_index" mapping to "groups".
+        - ** matching **: treat as ** grouping ** (Left side = groups, Right side = items).
+        - ** open_question **: "data" has "question" and "model_answer".
+  
+        # OUTPUT FORMAT(JSON ONLY)
+        Return a VALID JSON object with the "learning_unit" root.
+      `;
 
-      # APPENDIX: DATA STRUCTURE RULES
-      - **ordering**: "items" list in CORRECT order.
-      - **grouping**: "items" list with "group_index" mapping to "groups".
-      - **matching**: treat as **grouping** (Left side = groups, Right side = items).
-      - **open_question**: "data" has "question" and "model_answer".
-
-      # OUTPUT FORMAT (JSON ONLY)
-      Return a VALID JSON object with the "learning_unit" root.
-    `;
-
-    // User Message Construction
-    if (sourceText) {
-      userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Create Learning Journey for "${unitTitle}".` });
-    } else {
-      userMessageContent.push({ type: "text", text: `Task: Create Learning Journey for "${unitTitle}" (Topic: ${courseTopic}).` });
+      userMessageContent.push({ type: "text", text: `Task: Create Learning Journey for "${unitTitle}"(Topic: ${courseTopic}).` });
     }
 
   }
@@ -401,11 +554,11 @@ export const generateFullUnitContent = async (
     console.log("📝 Mode: Exam (Assessment)");
 
     const taxonomyInstruction = taxonomy
-      ? `\n4. BLOOM'S TAXONOMY DISTRIBUTION (MANDATORY):
-           - Knowledge/Recall: ~${taxonomy.knowledge}%
-           - Application/Analysis: ~${taxonomy.application}%
-           - Evaluation/Creation: ~${taxonomy.evaluation}%
-           Ensure the questions reflect this complexity balance.`
+      ? `\n4.BLOOM'S TAXONOMY DISTRIBUTION (MANDATORY):
+        - Knowledge / Recall: ~${taxonomy.knowledge}%
+          - Application / Analysis: ~${taxonomy.application}%
+            - Evaluation / Creation: ~${taxonomy.evaluation}%
+              Ensure the questions reflect this complexity balance.`
       : "";
 
     if (hasSourceMaterial) {
@@ -413,24 +566,24 @@ export const generateFullUnitContent = async (
       systemPrompt = `
           You are a Strict Content Analyst and Pedagogue.
           Target Audience: ${gradeLevel}.
-          Language: Hebrew.
-          
-          TASK: Create a ${mode} unit based ONLY on the provided content.
+      Language: Hebrew.
+
+        TASK: Create a ${mode} unit based ONLY on the provided content.
           
           OUTPUT JSON Array of items:
-          [
-            {
-              "type": "multiple_choice",
-              "question_text": "...",
-              "content": { "options": ["A","B"], "correct_answer": "A" }
-            }
-          ]
+      [
+        {
+          "type": "multiple_choice",
+          "question_text": "...",
+          "content": { "options": ["A", "B"], "correct_answer": "A" }
+        }
+      ]
           
           ${taxonomyInstruction}
-          Create 6-8 items.
+          Create 6 - 8 items.
         `;
       if (sourceText) {
-        userMessageContent.push({ type: "text", text: `Source Text:\n"""${sourceText}"""\n\nTask: Generate Exam for "${unitTitle}" based on this text.` });
+        userMessageContent.push({ type: "text", text: `Source Text: \n"""${sourceText}"""\n\nTask: Generate Exam for "${unitTitle}" based on this text.` });
       } else {
         userMessageContent.push({ type: "text", text: `Task: Generate Exam for "${unitTitle}" based on this image.` });
       }
@@ -438,42 +591,42 @@ export const generateFullUnitContent = async (
       systemPrompt = `
         You are a captivating Storyteller and Private Tutor.
         Subject: ${subject}. Target Audience: ${gradeLevel}.
-        Language: Hebrew.
+      Language: Hebrew.
 
-        TASK: Create a specific "Learning Journey" (NOT A QUIZ).
-        
-        TONE & STYLE:
-        - Fascinating, engaging, and narrative-driven.
-        - Do NOT use dry "textbook" language. Use phrases like "Imagine that...", "Surprisingly...", "Let's dive into...".
-        - The "content_to_read" must feel like a micro-story or a fascinating fact, not a definition.
+        TASK: Create a specific "Learning Journey"(NOT A QUIZ).
+
+          TONE & STYLE:
+      - Fascinating, engaging, and narrative - driven.
+        - Do NOT use dry "textbook" language.Use phrases like "Imagine that...", "Surprisingly...", "Let's dive into...".
+        - The "content_to_read" must feel like a micro - story or a fascinating fact, not a definition.
         
         For the topic: "${courseTopic}", Unit: "${unitTitle}".
 
         Create a JSON with "learning_unit" containing "cards".
         CRITICAL: Teach first, then ask.
 
-        # EXAMPLE JSON (STRICTLY FOLLOW THIS STRUCTURE)
-        {
-          "learning_unit": {
-             "title": "Topic Name",
-             "cards": [
-                {
-                  "type": "teach_then_ask",
-                  "content_to_read": "Imagine a world where money has lost all value. In 1923 Germany, a loaf of bread cost millions of marks! This chaos made people desperate for a strong leader who promised order.",
-                  "interactive_question": {
-                     "text": "Why were people in Germany willing to listen to extreme leaders like Hitler?",
-                     "options": ["They were bored", "They were desperate for stability", "They wanted to experiment"],
-                     "correct_answer": "They were desperate for stability",
-                     "feedback_correct": "Exactly! Desperate times often push people toward extreme solutions.",
-                     "feedback_incorrect": "Think about the chaos of paying millions for bread. They wanted Order."
-                  }
-                }
-             ]
-          }
+        # EXAMPLE JSON(STRICTLY FOLLOW THIS STRUCTURE)
+      {
+        "learning_unit": {
+          "title": "Topic Name",
+          "cards": [
+            {
+              "type": "teach_then_ask",
+              "content_to_read": "Imagine a world where money has lost all value. In 1923 Germany, a loaf of bread cost millions of marks! This chaos made people desperate for a strong leader who promised order.",
+              "interactive_question": {
+                "text": "Why were people in Germany willing to listen to extreme leaders like Hitler?",
+                "options": ["They were bored", "They were desperate for stability", "They wanted to experiment"],
+                "correct_answer": "They were desperate for stability",
+                "feedback_correct": "Exactly! Desperate times often push people toward extreme solutions.",
+                "feedback_incorrect": "Think about the chaos of paying millions for bread. They wanted Order."
+              }
+            }
+          ]
         }
+      }
 
-        # OUTPUT FORMAT (JSON ONLY)
-        Return a VALID JSON object with the "learning_unit" root. Do not wrap in markdown code blocks.
+        # OUTPUT FORMAT(JSON ONLY)
+        Return a VALID JSON object with the "learning_unit" root.Do not wrap in markdown code blocks.
       `;
       // User string remains simple to avoid overriding system instructions
       userMessageContent.push({ type: "text", text: `Topic: ${courseTopic}. Create the Learning Journey.` });
@@ -482,7 +635,7 @@ export const generateFullUnitContent = async (
 
   // Common Image Attachment
   if (fileData) {
-    const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
+    const dataUrl = `data:${fileData.mimeType}; base64, ${fileData.base64} `;
     userMessageContent.push({
       type: "image_url",
       image_url: { url: dataUrl }
@@ -497,7 +650,9 @@ export const generateFullUnitContent = async (
         { role: "user", content: userMessageContent as any }
       ],
       temperature: mode === 'learning' ? 0.7 : 0.3, // Creative for learning, strict for exam
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+    }, {
+      timeout: 180000 // Extended timeout for full unit generation (3 minutes)
     });
 
     const responseText = completion.choices[0].message.content || "[]";
@@ -510,103 +665,28 @@ export const generateFullUnitContent = async (
 
       // === NEW LOGIC: Dynamic Learning Unit ===
       if (mode === 'learning') {
-        console.log("🚀 Parsing Strategy: Dynamic Learning Unit");
+        console.log("🚀 Parsing Strategy: Dynamic Learning Unit (Robust)");
 
         const steps = parsed.learning_unit?.steps || parsed.learning_unit?.cards || [];
 
         if (Array.isArray(steps)) {
           steps.forEach((step: any) => {
 
-            // 1. Content Block (The Teach)
-            if (step.teach_content) {
+            // 1. Content Block (The Teach) - PRESERVED LOGIC
+            if (step.teach_content || step.content_to_read) {
               blocks.push({
                 id: uuidv4(),
                 type: 'text',
-                content: step.teach_content,
-                metadata: { note: `Step ${step.step_number}: ${step.bloom_level}` }
+                content: step.teach_content || step.content_to_read,
+                metadata: { note: `Step ${step.step_number || ''}: ${step.bloom_level || ''} ` }
               });
             }
 
-            // 2. Interaction Block (The Ask)
-            const type = step.selected_interaction;
-            const data = step.data;
-
-            if (data) {
-              const commonMeta = {
-                score: 10,
-                feedbackCorrect: data.feedback_correct || "Correct!",
-                feedbackIncorrect: data.feedback_incorrect || "Try again.",
-                bloomLevel: step.bloom_level
-              };
-
-              if (type === 'ordering') {
-                blocks.push({
-                  id: uuidv4(),
-                  type: 'ordering',
-                  content: {
-                    question: data.question || "Order these items:",
-                    items: data.items || []
-                  },
-                  metadata: { ...commonMeta, score: 15 }
-                });
-              }
-              else if (type === 'grouping' || type === 'categorization' || type === 'matching') {
-                // Map to 'categorization' block
-                let adaptedItems = [];
-                let adaptedCategories = data.groups || data.categories || [];
-
-                if (data.items && data.items.length > 0) {
-                  if (typeof data.items[0] === 'string') {
-                    adaptedItems = data.items.map((t: string) => ({ id: uuidv4(), text: t, categoryId: "unknown" }));
-                  } else {
-                    adaptedItems = data.items.map((item: any) => ({
-                      id: uuidv4(),
-                      text: item.text,
-                      categoryId: adaptedCategories[item.group_index] || "unknown"
-                    }));
-                  }
-                }
-
-                blocks.push({
-                  id: uuidv4(),
-                  type: 'categorization',
-                  content: {
-                    question: data.question || "Sort these items:",
-                    categories: adaptedCategories,
-                    items: adaptedItems
-                  },
-                  metadata: { ...commonMeta, score: 20 }
-                });
-              }
-              else if (type === 'open_question') {
-                blocks.push({
-                  id: uuidv4(),
-                  type: 'open-question',
-                  content: {
-                    question: data.question || "Explain..."
-                  },
-                  metadata: {
-                    ...commonMeta,
-                    modelAnswer: data.model_answer || "See teacher guidelines",
-                    score: 20
-                  }
-                });
-              }
-              else {
-                // Fallback: Multiple Choice
-                blocks.push({
-                  id: uuidv4(),
-                  type: 'multiple-choice',
-                  content: {
-                    question: data.question,
-                    options: data.options || ["Yes", "No"],
-                    correctAnswer: data.correct_answer || data.options?.[0]
-                    // Add implicit feedback if missing in data but present in fallback logic? 
-                    // Current prompt asks for feedback in data object, so it should be there.
-                  },
-                  metadata: commonMeta
-                });
-              }
+            // 2. Interaction Block (The Ask) - ROBUST EXTRACTION
+            // Create a Block from whatever data is present (step.data, step.interactive_question, or step itself)
+            const interactionBlock = mapSystemItemToBlock(step);
+            if (interactionBlock) {
+              blocks.push(interactionBlock);
             }
           });
 
@@ -636,7 +716,7 @@ export const generateFullUnitContent = async (
     blocks.push({
       id: uuidv4(),
       type: 'text',
-      content: `# מתחילים! 🚀\nהפעילות בנושא **${unitTitle}** יוצאת לדרך.\nלפניכם תרגול קצר וממוקד. בהצלחה!`,
+      content: `# מתחילים! 🚀\nהפעילות בנושא ** ${unitTitle}** יוצאת לדרך.\nלפניכם תרגול קצר וממוקד.בהצלחה!`,
       metadata: {}
     });
 
@@ -647,11 +727,11 @@ export const generateFullUnitContent = async (
       blocks.push({
         id: uuidv4(),
         type: 'interactive-chat',
-        content: { title: selectedPersona.name, description: `עזרה בנושאי ${subject}` },
+        content: { title: selectedPersona.name, description: `עזרה בנושאי ${subject} ` },
         metadata: {
           botPersona: selectedPersona.id,
           initialMessage: selectedPersona.initialMessage,
-          systemPrompt: `${selectedPersona.systemPrompt}\n\nנושא השיעור: ${unitTitle}\nקהל יעד: ${gradeLevel}`
+          systemPrompt: `${selectedPersona.systemPrompt} \n\nנושא השיעור: ${unitTitle} \nקהל יעד: ${gradeLevel} `
         }
       });
     }
@@ -673,11 +753,11 @@ export const generateFullUnitContent = async (
 
 export const refineContentWithPedagogy = async (content: string, instruction: string) => {
   const prompt = `
-    Act as an expert pedagogical editor.
+      Act as an expert pedagogical editor.
     Original text: "${content}"
-    Instruction: ${instruction}
+      Instruction: ${instruction}
     Output language: Hebrew.
-    Goal: Improve clarity, accuracy, and engagement.
+        Goal: Improve clarity, accuracy, and engagement.
   `;
 
   try {
@@ -692,12 +772,73 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
   }
 };
 
+/**
+ * "The Tutor" - Micro-Agent for checking open questions in real-time.
+ */
+export const checkOpenQuestionAnswer = async (
+  question: string,
+  userAnswer: string,
+  modelAnswer: string,
+  sourceText: string = "" // Optional context
+): Promise<{ status: "correct" | "partial" | "incorrect"; feedback: string }> => {
+
+  if (!OPENAI_API_KEY) return { status: "partial", feedback: "שגיאה בחיבור ל-AI. נסה שוב." };
+
+  const prompt = `
+  # ROLE
+  You are a supportive tutor checking a student's answer based on a text.
+  DO NOT GIVE THE ANSWER. GUIDE THE STUDENT TO IT.
+  Output Language: Hebrew.
+
+  # INPUT
+  - Source Text (Context): """${sourceText.substring(0, 1000)}..."""
+  - Question: "${question}"
+  - Model Answer (Hidden from student): "${modelAnswer}"
+  - Student's Answer: "${userAnswer}"
+
+  # TASK
+  Analyze the student's answer and categorize it into one of 3 states:
+
+  1.  **CORRECT**: The student understood the core concept.
+      * *Action:* Praise and confirm.
+  2.  **PARTIALLY CORRECT**: The student got some parts right but missed key details.
+      * *Action:* Acknowledge the correct part, then ask a guiding question to help them find the missing part in the text.
+  3.  **INCORRECT / IRRELEVANT**: The answer is wrong or off-topic.
+      * *Action:* Give a specific hint pointing to the relevant paragraph without revealing the answer.
+
+  # OUTPUT FORMAT (JSON ONLY)
+  {
+    "status": "correct" | "partial" | "incorrect",
+    "feedback_to_student": "WRITE HERE: The personalized message (in Hebrew). E.g., 'אתה צודק לגבי הכלכלה, אבל מה לגבי המצב הפוליטי?'"
+  }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.3
+    });
+
+    const res = JSON.parse(completion.choices[0].message.content || "{}");
+    return {
+      status: res.status !== undefined ? res.status : "partial",
+      feedback: res.feedback_to_student || "תודה על התשובה."
+    };
+
+  } catch (e) {
+    console.error("Tutor Error:", e);
+    return { status: "partial", feedback: "שגיאה בבדיקת התשובה. המשיכו לנסות." };
+  }
+};
+
 export const generateQuestionsFromText = async (text: string, type: string) => {
   const prompt = `
     Based on the text below, create 3 ${type} questions.
-    Text: "${text.substring(0, 1000)}..."
-    Language: Hebrew.
-    Output: JSON Object containing an array of questions.
+        Text: "${text.substring(0, 1000)}..."
+      Language: Hebrew.
+        Output: JSON Object containing an array of questions.
   `;
 
   try {
@@ -718,7 +859,7 @@ export const generateImagePromptBlock = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
       model: MODEL_NAME,
-      messages: [{ role: "user", content: `Suggest a creative, safe, educational image prompt (English) for: "${context.substring(0, 300)}".` }]
+      messages: [{ role: "user", content: `Suggest a creative, safe, educational image prompt(English) for: "${context.substring(0, 300)}".` }]
     });
     return res.choices[0].message.content || "Educational illustration";
   } catch (e) { return "Educational illustration"; }
@@ -728,7 +869,13 @@ export const generateSingleOpenQuestion = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
       model: MODEL_NAME,
-      messages: [{ role: "user", content: `Create 1 challenging open-ended question about: "${context}". Language: Hebrew. JSON format: {question, modelAnswer}` }],
+      messages: [{
+        role: "user", content: `Create 1 challenging open-ended question about: "${context}".
+      Language: Hebrew.
+      JSON format: { 
+        "question": "The question text", 
+        "modelAnswer": "A detailed, comprehensive expected answer based on the text/context. Do NOT just say 'The answer is in the text'. Write the actual answer." 
+      }` }],
       response_format: { type: "json_object" }
     });
     return JSON.parse(res.choices[0].message.content || "{}");
@@ -739,7 +886,7 @@ export const generateSingleMultipleChoiceQuestion = async (context: string) => {
   try {
     const res = await openai.chat.completions.create({
       model: MODEL_NAME,
-      messages: [{ role: "user", content: `Create 1 multiple-choice question about: "${context}". Language: Hebrew. JSON format: {question, options, correctAnswer}` }],
+      messages: [{ role: "user", content: `Create 1 multiple - choice question about: "${context}".Language: Hebrew.JSON format: { question, options, correctAnswer } ` }],
       response_format: { type: "json_object" }
     });
     const text = res.choices[0].message.content || "{}";
@@ -761,14 +908,14 @@ export const generateSingleMultipleChoiceQuestion = async (context: string) => {
 export const generateAdaptiveUnit = async (originalUnit: any, _weakness: string) => {
   return {
     id: uuidv4(),
-    title: `חיזוק: ${originalUnit.title}`,
+    title: `חיזוק: ${originalUnit.title} `,
     type: 'remedial',
     baseContent: 'תוכן מותאם אישית...',
     activityBlocks: [
       {
         id: uuidv4(),
         type: 'text',
-        content: `זיהיתי קושי בנושא "${originalUnit.title}". בוא ננסה לגשת לזה מזווית אחרת עם הסברים מפושטים יותר.`
+        content: `זיהיתי קושי בנושא "${originalUnit.title}".בוא ננסה לגשת לזה מזווית אחרת עם הסברים מפושטים יותר.`
       }
     ]
   };
@@ -778,16 +925,16 @@ export const generateClassAnalysis = async (studentsData: any[]) => {
   const prompt = `
     Analyze the following class performance data:
     ${JSON.stringify(studentsData).substring(0, 3000)}
-    
-    Task: Provide a deep pedagogical analysis in Hebrew.
+
+      Task: Provide a deep pedagogical analysis in Hebrew.
     Output JSON Structure:
-    {
-      "classOverview": "General summary of the class performance trends",
-      "strongSkills": ["List of skills/topics where the class excelled"],
-      "weakSkills": ["List of skills/topics that need reinforcement"],
-      "actionItems": ["Concrete, actionable recommendations for the teacher for next lesson"]
-    }
-  `;
+      {
+        "classOverview": "General summary of the class performance trends",
+          "strongSkills": ["List of skills/topics where the class excelled"],
+            "weakSkills": ["List of skills/topics that need reinforcement"],
+              "actionItems": ["Concrete, actionable recommendations for the teacher for next lesson"]
+      }
+      `;
 
   try {
     const res = await openai.chat.completions.create({
@@ -806,21 +953,21 @@ export const generateStudentReport = async (studentData: any) => {
   const prompt = `
     Create a personal student report based on this data:
     ${JSON.stringify(studentData)}
-    
-    Language: Hebrew.
-    Tone: Encouraging, professional, pedagogical.
+
+      Language: Hebrew.
+        Tone: Encouraging, professional, pedagogical.
     Output JSON Structure:
-    {
-      "studentName": "Name",
-      "summary": "A personal paragraph summarizing the student's progress",
-      "criteria": {
-        "knowledge": "Assessment of knowledge acquisition",
-        "depth": "Assessment of analytical depth",
-        "expression": "Assessment of capability to express ideas",
-        "recommendations": "Actionable advice for improvement"
+      {
+        "studentName": "Name",
+          "summary": "A personal paragraph summarizing the student's progress",
+            "criteria": {
+          "knowledge": "Assessment of knowledge acquisition",
+            "depth": "Assessment of analytical depth",
+              "expression": "Assessment of capability to express ideas",
+                "recommendations": "Actionable advice for improvement"
+        }
       }
-    }
-  `;
+      `;
 
   try {
     const res = await openai.chat.completions.create({

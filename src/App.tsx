@@ -178,6 +178,10 @@ const AuthenticatedApp = () => {
         } catch (e) {
           console.error("Error processing file for AI", e);
         }
+      } else if (wizardData.pastedText) {
+        // Fix: Handle pasted text
+        console.log("Processing successfully pasted text");
+        aiSourceText = wizardData.pastedText;
       }
 
       // --- לוג ביקורת ---
@@ -193,7 +197,12 @@ const AuthenticatedApp = () => {
 
       console.log("🎯 Extracted Grade for AI:", extractedGrade);
 
-      const topicForAI = wizardData.topic || fileName || "נושא כללי";
+      // Use originalTopic if available (for precise Topic Mode), otherwise title, or filename
+      const topicForAI = wizardData.originalTopic || wizardData.topic || fileName || "נושא כללי";
+
+      // The displayed title (can be different from the topic)
+      const courseTitle = wizardData.title || wizardData.topic || fileName || "פעילות חדשה";
+
       const courseMode = wizardData.settings?.courseMode || 'learning';
       const activityLength = wizardData.settings?.activityLength || 'medium'; // NEW
       const userSubject = wizardData.settings?.subject || "כללי";
@@ -252,7 +261,7 @@ const AuthenticatedApp = () => {
 
       const { file, ...cleanWizardData } = wizardData;
       const newCourseData = {
-        title: topicForAI,
+        title: courseTitle, // Use the correct title
         teacherId: currentUser.uid,
         targetAudience: extractedGrade,
         subject: userSubject,

@@ -166,6 +166,9 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
                 <h2 className="text-2xl md:text-3xl font-bold text-center px-4 leading-relaxed" style={{ color: '#0ea5e9' }}>
                     עד שהפעילות שביקשתם תהיה מוכנה<br />בואו נשחק קצת...
                 </h2>
+                <p className="text-sm text-gray-400 mt-2 font-medium bg-white/50 px-3 py-1 rounded-full backdrop-blur-sm">
+                    זמן היצירה עשוי להימשך בין דקה לדקה וחצי
+                </p>
             </div>
 
             {/* Conditional Render: Game vs Success */}

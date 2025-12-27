@@ -25,6 +25,7 @@ export interface ActivityBlockMetadata {
 
     // שדות לשאלות
     modelAnswer?: string;
+    sourceHint?: string; // New: Hint pointing to source text
 
     // שדות לתמונות/וידאו (העלאת קבצים)
     aiPrompt?: string;
@@ -36,6 +37,9 @@ export interface ActivityBlockMetadata {
     initialMessage?: string; // הודעת הפתיחה של הבוט
 
     [key: string]: any;
+
+    // Scaffolding / Error Handling
+    progressiveHints?: string[]; // [General, Specific, Almost Answer]
 }
 
 export interface ActivityBlock {
