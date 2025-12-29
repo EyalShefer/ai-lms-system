@@ -31,14 +31,14 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
             <div className="text-center mb-12 relative z-0 pointer-events-none">
 
                 {/* אנימציית רקע */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#B8D6F6] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-                <div className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#24A8D9] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+                <div className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-wizdi-cyan rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
 
                 <div className="flex justify-center mb-6 relative z-10">
                     <img
                         src="/WizdiLogo.png"
                         alt="Wizdi Studio"
-                        className="h-40 w-auto object-contain drop-shadow-sm"
+                        className="h-40 w-auto object-contain drop-shadow-sm animate-float"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                 </div>
@@ -57,7 +57,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 {/* 1. מחולל פעילויות (ענק - כחול גרדיאנט) */}
                 <div
                     onClick={() => handleCardClick("Learning Generator", () => onCreateNew('learning'))}
-                    className="col-span-1 md:col-span-2 row-span-2 bg-gradient-to-br from-[#24A8D9] to-[#0A4D7F] rounded-3xl p-8 text-white shadow-xl shadow-blue-200 cursor-pointer hover:scale-[1.01] transition-transform duration-300 relative overflow-hidden group"
+                    className="col-span-1 md:col-span-2 row-span-2 bg-gradient-to-br from-wizdi-royal to-indigo-900 rounded-3xl p-8 text-white shadow-xl shadow-blue-200 cursor-pointer hover:scale-[1.02] transition-transform duration-300 relative overflow-hidden group border-b-8 border-indigo-900 active:border-b-0 active:translate-y-2"
                 >
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none"></div>
 
@@ -65,17 +65,17 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                         <div>
                             <div className="flex items-start justify-between">
                                 <div className="bg-white/20 w-fit p-3 rounded-2xl mb-4 backdrop-blur-sm">
-                                    <IconSparkles className="w-8 h-8 text-white" />
+                                    <IconSparkles className="w-8 h-8 text-wizdi-lime" />
                                 </div>
                                 <span className="bg-white/20 text-xs px-2 py-1 rounded-lg border border-white/30 backdrop-blur-md">מומלץ להתחלה</span>
                             </div>
 
                             <h2 className="text-3xl font-black mb-3 leading-tight">
-                                יצירת פעילות <br /> חדשה 🪄
+                                יצירת פעילות <br /> חדשה <span className="animate-wiggle inline-block">🪄</span>
                             </h2>
 
                             <p className="text-blue-100 text-md opacity-90 leading-relaxed font-medium">
-                                הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל ואדפטיבי.
+                                הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל.
                             </p>
                         </div>
 
@@ -88,25 +88,25 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 {/* 2. יצירת מבחן (ענק - תכלת בהיר) */}
                 <div
                     onClick={() => handleCardClick("Exam Creator", () => onCreateNew('exam'))}
-                    className="col-span-1 md:col-span-2 bg-[#B8D6F6] rounded-3xl p-8 text-[#0A4D7F] shadow-xl cursor-pointer hover:scale-[1.01] transition-transform duration-300 group relative overflow-hidden"
+                    className="col-span-1 md:col-span-2 bg-blue-50 rounded-3xl p-8 text-wizdi-royal shadow-xl cursor-pointer hover:scale-[1.02] transition-transform duration-300 group relative overflow-hidden border-2 border-wizdi-royal/10"
                 >
-                    <div className="absolute top-0 left-0 w-2 h-full bg-[#0A4D7F]"></div>
+                    <div className="absolute top-0 left-0 w-2 h-full bg-wizdi-royal"></div>
                     <div className="relative z-10 h-full flex flex-col justify-between">
                         <div>
                             <div className="flex items-center gap-4 mb-4">
-                                <div className="bg-[#24A8D9] w-14 h-14 rounded-2xl flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform">
+                                <div className="bg-wizdi-cyan w-14 h-14 rounded-2xl flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform">
                                     <IconList className="w-8 h-8 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black leading-tight">יצירת מבחן <br /> והערכה אוטומטית</h3>
+                                    <h3 className="text-2xl font-black leading-tight text-wizdi-royal">יצירת מבחן <br /> והערכה אוטומטית</h3>
                                 </div>
                             </div>
-                            <p className="text-[#0A4D7F] text-md opacity-90 leading-relaxed font-medium pl-2">
+                            <p className="text-wizdi-royal text-md opacity-90 leading-relaxed font-medium pl-2">
                                 הפכו חומרי לימוד למבחני ידע, שאלונים ומטלות סיכום. המערכת תבדוק עבורכם את התשובות, תעניק ציונים ותציג תמונת מצב כיתתית בזמן אמת.
                             </p>
                         </div>
 
-                        <div className="mt-6 flex items-center gap-2 font-bold text-[#0A4D7F] group-hover:translate-x-[-5px] transition-transform">
+                        <div className="mt-6 flex items-center gap-2 font-bold text-wizdi-royal group-hover:translate-x-[-5px] transition-transform">
                             ליצירת מבחן <IconBack className="w-5 h-5 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
@@ -115,15 +115,15 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 {/* 4. Dashboard Link (כהה) - עכשיו תופס 2 עמודות */}
                 <div
                     onClick={() => handleCardClick("Dashboard", onNavigateToDashboard)}
-                    className="col-span-1 md:col-span-2 bg-[#0A4D7F] rounded-3xl p-6 text-white shadow-lg cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden"
+                    className="col-span-1 md:col-span-2 bg-wizdi-royal rounded-3xl p-6 text-white shadow-lg cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden active:scale-95 duration-200"
                 >
-                    <div className="absolute left-0 bottom-0 w-20 h-20 bg-[#24A8D9] rounded-tr-full opacity-30 pointer-events-none"></div>
+                    <div className="absolute left-0 bottom-0 w-20 h-20 bg-wizdi-cyan rounded-tr-full opacity-30 pointer-events-none"></div>
                     <div className="relative z-10 pointer-events-none">
-                        <div className="flex items-center gap-2 mb-3 text-[#B8D6F6] text-2xl font-bold uppercase">
+                        <div className="flex items-center gap-2 mb-3 text-blue-200 text-2xl font-bold uppercase">
                             <IconChart className="w-8 h-8" /> ניהול
                         </div>
                         <h3 className="text-3xl font-bold mb-2 leading-tight">לוח הפעילויות <br /> והמבחנים</h3>
-                        <p className="text-[#B8D6F6] text-lg mb-4 opacity-90 font-medium">
+                        <p className="text-blue-100 text-lg mb-4 opacity-90 font-medium">
                             צפייה בנתוני התלמידים, דוחות מפורטים, ציונים ומעקב אחר התקדמות בזמן אמת.
                         </p>
                         <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
@@ -146,9 +146,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 1 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-[#F0F7FF] w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-[#B8D6F6]">
-                            <IconSparkles className="w-8 h-8 text-[#24A8D9]" />
-                            <span className="absolute -top-2 -right-2 bg-[#24A8D9] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">1</span>
+                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                            <IconSparkles className="w-8 h-8 text-wizdi-cyan" />
+                            <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">1</span>
                         </div>
                         <h3 className="font-bold text-slate-800 mb-1">המורה יוצר</h3>
                         <p className="text-xs text-slate-500 px-4">מגדירים נושא, מעלים קובץ או בוחרים תבנית.</p>
@@ -156,9 +156,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 2 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-[#F0F7FF] w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-[#B8D6F6]">
-                            <IconConstruction className="w-8 h-8 text-[#0A4D7F]" />
-                            <span className="absolute -top-2 -right-2 bg-[#0A4D7F] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">2</span>
+                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                            <IconConstruction className="w-8 h-8 text-wizdi-royal" />
+                            <span className="absolute -top-2 -right-2 bg-wizdi-royal text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">2</span>
                         </div>
                         <h3 className="font-bold text-slate-800 mb-1">המערכת בונה</h3>
                         <p className="text-xs text-slate-500 px-4">ה-AI יוצר סוכן, שאלות ותוכן עשיר.</p>
@@ -166,9 +166,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 3 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-[#F0F7FF] w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-[#B8D6F6]">
-                            <IconStudent className="w-8 h-8 text-[#24A8D9]" />
-                            <span className="absolute -top-2 -right-2 bg-[#24A8D9] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">3</span>
+                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                            <IconStudent className="w-8 h-8 text-wizdi-cyan" />
+                            <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">3</span>
                         </div>
                         <h3 className="font-bold text-slate-800 mb-1">התלמיד חווה</h3>
                         <p className="text-xs text-slate-500 px-4">למידה מותאמת אישית.</p>
@@ -176,9 +176,9 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 4 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-[#F0F7FF] w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-[#B8D6F6]">
-                            <IconChart className="w-8 h-8 text-[#0A4D7F]" />
-                            <span className="absolute -top-2 -right-2 bg-[#0A4D7F] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">4</span>
+                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                            <IconChart className="w-8 h-8 text-wizdi-royal" />
+                            <span className="absolute -top-2 -right-2 bg-wizdi-royal text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">4</span>
                         </div>
                         <h3 className="font-bold text-slate-800 mb-1">תובנות למורה</h3>
                         <p className="text-xs text-slate-500 px-4">קבלת דוחות, ציונים וניתוח נתונים.</p>

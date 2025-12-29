@@ -63,6 +63,9 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
     const handleCardClick = (index: number) => {
         if (isLocked || cards[index].isFlipped || cards[index].isMatched) return;
 
+        // Prevent clicking the same card twice (Race Condition Fix)
+        if (flippedIndices.includes(index)) return;
+
         const newCards = [...cards];
         newCards[index].isFlipped = true;
         setCards(newCards);

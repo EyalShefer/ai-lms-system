@@ -1,0 +1,56 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90mC:/Users/eyal/Desktop/ai-lms-system/ai-lms-system[39m
+
+[90mstdout[2m | src/gemini.test.ts[2m > [22m[2mgemini.ts - Golden Master Tests[2m > [22m[2mmapSystemItemToBlock[2m > [22m[2mshould handle standard multiple_choice input
+[22m[39mRaw AI Item for Mapping: {"type":"multiple_choice","question":{"text":"Test Question?"},"options":[{"text":"Option A","is_correct":true},{"text":"Option B","is_correct":false}]}
+
+[90mstdout[2m | src/gemini.test.ts[2m > [22m[2mgemini.ts - Golden Master Tests[2m > [22m[2mmapSystemItemToBlock[2m > [22m[2mshould handle ordering type and fallback to defaults if items missing
+[22m[39mRaw AI Item for Mapping: {"type":"ordering","question":"Order these","items":["Step 1","Step 2"]}
+
+[90mstdout[2m | src/gemini.test.ts[2m > [22m[2mgemini.ts - Golden Master Tests[2m > [22m[2mmapSystemItemToBlock[2m > [22m[2mshould capture "The Mary Smith" behavior (simulated inputs based on known issues)
+[22m[39mRaw AI Item for Mapping: {"type":"categorization","items":[]}
+
+[90mstderr[2m | src/gemini.test.ts[2m > [22m[2mgemini.ts - Golden Master Tests[2m > [22m[2mmapSystemItemToBlock[2m > [22m[2mshould capture "The Mary Smith" behavior (simulated inputs based on known issues)
+[22m[39mCategorization items missing.
+
+[90mstderr[2m | src/gemini.test.ts[2m > [22m[2mgemini.ts - Golden Master Tests[2m > [22m[2mgenerateUnitSkeleton[2m > [22m[2mshould handle API failure gracefully
+[22m[39mSkeleton Gen Error: Error: API connection failed
+    at C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/src/gemini.test.ts:149:42
+    at [90mfile:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.U4xDYhzZ.js:115:27[90m)[39m
+    at trace [90m(file:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///C:/Users/eyal/Desktop/ai-lms-system/ai-lms-system/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+ [31m❯[39m src/gemini.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 10[2mms[22m[39m
+       [32m✓[39m should return null for null input[32m 1[2mms[22m[39m
+       [32m✓[39m should handle standard multiple_choice input[32m 1[2mms[22m[39m
+       [32m✓[39m should handle ordering type and fallback to defaults if items missing[32m 0[2mms[22m[39m
+[31m       [31m×[31m should capture "The Mary Smith" behavior (simulated inputs based on known issues)[39m[32m 3[2mms[22m[39m
+       [32m✓[39m should correctly parse AI response and return UnitSkeleton[32m 3[2mms[22m[39m
+       [32m✓[39m should handle API failure gracefully[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/gemini.test.ts[2m > [22mgemini.ts - Golden Master Tests[2m > [22mmapSystemItemToBlock[2m > [22mshould capture "The Mary Smith" behavior (simulated inputs based on known issues)
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'items')[39m
+[36m [2m❯[22m src/gemini.test.ts:[2m111:45[22m[39m
+    [90m109| [39m
+    [90m110| [39m            [90m// Current behavior adds fallback items[39m
+    [90m111| [39m            expect((result?.content as any).items).toEqual([{ text: "פ…
+    [90m   | [39m                                            [31m^[39m
+    [90m112| [39m        })[33m;[39m
+    [90m113| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 10:28:36
+[2m   Duration [22m 1.87s[2m (transform 87ms, setup 0ms, import 285ms, tests 10ms, environment 1.31s)[22m
+

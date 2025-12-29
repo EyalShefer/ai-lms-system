@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`gemini.ts - Golden Master Tests > generateUnitSkeleton > should correctly parse AI response and return UnitSkeleton 1`] = `
+{
+  "steps": [
+    {
+      "bloom_level": "Remember",
+      "forbidden_topics": [
+        "Electricity",
+        "Computers",
+      ],
+      "narrative_focus": "Discuss the invention of the steam engine.",
+      "step_number": 1,
+      "suggested_interaction_type": "memory_game",
+      "title": "The Steam Engine",
+    },
+    {
+      "bloom_level": "Understand",
+      "forbidden_topics": [
+        "Modern Suburbs",
+      ],
+      "narrative_focus": "Discuss the movement to cities.",
+      "step_number": 2,
+      "suggested_interaction_type": "multiple_choice",
+      "title": "Urbanization",
+    },
+    {
+      "bloom_level": "Analyze",
+      "forbidden_topics": [
+        "Labor Unions (Next Step)",
+      ],
+      "narrative_focus": "Discuss working conditions.",
+      "step_number": 3,
+      "suggested_interaction_type": "categorization",
+      "title": "Social Impact",
+    },
+  ],
+  "unit_title": "The Industrial Revolution",
+}
+`;

@@ -10,18 +10,89 @@ interface ClozeQuestionProps {
 const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
     // Safe parsing of content
     // Safe parsing of content with memoization to prevent infinite loops
+    // Safe parsing of content with robust fallback for different formats
     const content = React.useMemo(() => {
+        let rawText = '';
+        let providedHiddenWords: string[] | undefined;
+        let providedDistractors: string[] | undefined;
+
+        // 1. Extract Raw Text
         if (typeof block.content === 'string') {
-            const text = block.content;
-            const matches = text.match(/\[(.*?)\]/g) || [];
-            const hidden_words = matches.map(m => m.slice(1, -1));
-            const sentence = text.replace(/\[(.*?)\]/g, '_____');
-            return { sentence, hidden_words, distractors: [] };
+            rawText = block.content;
+        } else if (block.content && typeof block.content === 'object') {
+            const c = block.content as any;
+            // Support both 'sentence' (legacy) and 'text' (gemini output)
+            rawText = c.sentence || c.text || '';
+            providedHiddenWords = c.hidden_words;
+            providedDistractors = c.distractors;
         }
-        return block.content as { sentence: string; hidden_words: string[]; distractors: string[] };
-    }, [block.content]);
+
+        // 2. Parse Brackets if present and no explicit hidden words were provided
+        // This handles the case where Gemini sends { text: "The [Sun] is hot" } without processing it first.
+        const hasBrackets = /\[(.*?)\]/.test(rawText);
+
+        if (hasBrackets && (!providedHiddenWords || providedHiddenWords.length === 0)) {
+            const matches = rawText.match(/\[(.*?)\]/g) || [];
+            const hidden_words = matches.map(m => m.slice(1, -1));
+            const sentence = rawText.replace(/\[(.*?)\]/g, '_____');
+            return { sentence, hidden_words, distractors: providedDistractors || [] };
+        }
+
+        // 3. Passthrough if already formatted
+        // Fallback: If AI produced underscores (_____) but no hidden_words, try to recover from metadata backup
+        // This fixes cases where Geminti produced "A is ____" + metadata.wordBank ["Red"]
+        if ((!providedHiddenWords || providedHiddenWords.length === 0) && !hasBrackets && block.metadata?.wordBank) {
+            const underscoreCount = (rawText.match(/_____/g) || []).length;
+            if (underscoreCount > 0 && block.metadata.wordBank.length >= underscoreCount) {
+                // Heuristic: Assume the first N words in the bank are the correct answers in order
+                const recoveredHidden = block.metadata.wordBank.slice(0, underscoreCount);
+                const recoveredDistractors = block.metadata.wordBank.slice(underscoreCount);
+
+                return {
+                    sentence: rawText,
+                    hidden_words: recoveredHidden,
+                    distractors: recoveredDistractors
+                };
+            }
+        }
+
+        // 4. Extreme Fallback: If absolutely no hidden words found, auto-hide random words (up to 3)
+        // This handles "Text Only" failure cases from the AI
+        if ((!providedHiddenWords || providedHiddenWords.length === 0) && !hasBrackets && !block.metadata?.wordBank) {
+            const words = rawText.split(' ');
+            if (words.length > 5) {
+                // Pick 2-3 random words to hide, preferring longer words
+                const indicesToHide: number[] = [];
+                words.forEach((w, i) => {
+                    if (w.length > 3 && indicesToHide.length < 3 && Math.random() > 0.7) {
+                        indicesToHide.push(i);
+                    }
+                });
+                // Ensure at least one
+                if (indicesToHide.length === 0) indicesToHide.push(Math.floor(Math.random() * words.length));
+
+                const newHidden: string[] = [];
+                const newSentence = words.map((w, i) => {
+                    if (indicesToHide.includes(i)) {
+                        newHidden.push(w);
+                        return '_____';
+                    }
+                    return w;
+                }).join(' ');
+
+                return { sentence: newSentence, hidden_words: newHidden, distractors: [] };
+            }
+        }
+
+        return {
+            sentence: rawText,
+            hidden_words: providedHiddenWords || [],
+            distractors: providedDistractors || []
+        };
+    }, [block.content, block.metadata]);
 
     const { sentence = '', hidden_words = [], distractors = [] } = content || {};
+    console.log("Cloze Debug:", { rawContent: block.content, sentence, hidden_words, distractors }); // DEBUG
 
     const [userAnswers, setUserAnswers] = useState<(string | null)[]>([]);
     const [wordBank, setWordBank] = useState<string[]>([]);

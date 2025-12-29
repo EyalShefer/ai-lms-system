@@ -14,7 +14,38 @@ export type ActivityBlockType =
     | 'fill_in_blanks'
     | 'ordering'
     | 'categorization'
-    | 'memory_game';
+    | 'memory_game'
+    | 'true_false_speed'
+    | 'podcast';
+
+export interface MultipleChoiceContent {
+    question: string;
+    options: string[];
+    correctAnswer: string;
+}
+
+export interface OpenQuestionContent {
+    question: string;
+}
+
+export interface OrderingContent {
+    instruction: string;
+    correct_order: string[];
+}
+
+export interface CategorizationContent {
+    question: string;
+    categories: string[];
+    items: { text: string; category: string }[];
+}
+
+// Union of all strict content types
+export type StrictBlockContent =
+    | MultipleChoiceContent
+    | OpenQuestionContent
+    | OrderingContent
+    | CategorizationContent
+    | any; // Temporary fallback for legacy blocks
 
 export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
 
@@ -40,14 +71,75 @@ export interface ActivityBlockMetadata {
 
     // Scaffolding / Error Handling
     progressiveHints?: string[]; // [General, Specific, Almost Answer]
+    richOptions?: RichOption[];
 }
 
-export interface ActivityBlock {
+export interface RichOption {
+    text?: string;
+    label?: string;
+    id?: string;
+    is_correct?: boolean;
+    isCorrect?: boolean;
+    feedback?: string;
+}
+
+// --- Strict Block Types (Discriminated Union) ---
+
+export interface ActivityBlockBase {
     id: string;
-    type: ActivityBlockType;
-    content: any; // תוכן הבלוק (טקסט, URL, אובייקט שאלה וכו')
     metadata?: ActivityBlockMetadata;
 }
+
+export interface MultipleChoiceBlock extends ActivityBlockBase {
+    type: 'multiple-choice';
+    content: MultipleChoiceContent;
+}
+
+export interface OpenQuestionBlock extends ActivityBlockBase {
+    type: 'open-question';
+    content: OpenQuestionContent;
+}
+
+export interface OrderingBlock extends ActivityBlockBase {
+    type: 'ordering';
+    content: OrderingContent;
+}
+
+export interface CategorizationBlock extends ActivityBlockBase {
+    type: 'categorization';
+    content: CategorizationContent;
+}
+
+// Simple Media Blocks
+export interface MediaBlock extends ActivityBlockBase {
+    type: 'text' | 'image' | 'video' | 'pdf' | 'gem-link';
+    content: string; // URL or Text
+}
+
+// Complex / Legacy Blocks
+export interface GenericBlock extends ActivityBlockBase {
+    type: 'interactive-chat' | 'memory_game' | 'fill_in_blanks';
+    content: any;
+}
+
+export interface PodcastBlock extends ActivityBlockBase {
+    type: 'podcast';
+    content: {
+        title?: string;
+        audioUrl?: string | null;
+        script?: any; // DialogueScript
+        transcript?: string;
+    };
+}
+
+export type ActivityBlock =
+    | MultipleChoiceBlock
+    | OpenQuestionBlock
+    | OrderingBlock
+    | CategorizationBlock
+    | MediaBlock
+    | GenericBlock
+    | PodcastBlock;
 
 export interface LearningUnit {
     id: string;
@@ -55,6 +147,10 @@ export interface LearningUnit {
     type: LearningUnitType;
     baseContent: string;
     activityBlocks: ActivityBlock[];
+    audioOverview?: {
+        script: any; // Context: DialogueScript from gemini.types.ts
+        audioUrl?: string;
+    };
 }
 
 export interface Module {
@@ -83,4 +179,16 @@ export interface Course {
         totalScore: number;
         passScore: number;
     };
+}
+
+export interface Assignment {
+    id: string;
+    courseId: string;
+    title: string;
+    instructions?: string;
+    dueDate?: string | number;
+    activeSubmission?: {
+        answers: Record<string, any>;
+    };
+    [key: string]: any;
 }

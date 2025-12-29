@@ -5,7 +5,7 @@ import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
@@ -101,6 +101,7 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
                         }}
                         onExitReview={onClose}
                         forcedUnitId={unit.id}
+                        unitOverride={unit} // Inject the specific unit object (saved or unsaved)
                         hideReviewHeader={true}
                     />
                     {/* מרווח תחתון */}
@@ -267,34 +268,59 @@ const CourseEditor: React.FC = () => {
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
+                console.log("🧠 Starting V4 'Brain & Hands' Generation for First Unit:", firstUnit.title);
 
-                // יצירת תוכן ראשוני
-                const newBlocks = await generateFullUnitContent(
+                // 1. BRAIN: Generate Skeleton
+                // We use the same 'activityLength' from settings
+                const skeleton = await generateUnitSkeleton(
                     firstUnit.title,
-                    topicToUse,
                     extractedGrade,
-                    processedFileData,
-                    userSubject,
-                    processedSourceText, // העברת הטקסט המחולץ גם לכאן
-                    { ...data.settings?.taxonomy, botPersona: data.settings?.botPersona }, // Pass taxonomy settings with persona
-                    data.settings?.includeBot,
-                    data.settings?.courseMode || 'learning',
-                    data.settings?.activityLength || 'medium'
+                    updatedCourseState.activityLength || 'medium', // Default to medium
+                    processedSourceText // Use grounding
                 );
-                console.log("Called generateFullUnitContent with mode:", data.settings?.courseMode || 'learning');
 
-                const syllabusWithContent = syllabus.map((mod: any) => ({
-                    ...mod,
-                    learningUnits: mod.learningUnits.map((u: any) =>
-                        u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
-                    )
-                }));
+                if (skeleton && skeleton.steps) {
+                    console.log("💀 Skeleton Generated:", skeleton.steps.length, "steps");
 
-                const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
-                setCourse(finalCourse);
-                await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+                    // 2. HANDS: Generate Step Content (Parallel)
+                    // We map over the skeleton steps and call the 'Hands'
+                    const stepPromises = skeleton.steps.map(async (step: any) => {
+                        const stepContent = await generateStepContent(
+                            firstUnit.title,
+                            step, // Pass the skeleton step info
+                            extractedGrade,
+                            processedSourceText,
+                            processedFileData // Images if any
+                        );
 
-                setSelectedUnitId(firstUnit.id);
+                        // 3. NORMALIZE: Map to UI Block
+                        return mapSystemItemToBlock(stepContent);
+                    });
+
+                    // Wait for all hands to finish
+                    const newBlocksRaw = await Promise.all(stepPromises);
+
+                    // Filter out nulls (failures)
+                    const newBlocks = newBlocksRaw.filter(b => b !== null);
+
+                    console.log("✅ V4 Generation Complete. Blocks:", newBlocks.length);
+
+                    const syllabusWithContent = syllabus.map((mod: any) => ({
+                        ...mod,
+                        learningUnits: mod.learningUnits.map((u: any) =>
+                            u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
+                        )
+                    }));
+
+                    const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
+                    setCourse(finalCourse);
+                    await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+
+                    setSelectedUnitId(firstUnit.id);
+                } else {
+                    console.error("❌ Skeleton Generation Failed");
+                    setSelectedUnitId(firstUnit.id);
+                }
             }
 
         } catch (error) {
@@ -414,7 +440,7 @@ const CourseEditor: React.FC = () => {
                     subject={course.subject}
                     onSave={handleSaveUnit}
                     onCancel={() => setShowWizard(true)} // "Back" opens Settings
-                    onPreview={() => setPreviewUnit(unitToRender)}
+                    onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
                     cancelLabel="הגדרות" // RENAME BACK BUTTON
                 />
             ) : (

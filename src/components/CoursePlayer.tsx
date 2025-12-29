@@ -1,21 +1,26 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
-import type { ActivityBlock } from '../courseTypes';
+import { useAuth } from '../context/AuthContext';
+import type { ActivityBlock, Assignment } from '../courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconUser, IconBook, IconEdit, IconSparkles, IconLoader
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconHeadphones, IconMicrophone
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
-import { openai, MODEL_NAME, checkOpenQuestionAnswer } from '../gemini';
+import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio } from '../gemini';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ClozeQuestion from './ClozeQuestion';
 import OrderingQuestion from './OrderingQuestion';
 import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
+import { CitationService } from '../services/citationService'; // GROUNDED QA
+// import { SourceViewer } from './SourceViewer'; // NOTEBOOKLM GUIDE (Removed unused import)
+
+
 
 // Helper to safely extract text from option (string or object)
-const getOptionText = (opt: any): string => {
+const getOptionText = (opt: string | { text?: string }): string => {
     if (typeof opt === 'string') return opt;
     if (opt && typeof opt === 'object' && opt.text) return opt.text;
     return '';
@@ -29,10 +34,13 @@ interface StudentReviewData {
 }
 
 interface CoursePlayerProps {
-    assignment?: any; // Added assignment prop
+    assignment?: Assignment;
     reviewMode?: boolean;
     studentData?: StudentReviewData;
     onExitReview?: () => void;
+    forcedUnitId?: string;
+    unitOverride?: any; // Allow passing unit object directly (for fast preview)
+    hideReviewHeader?: boolean;
 }
 
 // --- רכיב צ'אט אינטראקטיבי חכם ---
@@ -79,12 +87,16 @@ const InteractiveChatBlock: React.FC<{
         try {
             // Explicit string construction to avoid parser issues with Hebrew/Template Literals
             const promptIntro = "הנחיות מערכת:";
-            const promptRole = "אתה " + (block.metadata?.systemPrompt || "מורה עוזר") + ".";
-            const promptTopic = "הנושא: " + '"' + context.unitTitle + '"' + ".";
-            const promptContent = "תוכן: " + '"' + context.unitContent.substring(0, 800) + '..."' + ".";
-            const promptSafety = "שמור על בטיחות ושפה נאותה.";
+            const promptRole = block.metadata?.systemPrompt || "מורה עוזר";
 
-            const systemInstruction = [promptIntro, promptRole, promptTopic, promptContent, promptSafety].join("\n");
+            // 1. Chunk the text
+            const chunks = CitationService.chunkText(context.unitContent);
+            const groundedSystemPrompt = CitationService.constructSystemPrompt(chunks, promptRole);
+
+            const promptTopic = "הנושא: " + '"' + context.unitTitle + '"' + ".";
+            // const promptContent = ... (Replaced by Grounded Prompt)
+
+            const systemInstruction = [promptIntro, groundedSystemPrompt, promptTopic].join("\n");
 
             const historyMessages = messages.map(m => ({
                 role: m.role === 'model' ? 'assistant' : 'user',
@@ -117,7 +129,9 @@ const InteractiveChatBlock: React.FC<{
             <div className={"p-4 text-white flex items-center gap-3 shadow-sm " + (readOnly ? "bg-slate-700" : "bg-gradient-to-r from-purple-600/90 to-indigo-600/90")}>
                 <div className="bg-white/20 p-2 rounded-full"><IconRobot className="w-6 h-6" /></div>
                 <div>
-                    <h3 className="font-bold text-lg">{block.content.title || 'צ׳אט אינטראקטיבי'}</h3>
+                    <h3 className="font-bold text-lg">
+                        {block.type === 'interactive-chat' ? block.content.title || 'צ׳אט אינטראקטיבי' : 'צ׳אט אינטראקטיבי'}
+                    </h3>
                     <p className="text-xs opacity-90">{readOnly ? 'תיעוד שיחה (מצב צפייה)' : 'שוחח עם הבוט'}</p>
                 </div>
             </div>
@@ -134,9 +148,55 @@ const InteractiveChatBlock: React.FC<{
                         )}>
                             {readOnly && <div className="text-[10px] opacity-50 mb-1">{msg.role === 'user' ? 'תלמיד' : 'בוט'}</div>}
                             <div className="prose prose-sm max-w-none prose-p:my-0 prose-ul:my-0 prose-li:my-0 text-inherit">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {msg.text}
-                                </ReactMarkdown>
+                                <div className="prose prose-sm max-w-none prose-p:my-0 prose-ul:my-0 prose-li:my-0 text-inherit">
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            // Custom renderer for detecting [1], [2], etc.
+                                            // Since we can't easily hook into "text" nodes with generic regex in ReactMarkdown without a plugin,
+                                            // we will assume the model outputs them as text.
+                                            // A stricter way is to use `remark-rehype` or a custom plugin.
+                                            // For MVP, if the model outputs links like [[1]](citation:1), it's easier. 
+                                            // But NotebookLM outputs plain text `[1]`.
+                                            // Let's try to match text nodes. 
+                                            // Actually, simplest allowed "Grounded" format is to ask AI to output `[1](citation:1)` Markdown links?
+                                            // No, simpler: Just parse the text before rendering?
+                                            // Let's use a simple text replacement for now or assume standard text.
+                                            // WAITING: For this step, I will just render standard markdown. 
+                                            // To make it clickable, I need a custom plugin or pre-processing.
+                                            // Strategy: Pre-process the message text to turn `[1]` into `[[1]](#cit-1)`.
+                                            a: ({ node, href, children, ...props }) => {
+                                                if (href?.startsWith('#cit-')) {
+                                                    const id = href.replace('#cit-', '');
+                                                    return (
+                                                        <button
+                                                            onClick={() => {
+                                                                // Logic to open split view and scroll
+                                                                const element = document.getElementById(`chunk-${id}`);
+                                                                if (element) {
+                                                                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    element.classList.add('bg-yellow-200'); // Highlight
+                                                                    setTimeout(() => element.classList.remove('bg-yellow-200'), 2000);
+                                                                } else {
+                                                                    // If Split View is closed, we need to alert parent to open it?
+                                                                    // For now, just console (or improved UX later)
+                                                                    console.log("Jump to citation:", id);
+                                                                }
+                                                            }}
+                                                            className="inline-flex items-center justify-center w-5 h-5 ml-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 hover:scale-110 transition-all align-middle"
+                                                        >
+                                                            {children}
+                                                        </button>
+                                                    );
+                                                }
+                                                return <a href={href} {...props}>{children}</a>;
+                                            }
+                                        }}
+                                    >
+                                        {/* Pre-process text to convert [1] to link syntax for the renderer to catch */}
+                                        {msg.text.replace(/\[(\d+)\]/g, '[$1](#cit-$1)')}
+                                    </ReactMarkdown>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -155,34 +215,85 @@ const InteractiveChatBlock: React.FC<{
     );
 };
 
-interface CoursePlayerProps {
-    assignment?: any;
-    reviewMode?: boolean;
-    onExitReview?: () => void;
-    studentData?: StudentReviewData;
-    forcedUnitId?: string; // New Prop
-    hideReviewHeader?: boolean;
-}
+
 
 // --- הקומפוננטה הראשית ---
-const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview, forcedUnitId, hideReviewHeader = false }) => {
+const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview, forcedUnitId, unitOverride, hideReviewHeader = false }) => {
     const { course } = useCourseStore();
+
+    const { currentUser } = useAuth(); // Get current user for name auto-fill
 
     const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
     const [activeUnitId, setActiveUnitId] = useState<string | null>(forcedUnitId || null);
-    // Initialize userAnswers from submission if available, otherwise empty
-    const [userAnswers, setUserAnswers] = useState<Record<string, any>>(assignment?.activeSubmission?.answers || {});
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+    // Initialize userAnswers safely. If assignment has activeSubmission, use it.
+    // If we already have state (from previous render), use that? No, useState does that.
+    // KEY FIX: When assignment updates (e.g. from 'active' to 'completed' status in parent),
+    // we must NOT reset answers if we are the ones who just submitted it.
+    const [userAnswers, setUserAnswers] = useState<Record<string, any>>(() => {
+        return assignment?.activeSubmission?.answers || {};
+    });
+
+    // We only update userAnswers from props if a DIFFERENT assignment is loaded, 
+    // NOT when the SAME assignment updates its status.
+    const lastAssignmentIdRef = useRef(assignment?.id);
+    useEffect(() => {
+        if (assignment?.id && assignment.id !== lastAssignmentIdRef.current) {
+            setUserAnswers(assignment?.activeSubmission?.answers || {});
+            lastAssignmentIdRef.current = assignment.id;
+        }
+    }, [assignment?.id]);
+
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
     const [hintsVisible, setHintsVisible] = useState<Record<string, number>>({}); // number = how many hints shown
     const [blockMistakes, setBlockMistakes] = useState<Record<string, number>>({}); // Track mistakes per block
     const [openQuestionFeedback, setOpenQuestionFeedback] = useState<Record<string, { status: string, feedback: string }>>({}); // Tutor feedback
+
     const [checkingOpenId, setCheckingOpenId] = useState<string | null>(null); // Loading state for Tutor check
 
+    // Recording State
+    const [isRecording, setIsRecording] = useState<string | null>(null); // ID of block currently recording
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const timerRef = useRef<any>(null);
+
     // Submission State
-    const [studentName, setStudentName] = useState('');
-    const [isNameConfirmed, setIsNameConfirmed] = useState(false);
+    const [studentName, setStudentName] = useState(currentUser?.displayName || '');
+    const [isNameConfirmed, setIsNameConfirmed] = useState(!!currentUser?.displayName); // Auto-confirm if name exists
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+
+    // --- Submitted State Persistence (Fix for Remount Issue) ---
+    useEffect(() => {
+        if (!assignment?.id) return;
+        const key = `wizdi_submitted_${assignment.id}`;
+
+        // 1. Restore from storage on mount
+        const savedState = sessionStorage.getItem(key);
+
+        if (savedState) {
+            try {
+                const { submitted, score, name } = JSON.parse(savedState);
+                if (submitted) {
+                    setIsSubmitted(true);
+                }
+            } catch (e) { console.error("Storage parse error", e); }
+        }
+    }, [assignment?.id]);
+
+    useEffect(() => {
+        if (isSubmitted && assignment?.id) {
+            const key = `wizdi_submitted_${assignment.id}`;
+            sessionStorage.setItem(key, JSON.stringify({
+                submitted: true,
+                score: calculateScore(),
+                name: studentName,
+                timestamp: Date.now()
+            }));
+        }
+    }, [isSubmitted, assignment?.id]); // Update storage when state changes
 
     // Split View State
     const [showSplitView, setShowSplitView] = useState(false);
@@ -198,290 +309,317 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         return () => { if (course?.id) hasAutoOpenedRef.current = false; };
     }, [course?.id, course?.showSourceToStudent, !!course?.fullBookContent]);
 
-    // If not an assignment (teacher preview), we don't need name
+    // SET INITIAL UNIT if not set
+    useEffect(() => {
+        if (!initialLoadDone && !activeUnitId && course?.syllabus?.length > 0) {
+            const firstModule = course.syllabus[0];
+            if (firstModule && firstModule.learningUnits?.length > 0) {
+                setActiveModuleId(firstModule.id);
+                setActiveUnitId(firstModule.learningUnits[0].id);
+                setInitialLoadDone(true);
+            }
+        }
+    }, [course, activeUnitId, initialLoadDone]);
+
+    // If not an assignment (teacher preview), we don't need name.
+    // FIX: If assignment appears (switching from preview to student view), we MUST reset confirmed state.
     useEffect(() => {
         if (!assignment) {
             setIsNameConfirmed(true);
-        }
-    }, [assignment]);
-    useEffect(() => {
-        if (forcedUnitId) {
-            setActiveUnitId(forcedUnitId);
-            const moduleForUnit = course?.syllabus?.find(m => m.learningUnits?.some(u => u.id === forcedUnitId));
-            if (moduleForUnit) setActiveModuleId(moduleForUnit.id);
-        } else if (reviewMode && userAnswers && Object.keys(userAnswers).length > 0 && course?.syllabus) {
-            // Smart Review: Find the first unit where the student has answers
-            let foundUnitId = null;
-            let foundModuleId = null;
-
-            for (const module of course.syllabus) {
-                for (const unit of module.learningUnits) {
-                    const hasAnswer = unit.activityBlocks?.some(block => userAnswers[block.id]);
-                    if (hasAnswer) {
-                        foundUnitId = unit.id;
-                        foundModuleId = module.id;
-                        break;
-                    }
-                }
-                if (foundUnitId) break;
-            }
-
-            if (foundUnitId) {
-                setActiveUnitId(foundUnitId);
-                setActiveModuleId(foundModuleId);
+        } else {
+            // If we have a logged-in user, use their name
+            if (currentUser?.displayName) {
+                setStudentName(currentUser.displayName);
+                setIsNameConfirmed(true);
             } else {
-                // Fallback to first unit if answers exist but don't match (shouldn't happen)
-                if (!activeModuleId) setActiveModuleId(course.syllabus[0].id);
-                if (!activeUnitId && course.syllabus[0].learningUnits?.length > 0) setActiveUnitId(course.syllabus[0].learningUnits[0].id);
+                setIsNameConfirmed(false);
+                setStudentName('');
             }
-        } else if (course?.syllabus?.length > 0) {
-            // Default initialization
-            if (!activeModuleId) setActiveModuleId(course.syllabus[0].id);
-            if (!activeUnitId && course.syllabus[0].learningUnits?.length > 0) setActiveUnitId(course.syllabus[0].learningUnits[0].id);
         }
-    }, [course, forcedUnitId, reviewMode]); // Removed userAnswers dependency to avoid loops, as userAnswers is init from props
+    }, [assignment?.id, currentUser]); // Depend on ID to reset on new assignment
 
-    // מצב סקירה
     useEffect(() => {
-        if (reviewMode && studentData?.answers) {
-            setUserAnswers(studentData.answers);
-            setFeedbackVisible(() => {
-                const newState: Record<string, boolean> = {};
-                if (activeUnit) activeUnit.activityBlocks.forEach(b => newState[b.id] = true);
-                return newState;
-            });
-        }
-    }, [reviewMode, studentData, activeUnitId]);
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                mediaRecorderRef.current.stop();
+            }
+        };
+    }, []);
 
-    // בדיקת טעינה
-    if (!course || !course.syllabus) return <div className="h-screen flex items-center justify-center text-gray-500">טוען תוכן...</div>;
+    // --- Helper Functions & Logic ---
 
-    // --- 1. מסך הזנת שם (רק למשימות) ---
-    if (assignment && !isNameConfirmed) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
-                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <IconUser className="w-8 h-8" />
-                    </div>
-                    <h1 className="text-2xl font-bold mb-2">ברוכים הבאים!</h1>
-                    <p className="text-gray-600 mb-6">לפני שמתחילים במשימה <b>"{assignment.title}"</b>, אנא הכניסו את שמכם המלא.</p>
+    // --- Audio Recording Logic ---
+    const handleStartRecording = async (blockId: string) => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
 
-                    <input
-                        type="text"
-                        placeholder="שם מלא..."
-                        value={studentName}
-                        onChange={(e) => setStudentName(e.target.value)}
-                        className="w-full p-4 border border-gray-300 rounded-xl mb-6 text-lg focus:border-blue-500 outline-none"
-                    />
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+            };
 
-                    <button
-                        onClick={() => {
-                            if (studentName.trim().length > 1) setIsNameConfirmed(true);
-                        }}
-                        disabled={studentName.trim().length < 2}
-                        className={"w-full py-3 rounded-xl font-bold text-white transition-all " + (
-                            studentName.trim().length < 2 ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg'
-                        )}
-                    >
-                        התחל משימה
-                    </button>
-                </div>
-            </div>
-        );
-    }
+            mediaRecorderRef.current.onstop = async () => {
+                setIsRecording(null);
+                setRecordingTime(0);
+                clearInterval(timerRef.current);
 
-    // --- 2. מסך סיום והגשה ---
-    if (isSubmitted) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-                <div className="bg-white p-10 rounded-3xl shadow-xl max-w-lg w-full text-center animate-scale-in">
-                    <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <IconCheck className="w-10 h-10" />
-                    </div>
-                    <h1 className="text-3xl font-black text-gray-800 mb-3">המשימה הוגשה בהצלחה!</h1>
-                    <p className="text-gray-600 text-lg mb-8">
-                        תודה רבה, {studentName}.<br />
-                        התשובות שלך נשמרו והועברו למורה לבדיקה.
-                    </p>
-                    <button onClick={() => window.close()} className="text-gray-400 hover:text-gray-600 text-sm underline">
-                        סגור חלונית
-                    </button>
-                </div>
-            </div>
-        );
-    }
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const existingText = userAnswers[blockId] || '';
 
-    const activeModule = course.syllabus.find(m => m.id === activeModuleId);
-    const activeUnit = activeModule?.learningUnits.find(u => u.id === activeUnitId);
-    const isExamMode = course.mode === 'exam';
+                // Show loading indicator in text? 
+                // Better: Just wait? Or optimistically update?
+                // For now, let's block UI or show specific loader.
+                // We'll insert a "Transcribing..." placeholder or just wait.
 
-    // חישוב הגיל לתצוגה
-    const displayGrade = course.gradeLevel || course.targetAudience || "כללי";
+                console.log("Transcribing audio...");
+                handleAnswerSelect(blockId, existingText + (existingText ? "\n" : "") + "[מעבד הקלטה...]"); // UX Placeholder
 
+                const text = await transcribeAudio(audioBlob);
 
-    const handleShowHint = (blockId: string) => {
-        setHintsVisible(prev => {
-            const currentLevel = prev[blockId] || 0;
-            return { ...prev, [blockId]: currentLevel + 1 };
-        });
-    };
+                // Remove placeholder and append text
+                const current = userAnswers[blockId] || ""; // refetch fresh state if possible, but state closure might be stale.
+                // Actually `userAnswers` in this closure is stale? No, functional update.
 
-    const handleAnswerSelect = (blockId: string, answer: any) => {
-        if (!reviewMode && !feedbackVisible[blockId]) {
-            setUserAnswers(prev => ({
-                ...prev,
-                [blockId]: answer
-            }));
-            // Reset hints when user tries to answer? Optional. 
-            // For now, let's keep them if they asked.
+                handleAnswerSelect(blockId, (prev: string) => {
+                    // remove placeholder
+                    const clean = prev.replace("\n[מעבד הקלטה...]", "").replace("[מעבד הקלטה...]", "");
+                    if (text) return clean + (clean ? " " : "") + text;
+                    return clean;
+                });
+
+                if (!text) alert("התמלול נכשל. אנא נסה שוב.");
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(blockId);
+            setRecordingTime(0);
+
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => {
+                    if (prev >= 60) {
+                        handleStopRecording(); // Auto stop
+                        return 60;
+                    }
+                    return prev + 1;
+                });
+            }, 1000);
+
+        } catch (e) {
+            console.error("Mic Error:", e);
+            alert("לא ניתן לגשת למיקרופון. אנא ודא שיש אישור.");
         }
     };
+
+    const handleStopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+    };
+
+    const isExamMode = course?.mode === 'exam';
+
+    const handleAnswerSelect = (questionId: string, answer: any) => {
+        if (isSubmitted && isExamMode) return; // Prevent changes after submission in exam mode
+        // In learning mode or before submission, allow changes
+        if (typeof answer === 'function') {
+            // Support functional updates for stale state handling (recording)
+            setUserAnswers(prev => ({ ...prev, [questionId]: answer(prev[questionId] || '') }));
+        } else {
+            setUserAnswers(prev => ({ ...prev, [questionId]: answer }));
+        }
+    };
+
     const checkAnswer = async (blockId: string) => {
-        if (isExamMode || reviewMode) return;
-
-        const block = activeUnit?.activityBlocks.find(b => b.id === blockId);
+        // Find the block to check correctness
+        const block = activeUnit?.activityBlocks?.find((b: ActivityBlock) => b.id === blockId);
         if (!block) return;
 
-        // 1. Multiple Choice Check
-        if (block.type === 'multiple-choice') {
-            setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
-            const isCorrect = userAnswers[blockId] === block.content.correctAnswer;
-            if (!isCorrect) {
-                setBlockMistakes(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
+        // --- Handle Open Question (AI Tutor) ---
+        if (block.type === 'open-question') {
+            const userAnswer = userAnswers[blockId];
+            if (!userAnswer || userAnswer.trim().length < 2) {
+                alert("אנא כתוב תשובה מלאה לפני הבדיקה.");
+                return;
             }
-        }
-
-        // 2. Open Question Check (The Tutor)
-        else if (block.type === 'open-question') {
-            if (!userAnswers[blockId] || userAnswers[blockId].trim().length < 3) return; // Ignore empty answers
 
             setCheckingOpenId(blockId);
+            try {
+                // Use Source Text if available (Global context) or fallback
+                const context = course?.fullBookContent || "";
+                const feedback = await checkOpenQuestionAnswer(
+                    block.content.question,
+                    userAnswer,
+                    block.metadata?.modelAnswer || "TBD",
+                    context
+                );
 
-            // Get context (Source text) if available
-            const sourceText = course?.fullBookContent || "";
-            const modelAnswer = block.metadata?.modelAnswer || "";
-
-            const tutorResponse = await checkOpenQuestionAnswer(
-                block.content.question,
-                userAnswers[blockId],
-                modelAnswer,
-                sourceText
-            );
-
-            setOpenQuestionFeedback(prev => ({ ...prev, [blockId]: tutorResponse }));
-            setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
-            setCheckingOpenId(null);
+                setOpenQuestionFeedback(prev => ({ ...prev, [blockId]: feedback }));
+                setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+            } catch (e) {
+                console.error("Tutor check failed", e);
+                // Fallback
+                setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+            } finally {
+                setCheckingOpenId(null);
+            }
+            return;
         }
-        else {
-            // Default for others
-            setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
-        }
-    };
 
-    const handleGameComplete = (blockId: string, score: number) => {
-        if (reviewMode) return;
-        // Save score as string or generic obj
-        setUserAnswers(prev => ({ ...prev, [blockId]: "Score: " + score }));
+        // --- Standard Logic for Close-Ended Questions ---
+        // Mark feedback as visible for this block
         setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+
+        const isCorrect = userAnswers[blockId] === block.content.correctAnswer;
+        if (!isCorrect) {
+            setBlockMistakes(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
+        }
     };
 
-    // --- לוגיקה למעבר יחידה ---
-    const goToNextUnit = () => {
-        if (reviewMode || !course.syllabus) return;
-
-        const currentModuleIndex = course.syllabus.findIndex(m => m.id === activeModuleId);
-        const currentModule = course.syllabus[currentModuleIndex];
-        const currentUnitIndex = currentModule?.learningUnits.findIndex(u => u.id === activeUnitId);
-
-        if (currentModule && currentUnitIndex !== -1) {
-            if (currentUnitIndex < currentModule.learningUnits.length - 1) {
-                // ... (Logic remains same)
-                const nextUnit = currentModule.learningUnits[currentUnitIndex + 1];
-                setActiveUnitId(nextUnit.id);
-                window.scrollTo(0, 0);
-            }
-            else if (currentModuleIndex < course.syllabus.length - 1) {
-                // ... (Logic remains same)
-                const nextModule = course.syllabus[currentModuleIndex + 1];
-                setActiveModuleId(nextModule.id);
-                if (nextModule.learningUnits.length > 0) {
-                    setActiveUnitId(nextModule.learningUnits[0].id);
-                }
-                window.scrollTo(0, 0);
-            } else {
-                // Last Unit: Trigger Submit!
-                handleSubmit();
-            }
-        }
+    const handleShowHint = (blockId: string) => {
+        setHintsVisible(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
     };
 
     const calculateScore = () => {
-        if (!course || !course.syllabus) return 0;
-
-        let totalWeightedScore = 0;
-        let totalMaxWeight = 0;
+        if (!course) return 0;
+        let totalQuestions = 0;
+        let correctAnswers = 0;
 
         course.syllabus.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
-                    const weight = block.metadata?.score || 10; // Default weight is 10 if not specified
-
-                    // 1. Multiple Choice
-                    if (block.type === 'multiple-choice' && block.content.correctAnswer) {
-                        totalMaxWeight += weight;
+                    if (['multiple-choice', 'cloze', 'ordering', 'categorization'].includes(block.type)) {
+                        totalQuestions++;
+                        // Simple check for now - can be expanded for complex types
                         if (userAnswers[block.id] === block.content.correctAnswer) {
-                            totalWeightedScore += weight;
+                            correctAnswers++;
                         }
-                    }
-
-                    // 2. Interactive Questions (Stored as "Score: X" string, X is 0-100)
-                    else if (['fill_in_blanks', 'ordering', 'categorization', 'memory_game'].includes(block.type)) {
-                        totalMaxWeight += weight;
-                        const answerStr = userAnswers[block.id];
-                        if (answerStr && typeof answerStr === 'string' && answerStr.startsWith('Score: ')) {
-                            const numericScore = parseInt(answerStr.replace('Score: ', '')) || 0;
-                            // Add proportional score based on weight
-                            totalWeightedScore += (numericScore / 100) * weight;
-                        }
-                    }
-
-                    // 3. Related Questions (Metadata)
-                    if (block.metadata?.relatedQuestion?.correctAnswer) {
-                        const relatedWeight = 5; // Fixed weight for related questions
-                        totalMaxWeight += relatedWeight;
-                        // Reconstruct ID for related question: blockId_related
-                        if (userAnswers[block.id + "_related"] === block.metadata.relatedQuestion.correctAnswer) {
-                            totalWeightedScore += relatedWeight;
+                        // For games, we might store score directly
+                        if (userAnswers[block.id]?.score) {
+                            // Logic for weighted score...
                         }
                     }
                 });
             });
         });
 
-        if (totalMaxWeight === 0) return 0; // No score applicable
-        return Math.round((totalWeightedScore / totalMaxWeight) * 100);
+        if (totalQuestions === 0) return 100; // No questions = 100? or 0?
+        return Math.round((correctAnswers / totalQuestions) * 100);
     };
 
-    const handleSubmit = async () => {
-        if (!assignment || !studentName) return;
+    const goToNextUnit = () => {
+        if (!activeModuleId || !activeUnitId || !course) return;
 
-        if (!window.confirm("האם אתה בטוח שברצונך להגיש את המשימה? לא ניתן לשנות תשובות לאחר ההגשה.")) return;
+        const currentModuleIndex = course.syllabus.findIndex(m => m.id === activeModuleId);
+        const currentModule = course.syllabus[currentModuleIndex];
+        const currentUnitIndex = currentModule.learningUnits.findIndex(u => u.id === activeUnitId);
+
+        // Try next unit in same module
+        if (currentUnitIndex < currentModule.learningUnits.length - 1) {
+            setActiveUnitId(currentModule.learningUnits[currentUnitIndex + 1].id);
+            window.scrollTo(0, 0);
+            return;
+        }
+
+        // Try next module
+        if (currentModuleIndex < course.syllabus.length - 1) {
+            const nextModule = course.syllabus[currentModuleIndex + 1];
+            if (nextModule.learningUnits.length > 0) {
+                setActiveModuleId(nextModule.id);
+                setActiveUnitId(nextModule.learningUnits[0].id);
+                window.scrollTo(0, 0);
+                return;
+            }
+        }
+
+        // End of course
+        setActiveUnitId(null);
+    };
+
+    const handleGameComplete = (blockId: string, score: number) => {
+        setUserAnswers(prev => ({ ...prev, [blockId]: { score, completed: true } }));
+        // Auto-show feedback?
+    };
+
+    // Debug Unmount
+    useEffect(() => {
+        return () => console.log("⚠️ CoursePlayer Unmounting!");
+    }, []);
+
+    const handleSubmit = async (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        console.log("🚀 handleSubmit CLICKED!");
+        console.log("Current State:", { assignment, studentName, isNameConfirmed, userAnswers });
+
+        if (!assignment) {
+            console.warn("No assignment found - Preview mode?");
+            alert("מצב תצוגה מקדימה - לא ניתן להגיש משימה. (המשימה תוצג כ'הוגשה' עבור תלמיד אמת)");
+            return;
+        }
+
+        // Validation: Verify Name
+        if (!studentName || studentName.trim().length === 0) {
+            console.warn("Student name missing!", studentName);
+            // Should not happen if isNameConfirmed logic is correct, but as a safety net:
+            alert("חסר שם תלמיד. אנא רענן את הדף והכנס שם.");
+            setIsNameConfirmed(false); // Force name entry
+            return;
+        }
+
+        // Check for incomplete questions
+        let totalQuestions = 0;
+        let answeredCount = 0;
+        course?.syllabus?.forEach(module => {
+            module.learningUnits.forEach(unit => {
+                unit.activityBlocks?.forEach(block => {
+                    if (['multiple-choice', 'cloze', 'ordering', 'categorization', 'open_question', 'memory_game'].includes(block.type)) {
+                        totalQuestions++;
+                        if (userAnswers[block.id]) answeredCount++;
+                    }
+                });
+            });
+        });
+
+        console.log("📝 Submission Validation:", { totalQuestions, answeredCount });
+        const isComplete = answeredCount >= totalQuestions;
+        let confirmMsg = "האם אתה בטוח שברצונך להגיש את המשימה?";
+        if (!isComplete) {
+            confirmMsg = `⚠️ שים לב: ענית רק על ${answeredCount} מתוך ${totalQuestions} שאלות.\n\nהאם אתה בטוח שברצונך להגיש כך?`;
+        } else {
+            confirmMsg += "\n\nלא ניתן לשנות תשובות לאחר ההגשה.";
+        }
+
+        // Use standard confirm, but maybe wrap in timeout to ensure no UI blocking issues
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
 
         setIsSubmitting(true);
         try {
             const finalScore = calculateScore();
-            await submitAssignment({
-                assignmentId: assignment.id || 'unknown', // Fallback if ID extracted from URL param outside
+            console.log("Calculated Score:", finalScore);
+
+            // Verify IDs before sending
+            if (!assignment.id || !course.id) {
+                throw new Error(`Missing IDs: Asst=${assignment.id}, Course=${course.id}`);
+            }
+
+            const result = await submitAssignment({
+                assignmentId: assignment.id,
                 courseId: course.id,
                 studentName: studentName,
                 answers: userAnswers,
                 score: finalScore
             });
+            console.log("Submission Result:", result);
             setIsSubmitted(true);
         } catch (e) {
-            alert("אירעה שגיאה בהגשה. נא לנסות שוב.");
-            console.error(e);
+            console.error("Submission Failed:", e);
+            alert("שגיאה קריטית בהגשה:\n" + (e as any).message);
             setIsSubmitting(false);
         }
     };
@@ -561,7 +699,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     const renderBlock = (block: ActivityBlock) => {
         // --- חילוץ בטוח של כתובת המדיה ---
         const getMediaSrc = () => {
-            if (block.content && typeof block.content === 'string' && block.content.startsWith('http')) return block.content;
+            const c = block.content;
+            if (typeof c === 'string' && c.startsWith('http')) return c;
             if (block.metadata?.uploadedFileUrl) return block.metadata.uploadedFileUrl;
             if (block.metadata?.media) return block.metadata.media;
             return null;
@@ -601,6 +740,55 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="text-center text-sm text-gray-500 mt-2 pb-2 italic font-medium px-4">{block.metadata.caption}</div>
                         )}
                         {block.metadata?.relatedQuestion && renderRelatedQuestion(block.id, block.metadata.relatedQuestion)}
+                    </div>
+                );
+
+            case 'podcast':
+                return (
+                    <div key={block.id} className="mb-8 glass bg-purple-50/50 p-6 rounded-2xl border border-purple-100/60 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="bg-purple-100 p-2 rounded-lg text-purple-600">
+                                <IconHeadphones className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">{block.content.title || "פודקאסט לסיכום היחידה"}</h3>
+                                <div className="text-xs text-purple-600 font-bold">Wizdi Audio Overview 🎧</div>
+                            </div>
+                        </div>
+
+                        {/* Podcast Player (Mock for now, would be real audio tag) */}
+                        <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm mb-4">
+                            <div className="flex items-center gap-4">
+                                <button className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-700 hover:scale-105 transition-all">
+                                    <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
+                                </button>
+                                <div className="flex-1">
+                                    <div className="h-2 bg-purple-100 rounded-full overflow-hidden cursor-pointer">
+                                        <div className="h-full w-1/3 bg-purple-500 rounded-full relative">
+                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-purple-600 rounded-full shadow-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-400 mt-2 font-mono">
+                                        <span>02:14</span>
+                                        <span>05:30</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Script / Transcript */}
+                        {block.content.script && (
+                            <div className="bg-white/80 rounded-xl border border-purple-50 p-4 max-h-64 overflow-y-auto custom-scrollbar space-y-3">
+                                {block.content.script.map((line: any, idx: number) => (
+                                    <div key={idx} className={`flex flex-col ${line.speaker.includes('Host') ? 'items-start' : 'items-end'}`}>
+                                        <div className={`p-3 rounded-2xl max-w-[90%] text-sm leading-relaxed ${line.speaker.includes('Host') ? 'bg-purple-50 text-purple-900 rounded-tl-none' : 'bg-indigo-50 text-indigo-900 rounded-tr-none'}`}>
+                                            <span className="font-bold text-[10px] block opacity-50 mb-1">{line.speaker}</span>
+                                            {line.text}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
 
@@ -747,73 +935,100 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         )}
 
-                        <textarea
-                            value={userAnswers[block.id] || ''}
-                            onChange={(e) => handleAnswerSelect(block.id, e.target.value)}
-                            placeholder={reviewMode ? "התלמיד לא ענה" : "כתבו את התשובה כאן..."}
-                            rows={4}
-                            className={"w-full p-4 border rounded-xl outline-none transition-colors " + (reviewMode || feedbackVisible[block.id] ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white focus:border-indigo-300')}
-                            disabled={reviewMode || feedbackVisible[block.id]}
-                        />
+                        <div className="relative">
+                            <textarea
+                                value={userAnswers[block.id] || ''}
+                                onChange={(e) => handleAnswerSelect(block.id, e.target.value)}
+                                placeholder={reviewMode ? "התלמיד לא ענה" : "כתבו את התשובה כאן... (ניתן גם להקליט)"}
+                                rows={4}
+                                className={"w-full p-4 border rounded-xl outline-none transition-colors " + (reviewMode || feedbackVisible[block.id] ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white focus:border-indigo-300')}
+                                disabled={reviewMode || feedbackVisible[block.id]}
+                            />
+
+                            {/* Recording Button */}
+                            {!reviewMode && !feedbackVisible[block.id] && (
+                                <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                                    {isRecording === block.id ? (
+                                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-3 py-1.5 rounded-full animate-pulse">
+                                            <div className="w-2 h-2 bg-red-600 rounded-full animate-ping"></div>
+                                            <span className="text-xs font-mono font-bold">{recordingTime}s / 60s</span>
+                                            <button onClick={handleStopRecording} className="text-xs font-bold underline hover:text-red-800">סיום</button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleStartRecording(block.id)}
+                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                                            title="הקלט תשובה קולית"
+                                        >
+                                            <IconMicrophone className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Student Self-Check Button */}
-                        {!isExamMode && !reviewMode && (
-                            <div className="mt-4">
-                                {!feedbackVisible[block.id] ? (
-                                    <button
-                                        onClick={() => checkAnswer(block.id)}
-                                        disabled={checkingOpenId === block.id}
-                                        className="text-blue-600 font-bold text-sm hover:underline flex items-center gap-2"
-                                    >
-                                        {checkingOpenId === block.id ? <><IconLoader className="w-4 h-4 animate-spin" /> בודק...</> : 'בדוק תשובה'}
-                                    </button>
-                                ) : (
-                                    <div className={"p-4 rounded-xl animate-fade-in border " + (
-                                        openQuestionFeedback[block.id]?.status === 'correct' ? 'bg-green-50 border-green-200' :
-                                            openQuestionFeedback[block.id]?.status === 'partial' ? 'bg-yellow-50 border-yellow-200' :
-                                                'bg-red-50 border-red-200'
-                                    )}>
-                                        <div className={"text-xs font-bold mb-1 flex items-center gap-1 " + (
-                                            openQuestionFeedback[block.id]?.status === 'correct' ? 'text-green-700' :
-                                                openQuestionFeedback[block.id]?.status === 'partial' ? 'text-yellow-700' :
-                                                    'text-red-700'
+                        {
+                            !isExamMode && !reviewMode && (
+                                <div className="mt-4">
+                                    {!feedbackVisible[block.id] ? (
+                                        <button
+                                            onClick={() => checkAnswer(block.id)}
+                                            disabled={checkingOpenId === block.id}
+                                            className="text-blue-600 font-bold text-sm hover:underline flex items-center gap-2"
+                                        >
+                                            {checkingOpenId === block.id ? <><IconLoader className="w-4 h-4 animate-spin" /> בודק...</> : 'בדוק תשובה'}
+                                        </button>
+                                    ) : (
+                                        <div className={"p-4 rounded-xl animate-fade-in border " + (
+                                            openQuestionFeedback[block.id]?.status === 'correct' ? 'bg-green-50 border-green-200' :
+                                                openQuestionFeedback[block.id]?.status === 'partial' ? 'bg-yellow-50 border-yellow-200' :
+                                                    'bg-red-50 border-red-200'
                                         )}>
-                                            <IconRobot className="w-4 h-4" />
-                                            {openQuestionFeedback[block.id]?.status === 'correct' ? 'משוב מעולה!' :
-                                                openQuestionFeedback[block.id]?.status === 'partial' ? 'בכיוון הנכון...' :
-                                                    'שים לב...'}
-                                        </div>
-                                        <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                                            {openQuestionFeedback[block.id]?.feedback || "תשובה נקלטה."}
-                                        </div>
+                                            <div className={"text-xs font-bold mb-1 flex items-center gap-1 " + (
+                                                openQuestionFeedback[block.id]?.status === 'correct' ? 'text-green-700' :
+                                                    openQuestionFeedback[block.id]?.status === 'partial' ? 'text-yellow-700' :
+                                                        'text-red-700'
+                                            )}>
+                                                <IconRobot className="w-4 h-4" />
+                                                {openQuestionFeedback[block.id]?.status === 'correct' ? 'משוב מעולה!' :
+                                                    openQuestionFeedback[block.id]?.status === 'partial' ? 'בכיוון הנכון...' :
+                                                        'שים לב...'}
+                                            </div>
+                                            <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                                {openQuestionFeedback[block.id]?.feedback || "תשובה נקלטה."}
+                                            </div>
 
-                                        {/* Allow retry if not correct */}
-                                        {openQuestionFeedback[block.id]?.status !== 'correct' && (
-                                            <button
-                                                onClick={() => setFeedbackVisible(prev => ({ ...prev, [block.id]: false }))}
-                                                className="mt-3 text-xs font-bold underline opacity-70 hover:opacity-100"
-                                            >
-                                                נסה לתקן את התשובה
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                            {/* Allow retry if not correct */}
+                                            {openQuestionFeedback[block.id]?.status !== 'correct' && (
+                                                <button
+                                                    onClick={() => setFeedbackVisible(prev => ({ ...prev, [block.id]: false }))}
+                                                    className="mt-3 text-xs font-bold underline opacity-70 hover:opacity-100"
+                                                >
+                                                    נסה לתקן את התשובה
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        }
 
                         {/* הצגת המחוון למורה במצב צפייה */}
-                        {reviewMode && block.metadata?.modelAnswer && (
-                            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                                <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
-                                    <IconInfo className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:
+                        {
+                            reviewMode && block.metadata?.modelAnswer && (
+                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                    <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
+                                        <IconInfo className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:
+                                    </div>
+                                    <div className="text-sm text-yellow-900 leading-relaxed whitespace-pre-wrap">{block.metadata.modelAnswer}</div>
                                 </div>
-                                <div className="text-sm text-yellow-900 leading-relaxed whitespace-pre-wrap">{block.metadata.modelAnswer}</div>
-                            </div>
-                        )}
+                            )
+                        }
                     </div>
                 );
-            case 'fill_in_blanks':
-                const fibMedia = getMediaSrc();
+            case 'fill_in_blanks': {
+                const fibMedia = mediaSrc;
                 return (
                     <div key={block.id} className="mb-8">
                         {fibMedia && (
@@ -827,8 +1042,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         <ClozeQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
                     </div>
                 );
-            case 'ordering':
-                const ordMedia = getMediaSrc();
+            }
+            case 'ordering': {
+                const ordMedia = mediaSrc;
                 return (
                     <div key={block.id} className="mb-8">
                         {ordMedia && (
@@ -842,8 +1058,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         <OrderingQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
                     </div>
                 );
-            case 'categorization':
-                const catMedia = getMediaSrc();
+            }
+            case 'categorization': {
+                const catMedia = mediaSrc;
                 return (
                     <div key={block.id} className="mb-8">
                         {catMedia && (
@@ -857,8 +1074,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         <CategorizationQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
                     </div>
                 );
+            }
             case 'memory_game':
-                const memMedia = getMediaSrc();
+                const memMedia = mediaSrc;
                 return (
                     <div key={block.id} className="mb-8">
                         {memMedia && (
@@ -876,8 +1094,44 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
     };
 
+    // --- Computed Values ---
+    const activeModule = course?.syllabus?.find(m => m.id === activeModuleId);
+    const activeUnit = unitOverride || activeModule?.learningUnits?.find(u => u.id === activeUnitId);
+    const displayGrade = assignment?.score ? `ציון: ${assignment.score}` : '';
+
+    if (!course || course.id === 'loading') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+                <IconLoader className="w-12 h-12 animate-spin text-blue-600 mb-4" />
+                <p className="font-bold text-lg animate-pulse">טוען תוכן קורס...</p>
+                <p className="text-sm opacity-70 mt-2">אנא המתן מספר שניות</p>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-full bg-gray-50 flex flex-col items-center">
+            {/* --- Success Screen --- */}
+            {isSubmitted && (
+                <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center animate-fade-in p-8 text-center">
+                    <IconCheck className="w-24 h-24 text-green-500 mb-6 animate-bounce" />
+                    <h2 className="text-4xl font-black text-gray-800 mb-4">המשימה הוגשה בהצלחה!</h2>
+                    <p className="text-xl text-gray-600 mb-8 max-w-lg">
+                        כל הכבוד, <strong>{studentName}</strong>. התשובות שלך נשלחו למורה.
+                    </p>
+                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 max-w-sm w-full mb-8">
+                        <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">הציון שלך</div>
+                        <div className="text-6xl font-black text-blue-600">{calculateScore()}</div>
+                    </div>
+                    <button
+                        onClick={() => window.location.replace('/')}
+                        className="bg-gray-800 text-white px-8 py-3 rounded-full font-bold hover:bg-gray-900 transition-all hover:scale-105"
+                    >
+                        חזרה לדף הבית
+                    </button>
+                </div>
+            )}
+
             {reviewMode && studentData && !hideReviewHeader && (
                 <div className="sticky top-0 w-full h-10 bg-yellow-400 text-yellow-900 font-bold text-center flex items-center justify-center z-[60] shadow-md">
                     <IconEye className="w-5 h-5 ml-2" /> מצב סקירה: {studentData.studentName}
@@ -956,7 +1210,18 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             ) : (
                                 <div className="p-6 prose max-w-none text-sm leading-relaxed">
                                     {course.fullBookContent ? (
-                                        <div className="whitespace-pre-wrap font-serif text-gray-800">{course.fullBookContent}</div>
+                                        <div className="font-serif text-gray-800 leading-relaxed">
+                                            {CitationService.chunkText(course.fullBookContent).map((chunk) => (
+                                                <span
+                                                    key={chunk.id}
+                                                    id={`chunk-${chunk.id}`}
+                                                    className="relative py-1 px-1 rounded transition-colors duration-1000 block md:inline hover:bg-yellow-50/50"
+                                                >
+                                                    <sup className="text-gray-400 text-xs select-none pr-1">[{chunk.id}]</sup>
+                                                    {chunk.text + " "}
+                                                </span>
+                                            ))}
+                                        </div>
                                     ) : (
                                         <div className="text-center text-gray-500 mt-10">
                                             <p className="font-bold">לא נמצא טקסט מקור.</p>
@@ -1027,6 +1292,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                                 {assignment ? (
                                     <button
+                                        type="button"
                                         onClick={handleSubmit}
                                         disabled={isSubmitting}
                                         className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"

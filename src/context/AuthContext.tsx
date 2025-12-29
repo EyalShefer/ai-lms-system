@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth'; // Import signInAnonymously
 import type { User } from 'firebase/auth';
 
 interface AuthContextType {
     currentUser: User | null;
     loading: boolean;
+    mockLogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,8 +18,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         console.log("🔵 AuthProvider: מאזין לשינויי התחברות...");
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log("🟢 AuthProvider: סטטוס משתמש השתנה:", user ? "מחובר (" + user.email + ")" : "מנותק");
-            setCurrentUser(user);
+            console.log("🟢 AuthProvider: סטטוס משתמש השתנה:", user ? "מחובר (" + (user.email || 'Anonymous') + ")" : "מנותק");
+
+            if (user && user.isAnonymous) {
+                // Decorate anonymous user to look like Dev User in UI
+                const devUser = Object.create(user);
+                Object.defineProperty(devUser, 'email', { value: 'dev@test.com' });
+                Object.defineProperty(devUser, 'displayName', { value: 'Wizdi Developer (Anon)' });
+                setCurrentUser(devUser);
+            } else {
+                setCurrentUser(user);
+            }
             setLoading(false);
         });
 
@@ -28,8 +38,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // לוג בדיקה בכל רינדור
     console.log("🟡 AuthProvider Render: Loading =", loading, "| User =", currentUser?.email);
 
+    const mockLogin = async () => {
+        console.log("⚡ Dev Login Activated (Anonymous Auth)");
+        try {
+            await signInAnonymously(auth);
+            // State update handled by onAuthStateChanged
+        } catch (error) {
+            console.error("Dev Login Failed:", error);
+            alert("שגיאה בהתחברות למצב פיתוח");
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ currentUser, loading }}>
+        <AuthContext.Provider value={{ currentUser, loading, mockLogin }}>
             {children}
         </AuthContext.Provider>
     );

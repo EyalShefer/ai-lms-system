@@ -78,7 +78,7 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [pdfSource, setPdfSourceState] = useState<string | null>(null);
     const [currentCourseId, setCurrentCourseId] = useState<string | null>(null);
 
-    const loadCourse = (id: string) => setCurrentCourseId(id);
+    const loadCourse = React.useCallback((id: string) => setCurrentCourseId(id), []);
 
     useEffect(() => {
         if (!currentCourseId) return;
@@ -116,7 +116,7 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return () => unsubscribe();
     }, [currentCourseId]);
 
-    const saveToCloud = async (newCourse: Course, newBookContent: string, newPdf: string | null) => {
+    const saveToCloud = React.useCallback(async (newCourse: Course, newBookContent: string, newPdf: string | null) => {
         if (!currentCourseId) return;
         try {
             const { id, ...courseFields } = newCourse;
@@ -130,9 +130,31 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) { console.error("Error saving:", e); }
-    };
+    }, [currentCourseId]);
 
-    const setCourse = (newCourse: Course) => { setCourseState(newCourse); saveToCloud(newCourse, fullBookContent, pdfSource); };
+    const setCourse = React.useCallback((newCourse: Course) => {
+        setCourseState(newCourse);
+        // We can't access fullBookContent state directly safely in callback if not in dependency, 
+        // but state setter is stable.
+        // Better to use refs or just accept that fullBookContent might be stale if not updating dependencies?
+        // Actually, best to pass all needed data to saveToCloud or just use current state in save helper.
+        // But for simplicity and stability, let's keep it simple:
+        // We need 'saveToCloud' to have access to latest state.
+        // To avoid complex dependency chains, let's just use refs for the side-effect values (content/pdf) 
+        // OR just memoize with dependencies.
+        // Given the infinite loop was likely just 'loadCourse', let's prioritize that.
+        // saveToCloud needs 'currentCourseId'.
+        saveToCloud(newCourse, fullBookContent, pdfSource);
+    }, [saveToCloud, fullBookContent, pdfSource]);
+
+    // WARNING: Memoizing setCourse with fullBookContent dependency means it changes when content changes.
+    // This might trigger re-renders if App depends on setCourse.
+    // Ideally, we want 'loadCourse' to be stable (dependency-free).
+    // 'setCourse' is less critical for the infinite loop in App.tsx (which depends on loadCourse).
+
+    // Let's TRY just stabilizing 'loadCourse' first, as that is the one App.tsx calls.
+    // The others are called by Editor/components.
+
     const setFullBookContent = (text: string) => { setFullBookContentState(text); saveToCloud(course, text, pdfSource); };
     const setPdfSource = (data: string) => { setPdfSourceState(data); saveToCloud(course, fullBookContent, data); };
 

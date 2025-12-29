@@ -8,99 +8,120 @@
     body {
         font-family: 'Rubik', sans-serif;
         @apply text-slate-700;
-        /* רקע גרדיאנט עשיר שמבליט את אפקט הזכוכית */
-        background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 50%, #b8d6f6 100%);
+        /* wizdi Soft Cloud Gradient */
+        background: linear-gradient(135deg, #F5F9FF 0%, #E0F2FE 100%);
         background-attachment: fixed;
         min-height: 100vh;
     }
 
     /* כותרות בצבע המותג הכהה */
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        color: #0A4D7F !important;
+    h1, h2, h3, h4, h5, h6 {
+        color: #2B59C3 !important; /* wizdi-royal */
     }
 }
 
 @layer components {
 
-    /* --- הפיכת כל הכרטיסים והרקעים לזכוכית (Glass) --- */
+    /* --- Magic Cards (Glass + Depth) --- */
     .bg-white,
     .bg-gray-50,
     .bg-indigo-50 {
-        background: rgba(255, 255, 255, 0.65) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.6) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05) !important;
-        border-radius: 16px !important;
+        background: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.8) !important;
+        box-shadow: 0 8px 0px 0 rgba(43, 89, 195, 0.05) !important; /* Chunky shadow */
+        border-radius: 24px !important; /* 2xl */
     }
 
-    /* --- שדות קלט (Inputs) --- */
-    input,
-    textarea,
-    select {
-        background: rgba(255, 255, 255, 0.5) !important;
-        border: 1px solid #B8D6F6 !important;
-        color: #0A4D7F !important;
-        border-radius: 12px !important;
-        transition: all 0.3s ease;
+    /* --- Rounded Inputs --- */
+    input, textarea, select {
+        background: #FFFFFF !important;
+        border: 2px solid #E0F2FE !important; /* Light Blue Border */
+        color: #2B59C3 !important;
+        border-radius: 16px !important; /* xl */
+        padding: 12px 16px !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    input:focus,
-    textarea:focus,
-    select:focus {
-        background: rgba(255, 255, 255, 0.9) !important;
-        border-color: #24A8D9 !important;
-        box-shadow: 0 0 0 3px rgba(36, 168, 217, 0.2) !important;
+    input:focus, textarea:focus, select:focus {
+        background: #FFFFFF !important;
+        border-color: #00C2FF !important; /* Cyan Focus */
+        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15) !important;
+        transform: translateY(-2px);
         outline: none;
     }
 
-    /* --- כפתורים מעוצבים (Override) --- */
+    /* --- THE JUICY BUTTONS ("Lip" Design) --- */
 
-    /* כפתור ראשי */
-    .bg-indigo-600,
-    .bg-blue-600 {
-        background: linear-gradient(135deg, #24A8D9 0%, #1c90be 100%) !important;
-        @apply text-white border-0 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 rounded-xl !important;
+    /* .btn-lip-action (Hyper Lime) - For PRIMARY GO actions */
+    .btn-lip-action {
+        background: #8CE81C !important;
+        color: #0d4200 !important; /* Dark Green Text */
+        border: none !important;
+        border-bottom: 5px solid #65a30d !important; /* Darker Lime Lip */
+        border-radius: 9999px !important; /* Pill */
+        font-weight: 800 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.1s;
+        box-shadow: 0 4px 0 0 rgba(101, 163, 13, 0.2);
+    }
+    .btn-lip-action:active {
+        transform: translateY(4px);
+        border-bottom-width: 0px !important;
+        margin-top: 4px; /* Simulates press */
+    }
+    .btn-lip-action:hover {
+        background: #9ff038 !important; /* Lighter Lime */
     }
 
-    /* כפתור משני/הדגשה */
-    .bg-purple-600,
-    .text-purple-600 {
-        background: linear-gradient(135deg, #F49E2E 0%, #e08e20 100%) !important;
+    /* .btn-lip-primary (Royal Blue) - For Navigation/Context */
+    .btn-lip-primary {
+        background: #2B59C3 !important;
         color: white !important;
-        @apply shadow-md border-0 !important;
+        border: none !important;
+        border-bottom: 5px solid #1e40af !important; /* Darker Blue Lip */
+        border-radius: 9999px !important;
+        font-weight: 700 !important;
+        transition: all 0.1s;
+    }
+    .btn-lip-primary:active {
+        transform: translateY(4px);
+        border-bottom-width: 0px !important;
     }
 
-    /* התאמת צבעי טקסט */
-    .text-indigo-600,
-    .text-blue-600 {
-        color: #24A8D9 !important;
+    /* Overriding Default Semantic Classes to use new styles */
+    .bg-indigo-600, .bg-blue-600 {
+        /* Map old blue buttons to new Royal Lip Style */
+        @apply btn-lip-primary;
     }
 
-    .text-purple-600 {
-        color: #F49E2E !important;
+    /* Map old purple/green buttons to ACTION Lip Style */
+    .bg-purple-600, .bg-green-600 {
+        @apply btn-lip-action;
     }
+    
+    /* Text Colors */
+    .text-indigo-600, .text-blue-600 { color: #2B59C3 !important; }
+    .text-purple-600 { color: #8CE81C !important; } /* Lime text */
 
-    /* כפתורים משניים עדינים */
-    .bg-indigo-50 {
-        background: rgba(184, 214, 246, 0.3) !important;
-        color: #0A4D7F !important;
-        border: 1px solid #B8D6F6 !important;
+
+    /* --- Micro-Interactions --- */
+    @keyframes wiggle {
+        0%, 100% { transform: rotate(-3deg); }
+        50% { transform: rotate(3deg); }
     }
+    .animate-wiggle { animation: wiggle 1s ease-in-out infinite; }
 
-    /* ביטול צללים רגילים */
-    .shadow-sm,
-    .shadow-md,
-    .shadow-lg {
-        box-shadow: none !important;
+    @keyframes pop {
+        0% { transform: scale(0.9); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
     }
-
-    /* סרגל צד וניווט */
+    .animate-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    
+     /* סרגל צד וניווט */
     aside,
     header {
         background: rgba(255, 255, 255, 0.4) !important;
@@ -112,17 +133,9 @@
 
 /* אנימציות */
 @keyframes float {
-    0% {
-        transform: translateY(0px);
-    }
-
-    50% {
-        transform: translateY(-5px);
-    }
-
-    100% {
-        transform: translateY(0px);
-    }
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0px); }
 }
 
 .animate-float {
@@ -131,7 +144,7 @@
 
 /* סרגל גלילה ראשי */
 ::-webkit-scrollbar {
-    width: 10px;
+    width: 12px;
 }
 
 ::-webkit-scrollbar-track {
@@ -140,13 +153,13 @@
 
 ::-webkit-scrollbar-thumb {
     background: #B8D6F6;
-    border-radius: 20px;
-    border: 2px solid transparent;
+    border-radius: 99px;
+    border: 3px solid transparent;
     background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #24A8D9;
+    background-color: #2B59C3;
 }
 
 /* === תוספות עבור TeacherDashboard ו-Class Utilities ===

@@ -1,0 +1,36 @@
+{
+    "unit_title": "The Industrial Revolution",
+    "steps": [
+        {
+            "step_number": 1,
+            "title": "The Steam Engine",
+            "narrative_focus": "Discuss the invention of the steam engine.",
+            "forbidden_topics": [
+                "Electricity",
+                "Computers"
+            ],
+            "bloom_level": "Remember",
+            "suggested_interaction_type": "memory_game"
+        },
+        {
+            "step_number": 2,
+            "title": "Urbanization",
+            "narrative_focus": "Discuss the movement to cities.",
+            "forbidden_topics": [
+                "Modern Suburbs"
+            ],
+            "bloom_level": "Understand",
+            "suggested_interaction_type": "multiple_choice"
+        },
+        {
+            "step_number": 3,
+            "title": "Social Impact",
+            "narrative_focus": "Discuss working conditions.",
+            "forbidden_topics": [
+                "Labor Unions (Next Step)"
+            ],
+            "bloom_level": "Analyze",
+            "suggested_interaction_type": "categorization"
+        }
+    ]
+}

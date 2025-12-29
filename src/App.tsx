@@ -3,15 +3,17 @@ import { useAuth, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { generateCoursePlan } from './gemini';
+import type { Assignment } from './courseTypes';
 
 // --- Lazy Loading ---
 const HomePage = React.lazy(() => import('./components/HomePage'));
 const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
+const StudentHome = React.lazy(() => import('./components/StudentHome'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
 import GeoGuard from './components/GeoGuard';
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -61,7 +63,7 @@ const AuthenticatedApp = () => {
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
-  const [currentAssignment, setCurrentAssignment] = useState<any>(null);
+  const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
 
   const { loadCourse } = useCourseStore();
   const { currentUser } = useAuth();
@@ -73,19 +75,17 @@ const AuthenticatedApp = () => {
 
     const init = async () => {
       if (assignmentId) {
-        console.log("Detected assignmentId:", assignmentId); // DEBUG
         setIsStudentLink(true);
         try {
           const assignSnap = await getDoc(doc(db, "assignments", assignmentId));
           if (assignSnap.exists()) {
-            const assignData = assignSnap.data();
-            console.log("Assignment data loaded:", assignData); // DEBUG
+            const assignData = { id: assignSnap.id, ...assignSnap.data() } as Assignment;
             setCurrentAssignment(assignData);
             loadCourse(assignData.courseId);
             setMode('student');
           } else {
-            console.warn("Assignment not found or expired"); // DEBUG
-            alert("המשימה לא נמצאה or expired.");
+            console.warn("Assignment not found or expired");
+            alert("המשימה לא נמצאה או שפג תוקפה.");
             setMode('list');
           }
         } catch (e) {
@@ -115,6 +115,31 @@ const AuthenticatedApp = () => {
     setMode(mode === 'editor' ? 'student' : 'editor');
   };
 
+  const handleStudentAssignmentSelect = async (assignmentId: string) => {
+    console.log("Selected assignment from dashboard:", assignmentId);
+    try {
+      const assignSnap = await getDoc(doc(db, "assignments", assignmentId)); // Or assume it's valid if coming from the hook
+      // Ideally we should just verify it exists or pass the full object if we want to avoid a read, 
+      // but 'student' mode usually expects 'currentAssignment' to be set.
+
+      // Let's just set the ID and let the Player load it? 
+      // Actually, existing code for 'student' mode checks 'currentAssignment'. 
+      // Let's reuse the loading logic or just set it if we have it.
+
+      if (assignSnap.exists()) {
+        const assignData = { id: assignSnap.id, ...assignSnap.data() } as Assignment;
+        setCurrentAssignment(assignData);
+        loadCourse(assignData.courseId);
+        setMode('student');
+      }
+    } catch (e) {
+      console.error("Error selecting assignment:", e);
+      alert("שגיאה בטעינת המשימה");
+    }
+  };
+
+
+
   const fileToGenerativePart = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -132,18 +157,22 @@ const AuthenticatedApp = () => {
     });
   };
 
-  // --- הפונקציה המתוקנת ---
+  // --- הפונקציה המתוקנת (v2 - Fixed Redirect Bug) ---
   const handleWizardComplete = async (wizardData: any) => {
     if (!currentUser) return;
 
     // 1. Close Wizard Immediately & Show Loading
     setWizardMode(null);
-    // 1. Close Wizard Immediately
-    setWizardMode(null);
     setShowLoader(false); // DIRECT ENTRY: Skip game loader, go straight to editor
-    setIsGenerating(true);
+
+    // Safety check: verify currentUser exists again just in case
+    if (!currentUser) {
+      alert("שגיאה: משתמש לא מחובר");
+      return;
+    }
 
     try {
+      setIsGenerating(true);
       let fileUrl = null;
       let fileType = null;
       let fileName = null;
@@ -181,7 +210,6 @@ const AuthenticatedApp = () => {
           console.error("Error processing file for AI", e);
         }
       } else if (wizardData.pastedText) {
-        // Fix: Handle pasted text
         console.log("Processing successfully pasted text");
         aiSourceText = wizardData.pastedText;
       }
@@ -189,7 +217,6 @@ const AuthenticatedApp = () => {
       // --- לוג ביקורת ---
       console.log("🚀 Generating with AI... Wizard Data:", wizardData);
 
-      // --- חילוץ חכם של הגיל ---
       // --- חילוץ חכם של הגיל (ROBUST EXTRACTION) ---
       let extractedGrade =
         (Array.isArray(wizardData.targetAudience) ? wizardData.targetAudience[0] : wizardData.targetAudience) ||
@@ -238,7 +265,9 @@ const AuthenticatedApp = () => {
 
       const { file, ...cleanWizardData } = wizardData;
 
-      const newCourseData = {
+      // PREPARE DATA - SAFE SANITIZATION
+      // 1. Create base object without timestamps
+      const baseCourseData = {
         title: courseTitle,
         teacherId: currentUser.uid,
         targetAudience: extractedGrade,
@@ -247,25 +276,64 @@ const AuthenticatedApp = () => {
         syllabus: aiSyllabus,
         mode: courseMode,
         activityLength,
-        createdAt: serverTimestamp(),
         showSourceToStudent: wizardData.settings?.showSourceToStudent ?? true,
         fullBookContent: aiSourceText || "",
         pdfSource: fileUrl || null,
         wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
-      // Deep sanitize
-      const dataToSave = JSON.parse(JSON.stringify(newCourseData));
+      // 2. Sanitize to remove undefined (safe because no timestamps yet)
+      const safeData = JSON.parse(JSON.stringify(baseCourseData));
 
-      const docRef = await addDoc(collection(db, "courses"), dataToSave);
+      // 3. Add Timestamp safely
+      const dataToSave = {
+        ...safeData,
+        createdAt: serverTimestamp()
+      };
 
+      console.log("🔥 Attempting to save to Firestore...");
+      // FIX: Use setDoc with merge to avoid 'Document already exists' errors if retried or collides
+      const newDocRef = doc(collection(db, "courses"));
+      await setDoc(newDocRef, dataToSave, { merge: true });
+      const docRef = newDocRef;
+      console.log("✅ Firestore Save Success! Doc ID:", docRef.id);
+
+      // --- CRITICAL FIX: WAIT FOR PROPAGATION ---
+      // We wait for getDoc to actually return the document before switching mode
+      // This prevents the race condition where CourseContext loads 'null'
+      let attempts = 0;
+      let docFound = false;
+      while (attempts < 5 && !docFound) {
+        try {
+          const snap = await getDoc(doc(db, "courses", docRef.id));
+          if (snap.exists()) {
+            docFound = true;
+            console.log("✅ Document Verified in Firestore.");
+          } else {
+            console.log("⏳ Waiting for Firestore propagation...", attempts);
+            await new Promise(r => setTimeout(r, 500));
+          }
+        } catch (e) {
+          console.warn("Verify error", e);
+        }
+        attempts++;
+      }
+
+      // Explicitly Load
       loadCourse(docRef.id);
-      setMode('editor');
+
+      // Force short delay to ensure React state updates don't clash
+      setTimeout(() => {
+        console.log("🔄 Switching to Editor Mode...");
+        setMode('editor');
+        setIsGenerating(false); // Stop spinner only after mode switch
+      }, 100);
 
     } catch (error: any) {
-      console.error("Error:", error);
-      alert("שגיאה: " + (error?.message || "Unknown error"));
-    } finally {
+      console.error("CRITICAL ERROR in handleWizardComplete:", error);
+      alert("שגיאה ביצירת הפעילות: " + (error?.message || "שגיאה לא ידועה"));
+      // Restore home page if everything fails
+      setMode('list');
       setIsGenerating(false);
     }
   };
@@ -292,6 +360,25 @@ const AuthenticatedApp = () => {
             </button>
           )}
           <div className="h-6 w-px bg-gray-300 mx-1"></div>
+
+          {/* Temporary Switch for Dev / Demo */}
+          {mode === 'list' && (
+            <button
+              onClick={() => setMode('student-dashboard')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-colors font-bold text-sm shadow-md"
+            >
+              תצוגת תלמיד 👨‍🎓
+            </button>
+          )}
+          {mode === 'student-dashboard' && (
+            <button
+              onClick={() => setMode('list')}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl transition-colors font-bold text-sm"
+            >
+              חזרה למורה 👨‍🏫
+            </button>
+          )}
+
           <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="התנתק">
             <IconLogOutSimple />
             <span>התנתק</span>
@@ -306,12 +393,26 @@ const AuthenticatedApp = () => {
               <LoadingSpinner />
               <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
             </div>
-          ) : isStudentLink ? <CoursePlayer assignment={currentAssignment} /> : (
+          ) : isStudentLink ? (
+            <CoursePlayer assignment={currentAssignment || undefined} />
+          ) : (
             <>
-              {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
+              {mode === 'list' && (
+                <HomePage
+                  onCreateNew={(m: any) => setWizardMode(m)}
+                  onNavigateToDashboard={() => setMode('dashboard')}
+                />
+              )}
               {mode === 'editor' && <CourseEditor />}
-              {mode === 'student' && <CoursePlayer assignment={currentAssignment} />}
-              {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} />}
+              {mode === 'student' && (
+                <CoursePlayer assignment={currentAssignment || undefined} />
+              )}
+              {mode === 'dashboard' && (
+                <TeacherDashboard onEditCourse={handleCourseSelect} />
+              )}
+              {mode === 'student-dashboard' && (
+                <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />
+              )}
             </>
           )}
         </Suspense>

@@ -1,8 +1,10 @@
 import React from 'react';
 import { auth } from '../firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
 
 const Login: React.FC = () => {
+    const { mockLogin } = useAuth();
     const handleGoogleLogin = async () => {
         const provider = new GoogleAuthProvider();
         try {
@@ -28,6 +30,15 @@ const Login: React.FC = () => {
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
                     כניסה עם Google
                 </button>
+
+                {import.meta.env.DEV && (
+                    <button
+                        onClick={mockLogin}
+                        className="w-full mt-4 py-3 px-4 bg-yellow-50 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 transition-all flex items-center justify-center gap-3 font-bold text-yellow-800"
+                    >
+                        ⚡ Dev Login (Bypass)
+                    </button>
+                )}
             </div>
         </div>
     );

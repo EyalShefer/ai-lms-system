@@ -20,8 +20,15 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
         if (Array.isArray(rawContent.correct_order)) order = rawContent.correct_order;
         else if (Array.isArray(rawContent.items)) order = rawContent.items;
 
+        const instructionStr = rawContent.instruction || rawContent.question || 'סדר את הפריטים:';
+
+        // --- Fallback: If no items, split the instruction into words to create a game ---
+        if (order.length < 2 && instructionStr && instructionStr.length > 10) {
+            order = instructionStr.split(' ').filter((w: string) => w.length > 1); // Simple word sort
+        }
+
         return {
-            instruction: rawContent.instruction || rawContent.question || 'סדר את הפריטים:',
+            instruction: instructionStr,
             correct_order: order
         };
     }, [block.content]);

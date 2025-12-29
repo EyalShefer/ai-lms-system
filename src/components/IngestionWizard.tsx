@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
     IconBrain, IconArrowBack, IconSparkles,
-    IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand, IconCloudUpload
+    IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand, IconCloudUpload, IconVideo
 } from '../icons';
+import { MultimodalService } from '../services/multimodalService';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -41,10 +42,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     // אתחול המצבים
     const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | null>(null); // 'upload' | 'topic' | 'text'
+    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | 'multimodal' | null>(null); // 'upload' | 'topic' | 'text' | 'multimodal'
     const [topic, setTopic] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [pastedText, setPastedText] = useState('');
+    // const [youtubeUrl, setYoutubeUrl] = useState(''); // Removed unused
+    const [subMode, setSubMode] = useState<'youtube' | 'audio' | null>(null);
 
     // נתוני שלב 2
     const [customTitle, setCustomTitle] = useState('');
@@ -54,8 +57,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [subject, setSubject] = useState('חינוך לשוני (עברית)');
     const [activityLength, setActivityLength] = useState<'short' | 'medium' | 'long'>('medium');
     const [taxonomy, setTaxonomy] = useState<{ knowledge: number; application: number; evaluation: number }>({ knowledge: 30, application: 50, evaluation: 20 });
-    const [includeBot, setIncludeBot] = useState(false);
-    const [botPersona, setBotPersona] = useState('socratic'); // Default Persona
+    const [includeBot] = useState(false); // Fix: defaulted to false, setter removed
+    const [botPersona] = useState('socratic'); // Default Persona, setter removed
     const [courseMode, setCourseMode] = useState(initialMode);
     const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
@@ -88,14 +91,57 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
 
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-        accept: { 'application/pdf': ['.pdf'], 'text/plain': ['.txt'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
+        accept: {
+            'application/pdf': ['.pdf'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            'text/plain': ['.txt'],
+            'audio/mpeg': ['.mp3', '.mpga'],
+            'audio/wav': ['.wav'],
+            'audio/m4a': ['.m4a']
+        },
         maxFiles: 1,
+        maxSize: 10485760, // 10MB Limit
         noClick: true,
-        onDrop: (acceptedFiles) => { setFile(acceptedFiles[0]); setMode('upload'); }
+        onDropRejected: (rejectedFiles) => {
+            const error = rejectedFiles[0]?.errors[0];
+            if (error?.code === 'file-too-large') {
+                alert("הקובץ גדול מדי. הגודל המקסימלי הוא 10MB.");
+            } else {
+                alert("שגיאה בהעלאת הקובץ. אנא נסה שוב.");
+            }
+        },
+        onDrop: async (acceptedFiles) => {
+            const f = acceptedFiles[0];
+            if (!f) return;
+
+            if (f.type.startsWith('audio/')) {
+                // Audio Handling
+                setMode('multimodal');
+                setSubMode('audio');
+                setIsProcessing(true);
+                const text = await MultimodalService.transcribeAudio(f);
+                if (text) {
+                    setPastedText(text);
+                    setTopic(f.name.replace(/\.[^/.]+$/, "")); // Auto topic from filename
+                } else {
+                    alert("תמלול הקובץ נכשל. נסה שנית.");
+                }
+                setIsProcessing(false);
+            } else {
+                // Std File Handling
+                setFile(f);
+                setMode('upload');
+            }
+        }
     });
 
     // בדיקת תקינות למעבר שלבים
-    const canProceedToSettings = mode && ((mode === 'topic' && topic) || (mode === 'upload' && file) || (mode === 'text' && pastedText));
+    const canProceedToSettings = mode && (
+        (mode === 'topic' && topic) ||
+        (mode === 'upload' && file) ||
+        (mode === 'text' && pastedText) ||
+        (mode === 'multimodal' && pastedText) // For audio/video, we need the transcript
+    );
 
     const handleStepClick = (targetStep: number) => {
         // מותר תמיד לחזור לשלב 1
@@ -172,72 +218,74 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} בנושא: ${topic}`
         : mode === 'text'
             ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} מטקסט חופשי`
-            : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'}`;
+            : mode === 'multimodal'
+                ? `יצירת ${courseMode === 'exam' ? 'מבחן' : 'פעילות'} מ${subMode === 'youtube' ? 'סרטון' : 'הקלטה'}`
+                : `בוא נהפוך את החומרים שלך ל${courseMode === 'exam' ? 'מבחן' : 'פעילות'}`;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto">
-            <div className={`bg-white/90 glass w-full ${courseMode === 'exam' ? 'max-w-6xl' : (step === 1 ? 'max-w-4xl' : 'max-w-2xl')} rounded-3xl shadow-2xl overflow-hidden border border-white/50 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-500 ease-in-out`}>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
+            <div className={`bg-white w-full ${courseMode === 'exam' ? 'max-w-6xl' : (step === 1 ? 'max-w-4xl' : 'max-w-2xl')} rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-500 ease-in-out`}>
 
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden shrink-0">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10">
+                <div className="bg-wizdi-royal p-8 text-white relative overflow-hidden shrink-0">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10 animate-pulse">
                         <IconWand className="w-64 h-64" />
                     </div>
                     <div className="relative z-10 flex justify-between items-start">
                         <div>
                             <h2 className="text-3xl font-black mb-2 flex items-center gap-3 !text-white">
-                                <IconSparkles className="w-8 h-8 text-yellow-300" />
+                                <IconSparkles className="w-8 h-8 text-wizdi-lime animate-wiggle" />
                                 {dynamicTitle}
                             </h2>
-                            <p className="text-lg opacity-90 !text-blue-100">
+                            <p className="text-lg opacity-90 !text-blue-100 font-medium">
                                 {dynamicSubtitle}
                             </p>
                         </div>
-                        <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300">
+                        <button onClick={onCancel} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors backdrop-blur-md text-white cursor-pointer z-50 hover:rotate-90 duration-300 shadow-glass">
                             <IconX className="w-6 h-6" />
                         </button>
                     </div>
 
                     {!initialTopic && (
-                        <div className="flex items-center justify-center gap-2 mt-8 relative z-10 w-full">
+                        <div className="flex items-center justify-center gap-4 mt-8 relative z-10 w-full">
                             {/* כפתור שלב 1 - תמיד לחיץ */}
                             <button
                                 onClick={() => handleStepClick(1)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all cursor-pointer ${step >= 1 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-full text-base font-black transition-all cursor-pointer ${step >= 1 ? 'bg-white text-wizdi-royal shadow-lg transform -translate-y-1' : 'bg-blue-900/40 text-blue-200 border-2 border-blue-400/30'}`}
                             >
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 1 ? 'bg-blue-100 text-blue-600' : 'bg-blue-800/50 text-white'}`}>1</span>
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${step >= 1 ? 'bg-blue-100 text-wizdi-royal' : 'bg-blue-800/50 text-white'}`}>1</span>
                                 בחירת מקור
                             </button>
 
-                            <div className={`w-8 h-0.5 transition-colors ${step >= 2 ? 'bg-white' : 'bg-blue-400/30'}`}></div>
+                            <div className={`w-12 h-1 rounded-full transition-colors ${step >= 2 ? 'bg-white' : 'bg-blue-400/30'}`}></div>
 
                             {/* כפתור שלב 2 - לחיץ רק אם אפשר להתקדם */}
                             <button
                                 onClick={() => handleStepClick(2)}
                                 disabled={!canProceedToSettings}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${canProceedToSettings ? 'cursor-pointer hover:bg-white/10' : 'cursor-not-allowed opacity-50'} ${step >= 2 ? 'bg-white text-blue-600 shadow-sm' : 'bg-blue-800/30 text-blue-200 border border-blue-400/30'}`}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-full text-base font-black transition-all ${canProceedToSettings ? 'cursor-pointer hover:bg-white/10' : 'cursor-not-allowed opacity-50'} ${step >= 2 ? 'bg-white text-wizdi-royal shadow-lg transform -translate-y-1' : 'bg-blue-900/40 text-blue-200 border-2 border-blue-400/30'}`}
                             >
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 2 ? 'bg-blue-100 text-blue-600' : 'bg-blue-800/50 text-white'}`}>2</span>
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${step >= 2 ? 'bg-blue-100 text-wizdi-royal' : 'bg-blue-800/50 text-white'}`}>2</span>
                                 אפיון והגדרות
                             </button>
 
-                            <div className="w-8 h-0.5 bg-blue-400/30"></div>
+                            <div className="w-12 h-1 rounded-full bg-blue-400/30"></div>
 
                             {/* שלב 3 - לא לחיץ כרגע (תוצאה) */}
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-blue-800/30 text-blue-200 border border-blue-400/30 opacity-70 cursor-default">
-                                <span className="w-6 h-6 rounded-full bg-blue-800/50 text-white flex items-center justify-center text-xs">3</span>
+                            <div className="flex items-center gap-2 px-6 py-3 rounded-full text-base font-black bg-blue-900/40 text-blue-200 border-2 border-blue-400/30 opacity-70 cursor-default">
+                                <span className="w-8 h-8 rounded-full bg-blue-800/50 text-white flex items-center justify-center text-sm">3</span>
                                 עריכה וסיום
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="p-8 flex-1 overflow-y-auto bg-gradient-to-b from-white to-blue-50/30 custom-scrollbar">
+                <div className="p-8 flex-1 overflow-y-auto bg-slate-50 custom-scrollbar">
                     {step === 1 && (
                         <div className="space-y-8 animate-slide-up">
-                            <h3 className="text-xl font-bold text-gray-700 text-center">איך נתחיל היום?</h3>
+                            <h3 className="text-xl font-bold text-slate-800 text-center">איך נתחיל היום?</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-64">
-                                <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-pink-500 bg-pink-50/50 shadow-lg ring-4 ring-pink-100' : 'border-gray-200 bg-white hover:border-pink-300 hover:shadow-md'}`}>
+                                <button onClick={() => setMode('topic')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'topic' ? 'border-pink-500 bg-pink-50 shadow-md ring-2 ring-pink-200' : 'border-slate-200 bg-white hover:border-pink-400 hover:shadow-lg'}`}>
                                     <div className="bg-pink-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBrain className="w-8 h-8 text-pink-600" /></div>
                                     <div><h4 className="text-xl font-bold text-gray-800 mb-2">הקלידו נושא</h4><p className="text-sm text-gray-500 leading-relaxed">הגדירו נושא וה-AI ייצור עבורכם {courseMode === 'exam' ? 'מבחן' : 'פעילות'} עשירה על בסיס הידע הרחב שלו.</p></div>
                                     {mode === 'topic' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
@@ -249,15 +297,23 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                         setMode('upload');
                                         open();
                                     }}
-                                    className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-gray-50'}`}
+                                    className={`group relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-100' : mode === 'upload' ? 'border-blue-600 bg-blue-50 shadow-md ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:border-blue-500 hover:bg-slate-50'}`}
                                 >
                                     <input {...getInputProps()} />
                                     {file ? (<div className="flex flex-col items-center justify-center h-full text-center animate-fade-in"><div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"><IconCheck className="w-10 h-10 text-green-600" /></div><h4 className="text-xl font-bold text-gray-800">{file.name}</h4><p className="text-sm text-gray-500 mt-2">הקובץ מוכן. <br /><span className="font-bold text-blue-600">שימו לב: הפעילות תתבסס רק על המידע שבקובץ.</span></p><span className="text-xs text-blue-600 underline mt-2">לחצו להחלפה</span></div>) : (<><div className="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconCloudUpload className="w-8 h-8 text-indigo-600" /></div><div><h4 className="text-xl font-bold text-gray-800 mb-2">העלו קובץ</h4><p className="text-sm text-gray-500 leading-relaxed">העלו קובץ PDF/Word. <span className="font-bold text-indigo-600 block mt-1">ה-AI ייצור {courseMode === 'exam' ? 'מבחן' : 'פעילות'} בהסתמך אך ורק על תוכן הקובץ.</span></p></div>{mode === 'upload' && !file && <div className="absolute top-4 left-4 bg-gray-200 text-gray-500 p-1 rounded-full"><IconCloudUpload className="w-4 h-4" /></div>}</>)}
                                 </div>
-                                <button onClick={() => setMode('text')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'text' ? 'border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}`}>
+                                <button onClick={() => setMode('text')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'text' ? 'border-indigo-600 bg-indigo-50 shadow-md ring-2 ring-indigo-200' : 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-lg'}`}>
                                     <div className="bg-green-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconBook className="w-8 h-8 text-green-600" /></div>
                                     <div><h4 className="text-xl font-bold text-gray-800 mb-2">הדביקו טקסט</h4><p className="text-sm text-gray-500 leading-relaxed">הדביקו מאמר או סיכום. <span className="font-bold text-green-600 block mt-1">הפעילות תיווצר אך ורק על בסיס הטקסט שתדביקו.</span></p></div>
                                     {mode === 'text' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
+                                    {mode === 'text' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
+                                </button>
+
+                                {/* Multimodal Option (Video/Audio) */}
+                                <button onClick={() => setMode('multimodal')} className={`group relative p-8 rounded-3xl border-2 transition-all duration-300 text-right flex flex-col justify-between overflow-hidden h-64 ${mode === 'multimodal' ? 'border-red-500 bg-red-50 shadow-md ring-2 ring-red-200' : 'border-slate-200 bg-white hover:border-red-400 hover:shadow-lg'}`}>
+                                    <div className="bg-red-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><IconVideo className="w-8 h-8 text-red-600" /></div>
+                                    <div><h4 className="text-xl font-bold text-gray-800 mb-2">וידאו / אודיו</h4><p className="text-sm text-gray-500 leading-relaxed">YouTube או הקלטה. <span className="font-bold text-red-600 block mt-1">ה-AI ינתח את הסרטון ויפיק {courseMode === 'exam' ? 'מבחן' : 'שיעור'}.</span></p></div>
+                                    {mode === 'multimodal' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
                             </div>
                             {mode === 'topic' && (
@@ -281,7 +337,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     {step === 2 && (
                         <div className={`grid grid-cols-1 ${courseMode === 'exam' ? 'md:grid-cols-2' : ''} gap-10 animate-slide-up h-full pb-20`}>
                             {/* עמודה ימנית - הגדרות טכניות */}
-                            <div className="space-y-6 bg-blue-50/50 p-6 rounded-3xl border border-blue-100 order-2 md:order-1">
+                            <div className="space-y-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm order-2 md:order-1">
                                 {/* שדה שם הפעילות החדשה */}
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
@@ -304,9 +360,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><IconChart className="w-4 h-4" /> אורך הפעילות</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {[
-                                            { id: 'short', label: 'קצרה', desc: '3 שלבי לימוד' },
-                                            { id: 'medium', label: 'בינונית', desc: '5 שלבי לימוד (מומלץ)' },
-                                            { id: 'long', label: 'ארוכה', desc: '7 שלבי לימוד' }
+                                            { id: 'short', label: 'קצרה', desc: '3 שאלות' },
+                                            { id: 'medium', label: 'בינונית', desc: '5 שאלות (מומלץ)' },
+                                            { id: 'long', label: 'ארוכה', desc: '7 שאלות' }
                                         ].map((opt) => (
                                             <button
                                                 key={opt.id}
@@ -339,43 +395,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     </div>
                                 )}
 
-                                {/* Bot Configuration */}
-                                <div className="pt-4 border-t border-blue-200/50">
-                                    <label className="flex items-center justify-between cursor-pointer group mb-4 p-3 bg-white/50 rounded-xl border border-blue-100 hover:border-blue-300 transition-colors">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-gray-800 text-sm">המורה הוירטואלי</span>
-                                            <span className="text-xs text-gray-500">הוסף צ'אט בוט לעזרה בתחילת הפעילות</span>
-                                        </div>
 
-                                        <div className="relative">
-                                            <input type="checkbox" checked={includeBot} onChange={(e) => setIncludeBot(e.target.checked)} className="hidden" />
-                                            <div className={`w-12 h-7 rounded-full transition-all duration-300 ease-in-out ${includeBot ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-                                            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${includeBot ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                                        </div>
-                                    </label>
-
-                                    {includeBot && (
-                                        <div className="grid grid-cols-2 gap-2 pl-9 animate-fade-in">
-                                            {[
-                                                { id: 'socratic', label: 'סוקרטי', desc: 'שואל ומכוון', icon: '🧠' },
-                                                { id: 'teacher', label: 'מורה מלווה', desc: 'מסביר ותומך', icon: '👨‍🏫' },
-                                                { id: 'concise', label: 'תמציתי', desc: 'קצר ולעניין', icon: '⚡' },
-                                                { id: 'coach', label: 'מאמן', desc: 'מאתגר ודורש', icon: '🏆' },
-                                            ].map((p) => (
-                                                <button
-                                                    key={p.id}
-                                                    onClick={() => setBotPersona(p.id)}
-                                                    className={`p-2 rounded-xl text-right transition-all border ${botPersona === p.id ? 'bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:border-blue-300'}`}
-                                                >
-                                                    <div className="font-bold text-xs text-gray-800 flex items-center gap-1">
-                                                        <span>{p.icon}</span> {p.label}
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-400 mr-5">{p.desc}</div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
                             </div>
 
                             {/* עמודה שמאלית - טקסונומיה (רק במצב מבחן) */}
@@ -421,29 +441,29 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         onClick={handleNext}
                         disabled={(!mode) || (step === 1 && mode === 'topic' && !topic) || (step === 1 && mode === 'upload' && !file) || (step === 1 && mode === 'text' && !pastedText) || isProcessing}
                         className={`
-                            bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700
-                            text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl
-                            transition-all transform hover:-translate-y-1
+                            btn-lip-action
+                            px-12 py-4 text-xl
                             disabled:opacity-50 disabled:cursor-not-allowed
                             flex items-center justify-center gap-3 whitespace-nowrap
                             ml-auto
+                            shadow-glow
                         `}
                     >
                         {isProcessing ? (
                             <>
-                                <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                <div className="animate-spin w-6 h-6 border-4 border-emerald-900 border-t-transparent rounded-full"></div>
                                 <span>{step === 1 ? 'מעבד...' : (courseMode === 'exam' ? 'מייצר מבחן...' : 'מייצר פעילות...')}</span>
                             </>
                         ) : (
                             <>
                                 {step === 1 ? 'המשיכו להגדרות מתקדמות' : (courseMode === 'exam' ? 'צרו מבחן עכשיו!' : 'צרו פעילות עכשיו!')}
-                                <IconArrowBack className="w-5 h-5 shrink-0" />
+                                <IconArrowBack className="w-6 h-6 shrink-0" />
                             </>
                         )}
                     </button>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

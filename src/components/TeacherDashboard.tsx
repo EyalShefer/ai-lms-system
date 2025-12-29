@@ -14,6 +14,7 @@ import {
 
 // --- Lazy Load CoursePlayer ---
 const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
+import { SmartGroupingPanel } from './SmartGroupingPanel';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -216,15 +217,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
         // 1. Process "In Progress" students (rawStudents)
         rawStudents.forEach((data: any) => {
             const courseMeta = coursesMap[data.courseId];
-            const subject = courseMeta ? courseMeta.subject : "אחר";
-            const gradeLevel = courseMeta ? courseMeta.grade : "אחר";
-            const courseTitle = courseMeta ? courseMeta.title : "קורס לא נמצא";
+            const subject = courseMeta?.subject || "אחר";
+            const gradeLevel = courseMeta?.grade || "אחר";
+            const courseTitle = courseMeta?.title || "קורס לא נמצא";
 
             // Normalize ID if email exists
             const id = data.studentEmail || data.id;
 
             // Check for alerts
-            const hasAlert = safetyAlerts.some((a: any) => a.studentId === data.id || a.studentName === studentsMap[id].name);
+            // Fix: Use data directly as studentsMap[id] is not yet assigned
+            const currentName = data.studentEmail?.split('@')[0] || "אנונימי";
+            const hasAlert = safetyAlerts.some((a: any) => a.studentId === data.id || a.studentName === currentName);
 
             studentsMap[id] = {
                 id: data.id,
@@ -850,6 +853,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                     )}
                                 </div>
                             )}
+
+                            {/* Smart Grouping Panel */}
+                            <SmartGroupingPanel
+                                classId={selectedCourseId}
+                                teacherId="TEACHER_123" // Placeholder or from context
+                                students={currentCourseStudents}
+                            />
 
                             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
                                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
