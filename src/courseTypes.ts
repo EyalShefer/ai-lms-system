@@ -16,7 +16,9 @@ export type ActivityBlockType =
     | 'categorization'
     | 'memory_game'
     | 'true_false_speed'
-    | 'podcast';
+    | 'true_false_speed'
+    | 'podcast'
+    | 'audio-response';
 
 export interface MultipleChoiceContent {
     question: string;
@@ -74,6 +76,7 @@ export interface ActivityBlockMetadata {
     richOptions?: RichOption[];
 }
 
+
 export interface RichOption {
     text?: string;
     label?: string;
@@ -84,6 +87,16 @@ export interface RichOption {
 }
 
 // --- Strict Block Types (Discriminated Union) ---
+
+// --- Strict Block Types (Discriminated Union) ---
+
+export interface TelemetryData {
+    timeSeconds: number;
+    attempts: number;
+    hintsUsed: number;
+    lastAnswer: any;
+    events?: { event: string; level?: number; timestamp?: number;[key: string]: any }[];
+}
 
 export interface ActivityBlockBase {
     id: string;
@@ -132,6 +145,17 @@ export interface PodcastBlock extends ActivityBlockBase {
     };
 }
 
+export interface AudioResponseContent {
+    question: string;
+    description?: string;
+    maxDuration?: number; // seconds, default 60
+}
+
+export interface AudioResponseBlock extends ActivityBlockBase {
+    type: 'audio-response';
+    content: AudioResponseContent;
+}
+
 export type ActivityBlock =
     | MultipleChoiceBlock
     | OpenQuestionBlock
@@ -139,7 +163,9 @@ export type ActivityBlock =
     | CategorizationBlock
     | MediaBlock
     | GenericBlock
-    | PodcastBlock;
+    | GenericBlock
+    | PodcastBlock
+    | AudioResponseBlock;
 
 export interface LearningUnit {
     id: string;
@@ -191,4 +217,35 @@ export interface Assignment {
         answers: Record<string, any>;
     };
     [key: string]: any;
+}
+
+export interface StudentAnalyticsProfile {
+    studentId?: string; // or name
+    strengths: string[];
+    weaknesses: string[];
+    psychologicalProfile: 'Impulsive' | 'Persistent' | 'Deep Thinker' | 'Hesitant';
+    recommendedFocus: string; // What topic to review
+    engagementScore: number; // calculated from hints/time
+}
+
+// --- Validation Types ---
+export type ValidationStatus = 'PASS' | 'REJECT';
+
+export interface ValidationMetrics {
+    cefr_level: string; // e.g., 'A2', 'B1'
+    readability_score: number; // 0-100
+    cognitive_load: 'Low' | 'Medium' | 'High';
+}
+
+export interface ValidationIssue {
+    module_index: number;
+    issue_type: string; // e.g., 'Grammar', 'Tone', 'Complexity'
+    description: string;
+    suggested_fix: string;
+}
+
+export interface ValidationResult {
+    status: ValidationStatus;
+    metrics: ValidationMetrics;
+    issues: ValidationIssue[];
 }

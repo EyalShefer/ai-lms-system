@@ -1,10 +1,16 @@
-import { StudentProfile } from '../types/studentProfile';
+import type { StudentProfile } from '../types/studentProfile';
 import { Timestamp } from 'firebase/firestore';
 
 export const SCORING_CONFIG = {
     CORRECT_FIRST_TRY: 100,
     HINT_PENALTY: 15,
     RETRY_PARTIAL: 50,
+};
+
+export const OPEN_QUESTION_SCORES = {
+    CORRECT: 100,
+    PARTIAL: 50,
+    INCORRECT: 0,
 };
 
 export interface AnswerAttempt {

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import type { ActivityBlock } from '../courseTypes';
+import React, { useState, useEffect, useRef } from 'react';
+import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 
 interface CategorizationQuestionProps {
     block: ActivityBlock;
-    onComplete?: (score: number) => void;
+    onComplete?: (score: number, telemetry?: TelemetryData) => void;
 }
 
 interface Item {
@@ -14,6 +14,10 @@ interface Item {
 }
 
 const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, onComplete }) => {
+    // Telemetry
+    const startTimeRef = useRef<number>(Date.now());
+    const attemptsRef = useRef<number>(0);
+
     // Safe parsing
     // Safe parsing
     const content = React.useMemo(() => {
@@ -32,6 +36,10 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, 
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     useEffect(() => {
+        // Reset Telemetry
+        startTimeRef.current = Date.now();
+        attemptsRef.current = 0;
+
         // Initialize
         const safeItems = Array.isArray(items) ? items : [];
         const initialItems = safeItems.map((item, index) => ({
@@ -47,6 +55,25 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, 
         categories.forEach(c => initialBuckets[c] = []);
         setBuckets(initialBuckets);
     }, [block]);
+
+    // ... (Handlers kept via skip, or I must include them if I replace large block) 
+    // I am replacing the TOP part and the CHECK part separate? 
+    // No, I'll replace the top block up to useEffect. And then the checkAnswers function.
+    // Actually, I can replace the whole top section easily. 
+    // But checkAnswers is far down.
+
+    // I will use multi-chunk replacement if possible. Or sequential.
+    // I'll assume I can't use multi_replace for this tool? It says "StartLine, EndLine".
+    // I will replace top part first.
+
+    // WAIT: I shouldn't execute this thought block if I can't replace handlers logic.
+    // The replace_file_content replaces the BLOCK.
+    // So I must include handlers if I overwrite them.
+    // I'll replace 1-50 (Top part).
+    // And 108-126 (Check function).
+
+    // I'll do two calls.
+    // Call 1: Imports and Top Logic.
 
     const handleDragStart = (e: React.DragEvent, itemId: string, source: 'bank' | string) => {
         setIsSubmitted(false);
@@ -107,6 +134,8 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, 
 
     const checkAnswers = () => {
         setIsSubmitted(true);
+        attemptsRef.current += 1;
+
         let correctCount = 0;
         let totalItems = 0;
 
@@ -122,7 +151,17 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, 
         totalItems = items.length;
 
         const score = Math.round((correctCount / totalItems) * 100);
-        if (onComplete) onComplete(score);
+
+        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+
+        if (onComplete) {
+            onComplete(score, {
+                timeSeconds: Math.round(timeSpent),
+                attempts: attemptsRef.current,
+                hintsUsed: 0,
+                lastAnswer: buckets // Detailed bucket state
+            });
+        }
     };
 
     return (

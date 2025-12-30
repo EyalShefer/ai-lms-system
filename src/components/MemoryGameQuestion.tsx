@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import type { ActivityBlock } from '../courseTypes';
+import React, { useState, useEffect, useRef } from 'react';
+import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck } from '../icons';
 
 interface MemoryGameQuestionProps {
     block: ActivityBlock;
-    onComplete?: (score: number) => void;
+    onComplete?: (score: number, telemetry?: TelemetryData) => void;
 }
 
 interface Card {
@@ -16,6 +16,9 @@ interface Card {
 }
 
 const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComplete }) => {
+    // Telemetry
+    const startTimeRef = useRef<number>(Date.now());
+
     const content = React.useMemo(() => {
         const rawContent = block.content as any;
         const rawPairs = Array.isArray(rawContent.pairs) ? rawContent.pairs : [];
@@ -35,6 +38,9 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
     const [attempts, setAttempts] = useState(0);
 
     useEffect(() => {
+        // Telemetry Reset
+        startTimeRef.current = Date.now();
+
         // Initialize game board
         const gameCards: Card[] = [];
         if (Array.isArray(pairs)) {
@@ -104,7 +110,17 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
                 setIsComplete(true);
                 // Simple scoring: max 100, minus penalty for extra attempts? 
                 // Or just 100 for completion. Let's do 100 for completion for now.
-                if (onComplete) onComplete(100);
+
+                const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+
+                if (onComplete) {
+                    onComplete(100, {
+                        timeSeconds: Math.round(timeSpent),
+                        attempts: attempts, // 'attempts' state tracks moves
+                        hintsUsed: 0,
+                        lastAnswer: attempts // or pairs
+                    });
+                }
             }
         }, 1000);
     };

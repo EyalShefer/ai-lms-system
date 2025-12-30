@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { LearningUnit, ActivityBlock } from '../courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
@@ -11,15 +12,18 @@ import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 // import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
 import { SourceViewer } from './SourceViewer';
 import { uploadMediaFile } from '../firebaseUtils';
+import { MultimodalService } from '../services/multimodalService';
 import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone
 } from '../icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createPortal } from 'react-dom';
+import InspectorBadge from './InspectorBadge';
+import InspectorDashboard from './InspectorDashboard';
 
 const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
@@ -33,7 +37,8 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'categorization': 'מיון לקטגוריות',
     'memory_game': 'משחק זיכרון',
     'true_false_speed': 'אמת או שקר',
-    'matching': 'התאמה'
+    'matching': 'התאמה',
+    'audio-response': 'תשובה קולית'
 };
 
 // --- הגדרות מקומיות ---
@@ -58,7 +63,7 @@ const IconLock = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 interface UnitEditorProps {
-    unit: any;
+    unit: LearningUnit;
     gradeLevel?: string;
     subject?: string;
     onSave: (updatedUnit: any) => void;
@@ -76,7 +81,7 @@ const getAiActions = (gradeLevel: string) => [
 
 const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", subject, onSave, onCancel, onPreview }) => {
     const { course } = useCourseStore();
-    const [editedUnit, setEditedUnit] = useState<any>(unit);
+    const [editedUnit, setEditedUnit] = useState<LearningUnit>(unit);
     const editedUnitRef = useRef(unit); // Ref to track state for async operations
 
     // Sync Ref with State
@@ -99,6 +104,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
+    const [inspectorMode, setInspectorMode] = useState(false); // INSPECTOR STATE
 
     // --- Podcast Custom Source State ---
     const [podcastSourceMode, setPodcastSourceMode] = useState<Record<string, 'full' | 'custom'>>({});
@@ -194,7 +200,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 console.log("📚 Source Text Length:", sourceText?.length || 0);
 
-                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, targetLength, sourceText);
+                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, targetLength, sourceText, course.mode || 'learning');
 
                 if (!skeleton || !skeleton.steps) {
                     throw new Error("Failed to generate skeleton");
@@ -246,7 +252,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 // Fire all requests at once (or batch if needed)
                 const promises = skeleton.steps.map(async (step: any) => {
-                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined); // Pass sourceText
+                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined, course.mode || 'learning'); // Pass sourceText
 
                     if (stepContent) {
                         const newBlocks: any[] = [];
@@ -262,7 +268,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         }
 
                         // B. Interaction Block (Unified Mapper)
-                        const interactionBlock = mapSystemItemToBlock(stepContent);
+                        const interactionBlock = mapSystemItemToBlock(stepContent) as unknown as ActivityBlock | null;
                         if (interactionBlock) {
                             newBlocks.push(interactionBlock);
                         }
@@ -410,7 +416,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     : type === 'memory_game' ? { pairs: [{ card_a: 'חתול', card_b: 'Cat' }, { card_a: 'כלב', card_b: 'Dog' }] }
                                         : type === 'true_false_speed' ? { statement: 'השמיים כחולים', answer: true }
                                             : type === 'podcast' ? { title: 'פודקאסט AI', audioUrl: null, script: null }
-                                                : '',
+                                                : type === 'audio-response' ? { question: 'הקליטו את תשובתכם:', description: 'לחצו על ההקלטה כדי לענות', maxDuration: 60 }
+                                                    : '',
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
@@ -419,7 +426,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 caption: '',
                 relatedQuestion: null
             }
-        };
+        } as ActivityBlock;
         const newBlocks = [...(editedUnit.activityBlocks || [])];
         newBlocks.splice(index, 0, newBlock);
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
@@ -470,7 +477,22 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleAutoGenerateOpenQuestion = async (blockId: string) => {
         setLoadingBlockId(blockId);
         try {
-            const sourceText = course.fullBookContent || "";
+            // Context Aggregation: Global Source + Local Video Transcripts
+            const videoTranscripts = editedUnit.activityBlocks
+                .map((b: any) => b.metadata?.transcript).filter((t: any) => t).join("\n\n");
+
+            const sourceText = (course.fullBookContent || "") + (videoTranscripts ? `\n\n--- Video Transcripts ---\n${videoTranscripts}` : "");
+
+            // Fallback if no content at all
+            if (!sourceText || sourceText.length < 10) {
+                const userTopic = prompt("נראה שאין מספיק תוכן ליצירת שאלה. על מה תרצו שהשאלה תהיה?");
+                if (!userTopic) return;
+                // We'll proceed with the topic as source
+                const result = await generateSingleOpenQuestion(editedUnit.title, userTopic);
+                if (result) updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
+                return;
+            }
+
             const result = await generateSingleOpenQuestion(editedUnit.title, sourceText);
             if (result) {
                 updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
@@ -486,7 +508,20 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const handleAutoGenerateMCQuestion = async (blockId: string) => {
         setLoadingBlockId(blockId);
         try {
-            const sourceText = course.fullBookContent || "";
+            // Context Aggregation: Global Source + Local Video Transcripts
+            const videoTranscripts = editedUnit.activityBlocks
+                .map((b: any) => b.metadata?.transcript).filter((t: any) => t).join("\n\n");
+
+            const sourceText = (course.fullBookContent || "") + (videoTranscripts ? `\n\n--- Video Transcripts ---\n${videoTranscripts}` : "");
+
+            if (!sourceText || sourceText.length < 10) {
+                const userTopic = prompt("נראה שאין מספיק תוכן ליצירת שאלה. על מה תרצו שהשאלה תהיה?");
+                if (!userTopic) return;
+                const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, userTopic);
+                if (result) updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer });
+                return;
+            }
+
             const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, sourceText);
             if (result) {
                 updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer });
@@ -553,7 +588,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 return;
             }
         } else {
-            sourceText = editedUnit.fullBookContent || course.fullBookContent || "";
+            sourceText = course.fullBookContent || "";
             if (!sourceText || sourceText.length < 50) {
                 alert("אין מספיק תוכן מקור ליצירת פודקאסט.");
                 return;
@@ -633,7 +668,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const updateRelatedQuestion = (blockId: string, updatedData: any) => {
         const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
         if (!block) return;
-        updateBlock(blockId, block.content, { relatedQuestion: { ...block.metadata.relatedQuestion, ...updatedData } });
+        updateBlock(blockId, block.content, { relatedQuestion: { ...(block.metadata?.relatedQuestion || {}), ...updatedData } });
     };
 
     const removeRelatedQuestion = (blockId: string) => {
@@ -737,11 +772,52 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <span className="text-xs font-bold text-blue-600">קישור ל-YouTube:</span>
                     <div className="flex gap-2">
                         <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="https://youtube.com/..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
-                        <button onClick={() => {
+                        <button onClick={async () => {
+                            const url = mediaInputValue[blockId];
+                            if (!url) return;
+
+                            setLoadingBlockId(blockId); // Show loading
+                            let transcript = "";
+
+                            // Try to fetch transcript if it's a YouTube URL
+                            console.log("Checking URL for transcription:", url);
+                            const videoId = MultimodalService.validateYouTubeUrl(url);
+                            console.log("Validation Result (Video ID):", videoId);
+
+                            if (videoId) {
+                                try {
+                                    console.log("Calling processYoutubeUrl...");
+                                    const text = await MultimodalService.processYoutubeUrl(url);
+                                    console.log("Transcript Result Length:", text?.length);
+
+                                    if (text) {
+                                        transcript = text;
+                                    } else {
+                                        alert("השרת החזיר תמלול ריק. ייתכן ואין כתוביות בסרטון זה.");
+                                    }
+                                } catch (e) {
+                                    console.error("Transcription Error Full:", e);
+                                    alert("שגיאה במשיכת התמלול: " + (e as Error).message);
+                                }
+                            } else {
+                                console.warn("URL failed validation for transcription but might still be embeddable.");
+                            }
+
                             const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
-                            if (block) updateBlock(blockId, block.content, { media: getEmbedUrl(mediaInputValue[blockId] || ""), mediaType: 'video' });
+                            if (block) {
+                                updateBlock(blockId, block.content, {
+                                    media: getEmbedUrl(url),
+                                    mediaType: 'video',
+                                    transcript: transcript // Store the transcript!
+                                });
+                            }
+
+                            setLoadingBlockId(null);
                             setMediaInputMode({ ...mediaInputMode, [blockId]: null });
-                        }} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap">הטמע</button>
+                        }} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap flex items-center gap-2">
+                            {loadingBlockId === blockId ? <IconLoader className="w-3 h-3 animate-spin" /> : null}
+                            הטמע
+                        </button>
                         <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-5 h-5" /></button>
                     </div>
                 </div>
@@ -770,6 +846,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={() => addBlockAtIndex('categorization', index)} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
                         <button onClick={() => addBlockAtIndex('memory_game', index)} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
                         <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
+                        <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
 
                         <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
@@ -838,6 +915,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                     {showScoring && (<button onClick={handleAutoDistributePoints} className="px-4 py-2 bg-yellow-100/80 hover:bg-yellow-200 text-yellow-800 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border border-yellow-200"><IconBalance className="w-4 h-4" />חלק ניקוד</button>)}
 
+                    <button
+                        onClick={() => setInspectorMode(!inspectorMode)}
+                        className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border ${inspectorMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50'}`}
+                    >
+                        {inspectorMode ? <IconCheck className="w-4 h-4" /> : <IconSparkles className="w-4 h-4" />} Wizdi-Monitor
+                    </button>
+
                     <button onClick={handleBack} className="px-5 py-2 rounded-xl text-gray-600 hover:bg-white/50 font-medium transition-colors flex items-center gap-2">
                         <IconBack className="w-4 h-4 rotate-180" /> חזרה
                     </button>
@@ -874,6 +958,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             <div className="flex-1 flex overflow-hidden relative">
                 <div className={`flex-1 overflow-y-auto custom-scrollbar p-8 pb-32 transition-all ${showSource ? 'w-1/2' : 'w-full max-w-4xl mx-auto'}`}>
                     <div className="space-y-6">
+                        {inspectorMode && (
+                            <div className="mb-6 animate-fade-in">
+                                <InspectorDashboard
+                                    blocks={editedUnit.activityBlocks || []}
+                                    mode={showScoring ? 'exam' : 'learning'}
+                                    unitId={editedUnit.id || 'new-unit'}
+                                    unitTitle={editedUnit.title}
+                                />
+                            </div>
+                        )}
 
                         {/* PODCAST PLAYER AREA - Removed (Moved to Blocks) */}
 
@@ -890,6 +984,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-500 rounded hover:bg-red-50 transition-colors"><IconTrash className="w-4 h-4" /></button>
                                     </div>
                                     <span className="absolute top-2 right-12 text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-1 rounded-full uppercase tracking-wide border border-white/50">{BLOCK_TYPE_MAPPING[block.type] || block.type}</span>
+
+                                    {inspectorMode && (
+                                        <div className="absolute top-2 left-32 z-20">
+                                            <InspectorBadge block={block} mode={showScoring ? 'exam' : 'learning'} />
+                                        </div>
+                                    )}
 
                                     <div className="mt-2">
                                         {/* TEXT BLOCK */}
@@ -995,7 +1095,64 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                                 <input type="text" className="w-full p-2 border rounded-lg mb-2 text-sm" placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
                                                                 <div className="flex gap-2 justify-end">
                                                                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
-                                                                    <button onClick={() => { updateBlock(block.id, getEmbedUrl(mediaInputValue[block.id] || ""), { mediaType: 'video' }); setMediaInputMode({ ...mediaInputMode, [block.id]: null }); }} className="bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold">הטמע וידאו</button>
+                                                                    <div className="flex flex-col gap-2 w-full">
+                                                                        <button onClick={async () => {
+                                                                            const url = mediaInputValue[block.id];
+                                                                            if (!url) return;
+
+                                                                            setLoadingBlockId(block.id);
+                                                                            let transcript = "";
+
+                                                                            const log = (msg: string) => {
+                                                                                console.log(msg);
+                                                                                const debugEl = document.getElementById(`debug-${block.id}`);
+                                                                                if (debugEl) debugEl.innerHTML += `<div class="border-b border-gray-800 pb-1 mb-1">${new Date().toLocaleTimeString()} - ${msg}</div>`;
+                                                                            };
+
+                                                                            // Reset log
+                                                                            const debugEl = document.getElementById(`debug-${block.id}`);
+                                                                            if (debugEl) debugEl.innerHTML = "<div>Starting process...</div>";
+
+                                                                            log(`URL: ${url}`);
+
+                                                                            if (MultimodalService.validateYouTubeUrl(url)) {
+                                                                                try {
+                                                                                    log("Valid YouTube URL. Fetching transcript...");
+                                                                                    const text = await MultimodalService.processYoutubeUrl(url);
+
+                                                                                    if (text) {
+                                                                                        log(`Transcript found! Length: ${text.length} chars`);
+                                                                                        transcript = text;
+                                                                                    } else {
+                                                                                        log("Transcript is empty/null from server.");
+                                                                                        alert("השרת החזיר תמלול ריק.");
+                                                                                    }
+                                                                                } catch (e: any) {
+                                                                                    log(`Error fetching: ${e.message}`);
+                                                                                    console.warn("Failed to fetch transcript", e);
+                                                                                    alert("שגיאה במשיכת התמלול: " + (e as Error).message);
+                                                                                }
+                                                                            } else {
+                                                                                log("Invalid YouTube URL format.");
+                                                                            }
+
+                                                                            updateBlock(block.id, getEmbedUrl(url), {
+                                                                                mediaType: 'video',
+                                                                                transcript: transcript
+                                                                            });
+
+                                                                            log("Block updated. Finished.");
+                                                                            setLoadingBlockId(null);
+                                                                            // Keeps the debug box open
+                                                                        }} className="bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold flex items-center gap-2 self-end">
+                                                                            {loadingBlockId === block.id ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : null}
+                                                                            הטמע וידאו (DEBUG)
+                                                                        </button>
+
+                                                                        <div id={`debug-${block.id}`} className="text-[10px] font-mono bg-black text-green-400 p-2 rounded h-32 overflow-y-auto w-full text-left ltr border border-gray-700 shadow-inner">
+                                                                            Ready for logs...
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -1010,6 +1167,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <div className="mt-3">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none p-1 text-sm text-center text-gray-600 placeholder-gray-400" placeholder="הוסיפו כיתוב לוידאו..." value={block.metadata?.caption || ''} onChange={(e) => updateBlock(block.id, block.content, { caption: e.target.value })} />
                                                         </div>
+                                                    </div>
+                                                )}
+
+                                                {block.metadata?.transcript && (
+                                                    <div className="mt-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-md inline-block font-bold">
+                                                        ✅ תמלול וידאו זוהה ({block.metadata.transcript.length} תווים)
                                                     </div>
                                                 )}
 
@@ -1115,6 +1278,36 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                             </p>
                                                         </div>
                                                     )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* AUDIO RESPONSE BLOCK */}
+                                        {block.type === 'audio-response' && (
+                                            <div className="bg-rose-50/50 p-5 rounded-xl border border-rose-100">
+                                                <div className="flex items-center gap-2 mb-4 text-rose-700 font-bold">
+                                                    <IconMicrophone className="w-5 h-5" /> תשובה קולית
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-rose-400 uppercase mb-1 block">שאלה / הנחיה למשתמש</label>
+                                                        <input type="text" className="w-full p-3 border border-rose-200 rounded-lg bg-white text-base focus:border-rose-400 outline-none" value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder="למשל: הסבירו במילים שלכם..." />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-rose-400 uppercase mb-1 block">תיאור נוסף (אופציונלי)</label>
+                                                        <input type="text" className="w-full p-3 border border-rose-200 rounded-lg bg-white text-sm focus:border-rose-400 outline-none" value={(block.content && block.content.description) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, description: e.target.value })} placeholder="הנחיות נוספות..." />
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex-1">
+                                                            <label className="text-xs font-bold text-rose-400 uppercase mb-1 block">משך זמן מקסימלי (שניות)</label>
+                                                            <input type="number" min="10" max="300" className="w-full p-3 border border-rose-200 rounded-lg bg-white text-sm focus:border-rose-400 outline-none" value={(block.content && block.content.maxDuration) || 60} onChange={(e) => updateBlock(block.id, { ...block.content, maxDuration: parseInt(e.target.value) })} />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="bg-white p-3 rounded-lg border border-rose-100 text-xs text-gray-500">
+                                                                * התלמיד יוכל להקליט תשובה, לשמוע אותה ולשלוח לבדיקה.
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

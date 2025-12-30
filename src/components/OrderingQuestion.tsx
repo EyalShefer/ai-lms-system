@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { ActivityBlock } from '../courseTypes';
+import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 
 interface OrderingQuestionProps {
     block: ActivityBlock;
-    onComplete?: (score: number) => void;
+    onComplete?: (score: number, telemetry?: TelemetryData) => void;
 }
 
 const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }) => {
+    // Telemetry
+    const startTimeRef = useRef<number>(Date.now());
+    const attemptsRef = useRef<number>(0);
+
     // Safe parsing
     // Safe parsing
     const content = React.useMemo(() => {
@@ -41,6 +45,10 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
     const dragOverItem = useRef<number | null>(null);
 
     useEffect(() => {
+        // Reset Telemetry
+        startTimeRef.current = Date.now();
+        attemptsRef.current = 0;
+
         // Initialize with shuffled items
         if (correct_order.length > 0) {
             const shuffled = [...correct_order].sort(() => Math.random() - 0.5);
@@ -81,9 +89,21 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
 
     const checkOrder = () => {
         setIsSubmitted(true);
+        attemptsRef.current += 1;
+
         const isCorrect = JSON.stringify(items) === JSON.stringify(correct_order);
         const score = isCorrect ? 100 : 0;
-        if (onComplete) onComplete(score);
+
+        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+
+        if (onComplete) {
+            onComplete(score, {
+                timeSeconds: Math.round(timeSpent),
+                attempts: attemptsRef.current,
+                hintsUsed: 0,
+                lastAnswer: items
+            });
+        }
     };
 
     return (

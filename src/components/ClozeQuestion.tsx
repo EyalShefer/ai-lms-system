@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import type { ActivityBlock } from '../courseTypes';
+import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 
 interface ClozeQuestionProps {
     block: ActivityBlock;
-    onComplete?: (score: number) => void;
+    onComplete?: (score: number, telemetry?: TelemetryData) => void;
 }
 
 const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
-    // Safe parsing of content
+    // Telemetry Refs
+    const startTimeRef = React.useRef<number>(Date.now());
+    const attemptsRef = React.useRef<number>(0);
+
     // Safe parsing of content with memoization to prevent infinite loops
     // Safe parsing of content with robust fallback for different formats
     const content = React.useMemo(() => {
@@ -100,6 +103,9 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
 
     // Initialize
     useEffect(() => {
+        startTimeRef.current = Date.now(); // Reset timer on new question
+        attemptsRef.current = 0;
+
         if (!sentence) return;
 
         // Prepare blanks based on sentence
@@ -142,12 +148,24 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
 
     const checkAnswers = () => {
         setIsSubmitted(true);
+        attemptsRef.current += 1; // Increment attempt
+
         let correctCount = 0;
         userAnswers.forEach((ans, i) => {
             if (ans === hidden_words[i]) correctCount++;
         });
         const score = Math.round((correctCount / hidden_words.length) * 100);
-        if (onComplete) onComplete(score);
+
+        const timeSpent = (Date.now() - startTimeRef.current) / 1000; // In seconds
+
+        if (onComplete) {
+            onComplete(score, {
+                timeSeconds: Math.round(timeSpent),
+                attempts: attemptsRef.current,
+                hintsUsed: 0, // Placeholder for now
+                lastAnswer: userAnswers
+            });
+        }
     };
 
     // Split sentence by placeholders

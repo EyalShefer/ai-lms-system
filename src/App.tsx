@@ -14,8 +14,10 @@ const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
 const StudentHome = React.lazy(() => import('./components/StudentHome'));
+const PedagogicalInsights = React.lazy(() => import('./components/PedagogicalInsights')); // NEW
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
 import GeoGuard from './components/GeoGuard';
+import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
 import * as pdfjsLib from 'pdfjs-dist';
 
@@ -333,7 +335,7 @@ const AuthenticatedApp = () => {
       console.error("CRITICAL ERROR in handleWizardComplete:", error);
       alert("שגיאה ביצירת הפעילות: " + (error?.message || "שגיאה לא ידועה"));
       // Restore home page if everything fails
-      setMode('list');
+      // setMode('list'); // DISABLE REDIRECT FOR DEBUGGING
       setIsGenerating(false);
     }
   };
@@ -387,48 +389,40 @@ const AuthenticatedApp = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <Suspense fallback={<LoadingSpinner />}>
-          {isGenerating ? (
-            <div className="flex flex-col items-center justify-center min-h-[50vh]">
-              <LoadingSpinner />
-              <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
-            </div>
-          ) : isStudentLink ? (
-            <CoursePlayer assignment={currentAssignment || undefined} />
-          ) : (
-            <>
-              {mode === 'list' && (
-                <HomePage
-                  onCreateNew={(m: any) => setWizardMode(m)}
-                  onNavigateToDashboard={() => setMode('dashboard')}
-                />
-              )}
-              {mode === 'editor' && <CourseEditor />}
-              {mode === 'student' && (
-                <CoursePlayer assignment={currentAssignment || undefined} />
-              )}
-              {mode === 'dashboard' && (
-                <TeacherDashboard onEditCourse={handleCourseSelect} />
-              )}
-              {mode === 'student-dashboard' && (
-                <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />
-              )}
-            </>
-          )}
-        </Suspense>
+        <LazyLoadErrorBoundary>
+          <Suspense fallback={<LoadingSpinner />}>
+            {isGenerating ? (
+              <div className="flex flex-col items-center justify-center min-h-[50vh]">
+                <LoadingSpinner />
+                <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
+              </div>
+            ) : isStudentLink ? <CoursePlayer assignment={currentAssignment || undefined} /> : (
+              <>
+                {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
+                {mode === 'editor' && <CourseEditor />}
+                {mode === 'student' && <CoursePlayer assignment={currentAssignment || undefined} />}
+                {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} onViewInsights={() => setMode('insights')} />}
+                {mode === 'student-dashboard' && <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />}
+                {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
+              </>
+            )}
+          </Suspense>
+        </LazyLoadErrorBoundary>
       </main>
 
       {wizardMode && (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-gray-900/50 backdrop-blur-sm">
           <div className="min-h-screen flex items-center justify-center p-4">
             <Suspense fallback={<div className="bg-white p-6 rounded-2xl"><LoadingSpinner /></div>}>
-              <IngestionWizard
-                initialMode={wizardMode}
-                initialTopic=""
-                title="יצירת פעילות חדשה"
-                onComplete={handleWizardComplete}
-                onCancel={() => setWizardMode(null)}
-              />
+              <LazyLoadErrorBoundary>
+                <IngestionWizard
+                  initialMode={wizardMode}
+                  initialTopic=""
+                  title="יצירת פעילות חדשה"
+                  onComplete={handleWizardComplete}
+                  onCancel={() => setWizardMode(null)}
+                />
+              </LazyLoadErrorBoundary>
             </Suspense>
           </div>
         </div>

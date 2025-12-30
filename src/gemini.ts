@@ -2,6 +2,14 @@ import { getFirestore, collection, addDoc, onSnapshot, doc } from "firebase/fire
 import { getApp } from "firebase/app";
 import OpenAI from "openai";
 import { v4 as uuidv4 } from 'uuid';
+import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT } from './prompts/pedagogicalPrompts';
+import type { ValidationResult } from './courseTypes';
+import { getFunctions } from "firebase/functions";
+
+export const functions = getFunctions(getApp());
+// if (window.location.hostname === "localhost") {
+//     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+// }
 
 // --- אתחול הקליינט של OpenAI (עבור פונקציות עזר ותמונות) ---
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -126,7 +134,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
   const commonMetadata = {
     bloomLevel: item.bloom_level || "ידע ומיומנויות יסוד",
-    feedbackCorrect: rawData.feedback_correct || rawData.feedback || "כל הכבוד! תשובה נכונה.",
+    feedbackCorrect: rawData.feedback_correct || rawData.feedback || "כל הכבוד! התשובה תואמת את הטקסט.",
     feedbackIncorrect: rawData.feedback_incorrect || "לא מדויק. כדאי לנסות שוב או להיעזר ברמז המודגש.",
     sourceReference: rawData.source_reference || rawData.source_reference_hint || null
   };
@@ -219,9 +227,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     // Ensure items are strings
     const items = rawItems.map((i) => {
       if (typeof i === 'string') return i;
-      // 'i' is object here
-      const iObj = i as any; // Temporary cast as we defined broad object structure in RawAiItem
-      return iObj.text || iObj.step || iObj.content || iObj.description || JSON.stringify(i);
+      // i is an object from the union in RawAiItem
+      return i.text || i.step || i.content || (i as any).description || JSON.stringify(i);
     });
 
     // Valid Sequence Check
@@ -277,13 +284,14 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     // Handle Standard Grouping
     else {
       categories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
-      const rawListing = (rawData.items || []) as any[]; // Using any[] here because items vary wildly
+      const rawListing = rawData.items || [];
 
       // Map items with group index if needed
       items = rawListing.map((item) => {
         // If item is object with 'category' prop
         if (typeof item === 'object' && item.category) {
-          return { text: item.text || item.content || JSON.stringify(item), category: item.category };
+          const txt = item.text || item.content || JSON.stringify(item);
+          return { text: txt, category: item.category };
         }
         // If item has group_index
         if (typeof item === 'object' && item.group_index !== undefined && categories[item.group_index]) {
@@ -291,7 +299,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         }
         // Fallback: If AI returns items as simple strings but didn't assign categories, we can't guess.
         // But if AI returns { text: "X", group: "Y" } handle that.
-        if (typeof item === 'object' && item.group) return { text: item.text, category: item.group };
+        if (typeof item === 'object' && item.group) return { text: item.text || JSON.stringify(item), category: item.group };
 
         // Fallback for simple strings (default to first category to prevent crash, or mark as Uncategorized)
         return {
@@ -335,17 +343,33 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
   // === CASE F: FILL IN BLANKS ===
   if (typeString === 'fill_in_blanks' || typeString === 'cloze') {
-    const safeData = rawData as any;
     return {
       id: uuidv4(),
       type: 'fill_in_blanks',
       content: {
-        sentence: safeData.text || safeData.content || questionText || "חסר טקסט להשלמה",
+        sentence: rawData.text || rawData.content || questionText || "חסר טקסט להשלמה",
       },
       metadata: {
         ...commonMetadata,
         score: 15,
-        wordBank: safeData.word_bank || safeData.options || [] // Optional word bank
+        wordBank: rawData.word_bank || rawData.options || [] // Optional word bank
+      }
+    };
+  }
+
+  // === CASE G: AUDIO RESPONSE ===
+  if (typeString === 'audio_response' || typeString === 'oral_answer' || typeString === 'record_answer') {
+    return {
+      id: uuidv4(),
+      type: 'audio-response',
+      content: {
+        question: questionText || "הקליטו את תשובתכם:",
+        description: rawData.description || "לחצו על כפתור ההקלטה כדי לענות.",
+        maxDuration: rawData.max_duration || 60
+      },
+      metadata: {
+        ...commonMetadata,
+        score: 20
       }
     };
   }
@@ -388,7 +412,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 // === PERFORMANCE OPTIMIZATION START ===
 
 // 1. Generate Skeleton (Fast Structure)
-import type { UnitSkeleton } from './types/gemini.types';
+import type { UnitSkeleton, SkeletonStep } from './types/gemini.types';
 
 /**
  * 1. Generate Skeleton (The "Brain")
@@ -406,7 +430,8 @@ export const generateUnitSkeleton = async (
   topic: string,
   gradeLevel: string,
   activityLength: 'short' | 'medium' | 'long',
-  sourceText?: string
+  sourceText?: string,
+  mode: 'learning' | 'exam' = 'learning'
 ): Promise<UnitSkeleton | null> => {
   let stepCount = 5;
   let structureGuide = "";
@@ -431,7 +456,8 @@ export const generateUnitSkeleton = async (
     structureGuide = `
       STEPS 1-2: Foundation (Remember). Type: memory_game OR multiple_choice.
       STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
-      STEP 5: Synthesis (Create). Type: open_question.
+      STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
+      STEP 5: Synthesis (Create). Type: open_question OR audio_response.
     `;
   }
 
@@ -440,10 +466,10 @@ export const generateUnitSkeleton = async (
     : `Topic: "${topic}"`;
 
   const prompt = `
-    Role: Pedagogical Architect (The Brain).
     Task: Create a "Skeleton" for a learning unit.
     ${contextPart}
     Target Audience: ${gradeLevel}.
+    Mode: ${mode === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : 'Learning/Tutorial Mode'}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
 
@@ -456,7 +482,9 @@ export const generateUnitSkeleton = async (
        - **Constraint:** Chunk A must end completely before Chunk B begins.
 
     3. **ZERO-TEXT-WALL POLICY (V4 ANTI-BATCHING):**
-       - **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
+       ${mode === 'exam'
+      ? `- **EXAM MODE:** DO NOT includes 'Teach Content'. Focus strictly on testing/assessment blocks.`
+      : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.`}
        - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
        - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.
 
@@ -477,7 +505,7 @@ export const generateUnitSkeleton = async (
         {
           "step_number": 1,
           "title": "Unique Title for Chunk A",
-          "narrative_focus": "Discuss ONLY [Specific Concept A]. Do not mention [Concept B].",
+          "narrative_focus": "${mode === 'exam' ? 'Assessment Topic A' : 'Discuss ONLY [Specific Concept A]'} . Do not mention [Concept B].",
           "forbidden_topics": ["Concept B", "Concept C", "Future Events"],
           "bloom_level": "Remember",
           "suggested_interaction_type": "memory_game"
@@ -513,6 +541,38 @@ export const generateUnitSkeleton = async (
 // 2. Generate Single Step Content (Detailed & Slow - Run in Parallel)
 import type { StepContentResponse } from './types/gemini.types';
 
+// Helper to generate Grade-Specific Linguistic Constraints
+const getLinguisticConstraints = (gradeLevel: string): string => {
+  // Normalize grade level (simple heuristic)
+  const isElementary = /([3-6]|[ג-ו])['']?$/.test(gradeLevel) || gradeLevel.includes('יסודי') || gradeLevel.includes('Elementary');
+  const isHighSchool = /(1[0-2]|['י][אב]?)$/.test(gradeLevel) || gradeLevel.includes('תיכון') || gradeLevel.includes('High School');
+
+  if (isElementary) {
+    return `
+    3. **LINGUISTIC CONSTRAINTS (Elementary / CEFR A2-B1):**
+       - **Structure:** Use ONLY simple sentences (Subject-Verb-Object). Max 10-12 words.
+       - **Prohibition:** NO Passive Voice. NO "Construct State Chains" (רצף סמיכויות).
+       - **Vocabulary:** Concrete nouns only. Abstract concepts must be explained in parentheses ().
+       - **COGNITIVE SHIELD:** If the thought is complex (Bloom Level 4+), SPLIT it into multiple short sentences. DO NOT delete the logic.`;
+  }
+
+  if (isHighSchool) {
+    return `
+    3. **LINGUISTIC CONSTRAINTS (High School / CEFR B2-C1):**
+       - **Register:** Academic / Formal Hebrew.
+       - **Requirement:** Mandatory use of Nominalization (שם פעולה).
+       - **Syntax:** Complex embedded clauses are expected.
+       - **Tone:** Academic, authoritative.`;
+  }
+
+  // Default to Middle School (Grades 7-9)
+  return `
+    3. **LINGUISTIC CONSTRAINTS (Middle School / CEFR B1-B2):**
+       - **Structure:** Compound sentences allowed (Although/Because/Therefore). Max 20 words.
+       - **Tone:** Slight cynicism or humor is allowed here (Wizdi-Bot style).
+       - **Focus:** Highlight Cause-and-Effect relationships.`;
+};
+
 /**
  * 2. Generate Single Step Content (The "Hands")
  * 
@@ -527,10 +587,11 @@ import type { StepContentResponse } from './types/gemini.types';
  */
 export const generateStepContent = async (
   topic: string,
-  stepInfo: any,
+  stepInfo: SkeletonStep,
   gradeLevel: string,
   sourceText?: string,
-  fileData?: any
+  fileData?: any,
+  mode: 'learning' | 'exam' = 'learning'
 ): Promise<StepContentResponse | null> => {
   const contextText = sourceText ? `Source Material:\n"""${sourceText.substring(0, 3000)}..."""` : `Topic: ${topic}`;
 
@@ -543,18 +604,21 @@ export const generateStepContent = async (
        - **CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
        - **Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
        - **BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
-       - **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.
+       ${mode === 'exam'
+      ? `- **EXAM MODE:** Do NOT output 'teach_content'. Set it to null or empty string.`
+      : `- **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.`}
 
-    3. **Complexity Adaptation (Age: ${gradeLevel}):** 
-       - Simplify academic text. Rewrite long paragraphs.
+    ${getLinguisticConstraints(gradeLevel)}
+
        - **Age Adaptation (Grades 1-6):** Every technical term MUST have a concrete analogy.
-       - **Tone (Grade 7+):** Objective, Historical Tone. NO "Imagine yourself".
+       - **Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'As per Linguistic Constraints above'}.
 
     4. **STRICT GROUNDING (Anti-Hallucination V3):**
        - **Rule:** Use ONLY the provided Source Text. If it's not in the PDF, it doesn't exist.
 
     5. **Micro-Learning Progression:**
        - Treat this step as "Chapter ${stepInfo.step_number}". Do not repeat definitions from previous chapters.
+       ${mode === 'exam' ? '- **EXAM MODE:** TONE must be objective, examiner tone. No "Wizdi-Bot" persona.' : ''}
 
     6. **Logic & Interaction Rules:**
        - **Ordering:** The 'teach_content' MUST be a narrative story. Items must be paraphrased.
@@ -585,8 +649,9 @@ export const generateStepContent = async (
        - IF ALL ELSE FAILS: Fallback to "Multiple Choice".
 
     7. **Scaffolding:**
-       - **Level 1 Hint:** Point to the specific text part.
-       - **Level 2 Hint:** Rephrase content.
+       ${mode === 'exam'
+      ? `- **EXAM MODE:** Do NOT generate 'progressive_hints'. Return empty array [].`
+      : `- **Level 1 Hint:** Point to the specific text part.\n- **Level 2 Hint:** Rephrase content.`}
        - **Feedback:** Explain WHY specific wrong choice is incorrect.
 
     Output FORMAT (JSON ONLY):
@@ -616,6 +681,9 @@ export const generateStepContent = async (
           
           // 6. OPEN QUESTION:
           // { "question": "...", "model_answer": "...", "points": 10 }
+          
+          // 7. AUDIO RESPONSE (Simulated Oral Exam):
+          // { "question": "Explain in your own words...", "max_duration": 60 }
        }
     }
   `;
@@ -642,6 +710,143 @@ export const generateStepContent = async (
 };
 
 // === PERFORMANCE OPTIMIZATION END ===
+
+// --- PHASE 2 IMPL: Pedagogical Validation ---
+
+export const validateContent = async (
+  lessonJson: any,
+  targetAudience: string
+): Promise<ValidationResult> => {
+  console.log("🔍 Validating content for:", targetAudience);
+
+  const prompt = `
+    User Instruction:
+    Attached is a JSON representing an educational lesson.
+    Target Audience: ${targetAudience}.
+
+    Analyze the content strictly against the PEDAGOGICAL MATRIX and STRUCTURAL GUIDELINES provided in the system prompt.
+    
+    Returns a JSON with this EXACT structure (no markdown):
+    {
+      "status": "PASS" | "REJECT",
+      "metrics": {
+        "cefr_level": "string",
+        "readability_score": number, // 0-100
+        "cognitive_load": "Low" | "Medium" | "High"
+      },
+      "issues": [
+        {
+          "module_index": number, // index of the step/module with issue
+          "issue_type": "string",
+          "description": "string",
+          "suggested_fix": "string"
+        }
+      ]
+    }
+
+    Lesson Content to Validate:
+    ${JSON.stringify(lessonJson)}
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        { role: "system", content: PEDAGOGICAL_SYSTEM_PROMPT + "\n\n" + STRUCTURAL_SYSTEM_PROMPT },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1 // Low temperature for consistent validation
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text) as ValidationResult;
+  } catch (e) {
+    console.error("Validation Error:", e);
+    // Fallback: Pass if validation fails to run (fail-open) or Reject (fail-closed)?
+    // For now, fail-closed to be safe, but with empty issues.
+    return {
+      status: 'REJECT',
+      metrics: { cefr_level: 'Unknown', readability_score: 0, cognitive_load: 'High' },
+      issues: [{ module_index: -1, issue_type: 'SystemError', description: 'Validation failed to run', suggested_fix: 'Retry' }]
+    };
+  }
+};
+
+export const attemptAutoFix = async (
+  originalJson: any,
+  validationResult: ValidationResult
+): Promise<any> => {
+  console.log("🔧 Attempting Auto-Fix...", validationResult.issues);
+
+  const prompt = `
+    You are a Content Editor.
+    Your task is to REWRITE the provided JSON content to resolve strict pedagogical issues.
+    
+    Issues Found:
+    ${JSON.stringify(validationResult.issues)}
+
+    Original Content:
+    ${JSON.stringify(originalJson)}
+
+    INSTRUCTION:
+    1. Fix ONLY the specific issues listed.
+    2. Maintain the original JSON structure exactly.
+    3. Do NOT change the topic or core educational value, just the wording/structure to match the target audience.
+    
+    Output the corrected JSON only.
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.3
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Auto-Fix Error:", e);
+    return originalJson; // Return original if fix fails
+  }
+};
+
+export const safeGenerationWorkflow = async (
+  generationFn: () => Promise<any>,
+  targetAudience: string,
+  maxRetries: number = 2
+): Promise<any> => {
+  let content = await generationFn();
+  let attempts = 0;
+
+  while (attempts <= maxRetries) {
+    console.log(`🔒 Validation Loop: Attempt ${attempts + 1}/${maxRetries + 1}`);
+
+    // 1. Validate
+    const validation = await validateContent(content, targetAudience);
+    console.log("📊 Validation Status:", validation.status);
+
+    if (validation.status === 'PASS') {
+      console.log("✅ Content Passed Validation!");
+      return content;
+    }
+
+    // 2. Reject -> Attempt Fix
+    console.warn("⚠️ Content Rejected. Issues:", validation.issues);
+
+    if (attempts < maxRetries) {
+      console.log("🛠️ Attempting Auto-Fix...");
+      content = await attemptAutoFix(content, validation);
+    } else {
+      console.error("❌ Max Retries Reached. Content Generation Failed.");
+      throw new Error("Pedagogical Validation Failed: Content could not be auto-corrected to meet standards.");
+    }
+
+    attempts++;
+  }
+};
 
 // --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (
@@ -1270,7 +1475,8 @@ export const checkOpenQuestionAnswer = async (
   question: string,
   userAnswer: string,
   modelAnswer: string,
-  sourceText: string = "" // Optional context
+  sourceText: string = "", // Optional context
+  mode: 'learning' | 'exam' = 'learning' // NEW: Mode parameter
 ): Promise<{ status: "correct" | "partial" | "incorrect"; feedback: string }> => {
 
   if (!OPENAI_API_KEY) return { status: "partial", feedback: "שגיאה בחיבור ל-AI. נסה שוב." };
@@ -1544,33 +1750,8 @@ export const generateAdaptiveUnit = async (originalUnit: any, _weakness: string)
   };
 };
 
-export const generateClassAnalysis = async (studentsData: any[]) => {
-  const prompt = `
-    Analyze the following class performance data:
-    ${JSON.stringify(studentsData).substring(0, 3000)}
 
-    Task: Provide a deep pedagogical analysis in Hebrew.
-    Output JSON Structure:
-    {
-      "classOverview": "General summary of the class performance trends",
-        "strongSkills": ["List of skills/topics where the class excelled"],
-          "weakSkills": ["List of skills/topics that need reinforcement"],
-            "actionItems": ["Concrete, actionable recommendations for the teacher for next lesson"]
-    }
-    `;
 
-  try {
-    const res = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }
-    });
-    return JSON.parse(res.choices[0].message.content || "{}");
-  } catch (e) {
-    console.error("Class Analysis Error:", e);
-    return null;
-  }
-};
 
 export const generateStudentReport = async (studentData: any) => {
   const prompt = `
@@ -1643,6 +1824,94 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string | null> =
 
   } catch (e) {
     console.error("Transcription Network Error:", e);
+    return null;
+  }
+};
+
+// --- פונקציה 3: מנתח נתוני תלמידים (Smart Analytics) ---
+export const generateStudentAnalysis = async (
+  studentName: string,
+  submissionData: any, // Contains answers with telemetry
+  courseTopic: string
+) => {
+  const prompt = `
+    Role: Educational Psychologist & Data Analyst.
+    Task: Analyze student performance based on telemetry data.
+    Student: ${studentName}.
+    Topic: ${courseTopic}.
+
+    DATA:
+    ${JSON.stringify(submissionData, null, 2)}
+
+    METRICS TO ANALYZE:
+    1. **Time per Question:** (Fast = Impulsive? / Slow = Struggling or Deep Thinker?)
+    2. **Attempts:** (Many attempts = Persistence or Guessing?)
+    3. **Hints:** (Usage of hints = Resourcefulness or Dependency?)
+    4. **Mistakes:** (Pattern recognition - e.g. "struggles with ordering").
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "strengths": ["List 2-3 specific strengths"],
+      "weaknesses": ["List 2-3 specific weaknesses"],
+      "psychologicalProfile": "Impulsive" | "Persistent" | "Deep Thinker" | "Hesitant",
+      "recommendedFocus": "Specific sub-topic to review...",
+      "engagementScore": 0-100 (Based on completion and effort)
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.5
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Analytics Error:", e);
+    return null;
+  }
+};
+
+// --- פונקציה 4: ניתוח כיתתי (Class Analytics) ---
+export const generateClassAnalysis = async (students: any[]) => {
+  const prompt = `
+    Role: Senior Educational Consultant.
+    Task: Analyze CLASS performance based on aggregated student data.
+    Count: ${students.length} students.
+
+    DATA SAMPLES (Anonymized):
+    ${JSON.stringify(students.map(s => ({ score: s.score, analytics: s.analytics || "No profile" })).slice(0, 15), null, 2)}
+
+    MISSION:
+    Identify PATTERNS in the class.
+    1. Are they generally impulsive or hesitant?
+    2. Is there a specific topic they all struggle with?
+    3. What is the emotional state of the class (Engagement)?
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "strongSkills": ["List 2-3 skills the CLASS excels at"],
+      "weakSkills": ["List 2-3 skills the CLASS struggles with"],
+      "actionItems": ["List 2 practical teaching strategies for tomorrow"],
+      "classVibe": "Competitive" | "Collaborative" | "Struggling" | "Curious"
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.6
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Class Analysis Error:", e);
     return null;
   }
 };

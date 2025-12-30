@@ -14,17 +14,23 @@ import ClozeQuestion from './ClozeQuestion';
 import OrderingQuestion from './OrderingQuestion';
 import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
+import { SCORING_CONFIG, calculateQuestionScore, type AnswerAttempt, OPEN_QUESTION_SCORES } from '../utils/scoring';
 import { CitationService } from '../services/citationService'; // GROUNDED QA
 // import { SourceViewer } from './SourceViewer'; // NOTEBOOKLM GUIDE (Removed unused import)
 
-
+import QuizBlock from './QuizBlock';
+import type { TelemetryData } from '../courseTypes';
+import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
+import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
+import { AudioRecorderBlock } from './AudioRecorderBlock';
 
 // Helper to safely extract text from option (string or object)
-const getOptionText = (opt: string | { text?: string }): string => {
-    if (typeof opt === 'string') return opt;
-    if (opt && typeof opt === 'object' && opt.text) return opt.text;
+const getAnswerText = (val: any): string => {
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val?.answer) return val.answer;
     return '';
 };
+
 
 // --- הגדרות טיפוסים למצב סקירה ---
 interface StudentReviewData {
@@ -228,12 +234,16 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     const [initialLoadDone, setInitialLoadDone] = useState(false);
 
     // Initialize userAnswers safely. If assignment has activeSubmission, use it.
-    // If we already have state (from previous render), use that? No, useState does that.
-    // KEY FIX: When assignment updates (e.g. from 'active' to 'completed' status in parent),
-    // we must NOT reset answers if we are the ones who just submitted it.
+    // IF we have a new assignment, we update.
     const [userAnswers, setUserAnswers] = useState<Record<string, any>>(() => {
         return assignment?.activeSubmission?.answers || {};
     });
+
+    // Telemetry State
+    const [telemetry, setTelemetry] = useState<Record<string, TelemetryData>>({});
+
+    // Scoring State: Tracks detailed attempts and scores per block
+    const [gradingState, setGradingState] = useState<Record<string, AnswerAttempt & { score: number }>>({});
 
     // We only update userAnswers from props if a DIFFERENT assignment is loaded, 
     // NOT when the SAME assignment updates its status.
@@ -244,6 +254,56 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             lastAssignmentIdRef.current = assignment.id;
         }
     }, [assignment?.id]);
+
+    // Hydrate Grading State from User Answers (for resuming sessions)
+    // We assume 1 attempt / 0 hints for loaded answers where we don't have history
+    useEffect(() => {
+        if (!course || !userAnswers || Object.keys(gradingState).length > 0) return;
+
+        const initialGrading: Record<string, AnswerAttempt & { score: number }> = {};
+        let hasUpdates = false;
+
+        course.syllabus.forEach(module => {
+            module.learningUnits.forEach(unit => {
+                unit.activityBlocks?.forEach(block => {
+                    const ans = userAnswers[block.id];
+                    if (ans !== undefined && ans !== null && ans !== '') {
+                        // Default assumptions
+                        let isCorrect = false;
+                        let score = 0;
+                        const isMultipleChoice = ['multiple-choice', 'cloze', 'ordering', 'categorization'].includes(block.type);
+
+                        if (block.type === 'open-question') {
+                            // Check for persisted score
+                            if (typeof ans === 'object' && ans.provisional_score !== undefined) {
+                                score = ans.provisional_score;
+                                isCorrect = score > 0;
+                            }
+                        } else if (isMultipleChoice) {
+                            isCorrect = ans === block.content.correctAnswer;
+                            score = isCorrect ? SCORING_CONFIG.CORRECT_FIRST_TRY : 0;
+                        }
+
+                        // Only set if we calculated something meaningful or it's an answered block
+                        if (score > 0 || isCorrect || ans) {
+                            initialGrading[block.id] = {
+                                attempts: 1,
+                                hintsUsed: 0,
+                                isCorrect,
+                                responseTimeSec: 0,
+                                score
+                            };
+                            hasUpdates = true;
+                        }
+                    }
+                });
+            });
+        });
+
+        if (hasUpdates) {
+            setGradingState(prev => ({ ...prev, ...initialGrading }));
+        }
+    }, [course, userAnswers, gradingState]); // careful with deps to avoid loops
 
     const [feedbackVisible, setFeedbackVisible] = useState<Record<string, boolean>>({});
     const [hintsVisible, setHintsVisible] = useState<Record<string, number>>({}); // number = how many hints shown
@@ -309,6 +369,15 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         return () => { if (course?.id) hasAutoOpenedRef.current = false; };
     }, [course?.id, course?.showSourceToStudent, !!course?.fullBookContent]);
 
+    // Inspector Mode (Wizdi-Monitor)
+    const [inspectorMode, setInspectorMode] = useState(false);
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('inspector') === 'true') {
+            setInspectorMode(true);
+        }
+    }, []);
+
     // SET INITIAL UNIT if not set
     useEffect(() => {
         if (!initialLoadDone && !activeUnitId && course?.syllabus?.length > 0) {
@@ -366,7 +435,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 clearInterval(timerRef.current);
 
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const existingText = userAnswers[blockId] || '';
+                const existingText = getAnswerText(userAnswers[blockId]);
 
                 // Show loading indicator in text? 
                 // Better: Just wait? Or optimistically update?
@@ -379,9 +448,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 const text = await transcribeAudio(audioBlob);
 
                 // Remove placeholder and append text
-                const current = userAnswers[blockId] || ""; // refetch fresh state if possible, but state closure might be stale.
-                // Actually `userAnswers` in this closure is stale? No, functional update.
-
+                const current = userAnswers[blockId] || "";
                 handleAnswerSelect(blockId, (prev: string) => {
                     // remove placeholder
                     const clean = prev.replace("\n[מעבד הקלטה...]", "").replace("[מעבד הקלטה...]", "");
@@ -431,15 +498,35 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
     };
 
+    const handleTelemetryUpdate = (blockId: string, answer: any, data: TelemetryData) => {
+        // Update local selection (for UI)
+        handleAnswerSelect(blockId, answer);
+
+        // Update Telemetry
+        setTelemetry(prev => ({
+            ...prev,
+            [blockId]: data
+        }));
+    };
+
     const checkAnswer = async (blockId: string) => {
         // Find the block to check correctness
         const block = activeUnit?.activityBlocks?.find((b: ActivityBlock) => b.id === blockId);
         if (!block) return;
 
+        // Increment attempts
+        // If we already have a grading state, use it, otherwise init
+        // BUT: simple increment here might double count if we click check multiple times?
+        // Usually "Check Answer" is disabled after success.
+
+        const currentGrading = gradingState[blockId] || { attempts: 0, hintsUsed: 0, isCorrect: false, responseTimeSec: 0, score: 0 };
+        const newAttempts = currentGrading.attempts + 1;
+        const hintsUsed = hintsVisible[blockId] || 0;
+
         // --- Handle Open Question (AI Tutor) ---
         if (block.type === 'open-question') {
             const userAnswer = userAnswers[blockId];
-            if (!userAnswer || userAnswer.trim().length < 2) {
+            if (!userAnswer || (typeof userAnswer === 'string' && userAnswer.trim().length < 2)) {
                 alert("אנא כתוב תשובה מלאה לפני הבדיקה.");
                 return;
             }
@@ -448,15 +535,44 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             try {
                 // Use Source Text if available (Global context) or fallback
                 const context = course?.fullBookContent || "";
+
+                // If userAnswers is object, extract text
+                const textAnswer = typeof userAnswer === 'object' ? userAnswer.answer : userAnswer;
+
                 const feedback = await checkOpenQuestionAnswer(
                     block.content.question,
-                    userAnswer,
+                    textAnswer,
                     block.metadata?.modelAnswer || "TBD",
-                    context
+                    context,
+                    isExamMode ? 'exam' : 'learning'
                 );
 
                 setOpenQuestionFeedback(prev => ({ ...prev, [blockId]: feedback }));
                 setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+
+                // Calibrate Score
+                let numericScore = OPEN_QUESTION_SCORES.INCORRECT;
+                if (feedback.status === 'correct') numericScore = OPEN_QUESTION_SCORES.CORRECT;
+                if (feedback.status === 'partial') numericScore = OPEN_QUESTION_SCORES.PARTIAL;
+
+                // Update Grading State
+                const newGrading: AnswerAttempt & { score: number } = {
+                    attempts: newAttempts,
+                    hintsUsed: hintsUsed,
+                    isCorrect: feedback.status === 'correct',
+                    responseTimeSec: 0,
+                    score: numericScore
+                };
+                setGradingState(prev => ({ ...prev, [blockId]: newGrading }));
+
+                // Update UserAnswers with Provisional Score
+                // We preserve the answer text but add the score
+                handleAnswerSelect(blockId, {
+                    answer: textAnswer,
+                    provisional_score: numericScore,
+                    feedback: feedback // Optional: Store feedback too
+                });
+
             } catch (e) {
                 console.error("Tutor check failed", e);
                 // Fallback
@@ -468,44 +584,103 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
 
         // --- Standard Logic for Close-Ended Questions ---
-        // Mark feedback as visible for this block
         setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
 
         const isCorrect = userAnswers[blockId] === block.content.correctAnswer;
+
         if (!isCorrect) {
             setBlockMistakes(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
         }
+
+        // Calculate Score using Utility
+        const attemptAndScore: AnswerAttempt & { score: number } = {
+            attempts: newAttempts,
+            hintsUsed: hintsUsed,
+            isCorrect: isCorrect,
+            responseTimeSec: 0, // Pending implementation
+            score: 0 // placeholder
+        };
+
+        // If simple calculation matches utility
+        attemptAndScore.score = calculateQuestionScore(attemptAndScore);
+
+        setGradingState(prev => ({ ...prev, [blockId]: attemptAndScore }));
     };
 
     const handleShowHint = (blockId: string) => {
-        setHintsVisible(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
+        const newLevel = (hintsVisible[blockId] || 0) + 1;
+        setHintsVisible(prev => ({ ...prev, [blockId]: newLevel }));
+
+        // Telemetry Update
+        setTelemetry(prev => {
+            const currentData = prev[blockId] || { timeSeconds: 0, attempts: 0, hintsUsed: 0, lastAnswer: null, events: [] };
+            return {
+                ...prev,
+                [blockId]: {
+                    ...currentData,
+                    hintsUsed: newLevel,
+                    events: [
+                        ...(currentData.events || []),
+                        { event: 'HINT_REVEALED', level: newLevel, timestamp: Date.now() }
+                    ]
+                }
+            };
+        });
     };
 
     const calculateScore = () => {
         if (!course) return 0;
         let totalQuestions = 0;
-        let correctAnswers = 0;
+        let totalScoreObtained = 0;
 
         course.syllabus.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
-                    if (['multiple-choice', 'cloze', 'ordering', 'categorization'].includes(block.type)) {
+                    // Identify Scorable Blocks
+                    const isScorable = ['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game'].includes(block.type) || block.metadata?.relatedQuestion;
+
+                    if (isScorable) {
                         totalQuestions++;
-                        // Simple check for now - can be expanded for complex types
-                        if (userAnswers[block.id] === block.content.correctAnswer) {
-                            correctAnswers++;
+
+                        // Get Score from Grading State
+                        const grade = gradingState[block.id];
+                        if (grade) {
+                            totalScoreObtained += grade.score;
+                        } else {
+                            // Fallback for related questions or legacy data NOT in gradingState?
+                            // 2. Interactive Questions (Stored as "Score: X" string, X is 0-100)
+                            const answer = userAnswers[block.id];
+                            if (answer && typeof answer === 'string' && answer.startsWith('Score: ')) {
+                                totalScoreObtained += parseInt(answer.replace('Score: ', '')) || 0;
+                            } else if (answer && typeof answer === 'object' && typeof answer.score === 'number') {
+                                totalScoreObtained += answer.score;
+                            }
                         }
-                        // For games, we might store score directly
-                        if (userAnswers[block.id]?.score) {
-                            // Logic for weighted score...
+
+                        // Related Question Logic (Simplified)
+                        if (block.metadata?.relatedQuestion?.correctAnswer) {
+                            // We might need to track this in gradingState too, but for now fallback
+                            const relId = block.id + "_related";
+                            if (userAnswers[relId] === block.metadata.relatedQuestion.correctAnswer) {
+                                // Assume full points? Or 50%? 
+                                // Let's assume full points for simplicity unless untracked
+                                // Ideally, related questions should be their own blocks or tracked similarly
+                                totalQuestions++; // Count as another question
+                                const relGrade = gradingState[relId];
+                                if (relGrade) totalScoreObtained += relGrade.score;
+                                else if (userAnswers[relId] === block.metadata.relatedQuestion.correctAnswer) totalScoreObtained += 100;
+                            }
                         }
                     }
                 });
             });
         });
 
-        if (totalQuestions === 0) return 100; // No questions = 100? or 0?
-        return Math.round((correctAnswers / totalQuestions) * 100);
+        if (totalQuestions === 0) return 100;
+
+        // Normalize: (Obtained / Possible) * 100
+        const maxPossible = totalQuestions * 100;
+        return Math.round((totalScoreObtained / maxPossible) * 100);
     };
 
     const goToNextUnit = () => {
@@ -537,9 +712,11 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         setActiveUnitId(null);
     };
 
-    const handleGameComplete = (blockId: string, score: number) => {
+    const handleGameComplete = (blockId: string, score: number, data?: TelemetryData) => {
         setUserAnswers(prev => ({ ...prev, [blockId]: { score, completed: true } }));
-        // Auto-show feedback?
+        if (data) {
+            setTelemetry(prev => ({ ...prev, [blockId]: data }));
+        }
     };
 
     // Debug Unmount
@@ -613,7 +790,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 courseId: course.id,
                 studentName: studentName,
                 answers: userAnswers,
-                score: finalScore
+                score: finalScore,
+                courseTopic: course.title, // Pass for AI Analysis
+                telemetry: telemetry // Pass Telemetry Data
             });
             console.log("Submission Result:", result);
             setIsSubmitted(true);
@@ -637,7 +816,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         if (!relatedQ || !relatedQ.question) return null;
 
         const relatedId = parentId + "_related";
-        const isSelected = userAnswers[relatedId];
+
         const showFeedback = reviewMode || (feedbackVisible[relatedId] && !isExamMode);
 
         return (
@@ -646,37 +825,22 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 <h4 className="font-bold text-gray-800 mb-3 text-sm">{relatedQ.question}</h4>
 
                 {relatedQ.type === 'multiple-choice' && (
-                    <div className="space-y-2">
-                        {relatedQ.options?.map((opt: any, i: number) => {
-                            const optText = getOptionText(opt);
-                            let btnClass = "w-full text-right p-2.5 rounded-lg border text-sm transition-all ";
-                            if (showFeedback) {
-                                if (optText === relatedQ.correctAnswer) btnClass += "bg-green-50 border-green-400 text-green-800 font-bold";
-                                else if (isSelected === optText) btnClass += "bg-red-50 border-red-300 text-red-800";
-                                else btnClass += "opacity-50 border-transparent bg-gray-50";
-                            } else {
-                                btnClass += isSelected === optText ? "border-blue-500 bg-white shadow-sm ring-1 ring-blue-200" : "border-gray-200 bg-white hover:bg-gray-50";
-                            }
-                            return (
-                                <button key={i} onClick={() => handleAnswerSelect(relatedId, optText)} className={btnClass} disabled={!!showFeedback}>
-                                    <div className="flex justify-between items-center">
-                                        <span>{optText}</span>
-                                        {showFeedback && optText === relatedQ.correctAnswer && <IconCheck className="w-4 h-4 text-green-600" />}
-                                        {showFeedback && isSelected === optText && optText !== relatedQ.correctAnswer && <IconX className="w-4 h-4 text-red-600" />}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                        {!isExamMode && !showFeedback && !reviewMode && (
-                            <button onClick={() => checkAnswer(relatedId)} className="mt-2 text-xs text-blue-600 font-bold hover:underline">בדוק תשובה</button>
-                        )}
-                    </div>
+                    <QuizBlock
+                        data={relatedQ}
+                        userAnswer={userAnswers[relatedId]}
+                        onAnswer={(ans) => handleAnswerSelect(relatedId, ans)}
+                        onCheck={() => checkAnswer(relatedId)}
+                        showFeedback={showFeedback}
+                        isReadOnly={reviewMode || (showFeedback && !isExamMode)}
+                        isExamMode={isExamMode}
+                        hintsVisibleLevel={hintsVisible[relatedId] || 0}
+                    />
                 )}
 
                 {relatedQ.type === 'open-question' && (
                     <textarea
                         className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none bg-white"
-                        value={userAnswers[relatedId] || ''}
+                        value={typeof userAnswers[relatedId] === 'object' ? userAnswers[relatedId].answer : (userAnswers[relatedId] || '')}
                         onChange={(e) => handleAnswerSelect(relatedId, e.target.value)}
                         readOnly={reviewMode}
                         placeholder={reviewMode ? "התלמיד לא ענה" : "כתוב את תשובתך כאן..."}
@@ -694,6 +858,42 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             return <iframe src={src} className="w-full h-48 md:h-64 bg-black" title="Video" allowFullScreen />;
         }
         return <video src={src} controls className="w-full h-48 md:h-64 bg-black" />;
+    };
+
+    const renderProgressiveHints = (block: ActivityBlock) => {
+        const hints = block.metadata?.progressiveHints;
+        if (!hints || hints.length === 0) return null;
+        if (isExamMode || reviewMode) return null;
+
+        const currentLevel = hintsVisible[block.id] || 0;
+        const isMaxLevel = currentLevel >= hints.length;
+
+        return (
+            <div className="mt-4 flex flex-col items-start gap-2">
+                <button
+                    onClick={() => handleShowHint(block.id)}
+                    disabled={isMaxLevel}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold transition-all ${isMaxLevel
+                        ? 'bg-gray-100 text-gray-400 cursor-default'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 shadow-sm'
+                        }`}
+                >
+                    <IconSparkles className="w-4 h-4" />
+                    {currentLevel === 0 ? '💡 רמז' : (isMaxLevel ? 'כל הרמזים מוצגים' : 'רמז נוסף')}
+                </button>
+
+                {currentLevel > 0 && (
+                    <div className="space-y-2 w-full max-w-md animate-fade-in mt-2">
+                        {hints.slice(0, currentLevel).map((hint, idx) => (
+                            <div key={idx} className="relative bg-amber-50 border border-amber-200 p-3 pr-4 rounded-xl text-amber-900 text-sm shadow-sm flex gap-3 items-start">
+                                <span className="font-bold bg-amber-200 text-amber-800 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{idx + 1}</span>
+                                <span className="flex-1">{hint}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
     };
 
     const renderBlock = (block: ActivityBlock) => {
@@ -795,121 +995,37 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             case 'interactive-chat': return <InteractiveChatBlock key={block.id} block={block} context={{ unitTitle: activeUnit?.title || "", unitContent: "" }} forcedHistory={reviewMode ? studentData?.chatHistory : undefined} readOnly={reviewMode} />;
 
             case 'multiple-choice':
-                const isSelected = userAnswers[block.id];
+                const mcMedia = getMediaSrc();
                 const showFeedback = reviewMode || (feedbackVisible[block.id] && !isExamMode);
 
-                const qMedia = getMediaSrc();
-
                 return (
-                    <div key={block.id} className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm">
-                        <h3 className="text-xl font-bold mb-4">{block.content.question}</h3>
-
-                        {qMedia && (
-                            <div className="mb-4 rounded-xl overflow-hidden">
+                    <div key={block.id} className="mb-8">
+                        {mcMedia && (
+                            <div className="mb-4 rounded-xl overflow-hidden max-w-xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
-                                    renderMediaElement(qMedia) :
-                                    <img src={qMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    renderMediaElement(mcMedia) :
+                                    <img src={mcMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
                                 }
                             </div>
                         )}
+                        <QuizBlock
+                            data={block.content}
+                            userAnswer={userAnswers[block.id]}
+                            onAnswer={(ans, tel) => tel && handleTelemetryUpdate(block.id, ans, tel)}
+                            onCheck={() => checkAnswer(block.id)}
+                            showFeedback={showFeedback}
+                            isReadOnly={reviewMode || (showFeedback && !isExamMode)}
+                            isExamMode={isExamMode}
+                            hints={block.metadata?.progressiveHints}
+                            hintsVisibleLevel={hintsVisible[block.id] || 0}
+                            onShowHint={() => handleShowHint(block.id)}
+                            inspectorMode={inspectorMode}
+                        />
 
-                        <div className="space-y-3">
-                            {block.content.options?.map((opt: any, i: number) => {
-                                const optText = getOptionText(opt);
-                                let btnClass = "w-full text-right p-4 rounded-xl border transition-all ";
-                                if (showFeedback) {
-                                    if (optText === block.content.correctAnswer) btnClass += "bg-green-50 border-green-500 text-green-900";
-                                    else if (isSelected === optText) btnClass += "bg-red-50 border-red-300 text-red-900";
-                                    else btnClass += "opacity-50";
-                                } else {
-                                    btnClass += isSelected === optText ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200" : "border-gray-200 hover:bg-gray-50";
-                                }
-                                return (
-                                    <button key={i} onClick={() => handleAnswerSelect(block.id, optText)} className={btnClass} disabled={!!showFeedback}>
-                                        <div className="flex justify-between items-center">
-                                            <span>{optText}</span>
-                                            {showFeedback && optText === block.content.correctAnswer && <IconCheck className="w-5 h-5 text-green-600" />}
-                                            {showFeedback && isSelected === optText && optText !== block.content.correctAnswer && <IconX className="w-5 h-5 text-red-600" />}
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {!isExamMode && !showFeedback && !reviewMode && <button onClick={() => checkAnswer(block.id)} className="mt-4 text-blue-600 font-bold text-sm">בדיקה</button>}
+                        {inspectorMode && <InspectorBadge block={block} mode={course.mode || 'learning'} />}
 
-                        {/* Display Text-Back Feedback */}
-                        {showFeedback && (
-                            <div className={"mt-4 p-4 rounded-xl border animate-fade-in " + (userAnswers[block.id] === block.content.correctAnswer ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
-                                {userAnswers[block.id] === block.content.correctAnswer ? (
-                                    <div className="text-green-800 font-bold flex items-center gap-2">
-                                        <IconCheck className="w-5 h-5" />
-                                        {block.metadata?.feedbackCorrect || "תשובה נכונה! כל הכבוד."}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <div className="text-red-800 font-bold flex items-center gap-2">
-                                            <IconX className="w-5 h-5" />
-                                            {(() => {
-                                                const richOptions = block.metadata?.richOptions;
-                                                if (richOptions && Array.isArray(richOptions)) {
-                                                    const selectedOpt = richOptions.find((o: any) => o.text === userAnswers[block.id]);
-                                                    if (selectedOpt && selectedOpt.feedback) {
-                                                        return selectedOpt.feedback;
-                                                    }
-                                                }
-                                                return block.metadata?.feedbackIncorrect || "תשובה לא נכונה, נסו שוב.";
-                                            })()}
-                                        </div>
-                                        {block.metadata?.sourceHint && (
-                                            <div className="text-sm text-blue-900 bg-blue-100/50 p-3 rounded-lg border-r-4 border-blue-500 mt-2">
-                                                <div className="font-bold flex items-center gap-1 mb-1">
-                                                    <IconBook className="w-4 h-4" /> רמז מהטקסט:
-                                                </div>
-                                                {block.metadata.sourceHint}
-                                            </div>
-                                        )}
-                                        {/* Retry Button for Learning Mode */}
-                                        {!isExamMode && !reviewMode && (
-                                            <button
-                                                onClick={() => setFeedbackVisible(prev => ({ ...prev, [block.id]: false }))}
-                                                className="flex items-center gap-2 text-red-600 bg-white border border-red-200 px-4 py-2 rounded-full text-sm font-bold shadow-sm hover:bg-red-50 transition-all mt-2"
-                                            >
-                                                <IconArrowBack className="w-4 h-4" /> אל תתייאש, נסה שוב!
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Progressive Hints Section (Only for Learning Mode AND After Mistake) */}
-                        {!isExamMode && !reviewMode && block.metadata?.progressiveHints && block.metadata.progressiveHints.length > 0 && (
-                            // Show if feedback is visible (user just checked) OR if they have made a mistake previously
-                            (showFeedback || (blockMistakes[block.id] || 0) > 0) && (
-                                <div className="mt-4">
-                                    <button
-                                        onClick={() => handleShowHint(block.id)}
-                                        className="text-amber-600 text-sm font-bold flex items-center gap-1 hover:bg-amber-50 px-3 py-1.5 rounded-full transition-colors border border-amber-200"
-                                    >
-                                        <IconSparkles className="w-4 h-4" />
-                                        {hintsVisible[block.id] ?
-                                            (hintsVisible[block.id]! < block.metadata.progressiveHints.length ? 'רמז נוסף' : 'כל הרמזים מוצגים')
-                                            : 'צריך עזרה?'}
-                                    </button>
-
-                                    {hintsVisible[block.id] && (
-                                        <div className="mt-3 space-y-2 animate-fade-in">
-                                            {block.metadata.progressiveHints.slice(0, hintsVisible[block.id]).map((hint: string, idx: number) => (
-                                                <div key={idx} className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-amber-900 text-sm shadow-sm flex gap-3">
-                                                    <span className="font-bold bg-amber-200 text-amber-800 w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">{idx + 1}</span>
-                                                    <span>{hint}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        )}
+                        {/* Progressive Hints Section - Handled internally by QuizBlock now */}
+                        {/* renderProgressiveHints(block) - Removed to avoid duplication */}
                     </div>
                 );
             case 'open-question':
@@ -937,7 +1053,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                         <div className="relative">
                             <textarea
-                                value={userAnswers[block.id] || ''}
+                                value={getAnswerText(userAnswers[block.id])}
                                 onChange={(e) => handleAnswerSelect(block.id, e.target.value)}
                                 placeholder={reviewMode ? "התלמיד לא ענה" : "כתבו את התשובה כאן... (ניתן גם להקליט)"}
                                 rows={4}
@@ -1016,6 +1132,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                         {/* הצגת המחוון למורה במצב צפייה */}
                         {
+
                             reviewMode && block.metadata?.modelAnswer && (
                                 <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                                     <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
@@ -1025,6 +1142,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 </div>
                             )
                         }
+
+                        {/* Progressive Hints for Open Question */}
+                        {renderProgressiveHints(block)}
                     </div>
                 );
             case 'fill_in_blanks': {
@@ -1039,7 +1159,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
-                        <ClozeQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
+                        <ClozeQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
                     </div>
                 );
             }
@@ -1055,7 +1175,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
-                        <OrderingQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
+                        <OrderingQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
                     </div>
                 );
             }
@@ -1071,7 +1191,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
-                        <CategorizationQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
+                        <CategorizationQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
                     </div>
                 );
             }
@@ -1087,7 +1207,18 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
-                        <MemoryGameQuestion block={block} onComplete={(score) => handleGameComplete(block.id, score)} />
+                        <MemoryGameQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
+                    </div>
+                );
+            case 'audio-response':
+                return (
+                    <div key={block.id} className="mb-8">
+                        <AudioRecorderBlock
+                            block={block}
+                            onAnswer={(url) => handleAnswerSelect(block.id, url)}
+                            userAnswer={userAnswers[block.id]}
+                            isReadOnly={isSubmitted}
+                        />
                     </div>
                 );
             default: return null;
@@ -1111,6 +1242,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     return (
         <div className="min-h-full bg-gray-50 flex flex-col items-center">
+            {inspectorMode && activeUnit && (
+                <InspectorDashboard blocks={activeUnit.activityBlocks || []} mode={course.mode || 'learning'} />
+            )}
+
             {/* --- Success Screen --- */}
             {isSubmitted && (
                 <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center animate-fade-in p-8 text-center">
@@ -1260,27 +1395,30 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
 
                             <div className="mt-16 flex justify-center">
-                                <button
-                                    onClick={handleContinueClick}
-                                    className="bg-blue-600 text-white px-10 py-3.5 rounded-full font-bold shadow-xl hover:bg-blue-700 transition-all hover:scale-105 flex items-center gap-3 text-lg"
-                                >
-                                    {reviewMode ? 'סגור תצוגה' : (
-                                        (() => {
-                                            const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
-                                                activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
+                                {(() => {
+                                    const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
+                                        activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
 
-                                            return isLastUnit ? (
-                                                <>
-                                                    הגשה <IconCheck className="w-5 h-5" />
-                                                </>
-                                            ) : (
-                                                <>
-                                                    הבא <IconArrowBack className="w-5 h-5" />
-                                                </>
-                                            );
-                                        })()
-                                    )}
-                                </button>
+                                    return (
+                                        <button
+                                            onClick={isLastUnit ? handleSubmit : handleContinueClick}
+                                            disabled={isLastUnit && isSubmitting}
+                                            className={`${isLastUnit ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-10 py-3.5 rounded-full font-bold shadow-xl transition-all hover:scale-105 flex items-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                            {reviewMode ? 'סגור תצוגה' : (
+                                                isLastUnit ? (
+                                                    <>
+                                                        {isSubmitting ? 'שולח...' : 'הגש משימה'} <IconCheck className="w-5 h-5" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        הבא <IconArrowBack className="w-5 h-5" />
+                                                    </>
+                                                )
+                                            )}
+                                        </button>
+                                    );
+                                })()}
                             </div>
                         </>
                     ) : (

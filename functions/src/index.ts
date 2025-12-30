@@ -75,6 +75,92 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
     }
 });
 
+// --- YOUTUBE TRANSCRIPTION FUNCTION ---
+import { YoutubeTranscript } from 'youtube-transcript';
+import { onCall } from "firebase-functions/v2/https";
+
+/**
+ * Fetches transcript from a YouTube video URL.
+ * Fails fast if no captions are available.
+ */
+export const transcribeYoutube = onCall({ cors: true, memory: "256MiB", secrets: [openAiApiKey] }, async (request) => {
+    const { url, videoId } = request.data;
+    const target = videoId || url;
+
+    if (!target) {
+        throw new Error("Missing 'url' or 'videoId' parameter");
+    }
+
+    try {
+        logger.info(`Fetching transcript for: ${target}`);
+
+        // Strategy: Try Hebrew ('he'), then Legacy Hebrew ('iw'), then English ('en'), then Default/Auto.
+        let transcriptItems = null;
+        const attempts = ['he', 'iw', 'en', undefined]; // undefined = default/auto
+
+        for (const lang of attempts) {
+            try {
+                if (lang) logger.info(`Attempting transcript fetch with lang: ${lang} for ${target}`);
+                else logger.info(`Attempting default (auto) transcript fetch for ${target}`);
+
+                const config = lang ? { lang } : undefined;
+                transcriptItems = await YoutubeTranscript.fetchTranscript(target, config);
+
+                if (transcriptItems && transcriptItems.length > 0) {
+                    logger.info(`Success with lang: ${lang || 'auto'}`);
+                    break;
+                }
+            } catch (e) {
+                logger.warn(`Failed fetch with lang ${lang || 'auto'}:`, e);
+                // Continue to next attempt
+            }
+        }
+
+        if (!transcriptItems || transcriptItems.length === 0) {
+            throw new Error("Could not find any captions (Hebrew or English) for this video.");
+        }
+
+        // Combine text
+        const fullText = transcriptItems.map(item => item.text).join(' ');
+
+        // Basic cleanup
+        let cleanText = fullText.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+        // 2. Auto-Translation if not in Hebrew
+        const hasHebrew = /[\u0590-\u05FF]/.test(cleanText);
+        if (!hasHebrew) {
+            logger.info("Transcript detected as non-Hebrew. Translating to Hebrew via GPT-4o-mini...");
+            try {
+                const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+                const response = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [
+                        { role: "system", content: "You are a professional translator. Translate the following video transcript into clear, natural Hebrew. Keep formatting intact." },
+                        { role: "user", content: cleanText.substring(0, 15000) } // Safety cap for context window
+                    ],
+                    temperature: 0.3
+                });
+
+                const translated = response.choices[0].message.content;
+                if (translated) {
+                    cleanText = translated;
+                    logger.info("Translation complete.");
+                }
+            } catch (transError) {
+                logger.error("Translation failed, returning original text:", transError);
+                // Fallback to original text if translation fails
+            }
+        }
+
+        return { text: cleanText };
+
+    } catch (error: any) {
+        logger.error("Youtube Transcript Error:", error);
+        throw new Error(`Failed to fetch transcript: ${error.message}`);
+    }
+});
+
+
 // --- פונקציות עזר ---
 
 const sanitizeData = (data: any): any => {

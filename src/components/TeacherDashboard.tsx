@@ -4,6 +4,8 @@ import { generateClassAnalysis, generateStudentReport } from '../gemini';
 // type SubmissionData unused removed
 import { gradeBatch } from '../services/gradingService';
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
+import type { StudentAnalyticsProfile } from '../courseTypes';
+
 import { db } from '../firebase';
 import {
     IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
@@ -43,6 +45,7 @@ interface StudentStat {
     courseTitle: string;
     courseId: string;
     hasAlert?: boolean; // New Field
+    analytics?: StudentAnalyticsProfile; // New Field
 }
 
 interface CourseAggregation {
@@ -61,9 +64,88 @@ interface CourseAggregation {
 
 interface TeacherDashboardProps {
     onEditCourse?: (courseId: string) => void;
+    onViewInsights?: () => void;
 }
 
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => {
+const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onClose: () => void }) => {
+    const analytics = student.analytics;
+    if (!analytics) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
+                <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
+                    <div>
+                        <h3 className="text-2xl font-bold flex items-center gap-2">
+                            <IconBrain className="w-8 h-8 opacity-80" /> תובנות פסיכו-פדגוגיות
+                        </h3>
+                        <p className="opacity-80 text-sm mt-1">ניתוח עבור: {student.name}</p>
+                    </div>
+                    <button onClick={onClose} className="hover:bg-indigo-700 p-2 rounded-full transition-colors"><IconX className="w-6 h-6" /></button>
+                </div>
+
+                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                    {/* Header Chips */}
+                    <div className="flex gap-4 mb-8 flex-wrap">
+                        <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold border border-purple-100 flex items-center gap-2">
+                            🎭 פרופיל: {analytics.psychologicalProfile}
+                        </div>
+                        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold border border-blue-100 flex items-center gap-2">
+                            ⚡ מעורבות: {analytics.engagementScore}%
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        {/* Strengths */}
+                        <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
+                            <h4 className="text-green-800 font-bold mb-4 flex items-center gap-2 text-lg">
+                                <IconCheck className="w-5 h-5" /> חוזקות זוהו
+                            </h4>
+                            <ul className="space-y-3">
+                                {analytics.strengths.map((s, i) => (
+                                    <li key={i} className="flex gap-3 text-green-900 leading-relaxed font-bold opacity-80 text-sm">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 shrink-0" />
+                                        {s}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Weaknesses */}
+                        <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                            <h4 className="text-red-800 font-bold mb-4 flex items-center gap-2 text-lg">
+                                <IconFlag className="w-5 h-5" /> נקודות לשיפור
+                            </h4>
+                            <ul className="space-y-3">
+                                {analytics.weaknesses.map((w, i) => (
+                                    <li key={i} className="flex gap-3 text-red-900 leading-relaxed font-bold opacity-80 text-sm">
+                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-2 shrink-0" />
+                                        {w}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Recommendation */}
+                    <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 flex gap-4 items-start">
+                        <div className="bg-white p-3 rounded-full shadow-sm text-yellow-500 shrink-0">
+                            <IconSparkles className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="text-indigo-900 font-bold text-lg mb-1">המלצה להמשך</h4>
+                            <p className="text-indigo-800 leading-relaxed opacity-90">
+                                {analytics.recommendedFocus}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
     const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
@@ -102,6 +184,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [viewingTestStudent, setViewingTestStudent] = useState<StudentStat | null>(null);
     const [reportStudent, setReportStudent] = useState<any>(null);
+    const [viewingInsightStudent, setViewingInsightStudent] = useState<StudentStat | null>(null); // New State
     const [aiInsight, setAiInsight] = useState<any>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
@@ -273,7 +356,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                 source: 'submission',
                 rawSubmission: sub,
                 isSubmitted: true, // Mark as submitted
-                hasAlert: studentsMap[key]?.hasAlert || hasAlert
+                hasAlert: studentsMap[key]?.hasAlert || hasAlert,
+                analytics: sub.analytics || undefined
             } as any;
         });
 
@@ -648,6 +732,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                     >
                                         <IconFlag className="w-4 h-4" />
                                     </button>
+                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                                    <button
+                                        onClick={onViewInsights}
+                                        className="bg-stone-900 border border-stone-700 hover:bg-black text-green-400 px-3 py-1.5 rounded-lg text-sm font-mono tracking-tighter shadow-sm flex items-center gap-2"
+                                        title="Wizdi-Monitor Dashboard"
+                                    >
+                                        <IconSparkles className="w-4 h-4" /> Wizdi-Monitor
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -908,6 +1000,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                                                     </td>
                                                     <td className="p-4 flex gap-2">
                                                         <button onClick={() => setViewingTestStudent(student)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="צפה"><IconEye className="w-4 h-4" /></button>
+                                                        {student.analytics && (
+                                                            <button onClick={() => setViewingInsightStudent(student)} className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors" title="תובנות AI">
+                                                                <IconBrain className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         <button onClick={() => { setReportStudent(student); generateStudentReport(student).then(r => setReportStudent({ ...student, report: r })); }} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="דוח"><IconEdit className="w-4 h-4" /></button>
                                                     </td>
                                                 </tr>
@@ -1031,6 +1128,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse }) => 
                         </div>
                     )
                 }
+
+
+                {/* Insights Modal */}
+                {viewingInsightStudent && (
+                    <StudentInsightsModal student={viewingInsightStudent} onClose={() => setViewingInsightStudent(null)} />
+                )}
+
             </div >
             {/* --- מודל אישור מחיקה - שלב 1 --- */}
             {

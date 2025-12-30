@@ -5,6 +5,7 @@ import {
     IconCheck, IconX, IconBook, IconStudent, IconChart, IconWand, IconCloudUpload, IconVideo
 } from '../icons';
 import { MultimodalService } from '../services/multimodalService';
+import { runPedagogicalTests } from '../utils/testPedagogicalValidation';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -224,6 +225,14 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 animate-fade-in overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
+            {/* DEBUG TEST BUTTON - Preserved from local work */}
+            <button
+                onClick={runPedagogicalTests}
+                className="fixed top-24 left-4 z-[200] bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg opacity-50 hover:opacity-100 transition-opacity"
+            >
+                🧪 Run Validation Tests
+            </button>
+
             <div className={`bg-white w-full ${courseMode === 'exam' ? 'max-w-6xl' : (step === 1 ? 'max-w-4xl' : 'max-w-2xl')} rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh] relative mb-10 transition-all duration-500 ease-in-out`}>
 
                 {/* Header */}
@@ -316,6 +325,74 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     {mode === 'multimodal' && <div className="absolute top-4 left-4 bg-blue-500 text-white p-1 rounded-full"><IconCheck className="w-4 h-4" /></div>}
                                 </button>
                             </div>
+
+                            {/* YouTube URL Input Area */}
+                            {mode === 'multimodal' && (
+                                <div className="animate-fade-in mt-6 space-y-4">
+                                    <div className="flex gap-4">
+                                        <button
+                                            onClick={() => setSubMode('youtube')}
+                                            className={`flex-1 p-4 rounded-xl border-2 transition-all font-bold ${subMode === 'youtube' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-red-200'}`}
+                                        >
+                                            YouTube Link
+                                        </button>
+                                        <div className="flex-1 p-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 flex items-center justify-center cursor-not-allowed opacity-50">
+                                            קובץ אודיו (בקרוב)
+                                        </div>
+                                    </div>
+
+                                    {subMode === 'youtube' && (
+                                        <div className="bg-white p-6 rounded-2xl border border-red-100 shadow-sm animate-slide-up">
+                                            <label className="block text-lg font-bold text-gray-700 mb-2">הדביקו קישור ליוטיוב:</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    className="flex-1 p-4 text-lg border border-gray-300 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none transition-all dir-ltr"
+                                                    placeholder="https://www.youtube.com/watch?v=..."
+                                                    onPaste={async (e) => {
+                                                        const url = e.clipboardData.getData('text');
+                                                        if (MultimodalService.validateYouTubeUrl(url)) {
+                                                            setIsProcessing(true);
+                                                            const text = await MultimodalService.processYoutubeUrl(url);
+                                                            if (text) {
+                                                                setPastedText(text);
+                                                                // Try to set title/topic from what we have (or leave blank for user)
+                                                                if (!topic) setTopic("סרטון יוטיוב");
+                                                            }
+                                                            setIsProcessing(false);
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={async () => {
+                                                        const input = document.querySelector('input[placeholder*="youtube"]') as HTMLInputElement;
+                                                        if (input && input.value) {
+                                                            setIsProcessing(true);
+                                                            const text = await MultimodalService.processYoutubeUrl(input.value);
+                                                            if (text) {
+                                                                setPastedText(text);
+                                                                if (!topic) setTopic("סרטון יוטיוב");
+                                                            }
+                                                            setIsProcessing(false);
+                                                        }
+                                                    }}
+                                                    disabled={isProcessing}
+                                                    className="bg-red-600 text-white px-6 rounded-xl font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'מושך...' : 'תמלל'}
+                                                </button>
+                                            </div>
+                                            {pastedText && (
+                                                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm flex items-center gap-2">
+                                                    <IconCheck className="w-4 h-4" />
+                                                    התמלול התקבל בהצלחה! ({pastedText.length} תווים)
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {mode === 'topic' && (
                                 <div className="animate-fade-in mt-6">
                                     <label className="block text-lg font-bold text-gray-700 mb-2">כתבו כאן את נושא {courseMode === 'exam' ? 'המבחן' : 'הפעילות'}:</label>

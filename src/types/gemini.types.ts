@@ -19,7 +19,10 @@ export interface RawAiItem {
     question?: string | { text: string };
     question_text?: string;
     text?: string;
+    content?: string;
     instruction?: string;
+    description?: string;
+    max_duration?: number;
 
     // Feedback
     feedback?: string;
@@ -51,6 +54,9 @@ export interface RawAiItem {
     pairs?: { left?: string; item?: string; right?: string; category?: string; card_a?: string; card_b?: string }[];
     groups?: string[];
     categories?: string[];
+
+    // Fill in Blanks
+    word_bank?: string[];
 }
 
 // Moved to courseTypes.ts

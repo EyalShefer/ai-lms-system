@@ -34,5 +34,34 @@ export const MultimodalService = {
         const match = url.match(regExp);
 
         return (match && match[2].length === 11) ? match[2] : null;
+    },
+
+    /**
+     * Calls the backend function to transcribe a YouTube video.
+     * @param url - Valid YouTube URL
+     * @returns The transcript text or null.
+     */
+    processYoutubeUrl: async (url: string): Promise<string | null> => {
+        try {
+            const videoId = MultimodalService.validateYouTubeUrl(url);
+            if (!videoId) throw new Error("Invalid YouTube URL");
+
+            console.log("Calling transcribeYoutube cloud function for ID:", videoId);
+
+            // Lazy load functions
+            const { functions } = await import('../gemini');
+            const { httpsCallable } = await import('firebase/functions');
+
+            const transcribeFn = httpsCallable(functions, 'transcribeYoutube');
+            // Send videoId AND url (backup)
+            const result = await transcribeFn({ videoId, url });
+
+            const data = result.data as { text: string };
+            return data.text || null;
+
+        } catch (e) {
+            console.error("YouTube processing failed:", e);
+            throw e; // Let the caller handle the alert/logging
+        }
     }
 };
