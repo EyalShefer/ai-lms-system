@@ -276,7 +276,9 @@ const CourseEditor: React.FC = () => {
                     firstUnit.title,
                     extractedGrade,
                     updatedCourseState.activityLength || 'medium', // Default to medium
-                    processedSourceText // Use grounding
+                    processedSourceText, // Use grounding
+                    updatedCourseState.mode || 'learning',
+                    data.settings?.taxonomy // Pass Dynamic Bloom Preferences
                 );
 
                 if (skeleton && skeleton.steps) {

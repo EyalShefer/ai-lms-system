@@ -3,6 +3,9 @@ import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from './AuthContext';
+import { GamificationService } from '../services/gamificationService';
+import type { GamificationProfile } from '../courseTypes';
 
 const initialEmptyCourse: Course = {
     id: 'loading',
@@ -17,6 +20,11 @@ interface CourseContextType {
     fullBookContent: string;
     pdfSource: string | null;
     currentCourseId: string | null;
+
+    // Gamification
+    gamificationProfile: GamificationProfile | null;
+    triggerXp: (amount: number, reason: string) => void;
+
     loadCourse: (id: string) => void;
     setCourse: (course: Course) => void;
     setFullBookContent: (text: string) => void;
@@ -62,7 +70,7 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         title: baseData.title || 'ללא כותרת',
         targetAudience: baseData.targetAudience || '',
         syllabus: cleanSyllabus,
-        mode: baseData.mode || 'learning', // חשוב: שומר על מצב מבחן/למידה
+        mode: baseData.mode || baseData.wizardData?.settings?.courseMode || 'learning', // Fallback to wizardData if mode is missing
         wizardData: baseData.wizardData || null, // חשוב: שומר את המידע מהויזארד
         subject: baseData.subject || '',
         gradeLevel: baseData.gradeLevel || '',
@@ -72,11 +80,52 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
     } as Course;
 };
 
+
 export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { currentUser } = useAuth();
     const [course, setCourseState] = useState<Course>(initialEmptyCourse);
     const [fullBookContent, setFullBookContentState] = useState<string>("");
     const [pdfSource, setPdfSourceState] = useState<string | null>(null);
     const [currentCourseId, setCurrentCourseId] = useState<string | null>(null);
+
+    // Gamification State
+    const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile | null>(null);
+
+    // Load Gamification Profile
+    useEffect(() => {
+        if (!currentUser) {
+            setGamificationProfile(null);
+            return;
+        }
+
+        const profileRef = doc(db, `users/${currentUser.uid}/profile/gamification`);
+        const unsubscribe = onSnapshot(profileRef, (snap) => {
+            if (snap.exists()) {
+                setGamificationProfile(snap.data() as GamificationProfile);
+            } else {
+                // Initialize if missing
+                const init = GamificationService.getInitialProfile();
+                setDoc(profileRef, init);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    const triggerXp = React.useCallback(async (amount: number, reason: string) => {
+        if (!currentUser || !gamificationProfile) return;
+
+        // 1. Calculate New State
+        const { newProfile, events } = GamificationService.addXp(gamificationProfile, amount, reason);
+
+        // 2. Persist to Firestore
+        try {
+            const profileRef = doc(db, `users/${currentUser.uid}/profile/gamification`);
+            await setDoc(profileRef, newProfile, { merge: true });
+        } catch (e) {
+            console.error("Failed to update gamification profile:", e);
+        }
+    }, [currentUser, gamificationProfile]);
 
     const loadCourse = React.useCallback((id: string) => setCurrentCourseId(id), []);
 
@@ -176,7 +225,9 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return (
         <CourseContext.Provider value={{
-            course, fullBookContent, pdfSource, currentCourseId, loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit
+            course, fullBookContent, pdfSource, currentCourseId,
+            gamificationProfile, triggerXp,
+            loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit
         }}>
             {children}
         </CourseContext.Provider>

@@ -7,7 +7,9 @@ import {
     IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconHeadphones, IconMicrophone
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
-import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio } from '../gemini';
+import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../gemini';
+import type { DialogueScript } from '../types/gemini.types';
+import { PodcastPlayer } from './PodcastPlayer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ClozeQuestion from './ClozeQuestion';
@@ -23,6 +25,8 @@ import type { TelemetryData } from '../courseTypes';
 import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
 import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
 import { AudioRecorderBlock } from './AudioRecorderBlock';
+import { GamificationService } from '../services/telemetry';
+import { useSound } from '../hooks/useSound';
 
 // Helper to safely extract text from option (string or object)
 const getAnswerText = (val: any): string => {
@@ -47,6 +51,7 @@ interface CoursePlayerProps {
     forcedUnitId?: string;
     unitOverride?: any; // Allow passing unit object directly (for fast preview)
     hideReviewHeader?: boolean;
+    simulateGuest?: boolean; // NEW: Forces "Guest Mode" logic (ignore logged-in user)
 }
 
 // --- רכיב צ'אט אינטראקטיבי חכם ---
@@ -224,7 +229,7 @@ const InteractiveChatBlock: React.FC<{
 
 
 // --- הקומפוננטה הראשית ---
-const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview, forcedUnitId, unitOverride, hideReviewHeader = false }) => {
+const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = false, studentData, onExitReview, forcedUnitId, unitOverride, hideReviewHeader = false, simulateGuest = false }) => {
     const { course } = useCourseStore();
 
     const { currentUser } = useAuth(); // Get current user for name auto-fill
@@ -369,14 +374,94 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         return () => { if (course?.id) hasAutoOpenedRef.current = false; };
     }, [course?.id, course?.showSourceToStudent, !!course?.fullBookContent]);
 
+    // --- Podcast State ---
+    const [showPodcast, setShowPodcast] = useState(false);
+    const [podcastScript, setPodcastScript] = useState<DialogueScript | null>(null);
+    const [loadingPodcast, setLoadingPodcast] = useState(false);
+
+    const handlePodcastClick = async () => {
+        if (showPodcast) {
+            setShowPodcast(false);
+            return;
+        }
+
+        if (podcastScript) {
+            setShowPodcast(true);
+            return;
+        }
+
+        setLoadingPodcast(true);
+        setShowPodcast(true); // Show container with loader
+
+        try {
+            // Use full book content or fallback to unit content if available
+            // For now, let's use the full book content as source
+            const sourceText = course?.fullBookContent || activeUnit?.learningContent.map((c: any) => c.content.text).join('\n') || "No content found.";
+            const script = await generatePodcastScript(sourceText, activeUnit?.title);
+
+            if (script) {
+                setPodcastScript(script);
+            } else {
+                alert("Failed to generate podcast script.");
+                setShowPodcast(false);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error generating podcast.");
+            setShowPodcast(false);
+        } finally {
+            setLoadingPodcast(false);
+        }
+    };
+
     // Inspector Mode (Wizdi-Monitor)
     const [inspectorMode, setInspectorMode] = useState(false);
+    const [forceExam, setForceExam] = useState(false); // DEBUG: Override mode
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('inspector') === 'true') {
             setInspectorMode(true);
         }
+        if (params.get('forceExam') === 'true') {
+            setForceExam(true);
+            console.warn("⚠️ Force Exam Mode Active via URL Parameter");
+        }
     }, []);
+
+    // DEBUG: Log Course Data
+    useEffect(() => {
+        if (course) {
+            console.log("📘 Course Data Loaded:", {
+                id: course.id,
+                title: course.title,
+                mode: course.mode,
+                syllabus: course.syllabus
+            });
+        }
+    }, [course]);
+
+    // --- Gamification State (Restored) ---
+    const [streak, setStreak] = useState(0); // Local visual streak (optional, or sync with global?)
+    const [floatingXp, setFloatingXp] = useState<{ id: number, amount: number }[]>([]);
+    const playSound = useSound();
+
+    // Get Global Gamification Actions
+    const { triggerXp: globalTriggerXp, course: globalCourse } = useCourseStore();
+
+    const triggerXp = (amount: number) => {
+        // 1. Visual Effect
+        setFloatingXp(prev => [...prev, { id: Date.now(), amount }]);
+        setStreak(prev => prev + 1);
+        setTimeout(() => setFloatingXp(prev => prev.slice(1)), 2000);
+
+        // 2. Global Persistence (Only if NOT Exam Mode)
+        // Note: isExamMode is already calculated below, but let's be safe
+        const currentMode = globalCourse?.mode || 'learning';
+        if (currentMode !== 'exam') {
+            globalTriggerXp(amount, "Activity Completion");
+        }
+    };
 
     // SET INITIAL UNIT if not set
     useEffect(() => {
@@ -396,8 +481,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         if (!assignment) {
             setIsNameConfirmed(true);
         } else {
-            // If we have a logged-in user, use their name
-            if (currentUser?.displayName) {
+            // NEW: If simulateGuest is TRUE, pretend we are not logged in
+            if (simulateGuest) {
+                console.log("🥸 Guest Simulation Active: Ignoring Current User");
+                setIsNameConfirmed(false);
+                setStudentName('');
+            }
+            // If we have a logged-in user (and NOT simulating guest), use their name
+            else if (currentUser?.displayName) {
                 setStudentName(currentUser.displayName);
                 setIsNameConfirmed(true);
             } else {
@@ -405,7 +496,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 setStudentName('');
             }
         }
-    }, [assignment?.id, currentUser]); // Depend on ID to reset on new assignment
+    }, [assignment?.id, currentUser, simulateGuest]); // Depend on ID to reset on new assignment
 
     useEffect(() => {
         return () => {
@@ -485,7 +576,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
     };
 
-    const isExamMode = course?.mode === 'exam';
+    const isExamMode = forceExam || course?.mode === 'exam';
 
     const handleAnswerSelect = (questionId: string, answer: any) => {
         if (isSubmitted && isExamMode) return; // Prevent changes after submission in exam mode
@@ -573,6 +664,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     feedback: feedback // Optional: Store feedback too
                 });
 
+                // GAMIFICATION (Open Question)
+                if (!isExamMode && feedback.status === 'correct') {
+                    triggerXp(hintsUsed > 0 ? 50 : 100);
+                    playSound('success');
+                } else if (!isExamMode && feedback.status !== 'correct') {
+                    // playSound('failure'); // Optional for partial?
+                }
+
             } catch (e) {
                 console.error("Tutor check failed", e);
                 // Fallback
@@ -605,6 +704,16 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         attemptAndScore.score = calculateQuestionScore(attemptAndScore);
 
         setGradingState(prev => ({ ...prev, [blockId]: attemptAndScore }));
+
+        // GAMIFICATION
+        if (!isExamMode) {
+            if (isCorrect) {
+                triggerXp(hintsUsed > 0 ? 50 : 100);
+                playSound('success');
+            } else {
+                playSound('failure');
+            }
+        }
     };
 
     const handleShowHint = (blockId: string) => {
@@ -630,45 +739,70 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     const calculateScore = () => {
         if (!course) return 0;
-        let totalQuestions = 0;
+        let totalMaxScore = 0;
         let totalScoreObtained = 0;
 
         course.syllabus.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
-                    // Identify Scorable Blocks
-                    const isScorable = ['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game'].includes(block.type) || block.metadata?.relatedQuestion;
+                    // Identify Scorable Blocks (ALL Types in Exam Mode)
+                    const scorableTypes = ['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game', 'audio-response'];
+                    const isScorable = scorableTypes.includes(block.type) || block.metadata?.relatedQuestion;
 
                     if (isScorable) {
-                        totalQuestions++;
+                        // Weighted Scoring: Use metadata.score or default to 10
+                        const weight = block.metadata?.score || 10;
+                        totalMaxScore += weight; // Denominator increases by weight
 
                         // Get Score from Grading State
                         const grade = gradingState[block.id];
                         if (grade) {
-                            totalScoreObtained += grade.score;
+                            // If manually graded or auto-graded previously
+                            // grade.score is usually 0-100 normalized. We need to apply weight.
+                            totalScoreObtained += (grade.score / 100) * weight;
+                        } else if (isExamMode) {
+                            // Exam Mode: Logic for ALL types
+                            const ans = userAnswers[block.id];
+
+
+                            if (block.type === 'multiple-choice') {
+                                // @ts-ignore - Content type is union, TS needs help
+                                if (ans === block.content.correctAnswer) totalScoreObtained += weight;
+                            }
+                            else if (block.type === 'cloze') {
+                                // @ts-ignore
+                                if (ans && ans === block.content.correctAnswer) totalScoreObtained += weight;
+                            }
+                            // Ordering/Categorization: complex to Grade
+                            // Fallback: If they answered *something*, give 0 until teacher grades.
+                            // Open Questions: Defaults to 0 (Teacher must grade)
                         } else {
-                            // Fallback for related questions or legacy data NOT in gradingState?
-                            // 2. Interactive Questions (Stored as "Score: X" string, X is 0-100)
+                            // Fallback for legacy/interactive
                             const answer = userAnswers[block.id];
                             if (answer && typeof answer === 'string' && answer.startsWith('Score: ')) {
-                                totalScoreObtained += parseInt(answer.replace('Score: ', '')) || 0;
+                                const normalized = parseInt(answer.replace('Score: ', '')) || 0;
+                                totalScoreObtained += (normalized / 100) * weight;
                             } else if (answer && typeof answer === 'object' && typeof answer.score === 'number') {
-                                totalScoreObtained += answer.score;
+                                const normalized = answer.score; // Assumption: 0-100
+                                totalScoreObtained += (normalized / 100) * weight;
                             }
                         }
 
-                        // Related Question Logic (Simplified)
+                        // Related Question Logic
                         if (block.metadata?.relatedQuestion?.correctAnswer) {
-                            // We might need to track this in gradingState too, but for now fallback
+                            // Related questions usually don't have separate metadata.score access easily here
+                            // Assume same weight or half? Let's use same default weight 10.
+                            const relWeight = 10;
+                            totalMaxScore += relWeight;
+
                             const relId = block.id + "_related";
-                            if (userAnswers[relId] === block.metadata.relatedQuestion.correctAnswer) {
-                                // Assume full points? Or 50%? 
-                                // Let's assume full points for simplicity unless untracked
-                                // Ideally, related questions should be their own blocks or tracked similarly
-                                totalQuestions++; // Count as another question
+                            const relAns = userAnswers[relId];
+                            const relCorrect = block.metadata.relatedQuestion.correctAnswer;
+
+                            if (relAns === relCorrect) {
                                 const relGrade = gradingState[relId];
-                                if (relGrade) totalScoreObtained += relGrade.score;
-                                else if (userAnswers[relId] === block.metadata.relatedQuestion.correctAnswer) totalScoreObtained += 100;
+                                if (relGrade) totalScoreObtained += (relGrade.score / 100) * relWeight;
+                                else totalScoreObtained += relWeight;
                             }
                         }
                     }
@@ -676,11 +810,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             });
         });
 
-        if (totalQuestions === 0) return 100;
+        if (totalMaxScore === 0) return 0; // Avoid NaN
 
-        // Normalize: (Obtained / Possible) * 100
-        const maxPossible = totalQuestions * 100;
-        return Math.round((totalScoreObtained / maxPossible) * 100);
+        // Normalize Final Score to 0-100
+        return Math.round((totalScoreObtained / totalMaxScore) * 100);
     };
 
     const goToNextUnit = () => {
@@ -753,7 +886,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         course?.syllabus?.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
-                    if (['multiple-choice', 'cloze', 'ordering', 'categorization', 'open_question', 'memory_game'].includes(block.type)) {
+                    if (['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game'].includes(block.type)) {
                         totalQuestions++;
                         if (userAnswers[block.id]) answeredCount++;
                     }
@@ -976,7 +1109,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         </div>
 
-                        {/* Script / Transcript */}
+                        {/* PODCAST TRIGGER REMOVED FROM HERE */}
+
+                        {/* SPLIT VIEW TRIGGER */}
                         {block.content.script && (
                             <div className="bg-white/80 rounded-xl border border-purple-50 p-4 max-h-64 overflow-y-auto custom-scrollbar space-y-3">
                                 {block.content.script.map((line: any, idx: number) => (
@@ -1182,7 +1317,18 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             case 'categorization': {
                 const catMedia = mediaSrc;
                 return (
-                    <div key={block.id} className="mb-8">
+                    <div key={block.id} className="mb-4">
+                        {isExamMode && (
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    {block.metadata?.score || 10} נקודות
+                                </span>
+                            </div>
+                        )}
+                        <h4 className="font-bold mb-3 text-lg flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-800 text-xs font-black px-2 py-1 rounded-full">שאלה פתוחה</span>
+                            {block.content.question}
+                        </h4>
                         {catMedia && (
                             <div className="mb-4 rounded-xl overflow-hidden max-w-2xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
@@ -1246,6 +1392,30 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 <InspectorDashboard blocks={activeUnit.activityBlocks || []} mode={course.mode || 'learning'} />
             )}
 
+            {/* DEBUG: Visual Mode Indicator (Only in Inspector or if Forced) */}
+            {(inspectorMode || forceExam) && (
+                <div className={`fixed top-20 left-4 z-[9999] px-3 py-1 rounded-full text-xs font-bold border shadow-lg ${isExamMode ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>
+                    DEBUG MODE: {isExamMode ? 'EXAM' : 'LEARNING'} {forceExam && '(Forced)'}
+                </div>
+            )}
+
+            {/* --- Floating XP Animation --- */}
+            {floatingXp.map(item => (
+                <div
+                    key={item.id}
+                    className="fixed z-[9999] pointer-events-none text-4xl font-black text-yellow-500 flex flex-col items-center animate-bounce duration-1000"
+                    style={{
+                        left: '50%',
+                        top: '40%',
+                        transform: 'translate(-50%, -50%)',
+                        textShadow: '0px 4px 10px rgba(0,0,0,0.2)'
+                    }}
+                >
+                    <span className="text-6xl drop-shadow-lg">✨</span>
+                    <span>+{item.amount} XP</span>
+                </div>
+            ))}
+
             {/* --- Success Screen --- */}
             {isSubmitted && (
                 <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center animate-fade-in p-8 text-center">
@@ -1254,10 +1424,17 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     <p className="text-xl text-gray-600 mb-8 max-w-lg">
                         כל הכבוד, <strong>{studentName}</strong>. התשובות שלך נשלחו למורה.
                     </p>
-                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 max-w-sm w-full mb-8">
-                        <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">הציון שלך</div>
-                        <div className="text-6xl font-black text-blue-600">{calculateScore()}</div>
-                    </div>
+                    {isExamMode ? (
+                        <div className="bg-yellow-50 p-6 rounded-2xl border border-yellow-100 max-w-sm w-full mb-8">
+                            <div className="text-xl font-bold text-yellow-800">הבחינה הוגשה לבדיקה</div>
+                            <p className="text-sm text-yellow-600 mt-2">הציון יתקבל לאחר בדיקת המורה</p>
+                        </div>
+                    ) : (
+                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 max-w-sm w-full mb-8">
+                            <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">הציון שלך</div>
+                            <div className="text-6xl font-black text-blue-600">{calculateScore()}</div>
+                        </div>
+                    )}
                     <button
                         onClick={() => window.location.replace('/')}
                         className="bg-gray-800 text-white px-8 py-3 rounded-full font-bold hover:bg-gray-900 transition-all hover:scale-105"
@@ -1326,125 +1503,235 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
+            {/* PODCAST PLAYER (Outside of flex container) */}
+            {showPodcast && (
+                <div className="fixed bottom-0 left-0 right-0 z-[90] p-4 bg-white shadow-2xl border-t border-gray-100 animate-slide-in-from-bottom">
+                    {loadingPodcast ? (
+                        <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">
+                            <div className="flex flex-col items-center justify-center gap-4">
+                                <div className="p-4 bg-purple-50 rounded-full animate-pulse">
+                                    <IconHeadphones className="w-8 h-8 text-purple-400" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-800">מפיק את הפודקאסט...</h3>
+                                    <p className="text-sm text-gray-500">דן ונועה עוברים על החומר ומכינים את השידור.</p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : podcastScript ? (
+                        <div className="relative max-w-3xl mx-auto">
+                            <button
+                                onClick={() => setShowPodcast(false)}
+                                className="absolute -top-2 right-0 z-10 p-1 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors"
+                            >
+                                <IconX className="w-4 h-4" />
+                            </button>
+                            <PodcastPlayer script={podcastScript} />
+                        </div>
+                    ) : null}
+                </div>
+            )}
+
             <div className={"flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 " + (showSplitView ? 'flex gap-6 items-start' : '')}>
 
-                {/* --- Split View Side Panel (Source Text) --- */}
-                {showSplitView && (
-                    <div className="w-1/2 h-[85vh] sticky top-24 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
-                        <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
-                            <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5" /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto bg-gray-50 h-full relative">
-                            {course.pdfSource ? (
-                                <iframe
-                                    src={course.pdfSource}
-                                    className="w-full h-full absolute inset-0 border-none"
-                                    title="מסמך מקור"
-                                />
-                            ) : (
-                                <div className="p-6 prose max-w-none text-sm leading-relaxed">
-                                    {course.fullBookContent ? (
-                                        <div className="font-serif text-gray-800 leading-relaxed">
-                                            {CitationService.chunkText(course.fullBookContent).map((chunk) => (
-                                                <span
-                                                    key={chunk.id}
-                                                    id={`chunk-${chunk.id}`}
-                                                    className="relative py-1 px-1 rounded transition-colors duration-1000 block md:inline hover:bg-yellow-50/50"
-                                                >
-                                                    <sup className="text-gray-400 text-xs select-none pr-1">[{chunk.id}]</sup>
-                                                    {chunk.text + " "}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center text-gray-500 mt-10">
-                                            <p className="font-bold">לא נמצא טקסט מקור.</p>
-                                            <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
-                                            <p className="text-xs text-gray-400 mt-2">ID: {course.id}</p>
-                                        </div>
-                                    )}
+                <div className="flex-1">
+                    {/* PODCAST TRIGGER (Top of Content) */}
+                    {!isExamMode && (
+                        <div className="flex justify-end mb-4">
+                            <button
+                                onClick={handlePodcastClick}
+                                className={`group flex items-center gap-3 px-5 py-3 rounded-full shadow-md transition-all border ${showPodcast
+                                    ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
+                                    : 'bg-white text-gray-700 border-gray-100 hover:border-purple-200 hover:shadow-lg'
+                                    }`}
+                            >
+                                <div className={`p-2 rounded-full ${showPodcast ? 'bg-white/20' : 'bg-purple-50 group-hover:bg-purple-100'}`}>
+                                    <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse text-white' : 'text-purple-600'}`} />
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* --- Main Content Area --- */}
-                <main className={"transition-all duration-500 " + (showSplitView ? "w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "" : "p-6 md:p-10") + " pb-48"}>
-                    {activeUnit ? (
-                        <>
-                            <header className="mb-8 text-center">
-                                <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
-                                {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
-
-                                <div className="flex justify-center gap-2 mt-3">
-                                    <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
-                                        {displayGrade}
-                                    </span>
-                                    {course.subject && (
-                                        <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
-                                            {course.subject}
-                                        </span>
-                                    )}
+                                <div className="text-right">
+                                    <div className="text-xs font-bold opacity-70 uppercase tracking-wider">AI Podcast</div>
+                                    <div className="text-sm font-bold">
+                                        {loadingPodcast ? 'מכין שידור...' : 'האזן לסיכום השיעור'}
+                                    </div>
                                 </div>
-                            </header>
+                            </button>
+                        </div>
+                    )}
 
-                            <div className="space-y-6">
-                                {activeUnit.activityBlocks?.map(renderBlock)}
+                    {/* --- Split View Side Panel (Source Text) --- */}
+                    {showSplitView && (
+                        <div className="w-1/2 h-[85vh] sticky top-24 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
+                            <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
+                                <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
+                                <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5" /></button>
                             </div>
-
-                            <div className="mt-16 flex justify-center">
-                                {(() => {
-                                    const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
-                                        activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
-
-                                    return (
-                                        <button
-                                            onClick={isLastUnit ? handleSubmit : handleContinueClick}
-                                            disabled={isLastUnit && isSubmitting}
-                                            className={`${isLastUnit ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-10 py-3.5 rounded-full font-bold shadow-xl transition-all hover:scale-105 flex items-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
-                                        >
-                                            {reviewMode ? 'סגור תצוגה' : (
-                                                isLastUnit ? (
-                                                    <>
-                                                        {isSubmitting ? 'שולח...' : 'הגש משימה'} <IconCheck className="w-5 h-5" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        הבא <IconArrowBack className="w-5 h-5" />
-                                                    </>
-                                                )
-                                            )}
-                                        </button>
-                                    );
-                                })()}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="text-center mt-20">
-                            {/* מצב סיום קורס / יחידה אחרונה */}
-                            <div className="bg-white p-8 rounded-3xl shadow-lg inline-block">
-                                <h2 className="text-2xl font-bold mb-4">סיימת את כל היחידות! 🎉</h2>
-                                <p className="text-gray-600 mb-8">כל הכבוד על ההשקעה.</p>
-
-                                {assignment ? (
-                                    <button
-                                        type="button"
-                                        onClick={handleSubmit}
-                                        disabled={isSubmitting}
-                                        className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"
-                                    >
-                                        {isSubmitting ? 'שולח...' : 'הגש משימה לבדיקה'}
-                                        {!isSubmitting && <IconCheck className="w-6 h-6" />}
-                                    </button>
+                            <div className="flex-1 overflow-y-auto bg-gray-50 h-full relative">
+                                {course.pdfSource ? (
+                                    <iframe
+                                        src={course.pdfSource}
+                                        className="w-full h-full absolute inset-0 border-none"
+                                        title="מסמך מקור"
+                                    />
                                 ) : (
-                                    <p className="text-sm text-gray-400">(מצב תצוגה מקדימה - ללא הגשה)</p>
+                                    <div className="p-6 prose max-w-none text-sm leading-relaxed">
+                                        {course.fullBookContent ? (
+                                            <div className="font-serif text-gray-800 leading-relaxed">
+                                                {CitationService.chunkText(course.fullBookContent).map((chunk) => (
+                                                    <span
+                                                        key={chunk.id}
+                                                        id={`chunk-${chunk.id}`}
+                                                        className="relative py-1 px-1 rounded transition-colors duration-1000 block md:inline hover:bg-yellow-50/50"
+                                                    >
+                                                        <sup className="text-gray-400 text-xs select-none pr-1">[{chunk.id}]</sup>
+                                                        {chunk.text + " "}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center text-gray-500 mt-10">
+                                                <p className="font-bold">לא נמצא טקסט מקור.</p>
+                                                <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
+                                                <p className="text-xs text-gray-400 mt-2">ID: {course.id}</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
                     )}
-                </main>
+
+                    {/* --- Main Content Area --- */}
+                    <main className={"transition-all duration-500 " + (showSplitView ? "w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "" : "p-6 md:p-10") + " pb-48"}>
+                        {activeUnit ? (
+                            <>
+                                <header className="mb-8 text-center">
+                                    <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{activeUnit.title}</h1>
+                                    {activeModule && <div className="text-sm text-gray-500 font-medium">{activeModule.title}</div>}
+
+                                    <div className="flex justify-center gap-2 mt-3">
+                                        <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
+                                            {displayGrade}
+                                        </span>
+                                        {course.subject && (
+                                            <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
+                                                {course.subject}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* PODCAST TRIGGER & PLAYER */}
+                                    <div className="flex flex-col items-center mt-6">
+                                        {!isExamMode && (
+                                            <button
+                                                onClick={handlePodcastClick}
+                                                className={`group flex items-center gap-3 px-5 py-2 rounded-full shadow-sm transition-all border ${showPodcast
+                                                    ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:shadow-md'
+                                                    }`}
+                                            >
+                                                <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse' : 'text-purple-500'}`} />
+                                                <span className="font-bold text-sm">
+                                                    {showPodcast ? 'סגור נגן' : 'האזן לסיכום השיעור (AI)'}
+                                                </span>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* PLAYER CONTAINER */}
+                                    {showPodcast && (
+                                        <div className="mb-6 animate-in slide-in-from-top-4 duration-500">
+                                            {loadingPodcast ? (
+                                                <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">
+                                                    <div className="flex flex-col items-center justify-center gap-4">
+                                                        <div className="p-4 bg-purple-50 rounded-full animate-pulse">
+                                                            <IconHeadphones className="w-8 h-8 text-purple-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-gray-800">מפיק את הפודקאסט...</h3>
+                                                            <p className="text-sm text-gray-500">דן ונועה עוברים על החומר ומכינים את השידור.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : podcastScript ? (
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={() => setShowPodcast(false)}
+                                                        className="absolute top-4 right-4 z-10 p-1 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors"
+                                                    >
+                                                        <IconX className="w-4 h-4" />
+                                                    </button>
+                                                    <PodcastPlayer script={podcastScript} />
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    )}
+
+                                    {/* ERROR / SUCCESS MESSAGES (Add if needed) */}
+                                    {/* Streak Display (Only in Learning Mode) */}
+                                    {/* Streak Display (Only in Learning Mode) - Moved inside header */}
+                                    {!isExamMode && streak > 0 && (
+                                        <span className="text-xs font-bold bg-orange-50 text-orange-600 px-2 py-1 rounded border border-orange-100 flex items-center gap-1 absolute top-2 left-4">
+                                            🔥 {streak}
+                                        </span>
+                                    )}
+                                </header>
+
+                                <div className="space-y-6">
+                                    {activeUnit.activityBlocks?.map(renderBlock)}
+                                </div>
+
+                                <div className="mt-16 flex justify-center">
+                                    {(() => {
+                                        const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
+                                            activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
+
+                                        return (
+                                            <button
+                                                onClick={isLastUnit ? handleSubmit : handleContinueClick}
+                                                disabled={isLastUnit && isSubmitting}
+                                                className={`${isLastUnit ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-10 py-3.5 rounded-full font-bold shadow-xl transition-all hover:scale-105 flex items-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            >
+                                                {reviewMode ? 'סגור תצוגה' : (
+                                                    isLastUnit ? (
+                                                        <>
+                                                            {isSubmitting ? 'שולח...' : 'הגש משימה'} <IconCheck className="w-5 h-5" />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            הבא <IconArrowBack className="w-5 h-5" />
+                                                        </>
+                                                    )
+                                                )}
+                                            </button>
+                                        );
+                                    })()}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center mt-20">
+                                {/* מצב סיום קורס / יחידה אחרונה */}
+                                <div className="bg-white p-8 rounded-3xl shadow-lg inline-block">
+                                    <h2 className="text-2xl font-bold mb-4">סיימת את כל היחידות! 🎉</h2>
+                                    <p className="text-gray-600 mb-8">כל הכבוד על ההשקעה.</p>
+
+                                    {assignment ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleSubmit}
+                                            disabled={isSubmitting}
+                                            className="bg-green-600 text-white px-12 py-4 rounded-full font-bold shadow-xl hover:bg-green-700 text-xl flex items-center gap-3 transition-transform hover:scale-105 mx-auto"
+                                        >
+                                            {isSubmitting ? 'שולח...' : 'הגש משימה לבדיקה'}
+                                            {!isSubmitting && <IconCheck className="w-6 h-6" />}
+                                        </button>
+                                    ) : (
+                                        <p className="text-sm text-gray-400">(מצב תצוגה מקדימה - ללא הגשה)</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
             </div>
         </div>
     );

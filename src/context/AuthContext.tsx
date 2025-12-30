@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '../firebase';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth'; // Import signInAnonymously
+import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // Import signInAnonymously
 import type { User } from 'firebase/auth';
 
 interface AuthContextType {
     currentUser: User | null;
     loading: boolean;
     mockLogin: () => void;
+    googleClassroomToken: string | null;
+    connectClassroom: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,6 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [googleClassroomToken, setGoogleClassroomToken] = useState<string | null>(null);
 
     useEffect(() => {
         console.log("🔵 AuthProvider: מאזין לשינויי התחברות...");
@@ -49,8 +52,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const connectClassroom = async () => {
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
+        provider.addScope('https://www.googleapis.com/auth/classroom.coursework.students');
+        provider.addScope('https://www.googleapis.com/auth/classroom.rosters.readonly'); // Optional, helpful for names
+
+        try {
+            // We use signInWithPopup to re-authenticate/link or just get the token
+            // Note: If user is already signed in, this might prompt them to select account again
+            // prompting 'select_account' ensures we get the right one for Classroom
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const token = credential?.accessToken;
+
+            if (token) {
+                setGoogleClassroomToken(token);
+                console.log("✅ Google Classroom Token Acquired");
+            }
+        } catch (error) {
+            console.error("❌ Failed to connect to Classroom:", error);
+            alert("החיבור לגוגל קלאסרום נכשל. אנא נסה שוב.");
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ currentUser, loading, mockLogin }}>
+        <AuthContext.Provider value={{ currentUser, loading, mockLogin, googleClassroomToken, connectClassroom }}>
             {children}
         </AuthContext.Provider>
     );

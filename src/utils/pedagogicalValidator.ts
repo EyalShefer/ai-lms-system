@@ -20,7 +20,7 @@ export interface AuditResult {
  * 
  * Analyzes a rendered block against PROJECT_DNA.md standards in real-time.
  */
-export const validateBlock = (block: ActivityBlock, mode: 'learning' | 'exam'): AuditResult => {
+export const validateBlock = (block: ActivityBlock, mode: 'learning' | 'exam', blockIndex: number = 1): AuditResult => {
     const rules: ComplianceRule[] = [];
     let score = 100;
 
@@ -33,6 +33,16 @@ export const validateBlock = (block: ActivityBlock, mode: 'learning' | 'exam'): 
     // Check for "Wall of Text" (approximated by length without interaction)
     // For 'text' blocks, we just check length.
     if (block.type === 'text') {
+        if (mode === 'exam') {
+            // EXEMPTION: First block (Introduction) is allowed to be text.
+            if (blockIndex === 0) {
+                rules.push({ id: 'exam-intro', name: 'Exam: Introduction', status: 'PASS', message: 'Introduction text allowed.', scoreImpact: 0 });
+            } else {
+                rules.push({ id: 'exam-ban-text', name: 'Exam Security: Teaching Content', status: 'FAIL', message: 'Teaching blocks are FORBIDDEN in Exam Mode (except introduction).', scoreImpact: 100 });
+                return { score: 0, rules, blockId: block.id };
+            }
+        }
+
         const textLen = typeof block.content === 'string' ? block.content.length : 0;
         if (textLen > 1000) {
             rules.push({ id: 'ped-text-wall', name: 'Pedagogy: Wall of Text', status: 'WARNING', message: `Text chunk is very long (${textLen} chars). Consider splitting.`, scoreImpact: 10 });
@@ -125,9 +135,35 @@ export const validateBlock = (block: ActivityBlock, mode: 'learning' | 'exam'): 
         rules.push({ id: 'ped-bloom', name: 'Pedagogy: Bloom Level', status: 'WARNING', message: 'No Bloom Level defined (Defaulting to Foundation)', scoreImpact: 5 });
     }
 
+    // --- 7. LINGUISTIC AUDIT (AI METRICS) ---
+    const aiVal = block.metadata?.aiValidation;
+    if (aiVal) {
+        rules.push({ id: 'ling-audit', name: 'Linguistic: Level', status: 'PASS', message: `Verified Level: ${aiVal.cefr_level} (Score: ${aiVal.readability_score})`, scoreImpact: 0 });
+    } else {
+        rules.push({ id: 'ling-audit-missing', name: 'Linguistic: Missing', status: 'WARNING', message: 'No linguistic audit data found.', scoreImpact: 5 });
+    }
+
+    // --- 8. EXAM MODE STRICT RULES ---
+    if (mode === 'exam') {
+        // A. THE TEACHING BAN
+
+
+        // B. COGNITIVE LOAD CHECK
+        const lowLevels = ['knowledge', 'comprehension', 'remember', 'understand'];
+        if (bloomLevel && lowLevels.includes(bloomLevel.toLowerCase())) {
+            rules.push({ id: 'exam-bloom-low', name: 'Exam Quality: Cognitive Load', status: 'WARNING', message: 'Exam contains low-level questions. Prefer Analysis/Evaluation.', scoreImpact: 10 });
+        }
+
+        // C. TONE AUDIT
+        if (aiVal?.tone_audit && !['objective', 'neutral', 'examiner'].includes(aiVal.tone_audit.toLowerCase())) {
+            rules.push({ id: 'exam-tone', name: 'Exam Tone: Subjective', status: 'WARNING', message: `Tone detected as '${aiVal.tone_audit}'. Exams must be Objective.`, scoreImpact: 5 });
+        }
+    }
+
     // Calculate Final Deductions
     const deduction = rules.reduce((sum, r) => sum + (r.status !== 'PASS' ? r.scoreImpact : 0), 0);
     score = Math.max(0, 100 - deduction);
 
     return { score, rules, blockId: block.id };
 };
+

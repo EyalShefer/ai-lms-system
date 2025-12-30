@@ -265,11 +265,16 @@ The system behaves differently based on the user's explicit intent. We distingui
 ## 13.3 ASSESSMENT MODE (`mode: 'assessment'`)
 - **Goal:** Discrimination, Testing, Verification.
 - **Structure:** `Question -> Question -> Question` (Sequence of Items).
-- **Content:**
+- **Strict Protocol:**
     - **Teach Content:** **BANNED**. No teaching blocks allowed.
     - **Tone:** Neutral, Objective, "Strict Examiner".
     - **Hints:** **FORBIDDEN**. Empty array `[]`.
     - **Feedback:** Discriminative ("Correct. X matches Y because...").
+- **Blacklisted Activity Types (Strictly Prohibited):**
+    - **Interactive Chat:** Risk of answer leakage.
+    - **Memory Game:** Gaming mechanic, prone to guessing.
+    - **Podcast:** Passive consumption.
+    - **Gem Link:** External exit risk.
 - **Bloom Taxonomy:** Focuses on higher order (Analyze, Evaluate).
 
 ## 13.4 Trigger Logic

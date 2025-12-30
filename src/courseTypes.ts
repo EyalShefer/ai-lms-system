@@ -74,6 +74,13 @@ export interface ActivityBlockMetadata {
     // Scaffolding / Error Handling
     progressiveHints?: string[]; // [General, Specific, Almost Answer]
     richOptions?: RichOption[];
+    aiValidation?: {
+        cefr_level: string;
+        readability_score: number;
+        cognitive_load: string;
+        tone_audit?: string; // e.g. "Objective", "Encouraging"
+        timestamp: number;
+    };
 }
 
 
@@ -248,4 +255,35 @@ export interface ValidationResult {
     status: ValidationStatus;
     metrics: ValidationMetrics;
     issues: ValidationIssue[];
+}
+
+// --- Gamification Types ---
+export interface GamificationProfile {
+    // Basic Stats
+    xp: number;
+    level: number;
+    currentStreak: number;
+    lastActivityDate: string; // ISO Date to check streak
+    frozenDays: number; // Inventory of Streak Freezes
+
+    // Currency
+    gems: number;
+
+    // Social
+    leagueTier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND';
+    leagueWeeklyXp: number; // Resets weekly
+
+    // Unlocks
+    unlockedThemes: string[];
+    equippedTheme: string;
+}
+
+export type GamificationEventType = 'XP_GAIN' | 'LEVEL_UP' | 'STREAK_MAINTAINED' | 'STREAK_LOST' | 'GEM_EARNED';
+
+export interface GamificationEventPayload {
+    type: GamificationEventType;
+    amount?: number;
+    reason?: string;
+    newLevel?: number;
+    timestamp: number;
 }

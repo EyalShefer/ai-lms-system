@@ -16,7 +16,7 @@ const InspectorDashboard: React.FC<InspectorDashboardProps> = ({ blocks, mode, u
 
     if (!blocks || blocks.length === 0) return null;
 
-    const results = blocks.map(b => validateBlock(b, mode));
+    const results = blocks.map((b, idx) => validateBlock(b, mode, idx));
     const avgScore = Math.round(results.reduce((sum, r) => sum + r.score, 0) / results.length);
     const criticalIssues = results.flatMap(r => r.rules.filter(rule => rule.status === 'FAIL').map(rule => ({
         blockId: r.blockId,
@@ -77,6 +77,28 @@ const InspectorDashboard: React.FC<InspectorDashboardProps> = ({ blocks, mode, u
                         Failures detected in {criticalIssues.length} blocks
                     </div>
                 )}
+
+                {/* Linguistic Metrics Display (New) */}
+                <div className="hidden md:flex items-center gap-3 bg-gray-900/50 px-3 py-1 rounded border border-gray-700">
+                    <span className="text-gray-400 text-[10px] uppercase">Linguistic Audit</span>
+                    {(() => {
+                        const validBlocks = blocks.filter(b => b.metadata?.aiValidation);
+                        if (validBlocks.length === 0) return <span className="text-gray-500 italic">No Data</span>;
+
+                        const avgRead = Math.round(validBlocks.reduce((s, b) => s + (b.metadata?.aiValidation?.readability_score || 0), 0) / validBlocks.length);
+                        const levels = validBlocks.map(b => b.metadata?.aiValidation?.cefr_level || '?');
+                        // Simple mode finding
+                        const modeLevel = levels.sort((a, b) => levels.filter(v => v === a).length - levels.filter(v => v === b).length).pop();
+
+                        return (
+                            <>
+                                <span className={`font-bold ${avgRead > 80 ? 'text-green-400' : 'text-yellow-400'}`}>Score: {avgRead}</span>
+                                <span className="w-px h-3 bg-gray-600"></span>
+                                <span className="font-bold text-blue-300">Level: {modeLevel}</span>
+                            </>
+                        );
+                    })()}
+                </div>
 
                 <button
                     onClick={handleUpload}

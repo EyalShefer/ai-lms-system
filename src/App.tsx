@@ -64,6 +64,7 @@ const AuthenticatedApp = () => {
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(false); // NEW: Simulate Guest
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
 
@@ -238,6 +239,7 @@ const AuthenticatedApp = () => {
       const courseTitle = wizardData.title || wizardData.topic || fileName || "פעילות חדשה";
 
       const courseMode = wizardData.settings?.courseMode || 'learning';
+      console.log("🛠️ App.tsx: Detected Course Mode:", courseMode); // DEBUG LOG
       const activityLength = wizardData.settings?.activityLength || 'medium'; // NEW
       const userSubject = wizardData.settings?.subject || "כללי";
 
@@ -372,6 +374,21 @@ const AuthenticatedApp = () => {
               תצוגת תלמיד 👨‍🎓
             </button>
           )}
+
+          {/* Toggle Guest Mode (Only for Teachers inside Student Mode) */}
+          {mode === 'student' && !isStudentLink && (
+            <button
+              onClick={() => setIsGuestMode(!isGuestMode)}
+              className={`px-4 py-2 rounded-xl transition-colors font-bold text-sm border flex items-center gap-2 ${isGuestMode
+                ? 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'
+                : 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50'
+                }`}
+              title="הדמה כניסת תלמיד חדש (ללא שם אוטומטי)"
+            >
+              {isGuestMode ? '🕵️ בטל מצב אורח' : '👨‍🎓 צפה כאורח'}
+            </button>
+          )}
+
           {mode === 'student-dashboard' && (
             <button
               onClick={() => setMode('list')}
@@ -400,7 +417,7 @@ const AuthenticatedApp = () => {
               <>
                 {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
                 {mode === 'editor' && <CourseEditor />}
-                {mode === 'student' && <CoursePlayer assignment={currentAssignment || undefined} />}
+                {mode === 'student' && <CoursePlayer assignment={currentAssignment || undefined} simulateGuest={isGuestMode} />}
                 {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} onViewInsights={() => setMode('insights')} />}
                 {mode === 'student-dashboard' && <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />}
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}

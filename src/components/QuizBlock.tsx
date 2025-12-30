@@ -119,10 +119,10 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
     const canShowHint = !isExamMode && hints.length > 0;
 
     return (
-        <div className="w-full">
+        <div className={`w-full ${!isExamMode ? 'card-glass p-6' : ''} transition-all duration-500`}>
             {/* Question Text */}
             {question && (
-                <div className="font-bold text-gray-800 mb-4 text-lg has-text-content">
+                <div className={`font-bold text-gray-800 mb-4 text-lg has-text-content ${!isExamMode ? 'animate-slide-up' : ''}`}>
                     {renderMarkdownWithCitations(question)}
                 </div>
             )}
@@ -137,17 +137,29 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
 
                     if (showFeedback) {
                         if (optText === correctAnswer) {
-                            btnClass += "bg-green-50 border-green-400 text-green-900 font-bold focus:ring-green-400";
+                            // Correct Answer: Green
+                            btnClass += !isExamMode
+                                ? "btn-lip-action border-green-600 bg-green-500 text-white animate-pulse-green " // Lip style in learning
+                                : "bg-green-50 border-green-400 text-green-900 font-bold focus:ring-green-400 "; // Flat in exam
                         } else if (isSelected) {
-                            btnClass += "bg-red-50 border-red-300 text-red-900 focus:ring-red-300";
+                            // Incorrect Selection: Red
+                            btnClass += "bg-red-50 border-red-300 text-red-900 focus:ring-red-300 ";
                         } else {
-                            btnClass += "opacity-50 border-gray-100 bg-gray-50 text-gray-400";
+                            // Unselected: Fade out
+                            btnClass += "opacity-50 border-gray-100 bg-gray-50 text-gray-400 ";
                         }
                     } else {
+                        // Default State
                         if (isSelected) {
-                            btnClass += "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 text-blue-900 font-medium focus:ring-blue-400";
+                            // Selected state (before check)
+                            btnClass += !isExamMode
+                                ? "btn-lip-primary ring-2 ring-offset-1 ring-blue-500 transform scale-[1.02] " // Lip style selected
+                                : "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 text-blue-900 font-medium focus:ring-blue-400 ";
                         } else {
-                            btnClass += "border-gray-200 bg-white hover:bg-gray-50 text-gray-700 focus:ring-gray-200";
+                            // Normal state
+                            btnClass += !isExamMode
+                                ? "bg-white hover:bg-gray-50 border-gray-200 text-gray-700 shadow-sm hover:-translate-y-0.5 transition-transform " // Soft 3D hover
+                                : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700 focus:ring-gray-200 ";
                         }
                     }
 

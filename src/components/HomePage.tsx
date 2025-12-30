@@ -75,7 +75,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             </h2>
 
                             <p className="text-blue-100 text-md opacity-90 leading-relaxed font-medium">
-                                הגדירו נושא, והמערכת תבנה עבורכם באופן אוטומטי יחידת לימוד הכוללת סוכן הוראה אישי לכל תלמיד, תוכן עשיר כולל תמונות וסרטונים ותרגול פעיל.
+                                הגדירו נושא או העלו טקסטים, קבצים וסרטונים. המערכת תבנה עבורכם יחידת לימוד הכוללת סוכן הוראה אישי, תוכן עשיר ותרגול פעיל.
                             </p>
                         </div>
 
@@ -150,7 +150,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             <IconSparkles className="w-8 h-8 text-wizdi-cyan" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">1</span>
                         </div>
-                        <h3 className="font-bold text-slate-800 mb-1">המורה יוצר</h3>
+                        <h3 className="font-bold text-slate-800 mb-1">המורים יוצרים</h3>
                         <p className="text-xs text-slate-500 px-4">מגדירים נושא, מעלים קובץ או בוחרים תבנית.</p>
                     </div>
 
@@ -170,7 +170,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             <IconStudent className="w-8 h-8 text-wizdi-cyan" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">3</span>
                         </div>
-                        <h3 className="font-bold text-slate-800 mb-1">התלמיד חווה</h3>
+                        <h3 className="font-bold text-slate-800 mb-1">התלמידים חווים</h3>
                         <p className="text-xs text-slate-500 px-4">למידה מותאמת אישית.</p>
                     </div>
 
@@ -180,7 +180,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             <IconChart className="w-8 h-8 text-wizdi-royal" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-royal text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">4</span>
                         </div>
-                        <h3 className="font-bold text-slate-800 mb-1">תובנות למורה</h3>
+                        <h3 className="font-bold text-slate-800 mb-1">תובנות למורים</h3>
                         <p className="text-xs text-slate-500 px-4">קבלת דוחות, ציונים וניתוח נתונים.</p>
                     </div>
                 </div>

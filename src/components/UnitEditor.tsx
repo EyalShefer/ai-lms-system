@@ -200,7 +200,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 console.log("📚 Source Text Length:", sourceText?.length || 0);
 
-                const skeleton = await generateUnitSkeleton(unit.title, gradeLevel, targetLength, sourceText, course.mode || 'learning');
+                const skeleton = await generateUnitSkeleton(
+                    unit.title,
+                    gradeLevel,
+                    targetLength,
+                    sourceText,
+                    course.mode || settings.courseMode || 'learning', // Robust Fallback
+                    settings.taxonomy // Pass Dynamic Bloom Preferences
+                );
 
                 if (!skeleton || !skeleton.steps) {
                     throw new Error("Failed to generate skeleton");

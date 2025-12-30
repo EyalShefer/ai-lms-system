@@ -1,5 +1,5 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onRequest } from "firebase-functions/v2/https"; // Added for Proxy
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https"; // Added for Proxy & Error handling
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -77,7 +77,7 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
 
 // --- YOUTUBE TRANSCRIPTION FUNCTION ---
 import { YoutubeTranscript } from 'youtube-transcript';
-import { onCall } from "firebase-functions/v2/https";
+// onCall and HttpsError imported at top level
 
 /**
  * Fetches transcript from a YouTube video URL.

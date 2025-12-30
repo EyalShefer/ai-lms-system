@@ -56,7 +56,25 @@ export default {
       },
       backgroundImage: {
         'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(245,249,255,0.8) 100%)',
-      }
+      },
+      keyframes: {
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        pulseGreen: {
+          '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(74, 222, 128, 0.7)' },
+          '50%': { transform: 'scale(1.05)', boxShadow: '0 0 0 10px rgba(74, 222, 128, 0)' },
+          '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(74, 222, 128, 0)' },
+        }
+      },
+      animation: {
+        'slide-up': 'slideUp 0.5s ease-out forwards',
+        'pulse-green': 'pulseGreen 1s infinite',
+        'wiggle': 'wiggle 1s ease-in-out infinite',
+        'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        'float': 'float 4s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

@@ -22,32 +22,30 @@
 
 @layer components {
 
-    /* --- Magic Cards (Glass + Depth) --- */
-    .bg-white,
-    .bg-gray-50,
-    .bg-indigo-50 {
-        background: rgba(255, 255, 255, 0.85) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px);
-        border: 2px solid rgba(255, 255, 255, 0.8) !important;
-        box-shadow: 0 8px 0px 0 rgba(43, 89, 195, 0.05) !important; /* Chunky shadow */
-        border-radius: 24px !important; /* 2xl */
+    /* --- Magic Cards (Glass + Depth) - SCOPED --- */
+    .card-glass {
+        background: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.4) !important;
+        box-shadow: 0 8px 32px 0 rgba(43, 89, 195, 0.05) !important;
+        border-radius: 24px !important;
     }
 
     /* --- Rounded Inputs --- */
     input, textarea, select {
-        background: #FFFFFF !important;
-        border: 2px solid #E0F2FE !important; /* Light Blue Border */
-        color: #2B59C3 !important;
-        border-radius: 16px !important; /* xl */
-        padding: 12px 16px !important;
+        background: #FFFFFF;
+        border: 2px solid #E0F2FE;
+        color: #2B59C3;
+        border-radius: 16px;
+        padding: 12px 16px;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     input:focus, textarea:focus, select:focus {
-        background: #FFFFFF !important;
-        border-color: #00C2FF !important; /* Cyan Focus */
-        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15) !important;
+        background: #FFFFFF;
+        border-color: #00C2FF;
+        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15);
         transform: translateY(-2px);
         outline: none;
     }
@@ -56,55 +54,47 @@
 
     /* .btn-lip-action (Hyper Lime) - For PRIMARY GO actions */
     .btn-lip-action {
-        background: #8CE81C !important;
-        color: #0d4200 !important; /* Dark Green Text */
-        border: none !important;
-        border-bottom: 5px solid #65a30d !important; /* Darker Lime Lip */
-        border-radius: 9999px !important; /* Pill */
-        font-weight: 800 !important;
+        background: #8CE81C;
+        color: #0d4200;
+        border: none;
+        border-bottom: 6px solid #65a30d; /* Thicker Lip */
+        border-radius: 9999px;
+        font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         transition: all 0.1s;
-        box-shadow: 0 4px 0 0 rgba(101, 163, 13, 0.2);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     .btn-lip-action:active {
-        transform: translateY(4px);
-        border-bottom-width: 0px !important;
-        margin-top: 4px; /* Simulates press */
+        transform: translateY(6px); /* Move down by border width */
+        border-bottom-width: 0px;
+        margin-top: 6px; /* Maintain layout space */
+        box-shadow: none;
     }
     .btn-lip-action:hover {
-        background: #9ff038 !important; /* Lighter Lime */
+        background: #9ff038;
+        filter: brightness(1.05);
     }
 
     /* .btn-lip-primary (Royal Blue) - For Navigation/Context */
     .btn-lip-primary {
-        background: #2B59C3 !important;
-        color: white !important;
-        border: none !important;
-        border-bottom: 5px solid #1e40af !important; /* Darker Blue Lip */
-        border-radius: 9999px !important;
-        font-weight: 700 !important;
+        background: #2B59C3;
+        color: white;
+        border: none;
+        border-bottom: 6px solid #1e40af;
+        border-radius: 9999px;
+        font-weight: 700;
         transition: all 0.1s;
     }
     .btn-lip-primary:active {
-        transform: translateY(4px);
-        border-bottom-width: 0px !important;
+        transform: translateY(6px);
+        border-bottom-width: 0px;
+        margin-top: 6px;
     }
 
-    /* Overriding Default Semantic Classes to use new styles */
-    .bg-indigo-600, .bg-blue-600 {
-        /* Map old blue buttons to new Royal Lip Style */
-        @apply btn-lip-primary;
-    }
-
-    /* Map old purple/green buttons to ACTION Lip Style */
-    .bg-purple-600, .bg-green-600 {
-        @apply btn-lip-action;
-    }
-    
     /* Text Colors */
-    .text-indigo-600, .text-blue-600 { color: #2B59C3 !important; }
-    .text-purple-600 { color: #8CE81C !important; } /* Lime text */
+    .text-brand-royal { color: #2B59C3; }
+    .text-brand-lime { color: #8CE81C; }
 
 
     /* --- Micro-Interactions --- */

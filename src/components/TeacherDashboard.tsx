@@ -17,6 +17,9 @@ import {
 // --- Lazy Load CoursePlayer ---
 const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 import { SmartGroupingPanel } from './SmartGroupingPanel';
+import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
+import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
+import { IconBrandGoogle } from '@tabler/icons-react';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -477,6 +480,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 if (!valA) return 1;
                 if (!valB) return -1;
             }
+            if (key === 'type') {
+                // Sort by type text
+                return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
 
             if (valA < valB) return direction === 'asc' ? -1 : 1;
             if (valA > valB) return direction === 'asc' ? 1 : -1;
@@ -740,6 +747,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     >
                                         <IconSparkles className="w-4 h-4" /> Wizdi-Monitor
                                     </button>
+                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                                    <ClassroomConnectButton />
                                 </div>
                             )}
                         </div>
@@ -782,6 +791,22 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                         title="העתק קישור לתלמיד"
                                                     >
                                                         {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setAssignmentData({
+                                                                ...assignmentData,
+                                                                courseId: c.courseId,
+                                                                courseTitle: c.title,
+                                                                title: c.title
+                                                            });
+                                                            setAssignmentModalOpen(true);
+                                                        }}
+                                                        className="p-2 bg-white/80 hover:bg-green-50 text-slate-400 hover:text-green-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                        title="שייך ל-Google Classroom"
+                                                    >
+                                                        <IconBrandGoogle className="w-4 h-4" />
                                                     </button>
                                                 </div>
 
@@ -836,6 +861,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                         <th onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 w-1/4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">שם הקורס {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
+                                                        <th onClick={() => setSortConfig({ key: 'type', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-1">סוג {sortConfig.key === 'type' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                        </th>
                                                         <th onClick={() => setSortConfig({ key: 'subject', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">תחום דעת {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
@@ -863,6 +891,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                             <td className="p-4">
                                                                 <div className="font-bold text-slate-800 text-base group-hover:text-indigo-700 transition-colors">{c.title}</div>
                                                                 <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${c.type === 'test' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                                    {c.type === 'test' ? 'מבחן' : 'פעילות'}
+                                                                </span>
                                                             </td>
                                                             <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
                                                             <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
@@ -946,6 +979,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                 </div>
                             )}
 
+                            {/* Google Classroom Modal */}
+                            <ClassroomAssignmentModal
+                                isOpen={assignmentModalOpen}
+                                onClose={() => setAssignmentModalOpen(false)}
+                                examTitle={assignmentData.title}
+                                examId={assignmentData.courseId}
+                            />
+
                             {/* Smart Grouping Panel */}
                             <SmartGroupingPanel
                                 classId={selectedCourseId}
@@ -966,6 +1007,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             <tr>
                                                 <th className="p-4 w-10"></th>
                                                 <th className="p-4">שם תלמיד</th>
+                                                <th className="p-4">סטטוס</th>
                                                 <th className="p-4">פעילות אחרונה</th>
                                                 <th className="p-4">התקדמות</th>
                                                 <th className="p-4">ציון</th>
@@ -983,6 +1025,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                         {student.hasAlert && (
                                                             <span className="bg-red-100 text-red-600 p-1 rounded-full animate-pulse" title="זוהתה מצוקה">
                                                                 <IconFlag className="w-3 h-3" />
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {(student as any).isSubmitted ? (
+                                                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
+                                                                <IconCheck className="w-3 h-3" /> הוגש
+                                                            </span>
+                                                        ) : (
+                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
+                                                                <IconLoader className="w-3 h-3" /> בתהליך
                                                             </span>
                                                         )}
                                                     </td>
@@ -1027,6 +1080,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     reviewMode={true}
                                     assignment={{
                                         ...coursesMap[viewingTestStudent.courseId],
+                                        id: viewingTestStudent.courseId,
+                                        courseId: viewingTestStudent.courseId,
                                         activeSubmission: (viewingTestStudent as any).rawSubmission
                                     }}
                                     onExitReview={() => setViewingTestStudent(null)}

@@ -2,7 +2,7 @@ import { getFirestore, collection, addDoc, onSnapshot, doc } from "firebase/fire
 import { getApp } from "firebase/app";
 import OpenAI from "openai";
 import { v4 as uuidv4 } from 'uuid';
-import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT } from './prompts/pedagogicalPrompts';
+import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT, EXAM_MODE_SYSTEM_PROMPT } from './prompts/pedagogicalPrompts';
 import type { ValidationResult } from './courseTypes';
 import { getFunctions } from "firebase/functions";
 
@@ -86,14 +86,35 @@ import type { RawAiItem, MappedLearningBlock } from './types/gemini.types';
 import type { ActivityBlockType, RichOption } from './courseTypes';
 
 // Helper for Wizdi Pyramid
-const getBloomDistribution = (count: number): string[] => {
-  switch (count) {
-    case 3: return ["Remember (Foundation)", "Analyze (Process)", "Create (Synthesis)"];
-    case 5: return ["Remember", "Remember", "Apply", "Analyze", "Create"];
-    case 7: return ["Remember", "Remember", "Apply", "Apply", "Analyze", "Evaluate", "Create"];
-    default: return Array(count).fill("Mix of Levels");
+// Helper for Wizdi Pyramid (Dynamic based on Wizard Settings)
+// Helper for Wizdi Pyramid (Dynamic based on Wizard Settings)
+const getBloomDistribution = (count: number, requestedDistribution?: Record<string, number>): string[] => {
+  // If no preference, use default Pyramid
+  if (!requestedDistribution) {
+    switch (count) {
+      case 3: return ["Remember (Foundation)", "Analyze (Process)", "Create (Synthesis)"];
+      case 5: return ["Remember", "Remember", "Apply", "Analyze", "Create"];
+      case 7: return ["Remember", "Remember", "Apply", "Apply", "Analyze", "Evaluate", "Create"];
+      default: return Array(count).fill("Mix of Levels");
+    }
   }
+
+  // Use Dynamic Distribution from Wizard
+  // usage: { "Remember": 20, "Apply": 50, "Analyze": 30 }
+  const totalPercentage = Object.values(requestedDistribution).reduce((a, b) => a + b, 0);
+  const distribution: string[] = [];
+
+  Object.entries(requestedDistribution).forEach(([level, percent]) => {
+    const numItems = Math.round((percent / totalPercentage) * count);
+    for (let i = 0; i < numItems; i++) distribution.push(level);
+  });
+
+  // Fill gap or trim excess
+  while (distribution.length < count) distribution.push("Apply"); // Safety fill
+  return distribution.slice(0, count).sort(); // Sort isn't pedagogical sorting, the skeleton generation does that
 };
+
+
 
 /**
  * Maps the raw, chaotic JSON returned by AI into a strict, UI-ready Content Block.
@@ -431,39 +452,62 @@ export const generateUnitSkeleton = async (
   gradeLevel: string,
   activityLength: 'short' | 'medium' | 'long',
   sourceText?: string,
-  mode: 'learning' | 'exam' = 'learning'
+  mode: 'learning' | 'exam' = 'learning',
+  bloomPreferences?: Record<string, number>
 ): Promise<UnitSkeleton | null> => {
+  console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Length: ${activityLength}`); // DEBUG LOG
   let stepCount = 5;
   let structureGuide = "";
 
-  if (activityLength === 'short') {
-    stepCount = 3;
-    structureGuide = `
-      STEP 1: Foundation (Remember/Understand). Type: memory_game OR multiple_choice.
-      STEP 2: Connection (Apply/Analyze). Type: fill_in_blanks OR categorization.
-      STEP 3: Synthesis (Evaluate/Create). Type: open_question OR multiple_choice (scenario).
-    `;
-  } else if (activityLength === 'long') {
-    stepCount = 7;
-    structureGuide = `
-      STEPS 1-2: Foundation. Type: memory_game / multiple_choice / true_false.
-      STEPS 3-5: Connection. Type: fill_in_blanks / ordering / categorization / matching.
-      STEPS 6-7: Synthesis. Type: open_question / multiple_choice.
-    `;
+  if (mode === 'exam') {
+    // === EXAM MODE STRUCTURE ===
+    if (activityLength === 'short') {
+      stepCount = 3;
+      structureGuide = `
+      STEP 1: Knowledge Check. Type: multiple_choice OR true_false (Strict).
+      STEP 2: Application. Type: categorization OR ordering.
+      STEP 3: Synthesis/Audio. Type: open_question OR audio_response.
+      `;
+    } else {
+      stepCount = activityLength === 'long' ? 7 : 5;
+      structureGuide = `
+      STEPS 1-2: Knowledge Verification. Type: multiple_choice.
+      STEPS 3-${stepCount - 2}: Deep Analysis. Type: categorization / fill_in_blanks / ordering.
+      STEPS ${stepCount - 1}-${stepCount}: Evaluation. Type: open_question / audio_response.
+      `;
+    }
   } else {
-    // Medium
-    stepCount = 5;
-    structureGuide = `
-      STEPS 1-2: Foundation (Remember). Type: memory_game OR multiple_choice.
-      STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
-      STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
-      STEP 5: Synthesis (Create). Type: open_question OR audio_response.
-    `;
+    // === LEARNING MODE STRUCTURE ===
+    if (activityLength === 'short') {
+      stepCount = 3;
+      structureGuide = `
+        STEP 1: Foundation (Remember/Understand). Type: memory_game OR multiple_choice.
+        STEP 2: Connection (Apply/Analyze). Type: fill_in_blanks OR categorization.
+        STEP 3: Synthesis (Evaluate/Create). Type: open_question OR multiple_choice (scenario).
+      `;
+    } else if (activityLength === 'long') {
+      stepCount = 7;
+      structureGuide = `
+        STEPS 1-2: Foundation. Type: memory_game / multiple_choice / true_false.
+        STEPS 3-5: Connection. Type: fill_in_blanks / ordering / categorization / matching.
+        STEPS 6-7: Synthesis. Type: open_question / multiple_choice.
+      `;
+    } else {
+      // Medium
+      stepCount = 5;
+      structureGuide = `
+        STEPS 1-2: Foundation (Remember). Type: memory_game OR multiple_choice.
+        STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
+        STEP 5: Synthesis (Create). Type: open_question OR audio_response.
+      `;
+    }
   }
 
   const contextPart = sourceText
     ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
     : `Topic: "${topic}"`;
+
+  const bloomSteps = getBloomDistribution(stepCount, bloomPreferences);
 
   const prompt = `
     Task: Create a "Skeleton" for a learning unit.
@@ -472,6 +516,9 @@ export const generateUnitSkeleton = async (
     Mode: ${mode === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : 'Learning/Tutorial Mode'}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
+    
+    BLOOM TAXONOMY REQUIREMENTS:
+    ${JSON.stringify(bloomSteps)}
 
     MISSION:
     1. **Holistic Analysis:** Read the ENTIRE source text first. Understand the "Big Picture".
@@ -483,10 +530,13 @@ export const generateUnitSkeleton = async (
 
     3. **ZERO-TEXT-WALL POLICY (V4 ANTI-BATCHING):**
        ${mode === 'exam'
-      ? `- **EXAM MODE:** DO NOT includes 'Teach Content'. Focus strictly on testing/assessment blocks.`
-      : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.`}
-       - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
-       - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.
+      ? `- **EXAM MODE / ASSESSMENT ONLY:**
+           - **Structure:** Question Block ONLY. No introduction text.
+           - **Content:** Do NOT output 'teach_content'. Output strictly assessment items.
+           - **Logic:** Each step is a test item.`
+      : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
+           - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
+           - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.`}
 
     4. **Topic Policing:**
        - For each step, define a strict **narrative_focus** (Allowed Content) and **forbidden_topics** (Banned Content).
@@ -508,7 +558,7 @@ export const generateUnitSkeleton = async (
           "narrative_focus": "${mode === 'exam' ? 'Assessment Topic A' : 'Discuss ONLY [Specific Concept A]'} . Do not mention [Concept B].",
           "forbidden_topics": ["Concept B", "Concept C", "Future Events"],
           "bloom_level": "Remember",
-          "suggested_interaction_type": "memory_game"
+          "suggested_interaction_type": "${mode === 'exam' ? 'multiple_choice' : 'memory_game'}"
         }
       ]
     }
@@ -595,35 +645,40 @@ export const generateStepContent = async (
 ): Promise<StepContentResponse | null> => {
   const contextText = sourceText ? `Source Material:\n"""${sourceText.substring(0, 3000)}..."""` : `Topic: ${topic}`;
 
+  // INJECT EXAM ENFORCER
+  const examEnforcer = mode === 'exam' ? EXAM_MODE_SYSTEM_PROMPT : "";
+
   const prompt = `
     ${contextText}
+    ${examEnforcer}
 
     MANDATORY REQUIREMENTS:
-    1. **Pedagogy:** Strictly follow the Bloom Level (${stepInfo.bloom_level}) and Interaction Type (${stepInfo.suggested_interaction_type}).
-    2. **ZERO-TEXT-WALL RULE (V4 Anti-Batching):**
-       - **CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
-       - **Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
-       - **BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
+  1. ** Pedagogy:** Strictly follow the Bloom Level(${stepInfo.bloom_level}) and Interaction Type(${stepInfo.suggested_interaction_type}).
+    2. ** ZERO - TEXT - WALL RULE(V4 Anti - Batching):**
+       - ** CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
+       - ** Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
+       - ** BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
        ${mode === 'exam'
-      ? `- **EXAM MODE:** Do NOT output 'teach_content'. Set it to null or empty string.`
-      : `- **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.`}
+      ? `- **EXAM MODE:** Do NOT output 'teach_content'. Set it to null or empty string. Focus entirely on the Question.`
+      : `- **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.`
+    }
 
     ${getLinguisticConstraints(gradeLevel)}
 
-       - **Age Adaptation (Grades 1-6):** Every technical term MUST have a concrete analogy.
-       - **Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'As per Linguistic Constraints above'}.
+       - ** Age Adaptation(Grades 1 - 6):** Every technical term MUST have a concrete analogy.
+       - ** Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'As per Linguistic Constraints above'}.
 
-    4. **STRICT GROUNDING (Anti-Hallucination V3):**
-       - **Rule:** Use ONLY the provided Source Text. If it's not in the PDF, it doesn't exist.
+  4. ** STRICT GROUNDING(Anti - Hallucination V3):**
+       - ** Rule:** Use ONLY the provided Source Text.If it's not in the PDF, it doesn't exist.
 
-    5. **Micro-Learning Progression:**
-       - Treat this step as "Chapter ${stepInfo.step_number}". Do not repeat definitions from previous chapters.
-       ${mode === 'exam' ? '- **EXAM MODE:** TONE must be objective, examiner tone. No "Wizdi-Bot" persona.' : ''}
+    5. ** Micro - Learning Progression:**
+    - Treat this step as "Chapter ${stepInfo.step_number}". Do not repeat definitions from previous chapters.
+      ${mode === 'exam' ? '- **EXAM MODE:** TONE must be objective, examiner tone. No "Wizdi-Bot" persona.' : ''}
 
-    6. **Logic & Interaction Rules:**
-       - **Ordering:** The 'teach_content' MUST be a narrative story. Items must be paraphrased.
-       - **Categorization:** Categories must be **MUTUALLY EXCLUSIVE**.
-       - **OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
+  6. ** Logic & Interaction Rules:**
+       - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
+       - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
+       - ** OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        
@@ -658,7 +713,7 @@ export const generateStepContent = async (
     {
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}", 
-       "teach_content": "Full explanation text (Simplified for ${gradeLevel}, Narrative flow, complying with Focus)...",
+       "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
        "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
           "progressive_hints": ["Hint 1", "Hint 2"],
@@ -702,7 +757,24 @@ export const generateStepContent = async (
     });
 
     const text = completion.choices[0].message.content || "{}";
-    return JSON.parse(text) as StepContentResponse;
+    const result = JSON.parse(text) as StepContentResponse;
+
+    // === 🛡️ PEDAGOGICAL ENFORCER (CODE LEVEL OVERRIDE) ===
+    if (mode === 'exam' && result) {
+      // FORCE EMPTY STRING to prevent any prompt leakage
+      result.teach_content = "";
+
+      // FORCE EMPTY HINTS
+      if (result.data) {
+        result.data.progressive_hints = [];
+        // Only allow source reference if it's explicitly strictly needed, but generally strip it too for strict exams
+        // We'll keep source_reference_hint as it might be needed for "Open Book" style, 
+        // but progressive hints (coaching) are definitely banned.
+      }
+    }
+    // =======================================================
+
+    return result;
   } catch (e) {
     console.error(`Step Gen Error (Step ${stepInfo.step_number}):`, e);
     return null;
@@ -710,6 +782,51 @@ export const generateStepContent = async (
 };
 
 // === PERFORMANCE OPTIMIZATION END ===
+
+import type { DialogueScript } from './types/gemini.types';
+
+/**
+ * Generates a "Deep Dive" Podcast Script (Dan & Noa)
+ */
+export const generatePodcastScript = async (sourceText: string, topic?: string): Promise<DialogueScript | null> => {
+  try {
+    const prompt = `
+      generate a "Deep Dive" podcast script between two hosts, Dan and Noa.
+      Topic: ${topic || "The provided text"}
+      Source Material: """${sourceText.substring(0, 15000)}"""
+      
+      Characters:
+      - Dan: Enthusiastic, uses analogies, asks the "dumb" questions to clarify things.
+      - Noa: The expert, skeptical but clear, brings the data.
+      
+      Format: JSON matching:
+      {
+        "title": "Fun Title",
+        "lines": [
+          { "speaker": "Dan", "text": "...", "emotion": "Excited" },
+          { "speaker": "Noa", "text": "...", "emotion": "Neutral" }
+        ]
+      }
+      
+      Language: Hebrew.
+      Length: Approx 10-15 exchanges.
+      Style: Conversational, fun, like "NotebookLM".
+      `;
+
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text) as DialogueScript;
+
+  } catch (e) {
+    console.error("Podcast Gen Error:", e);
+    return null;
+  }
+};
 
 // --- PHASE 2 IMPL: Pedagogical Validation ---
 
@@ -830,6 +947,11 @@ export const safeGenerationWorkflow = async (
 
     if (validation.status === 'PASS') {
       console.log("✅ Content Passed Validation!");
+      // PERSIST VALIDATION METRICS
+      if (content && typeof content === 'object') {
+        if (!content.metadata) content.metadata = {};
+        content.metadata.aiValidation = validation.metrics;
+      }
       return content;
     }
 
@@ -1483,8 +1605,9 @@ export const checkOpenQuestionAnswer = async (
 
   const prompt = `
   # ROLE
-  You are a supportive tutor checking a student's answer based on a text.
-  DO NOT GIVE THE ANSWER.GUIDE THE STUDENT TO IT.
+  # ROLE
+  ${mode === 'exam' ? "You are a Strict Examiner." : "You are a supportive tutor checking a student's answer based on a text."}
+  ${mode === 'exam' ? "Provide objective feedback based strictly on the Model Answer." : "DO NOT GIVE THE ANSWER. GUIDE THE STUDENT TO IT."}
   Output Language: Hebrew.
 
   # INPUT
