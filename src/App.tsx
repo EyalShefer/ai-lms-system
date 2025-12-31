@@ -14,8 +14,10 @@ const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
 const StudentHome = React.lazy(() => import('./components/StudentHome'));
-const PedagogicalInsights = React.lazy(() => import('./components/PedagogicalInsights')); // NEW
+const PedagogicalInsights = React.lazy(() => import('./components/PedagogicalInsights'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
+const SequentialCoursePlayer = React.lazy(() => import('./components/SequentialCoursePlayer'));
+const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -413,14 +415,22 @@ const AuthenticatedApp = () => {
                 <LoadingSpinner />
                 <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
               </div>
-            ) : isStudentLink ? <CoursePlayer assignment={currentAssignment || undefined} /> : (
+            ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} /> : (
               <>
                 {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
                 {mode === 'editor' && <CourseEditor />}
-                {mode === 'student' && <CoursePlayer assignment={currentAssignment || undefined} simulateGuest={isGuestMode} />}
-                {mode === 'dashboard' && <TeacherDashboard onEditCourse={handleCourseSelect} onViewInsights={() => setMode('insights')} />}
+                {mode === 'student' && <SequentialCoursePlayer assignment={currentAssignment || undefined} simulateGuest={isGuestMode} />}
+                {mode === 'dashboard' && (
+                  <TeacherDashboard
+                    onEditCourse={handleCourseSelect}
+                    onViewInsights={() => setMode('insights')}
+                    // @ts-ignore
+                    onNavigateToAnalytics={() => setMode('analytics')}
+                  />
+                )}
                 {mode === 'student-dashboard' && <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />}
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
+                {mode === 'analytics' && <AdaptiveDashboard />}
               </>
             )}
           </Suspense>

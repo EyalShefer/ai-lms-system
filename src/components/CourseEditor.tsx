@@ -5,7 +5,7 @@ import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock, generatePodcastScript } from '../gemini';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LearningUnit, ActivityBlock } from '../courseTypes';
@@ -268,60 +268,105 @@ const CourseEditor: React.FC = () => {
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
-                console.log("🧠 Starting V4 'Brain & Hands' Generation for First Unit:", firstUnit.title);
+                console.log("🧠 Starting V4 Generation for:", firstUnit.title);
 
-                // 1. BRAIN: Generate Skeleton
-                // We use the same 'activityLength' from settings
-                const skeleton = await generateUnitSkeleton(
-                    firstUnit.title,
-                    extractedGrade,
-                    updatedCourseState.activityLength || 'medium', // Default to medium
-                    processedSourceText, // Use grounding
-                    updatedCourseState.mode || 'learning',
-                    data.settings?.taxonomy // Pass Dynamic Bloom Preferences
-                );
+                // --- PODCAST PRODUCT HANDLER ---
+                if (data.settings?.productType === 'podcast') {
+                    console.log("🎙️ Generating Podcast Product...");
+                    const script = await generatePodcastScript(
+                        processedSourceText || course.title,
+                        topicToUse
+                    );
 
-                if (skeleton && skeleton.steps) {
-                    console.log("💀 Skeleton Generated:", skeleton.steps.length, "steps");
+                    if (script) {
+                        const podcastBlock: ActivityBlock = {
+                            id: crypto.randomUUID(),
+                            type: 'podcast',
+                            content: {
+                                title: `פודקאסט: ${topicToUse}`,
+                                script: script,
+                                audioUrl: null // Generated later
+                            },
+                            metadata: {
+                                bloomLevel: 'synthesis',
+                                score: 100,
+                                difficultyLevel: 3,
+                                generatedBy: 'wizdi-wizard-v4'
+                            }
+                        };
 
-                    // 2. HANDS: Generate Step Content (Parallel)
-                    // We map over the skeleton steps and call the 'Hands'
-                    const stepPromises = skeleton.steps.map(async (step: any) => {
-                        const stepContent = await generateStepContent(
-                            firstUnit.title,
-                            step, // Pass the skeleton step info
-                            extractedGrade,
-                            processedSourceText,
-                            processedFileData // Images if any
-                        );
+                        const syllabusWithPodcast = syllabus.map((mod: any) => ({
+                            ...mod,
+                            learningUnits: mod.learningUnits.map((u: any) =>
+                                u.id === firstUnit.id ? { ...u, activityBlocks: [podcastBlock] } : u
+                            )
+                        }));
 
-                        // 3. NORMALIZE: Map to UI Block
-                        return mapSystemItemToBlock(stepContent);
-                    });
+                        const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithPodcast };
+                        setCourse(finalCourse);
+                        await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithPodcast });
+                        setSelectedUnitId(firstUnit.id);
+                    } else {
+                        alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
+                    }
+                }
+                // --- STANDARD UNIT HANDLER ---
+                else {
+                    console.log("🧠 Starting V4 'Brain & Hands' Generation for First Unit:", firstUnit.title);
 
-                    // Wait for all hands to finish
-                    const newBlocksRaw = await Promise.all(stepPromises);
+                    // 1. BRAIN: Generate Skeleton
+                    // We use the same 'activityLength' from settings
+                    const skeleton = await generateUnitSkeleton(
+                        firstUnit.title,
+                        extractedGrade,
+                        updatedCourseState.activityLength || 'medium', // Default to medium
+                        processedSourceText, // Use grounding
+                        updatedCourseState.mode || 'learning',
+                        data.settings?.taxonomy // Pass Dynamic Bloom Preferences
+                    );
 
-                    // Filter out nulls (failures)
-                    const newBlocks = newBlocksRaw.filter(b => b !== null);
+                    if (skeleton && skeleton.steps) {
+                        console.log("💀 Skeleton Generated:", skeleton.steps.length, "steps");
 
-                    console.log("✅ V4 Generation Complete. Blocks:", newBlocks.length);
+                        // 2. HANDS: Generate Step Content (Parallel)
+                        // We map over the skeleton steps and call the 'Hands'
+                        const stepPromises = skeleton.steps.map(async (step: any) => {
+                            const stepContent = await generateStepContent(
+                                firstUnit.title,
+                                step, // Pass the skeleton step info
+                                extractedGrade,
+                                processedSourceText,
+                                processedFileData // Images if any
+                            );
 
-                    const syllabusWithContent = syllabus.map((mod: any) => ({
-                        ...mod,
-                        learningUnits: mod.learningUnits.map((u: any) =>
-                            u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
-                        )
-                    }));
+                            // 3. NORMALIZE: Map to UI Block
+                            return mapSystemItemToBlock(stepContent);
+                        });
 
-                    const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
-                    setCourse(finalCourse);
-                    await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+                        // Wait for all hands to finish
+                        const newBlocksRaw = await Promise.all(stepPromises);
 
-                    setSelectedUnitId(firstUnit.id);
-                } else {
-                    console.error("❌ Skeleton Generation Failed");
-                    setSelectedUnitId(firstUnit.id);
+                        // Filter out nulls (failures)
+                        const newBlocks = newBlocksRaw.filter(b => b !== null);
+
+                        console.log("✅ V4 Generation Complete. Blocks:", newBlocks.length);
+
+                        const syllabusWithContent = syllabus.map((mod: any) => ({
+                            ...mod,
+                            learningUnits: mod.learningUnits.map((u: any) =>
+                                u.id === firstUnit.id ? { ...u, activityBlocks: newBlocks } : u
+                            )
+                        }));
+
+                        const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
+                        setCourse(finalCourse);
+                        await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+
+                        setSelectedUnitId(firstUnit.id);
+                    } else {
+                        console.error("❌ Skeleton Generation Failed");
+                        setSelectedUnitId(firstUnit.id);
+                    }
                 }
             }
 

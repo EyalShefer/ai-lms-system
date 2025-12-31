@@ -126,11 +126,10 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-xl font-bold mb-2 text-gray-800">משחק הזיכרון</h3>
-            <div className="text-gray-500 mb-6 text-sm flex justify-between">
+        <div className="w-full mx-auto">
+            <h3 className="text-3xl font-black mb-4 text-white text-center drop-shadow-sm">תרגול זיכרון</h3>
+            <div className="text-white/80 mb-6 text-sm flex justify-between px-4">
                 <span>מצא את הזוגות התואמים</span>
-                <span>מהלכים: {attempts}</span>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-8">

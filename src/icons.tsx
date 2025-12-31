@@ -301,6 +301,14 @@ export const IconFlag = ({ className = "w-5 h-5" }: IconProps) => (
     </svg>
 );
 
+export const IconAlertTriangle = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+);
+
 export const IconMobile = ({ className = "w-5 h-5" }: IconProps) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
@@ -337,5 +345,74 @@ export const IconMicrophone = ({ className = "w-5 h-5" }: IconProps) => (
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
         <line x1="12" y1="19" x2="12" y2="23"></line>
         <line x1="8" y1="23" x2="16" y2="23"></line>
+    </svg>
+);
+
+export const IconPuzzle = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M19.439 15.424a1 1 0 0 0-1.439 1.439l2.439 2.439a1 1 0 0 0 1.44-1.44l-2.44-2.439z" />
+        <path d="M9.5 7a2.5 2.5 0 0 0-2.5-2.5H4.5A2.5 2.5 0 0 0 2 7v2.5A2.5 2.5 0 0 0 4.5 12h.5v3.5a2.5 2.5 0 0 0 2.5 2.5h2.5a2.5 2.5 0 0 0 2.5-2.5V12h3.5a2.5 2.5 0 0 0 2.5-2.5V7a2.5 2.5 0 0 0-2.5-2.5H16l1.5-3.5-3.5 1.5V1.5A1.5 1.5 0 0 0 12.5 0h-3z" />
+    </svg>
+);
+
+export const IconTarget = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="6"></circle>
+        <circle cx="12" cy="12" r="2"></circle>
+    </svg>
+);
+
+
+export const IconJoystick = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M12 2a3 3 0 0 1 3 3v6h-6V5a3 3 0 0 1 3-3z"></path>
+        <path d="M15 11h-6a5 5 0 0 0-5 5v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2a5 5 0 0 0-5-5z"></path>
+        <circle cx="12" cy="17" r="1.5"></circle>
+    </svg>
+);
+
+export const IconThumbUp = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M7 10v12"></path>
+        <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"></path>
+    </svg>
+);
+
+export const IconThumbDown = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M17 14V2"></path>
+        <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"></path>
+    </svg>
+);
+
+export const IconChevronLeft = ({ className = 'w-5 h-5' }: IconProps) => (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className={className}>
+        <polyline points='15 18 9 12 15 6'></polyline>
+    </svg>
+);
+
+export const IconChevronRight = ({ className = 'w-5 h-5' }: IconProps) => (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className={className}>
+        <polyline points='9 18 15 12 9 6'></polyline>
+    </svg>
+);
+
+export const IconTrendingUp = ({ className = 'w-5 h-5' }: IconProps) => (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className={className}>
+        <polyline points='23 6 13.5 15.5 8.5 10.5 1 18'></polyline>
+        <polyline points='17 6 23 6 23 12'></polyline>
+    </svg>
+);
+
+
+export const IconTrophy = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+        <path d="M4 22h16"></path>
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
     </svg>
 );

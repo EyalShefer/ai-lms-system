@@ -211,10 +211,22 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
                             key={i}
                             draggable={!isSubmitted && !isUsed}
                             onDragStart={(e) => handleDragStart(e, word)}
+                            onClick={() => {
+                                if (isSubmitted || isUsed) return;
+                                // Find first empty blank
+                                const firstEmpty = userAnswers.findIndex(a => a === null);
+                                if (firstEmpty !== -1) {
+                                    setUserAnswers(prev => {
+                                        const newState = [...prev];
+                                        newState[firstEmpty] = word;
+                                        return newState;
+                                    });
+                                }
+                            }}
                             className={`px-4 py-2 rounded-lg font-medium shadow-sm border select-none transition-all
                                 ${isUsed
                                     ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed'
-                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:shadow-md cursor-grab active:cursor-grabbing'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-95'
                                 }
                             `}
                         >
@@ -228,25 +240,38 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
                 <div className="text-center">
                     <button
                         onClick={checkAnswers}
-                        disabled={userAnswers.some(a => a === null)}
-                        className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
+                        className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
                     >
                         בדיקה
                     </button>
+                    {userAnswers.some(a => a === null) && (
+                        <p className="text-xs text-gray-400 mt-2">ניתן לבדוק גם תשובות חלקיות</p>
+                    )}
                 </div>
             )}
 
             {isSubmitted && (
                 <div className="mt-6 text-center animate-fade-in">
-                    <div className="text-lg font-bold">
+                    <div className="text-lg font-bold mb-4">
                         {userAnswers.every((a, i) => a === hidden_words[i]) ? (
                             <span className="text-green-600 flex items-center justify-center gap-2">
                                 <IconCheck className="w-6 h-6" /> מעולה! כל התשובות נכונות
                             </span>
                         ) : (
-                            <span className="text-red-500 flex items-center justify-center gap-2">
-                                <IconX className="w-6 h-6" /> יש טעויות, נסה שוב
-                            </span>
+                            <div className="flex flex-col items-center gap-2">
+                                <span className="text-red-500 flex items-center justify-center gap-2">
+                                    <IconX className="w-6 h-6" /> יש טעויות
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setIsSubmitted(false);
+                                        setUserAnswers(new Array(hidden_words.length).fill(null));
+                                    }}
+                                    className="text-blue-600 text-sm hover:underline mt-2"
+                                >
+                                    נסה שוב
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>

@@ -316,3 +316,98 @@ Transforming "Classroom Groups" into "AI Instructions". The teacher clicks a gro
 1. **Selection:** Teacher selects a group in `SmartGroupingPanel`.
 2. **Translation:** `generateGroupConfig` converts the group type into specific system prompts ("Break down complex terms", "Ask open questions").
 3. **Queueing:** A job is pushed to `lesson_generation_queue` with the `studentIds` list for auto-assignment.
+
+# 16. 🗣️ FEEDBACK LOOP & INSIGHT ENGINE
+## 16.1 Philosophy
+The system does not just "push" content; it "listens" to the user. We combine **Implicit Signals** (Telemetry) with **Explicit Feedback** (Ratings) to create a self-improving loop.
+
+## 16.2 Architecture components
+- **The Ear (Data Collection):** Low-friction input mechanisms embedded in the learning flow.
+    - *Student:* "Micro-Feedback" (Thumbs Up/Down) on every granular interaction.
+    - *Teacher:* "Wizdi Monitor" for reporting content quality or relevance issues.
+- **The Brain (Insight Engine):** Asynchronous AI service that aggregates logs and generates actionable insights (`SystemInsight`).
+- **The Hand (Action):** Direct connection to `LessonDistributor` to adjust future content based on feedback.
+
+## 16.3 Data Schema (`feedback_logs`)
+- **Core Entity:** `FeedbackLog`
+    - `type`: 'positive' | 'negative'
+    - `tags`: ['confusing', 'boring', 'too_easy', 'technical_issue', 'innaccurate']
+    - `context`: `{ blockId, unitId, courseId, gradeLevel }`
+    - `userRole`: 'student' | 'teacher'
+
+## 16.4 Operational Rules
+1.  **Exam Mode Silence:** Feedback widgets are **HIDDEN** during exams to prevent distraction and maintain integrity.
+2.  **Frictionless First:** The primary interaction is a single click (Thumb). Tag selection is secondary/optional.
+3.  **Real-Time Persistence:** Feedback is written immediately to Firestore to ensure no data loss during session drops.
+
+# 17. 🧭 ADAPTIVE DIFFERENTIAL LEARNING (ADLS)
+## 17.1 Philosophy (The "Wizdi Adaptive Engine")
+We are transitioning from a linear "content consumption" model to a dynamic "Knowledge Graph" traversal. The system acts as a real-time tutor that observes, analyzes, and adapts to every student interaction.
+
+## 17.2 Theoretical Frameworks
+1.  **Item Response Theory (IRT):**
+    *   **Difficulty ($\beta$):** Probability of correct answer.
+    *   **Discrimination ($\alpha$):** Ability to differentiate high vs low performers.
+    *   **Guessing ($c$):** Probability of random success.
+2.  **Zone of Proximal Development (ZPD):**
+    *   Target Success Rate: **60-70%**.
+    *   **>90%:** Increase Difficulty (Challenge).
+    *   **<40%:** Decrease Difficulty (Scaffold/Remediate).
+
+## 17.3 The "Backend Brain" (BKT Engine) - IMPLEMENTED
+- **Model:** Bayesian Knowledge Tracing (BKT).
+- **Parameters:** $P(L_0)=0.1$ (Init), $P(T)=0.1$ (Learn), $P(S)=0.1$ (Slip), $P(G)=0.25$ (Guess).
+- **Architecture:** Firebase Cloud Function `submitAdaptiveAnswer`.
+- **Policy:**
+    - `Mastery > 0.9` -> **Challenge** (Skip next easy topic).
+    - `Mastery < 0.4` -> **Remediate** (Trigger Factory).
+    - `Else` -> **Continue** (Standard Flow).
+
+## 17.4 The "Content Factory" (Real-time Remediation) - IMPLEMENTED
+- **Trigger:** Failed BKT check (`Action: REMEDIATE`).
+- **Mechanism:** `adaptiveContentService` calls LLM with:
+    - Failed Question Context.
+    - Specific Wrong Answer (Misconception Analysis).
+- **Output:** A "Bridge Block" (Text/Explanation) < 80 words.
+- **Injection:** Spliced into `SequentialCoursePlayer` queue immediately (`playbackQueue.splice(current+1, 0, remediation)`).
+
+## 17.5 The "Neural Dashboard" (Teacher Visualization) - IMPLEMENTED
+- **Route:** `/analytics`.
+- **Views:**
+    1.  **Heatmap (The Matrix):** Grid of Student x Topic mastery.
+    2.  **Journey Trace (DNA Strand):** Visual subway map of learning path.
+        - 🟢 Green Node: Success.
+        - 🔴 Red Node: Failure.
+        - 🟡 Yellow Node: Adaptive Remediation Loop (The "Self-Correction").
+- **Insight:** AI-generated class-level summaries.
+3.  **Bayesian Knowledge Tracing (BKT):**
+    *   Student Model is a probabilistic state vector, updated after *every* interaction.
+
+## 17.3 Smart Question Schema
+Atomic units must contain metadata for the Policy Engine:
+-   **IRT Meta:** `difficulty_level` (0.0-1.0), `bloom_taxonomy`.
+-   **Adaptive Logic:**
+    -   `distractors`: Each wrong answer has an `error_tag` (e.g., "calculation_error", "misconception").
+    -   `next_action`: Specific trigger per answer (e.g., "retry_with_hint", "remediate_concept").
+-   **Relations:** `scaffolding_id` (simpler variant) and `enrichment_id` (harder variant).
+
+## 17.4 The Policy Engine (Algorithm)
+Executed between steps (Wizard Mode):
+1.  **Evaluate:** Correctness + Time + Error Tag.
+2.  **Update State:** Modify Student Proficiency Vector (BKT).
+3.  **Decide Strategy:**
+    -   *Fast + Correct* → **Challenge** (+Difficulty).
+    -   *Slow + Correct* → **Reinforce** (Same Difficulty).
+    -   *Incorrect + Slip* → **Retry** (Hint).
+    -   *Incorrect + Concept* → **Remediate** (Explanation/Scaffold).
+
+## 17.5 UI/UX Transition: Wizard Mode
+-   **Requirement:** "Sequential View" is mandatory for adaptivity.
+-   **Mechanic:** Submission triggers `POST /nextStep`, rendering the next block dynamically.
+-   **Visuals:** "Mastery Bar" replaces "Question Count".
+
+## 17.6 Gamified Feedback Loop
+-   **Three-State Button:** Primary action morphs: Check (Lime) -> Success (Green) / Failure (Red).
+-   **Immediate Gratification:** XP "Floaters" and Streak "Flames" provide visceral confirmation of competence.
+-   **Adaptive Toasts:** System explicitly informs user of adaptive leaps ("Challenge Unlocked").
+

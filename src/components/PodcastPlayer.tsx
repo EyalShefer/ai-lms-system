@@ -6,9 +6,11 @@ import { IconHeadphones, IconLoader } from '../icons';
 interface PodcastPlayerProps {
     script: DialogueScript;
     initialAudioUrl?: string | null;
+    title?: string;
+    onAudioGenerated?: (url: string) => void;
 }
 
-export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAudioUrl }) => {
+export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAudioUrl, title, onAudioGenerated }) => {
     const [currentIndex, setCurrentIndex] = useState<number>(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioCache, setAudioCache] = useState<Record<number, string>>(
@@ -50,6 +52,7 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAud
 
             if (url) {
                 setAudioCache(prev => ({ ...prev, [currentIndex]: url }));
+                if (onAudioGenerated) onAudioGenerated(url); // Notify parent (e.g., to save)
                 if (audioRef.current) {
                     audioRef.current.src = url;
                     audioRef.current.play();
@@ -91,7 +94,7 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAud
                     <IconHeadphones className="w-6 h-6 text-purple-400" />
                 </div>
                 <div>
-                    <h3 className="font-bold text-lg">{script.title || "Audio Overview"}</h3>
+                    <h3 className="font-bold text-lg">{title || script.title || "Audio Overview"}</h3>
                     <p className="text-xs text-gray-400 uppercase tracking-widest">NotebookLM Deep Dive</p>
                 </div>
             </div>

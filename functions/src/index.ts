@@ -2,7 +2,7 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https"; // Added for Proxy & Error handling
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import OpenAI from "openai";
 import { defineSecret } from "firebase-functions/params";
 import { v4 as uuidv4 } from 'uuid';
@@ -790,3 +790,95 @@ export const generateLessonPlan = onDocumentCreated(
         }
     }
 );
+
+// --- ADAPTIVE BRAIN (BKT ENGINE) ---
+// This function moves the "Student Model" logic from the client (insecure) to the cloud (secure).
+export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
+    const { userId, unitId, blockId, score, metadata, isCorrect } = request.data;
+
+    if (!userId || !unitId) {
+        throw new HttpsError('invalid-argument', 'Missing userId or unitId');
+    }
+
+    const db = getFirestore();
+    // 1. Get Topic from Metadata or Default
+    // In a real system, we might have a Topic Map. Here we trust the client's enriched metadata or fallback.
+    const topic = metadata?.tags?.[0] || 'general';
+    const difficulty = metadata?.difficulty_level || 0.5;
+
+    // 2. Fetch User's Cognitive State for this Unit/Topic
+    const stateRef = db.doc(`users/${userId}/adaptive_state/${unitId}`);
+    const stateDoc = await stateRef.get();
+    let state = stateDoc.exists ? stateDoc.data() : {
+        mastery: { [topic]: 0.1 }, // Initial prior
+        history: []
+    };
+
+    // 3. Bayesian Knowledge Tracing (BKT) Simplified
+    // P(L) = Probability of knowing the skill
+    const prior = state?.mastery?.[topic] || 0.1;
+
+    // BKT Parameters (Std defaults)
+    const P_G = 0.25; // Guess
+    const P_S = 0.1;  // Slip
+    const P_T = 0.1;  // Transit (Learning rate)
+
+    let posterior = 0;
+
+    if (isCorrect) {
+        // P(L|Correct) = (P(L) * (1 - P_S)) / (P(L)*(1-P_S) + (1-P(L))*P_G)
+        const num = prior * (1 - P_S);
+        const den = num + (1 - prior) * P_G;
+        posterior = num / den;
+    } else {
+        // P(L|Incorrect) = (P(L) * P_S) / (P(L)*P_S + (1-P(L))*(1-P_G))
+        const num = prior * P_S;
+        const den = num + (1 - prior) * (1 - P_G);
+        posterior = num / den;
+    }
+
+    // Update with Transit (Learning occurred during the step)
+    // P(L_new) = P(L_posterior) + (1 - P(L_posterior)) * P_T
+    const newMastery = posterior + (1 - posterior) * P_T;
+
+    // 4. Update State
+    const updatedMasteryMap = { ...(state?.mastery || {}), [topic]: newMastery };
+
+    await stateRef.set({
+        mastery: updatedMasteryMap,
+        lastUpdated: FieldValue.serverTimestamp(),
+        history: FieldValue.arrayUnion({
+            blockId,
+            score,
+            isCorrect,
+            timestamp: Date.now(),
+            prior,
+            posterior: newMastery
+        })
+    }, { merge: true });
+
+    // 5. Policy Engine: Decide Next Action
+    let action = 'continue';
+    let message = '';
+
+    if (newMastery > 0.95) {
+        action = 'mastered';
+        message = 'Topic Mastered! You are ready for the next challenge.';
+    } else if (newMastery < 0.2 && difficulty < 0.4) {
+        // Failure on easy content -> Needs intervention
+        action = 'remediate';
+        message = 'Let\'s review the basics.';
+    } else if (isCorrect && difficulty > 0.7) {
+        action = 'challenge';
+        message = 'Excellent! Moving to advanced topics.';
+    }
+
+    logger.info(`BKT Update for ${userId}: ${topic} ${prior.toFixed(2)} -> ${newMastery.toFixed(2)} [${action}]`);
+
+    return {
+        success: true,
+        mastery: newMastery,
+        action,
+        feedback: message
+    };
+});

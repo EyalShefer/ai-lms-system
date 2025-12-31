@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { generateClassAnalysis, generateStudentReport } from '../gemini';
 // type SubmissionData unused removed
-import { gradeBatch } from '../services/gradingService';
+// gradeBatch removed
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import type { StudentAnalyticsProfile } from '../courseTypes';
 
@@ -11,7 +11,7 @@ import {
     IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
     IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
     IconLink, IconCheck, IconStudent, IconList,
-    IconArrowUp, IconArrowDown, IconLoader, IconFlag
+    IconArrowUp, IconArrowDown, IconLoader, IconFlag, IconAlertTriangle
 } from '../icons';
 
 // --- Lazy Load CoursePlayer ---
@@ -68,6 +68,7 @@ interface CourseAggregation {
 interface TeacherDashboardProps {
     onEditCourse?: (courseId: string) => void;
     onViewInsights?: () => void;
+    onNavigateToAnalytics?: () => void; // New Prop
 }
 
 const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onClose: () => void }) => {
@@ -148,7 +149,7 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
     );
 };
 
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights }) => {
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights, onNavigateToAnalytics }) => {
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
     const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
@@ -195,7 +196,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     // Feedback State
     const [feedbackText, setFeedbackText] = useState("");
     const [isSavingFeedback, setIsSavingFeedback] = useState(false);
-    const [isGrading, setIsGrading] = useState<Record<string, boolean>>({}); // Loading state per courseId
+    // isGrading removed
     const [showOnlyAlerts, setShowOnlyAlerts] = useState(false); // New Filter State
 
     useEffect(() => {
@@ -517,11 +518,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     }, [currentCourseStudents]);
 
     // --- Helpers ---
-    const getScoreColor = (score: number) => {
-        if (score >= 85) return 'text-teal-500';
-        if (score >= 70) return 'text-yellow-600';
-        return 'text-red-500';
-    };
+    // getScoreColor removed
 
     // --- Handlers ---
     const handleClassAnalysis = async () => {
@@ -651,26 +648,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             <div className="max-w-7xl mx-auto space-y-8">
 
                 {/* 1. TOP BAR */}
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-4 z-30">
-                    <div className="flex flex-col xl:flex-row justify-between items-center gap-4">
+                {/* 1. TOP BAR */}
+                <header className="card-glass p-0 sticky top-4 z-40 overflow-hidden shadow-glass ring-1 ring-white/40">
+                    <div className="p-4 flex flex-col xl:flex-row justify-between items-center gap-4 bg-white/40">
 
                         {/* RIGHT SIDE (RTL Start) - Title Area */}
                         <div className="flex items-center gap-3 w-full xl:w-auto">
                             {selectedCourseId ? (
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight text-right line-clamp-1 max-w-[600px]" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
-                                        <span className="text-indigo-600 font-medium ml-1">
-                                            {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.type === 'test' ? 'מבחן:' : 'פעילות:'}
+                                <div className="flex items-center gap-3 animate-slide-in-right">
+                                    <h2 className="text-3xl font-black text-wizdi-royal tracking-tight text-right line-clamp-1 max-w-[600px] drop-shadow-sm" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
+                                        <span className="text-wizdi-cyan font-bold ml-2 text-lg uppercase tracking-wider bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100/50">
+                                            {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.type === 'test' ? 'מבחן' : 'פעילות'}
                                         </span>
                                         {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title || "קורס נבחר"}
                                     </h2>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-md shadow-indigo-200"><IconLayer className="w-6 h-6" /></div>
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-gradient-to-br from-wizdi-royal to-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-500/20 transform hover:scale-110 transition-transform duration-300">
+                                        <IconLayer className="w-8 h-8" />
+                                    </div>
                                     <div>
-                                        <h1 className="text-xl font-bold text-slate-800">המשימות שלי</h1>
-                                        <p className="text-xs text-slate-500">פורטל ניהול פדגוגי</p>
+                                        <h1 className="text-3xl font-black text-wizdi-royal tracking-tight">ניהול למידה</h1>
+                                        <div className="flex items-center gap-2 text-sm font-medium text-slate-500/80">
+                                            <span className="w-2 h-2 rounded-full bg-wizdi-lime animate-pulse"></span>
+                                            מערכת בזמן אמת
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -679,118 +682,180 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                         {/* LEFT SIDE (RTL End) - Actions / Filters */}
                         <div className="flex items-center gap-3 w-full xl:w-auto justify-end">
                             {selectedCourseId ? (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3 animate-fade-in">
                                     <button
                                         onClick={() => setDeleteConfirmation({ step: 'first', courseId: selectedCourseId })}
-                                        className="px-4 py-2 text-red-600 hover:bg-red-50 bg-white border border-red-100 rounded-xl transition-all font-bold flex items-center gap-2"
+                                        className="px-5 py-2.5 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-2xl transition-all font-bold flex items-center gap-2 text-sm border border-transparent hover:border-red-100"
                                         title="מחק פעילות/מבחן"
                                     >
-                                        <IconTrash className="w-5 h-5" /> מחיקה
+                                        <IconTrash className="w-5 h-5 opacity-70 group-hover:opacity-100" /> מחיקה
                                     </button>
                                     <button
                                         onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); setShowOnlyAlerts(false); }}
-                                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors flex items-center gap-2 font-bold shadow-sm border border-indigo-200"
+                                        className="btn-lip-primary px-6 py-2.5 text-sm flex items-center gap-2 shadow-lg shadow-blue-900/10"
                                     >
-                                        <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה ללוח המשימות
+                                        <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה ללוח
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-white/60 p-2 rounded-2xl border border-white shadow-sm backdrop-blur-md">
                                     {/* View Toggle */}
-                                    <div className="flex bg-slate-200 rounded-lg p-1 gap-1">
-                                        <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת כרטיסיות"><IconLayer className="w-4 h-4" /></button>
-                                        <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`} title="תצוגת רשימה"><IconList className="w-4 h-4" /></button>
-                                    </div>
-                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
-
-                                    {/* Type Filter */}
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                        <IconSparkles className="w-4 h-4 text-slate-400" />
-                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[100px] cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                                            <option value="all">כל הסוגים</option>
-                                            <option value="test">מבחנים</option>
-                                            <option value="activity">פעילויות</option>
-                                        </select>
+                                    <div className="flex bg-slate-100/80 rounded-xl p-1 gap-1">
+                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'grid' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת כרטיסיות"><IconLayer className="w-5 h-5" /></button>
+                                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'list' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת רשימה"><IconList className="w-5 h-5" /></button>
                                     </div>
 
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                        <IconBook className="w-4 h-4 text-slate-400" />
-                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
-                                            <option value="all">כל המקצועות</option>
-                                            {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
-                                        </select>
+                                    <div className="w-px h-8 bg-slate-200 mx-1"></div>
+
+                                    {/* Filters Group */}
+                                    <div className="flex gap-2">
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                <IconSparkles className="w-4 h-4" />
+                                            </div>
+                                            <select
+                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none"
+                                                value={filterType}
+                                                onChange={(e) => setFilterType(e.target.value)}
+                                            >
+                                                <option value="all">סוג: הכל</option>
+                                                <option value="test">מבחנים</option>
+                                                <option value="activity">פעילויות</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="relative group hidden md:block">
+                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                <IconBook className="w-4 h-4" />
+                                            </div>
+                                            <select
+                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-[150px]"
+                                                value={filterSubject}
+                                                onChange={(e) => setFilterSubject(e.target.value)}
+                                            >
+                                                <option value="all">מקצוע: הכל</option>
+                                                {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="relative group hidden md:block">
+                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                <IconLayer className="w-4 h-4" />
+                                            </div>
+                                            <select
+                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-[150px]"
+                                                value={filterGrade}
+                                                onChange={(e) => setFilterGrade(e.target.value)}
+                                            >
+                                                <option value="all">שכבה: הכל</option>
+                                                {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                        <IconLayer className="w-4 h-4 text-slate-400" />
-                                        <select className="bg-transparent border-none text-sm p-0 focus:ring-0 text-slate-700 font-medium min-w-[120px] cursor-pointer" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
-                                            <option value="all">כל השכבות</option>
-                                            {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
-                                        </select>
+
+                                    <div className="w-px h-8 bg-slate-200 mx-1 hidden md:block"></div>
+
+                                    <div className="relative flex-1 min-w-[180px]">
+                                        <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-3 group-focus-within:text-wizdi-royal transition-colors" />
+                                        <input
+                                            type="text"
+                                            placeholder="חיפוש..."
+                                            className="w-full pr-10 pl-4 py-2 bg-white/50 border border-transparent hover:bg-white hover:border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-wizdi-cyan/20 text-slate-700 font-medium transition-all placeholder:text-slate-400"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
                                     </div>
-                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                                    <div className="relative flex-1 min-w-[200px]">
-                                        <IconSearch className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-                                        <input type="text" placeholder="חיפוש כיתה..." className="w-full pr-9 pl-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                                    </div>
+
+                                    <div className="w-px h-8 bg-slate-200 mx-1"></div>
+
                                     <button
-                                        onClick={() => setShowOnlyAlerts(!showOnlyAlerts)}
-                                        className={`p-2 rounded-lg transition-colors border ${showOnlyAlerts ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500'}`}
-                                        title="הצג רק התראות אלימות/מצוקה"
+                                        onClick={onNavigateToAnalytics}
+                                        className="bg-gradient-to-r from-wizdi-royal to-blue-600 text-white border border-blue-500/20 px-5 py-2 rounded-2xl text-sm font-bold shadow-lg hover:shadow-indigo-500/30 flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+                                        title="Neural Dashboard"
                                     >
-                                        <IconFlag className="w-4 h-4" />
+                                        <IconBrain className="w-5 h-5" />
+                                        <span className="hidden lg:inline">תובנות AI</span>
                                     </button>
-                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
                                     <button
                                         onClick={onViewInsights}
-                                        className="bg-stone-900 border border-stone-700 hover:bg-black text-green-400 px-3 py-1.5 rounded-lg text-sm font-mono tracking-tighter shadow-sm flex items-center gap-2"
-                                        title="Wizdi-Monitor Dashboard"
+                                        className="bg-stone-900 hover:bg-black text-green-400 border border-stone-700/50 px-3 py-2 rounded-xl text-xs font-mono tracking-tight shadow-lg flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+                                        title="Wizdi Monitor"
                                     >
-                                        <IconSparkles className="w-4 h-4" /> Wizdi-Monitor
+                                        <IconSparkles className="w-4 h-4" />
+                                        <span className="hidden xl:inline">MONITOR</span>
                                     </button>
-                                    <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                                    <div className="w-px h-8 bg-slate-200 mx-1"></div>
                                     <ClassroomConnectButton />
                                 </div>
                             )}
                         </div>
                     </div>
-                </div>
+                </header>
 
                 {!selectedCourseId && (
-                    <div className="animate-fade-in">
+                    <div className="animate-fade-in relative z-10">
                         {aggregatedCourses.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-                                <IconBook className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                                <h3 className="text-xl font-bold text-slate-400">לא נמצאו כיתות</h3>
-                                <p className="text-slate-400 mb-4">נסה לשנות את הסינון או צור קורס חדש</p>
-                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="text-indigo-600 font-bold hover:underline">נקה סינונים</button>
+                            <div className="text-center py-24 bg-white/60 backdrop-blur-sm rounded-[3rem] border border-dashed border-slate-300/60 shadow-inner flex flex-col items-center justify-center gap-6 group">
+                                <div className="bg-slate-50 p-6 rounded-full group-hover:scale-110 transition-transform duration-500">
+                                    <IconBook className="w-20 h-20 text-slate-200 group-hover:text-wizdi-royal/30 transition-colors" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-400 mb-2">טרם נוצרו כיתות</h3>
+                                    <p className="text-slate-500/80 text-lg font-medium">זה הזמן ליצור את הפעילות הראשונה שלך!</p>
+                                </div>
+                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="text-wizdi-royal font-bold hover:underline bg-blue-50 px-4 py-2 rounded-xl text-sm">נקה סינונים</button>
                             </div>
                         ) : (
                             <>
                                 {viewMode === 'grid' ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                         {aggregatedCourses.map(c => (
                                             <div
                                                 key={c.courseId}
                                                 onClick={() => setSelectedCourseId(c.courseId)}
-                                                className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1 transition-all cursor-pointer group flex flex-col justify-between h-48 relative overflow-hidden"
+                                                className="card-glass p-0 cursor-pointer group flex flex-col h-[280px] relative overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 ring-1 ring-white/60 border-0"
                                             >
-                                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                                                {/* Header Color Splash */}
+                                                <div className={`h-32 p-6 relative overflow-hidden transition-colors duration-500
+                                                    ${c.type === 'test'
+                                                        ? 'bg-gradient-to-br from-indigo-900 to-indigo-800'
+                                                        : 'bg-gradient-to-br from-wizdi-royal to-blue-600'}
+                                                `}>
+                                                    {/* Background Pattern */}
+                                                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
+                                                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
-                                                {/* כפתורי פעולה */}
-                                                <div className="absolute top-4 left-4 flex gap-2 z-20">
+                                                    <div className="relative z-10 flex justify-between items-start">
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm
+                                                            ${c.type === 'test' ? 'bg-amber-400 text-amber-900 border-amber-300' : 'bg-wizdi-lime text-green-900 border-lime-300'}
+                                                        `}>
+                                                            {c.type === 'test' ? 'מבחן' : 'פעילות'}
+                                                        </span>
+                                                        <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                                            <IconArrowBack className="w-5 h-5 text-white rotate-180" />
+                                                        </div>
+                                                    </div>
+
+                                                    <h3 className="text-2xl font-black text-white mt-4 leading-tight line-clamp-2 drop-shadow-md">
+                                                        {c.title}
+                                                    </h3>
+                                                </div>
+
+                                                {/* Actions Overlay (Top Left) */}
+                                                <div className="absolute top-4 left-4 flex gap-2 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 transform -translate-y-2 group-hover:translate-y-0">
                                                     <button
                                                         onClick={(e) => handleEditClick(e, c.courseId)}
-                                                        className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                        className="p-2.5 bg-white text-wizdi-royal hover:bg-blue-50 rounded-xl shadow-lg hover:scale-110 transition-all"
                                                         title="ערוך שיעור"
                                                     >
                                                         <IconEdit className="w-4 h-4" />
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleCopyLink(e, c.courseId)}
-                                                        className="p-2 bg-white/80 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-full shadow-sm border border-slate-100 transition-all"
-                                                        title="העתק קישור לתלמיד"
+                                                        className="p-2.5 bg-wizdi-lime text-green-900 hover:bg-lime-400 rounded-xl shadow-lg hover:scale-110 transition-all font-bold"
+                                                        title="העתק קישור להגשה"
                                                     >
-                                                        {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-500" /> : <IconLink className="w-4 h-4" />}
+                                                        {copiedId === c.courseId ? <IconCheck className="w-4 h-4 text-green-700" /> : <IconLink className="w-4 h-4" />}
                                                     </button>
                                                     <button
                                                         onClick={(e) => {
@@ -803,50 +868,50 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                             });
                                                             setAssignmentModalOpen(true);
                                                         }}
-                                                        className="p-2 bg-white/80 hover:bg-green-50 text-slate-400 hover:text-green-600 rounded-full shadow-sm border border-slate-100 transition-all"
+                                                        className="p-2.5 bg-white text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-xl shadow-lg hover:scale-110 transition-all"
                                                         title="שייך ל-Google Classroom"
                                                     >
                                                         <IconBrandGoogle className="w-4 h-4" />
                                                     </button>
                                                 </div>
 
-                                                {/* Header: שם ופרטים */}
-                                                <div>
-                                                    <div className="flex items-start gap-2 mb-2 pl-24">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.subject}</span>
-                                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md whitespace-nowrap">{c.grade}</span>
-                                                    </div>
-                                                    <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors line-clamp-2 pl-24 leading-tight">{c.title}</h3>
-                                                </div>
-
-                                                {/* Body: הנתונים החדשים (ממוצע + אחוז השלמה) */}
-                                                <div className="flex justify-between items-center mt-6 px-2">
-                                                    <div className="text-center">
-                                                        <span className="text-xs font-bold text-slate-400 block mb-1">ממוצע כיתתי</span>
-                                                        <span className={`text-4xl font-black ${getScoreColor(c.avgScore)}`}>
-                                                            {c.avgScore || '-'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="w-px h-10 bg-slate-100"></div>
-                                                    <div className="text-center">
-                                                        <span className="text-xs font-bold text-slate-400 block mb-1">אחוז השלמה</span>
-                                                        <span className="text-4xl font-black text-slate-700">
-                                                            {c.completionRate}%
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Footer: התרעות */}
-                                                <div className="mt-auto pt-4">
-                                                    {c.atRiskCount > 0 ? (
-                                                        <div className="bg-red-50 text-red-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-red-100 animate-pulse">
-                                                            ⚠️ {c.atRiskCount} תלמידים דורשים התייחסות
+                                                {/* Body Content */}
+                                                <div className="p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-white to-blue-50/30">
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                                                            <span className="flex items-center gap-1"><IconBook className="w-3 h-3" /> {c.subject}</span>
+                                                            <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                            <span className="flex items-center gap-1"><IconStudent className="w-3 h-3" /> {c.grade}</span>
                                                         </div>
-                                                    ) : (
-                                                        <div className="bg-teal-50 text-teal-600 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 border border-teal-100">
-                                                            <IconCheck className="w-3 h-3" /> {c.studentCount} הגשות
+
+                                                        {/* Progress Bar */}
+                                                        <div className="space-y-1">
+                                                            <div className="flex justify-between text-xs font-bold">
+                                                                <span className="text-slate-600">התקדמות כיתתית</span>
+                                                                <span className="text-wizdi-royal">{c.completionRate}%</span>
+                                                            </div>
+                                                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all duration-1000 ease-out group-hover:brightness-110 ${c.completionRate > 80 ? 'bg-gradient-to-r from-teal-400 to-emerald-500' : 'bg-gradient-to-r from-wizdi-royal to-cyan-400'}`}
+                                                                    style={{ width: `${c.completionRate}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
-                                                    )}
+                                                    </div>
+
+                                                    <div className="pt-4 border-t border-slate-100 flex justify-between items-end">
+                                                        <div>
+                                                            <div className="text-3xl font-black text-slate-800">{c.studentCount}</div>
+                                                            <div className="text-xs text-slate-400 font-bold uppercase">תלמידים</div>
+                                                        </div>
+
+                                                        {c.atRiskCount > 0 && (
+                                                            <div className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg border border-red-100 animate-pulse">
+                                                                <IconAlertTriangle className="w-4 h-4" />
+                                                                <span className="text-xs font-black">{c.atRiskCount} בסיכון</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}

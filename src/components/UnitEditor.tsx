@@ -9,10 +9,26 @@ import {
     generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock
 } from '../gemini';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
-// import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
+import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
 import { SourceViewer } from './SourceViewer';
 import { uploadMediaFile } from '../firebaseUtils';
-import { MultimodalService } from '../services/multimodalService';
+import { MultimodalService } from '../services/multimodalService'; // Restore Import
+import {
+    enrichUnitBlocks, enrichActivityBlock
+} from '../services/adaptiveContentService';
+
+// ... (existing imports)
+
+// ... (inside UnitEditor component, after other handlers)
+
+
+
+// ... (render logic)
+
+// Add button in the toolbar (e.g., near Save / Preview)
+// Looking at the JSX (not fully visible but inferred placement near header actions)
+
+import { ElevenLabsService } from '../services/elevenLabs'; // Added
 import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
@@ -192,14 +208,46 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     ]
                 }));
 
-                // Extract settings from course wizard data
                 const settings = (course as any)?.wizardData?.settings || {};
                 const targetLength = settings.activityLength || 'medium';
                 const safeIncludeBot = settings.includeBot === true;
                 const sourceText = course?.fullBookContent || (course as any)?.wizardData?.pastedText || "";
+                const productType = settings.productType || 'lesson'; // Get Product Type
 
                 console.log("📚 Source Text Length:", sourceText?.length || 0);
 
+                // --- SPECIAL HANDLING FOR PODCAST ---
+                if (productType === 'podcast') {
+                    console.log("🎙️ Generating Podcast Activity...");
+                    const podcastBlock = {
+                        id: uuidv4(),
+                        type: 'podcast',
+                        content: {
+                            title: `פודקאסט: ${unit.title}`,
+                            description: "האזינו לפרק הבא וענו על השאלות.",
+                            // We will trigger script generation via AudioGenerator later or user action
+                        },
+                        metadata: {
+                            autoGenerate: true // Flag to trigger auto-generation in effect if needed
+                        }
+                    };
+
+                    setEditedUnit((prev: any) => ({
+                        ...prev,
+                        activityBlocks: [podcastBlock]
+                    }));
+
+                    // We can also trigger the actual script generation immediately if we have source text
+                    if (sourceText) {
+                        // Trigger script generation... (We'll rely on the user to click "Generate" or do it here)
+                        // For now, let's just leave the block so the user sees "Podcast"
+                    }
+
+                    setIsAutoGenerating(false);
+                    return;
+                }
+
+                // --- STANDARD SKELETON GENERATION ---
                 const skeleton = await generateUnitSkeleton(
                     unit.title,
                     gradeLevel,
@@ -291,8 +339,22 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             }
                             return { ...currentUnit, activityBlocks: currentBlocks };
                         });
-                    }
-                });
+
+                        // 🚀 BACKGROUND ENRICHMENT (Zero-Click)
+                        // This runs AFTER the block is rendered, so the user sees the content immediately.
+                        // Then, a few seconds later, the metadata (Bloom, Difficulty) silently updates.
+                        if (interactionBlock) {
+                            enrichActivityBlock(interactionBlock, unit.title).then(enrichedBlock => {
+                                console.log(`✨ Auto-Enriched block ${enrichedBlock.id}`);
+                                setEditedUnit((prev: any) => ({
+                                    ...prev,
+                                    activityBlocks: prev.activityBlocks.map((b: any) =>
+                                        b.id === enrichedBlock.id ? enrichedBlock : b
+                                    )
+                                }));
+                            }).catch(err => console.warn("Auto-enrichment failed", err));
+                        }
+                    });
 
                 await Promise.all(promises);
 
@@ -314,6 +376,23 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         };
         initContent();
     }, [unit.id]);
+
+    // --- Podcast Auto-Trigger ---
+    useEffect(() => {
+        const pendingPodcast = editedUnit.activityBlocks?.find((b: any) => b.type === 'podcast' && b.metadata?.autoGenerate);
+        if (pendingPodcast && !loadingBlockId) {
+            console.log("🎙️ Auto-triggering podcast generation for block:", pendingPodcast.id);
+
+            // 1. Visually lock immediately to prevent flicker
+            setLoadingBlockId(pendingPodcast.id);
+
+            // 2. Clear the flag to prevent infinite loops
+            updateBlock(pendingPodcast.id, pendingPodcast.content, { autoGenerate: false });
+
+            // 3. Trigger generation
+            handleGeneratePodcastBlock(pendingPodcast.id);
+        }
+    }, [editedUnit.activityBlocks, loadingBlockId]);
 
     const handleSaveWithFeedback = async () => {
         setIsSaving(true);
@@ -422,9 +501,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 : type === 'categorization' ? { question: 'מיינו לקטגוריות...', categories: ['קטגוריה 1', 'קטגוריה 2'], items: [{ text: 'פריט 1', category: 'קטגוריה 1' }] }
                                     : type === 'memory_game' ? { pairs: [{ card_a: 'חתול', card_b: 'Cat' }, { card_a: 'כלב', card_b: 'Dog' }] }
                                         : type === 'true_false_speed' ? { statement: 'השמיים כחולים', answer: true }
-                                            : type === 'podcast' ? { title: 'פודקאסט AI', audioUrl: null, script: null }
-                                                : type === 'audio-response' ? { question: 'הקליטו את תשובתכם:', description: 'לחצו על ההקלטה כדי לענות', maxDuration: 60 }
-                                                    : '',
+                                            : type === 'true_false_speed' ? { statement: 'השמיים כחולים', answer: true }
+                                                : type === 'podcast' ? { title: 'פודקאסט AI', audioUrl: null, script: null, description: 'פרק האזנה' }
+                                                    : type === 'audio-response' ? { question: 'הקליטו את תשובתכם:', description: 'לחצו על ההקלטה כדי לענות', maxDuration: 60 }
+                                                        : '',
             metadata: {
                 score: 0,
                 systemPrompt: safeSystemPrompt,
@@ -495,14 +575,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 const userTopic = prompt("נראה שאין מספיק תוכן ליצירת שאלה. על מה תרצו שהשאלה תהיה?");
                 if (!userTopic) return;
                 // We'll proceed with the topic as source
-                const result = await generateSingleOpenQuestion(editedUnit.title, userTopic);
-                if (result) updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
+                const result = await generateSingleOpenQuestion(editedUnit.title, gradeLevel, {}, userTopic);
+                if (result) updateBlock(blockId, { question: result.content.question }, { modelAnswer: result.metadata.modelAnswer });
                 return;
             }
 
-            const result = await generateSingleOpenQuestion(editedUnit.title, sourceText);
+            const result = await generateSingleOpenQuestion(editedUnit.title, gradeLevel, {}, sourceText);
             if (result) {
-                updateBlock(blockId, { question: result.question }, { modelAnswer: result.modelAnswer });
+                updateBlock(blockId, { question: result.content.question }, { modelAnswer: result.metadata.modelAnswer });
             } else {
                 alert("אירעה שגיאה ביצירת השאלה. אנא נסו שוב.");
             }
@@ -524,14 +604,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             if (!sourceText || sourceText.length < 10) {
                 const userTopic = prompt("נראה שאין מספיק תוכן ליצירת שאלה. על מה תרצו שהשאלה תהיה?");
                 if (!userTopic) return;
-                const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, userTopic);
-                if (result) updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer });
+                const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, userTopic);
+                if (result) updateBlock(blockId, { question: result.content.question, options: result.content.options, correctAnswer: result.content.correctAnswer });
                 return;
             }
 
-            const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, sourceText);
+            const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, sourceText);
             if (result) {
-                updateBlock(blockId, { question: result.question, options: result.options, correctAnswer: result.correctAnswer });
+                updateBlock(blockId, { question: result.content.question, options: result.content.options, correctAnswer: result.content.correctAnswer });
             } else {
                 alert("אירעה שגיאה ביצירת השאלה. אנא נסו שוב.");
             }
@@ -577,57 +657,131 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     };
 
     // --- שדרוג: יצירת פודקאסט עבור בלוק ספציפי ---
-    // --- שדרוג: יצירת פודקאסט עבור בלוק ספציפי ---
     const handleGeneratePodcastBlock = async (blockId: string) => {
-        if (!AudioGenerator.isConfigured()) {
-            alert("חסר מפתח API של גוגל (VITE_GOOGLE_API_KEY). לא ניתן ליצור פודקאסט.");
+        if (!ElevenLabsService.isConfigured()) {
+            alert("נדרש מפתח API של ElevenLabs בקובץ .env לצורך יצירת פודקאסט.");
             return;
         }
 
-        // Determine source text based on mode
-        const mode = podcastSourceMode[blockId] || 'full';
-        let sourceText = "";
-
-        if (mode === 'custom') {
-            sourceText = podcastCustomText[blockId] || "";
-            if (!sourceText || sourceText.length < 50) {
-                alert("אנא הזינו טקסט באורך של לפחות 50 תווים.");
-                return;
-            }
-        } else {
-            sourceText = course.fullBookContent || "";
-            if (!sourceText || sourceText.length < 50) {
-                alert("אין מספיק תוכן מקור ליצירת פודקאסט.");
-                return;
-            }
-        }
-
-        // setIsGeneratingPodcast(true);
         setLoadingBlockId(blockId);
-        try {
-            const script = await AudioGenerator.generateScript({
-                sourceText: sourceText.substring(0, 15000), // Safety Cap
-                targetAudience: "Student",
-                language: "he",
-                focusTopic: editedUnit.title
-            });
 
-            if (script) {
-                updateBlock(blockId, {
-                    title: "פודקאסט לסיכום היחידה",
-                    script: script,
-                    audioUrl: null // No audio yet
-                });
-                // Reset custom text state after successful generation to clean up UI? 
-                // No, keep it so user can see what they used or regenerate.
+        // IMMEDIATE FEEDBACK: Update the block to show it's working
+        // currently we can't easily use setEditedUnit inside this if called from effect? 
+        // We can, but need to be careful.
+        // Let's use updateBlock which updates state safely.
+        updateBlock(blockId, {
+            title: "מייצר פודקאסט...",
+            script: null,
+            audioUrl: null,
+            description: "⏳ המערכת מייצרת תסריט לפודקאסט... אנא המתן (פעולה זו עשויה לקחת כדקה)"
+        });
+
+        try {
+            const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+            const mode = podcastSourceMode[blockId] || 'full';
+            let sourceText = "";
+
+            if (mode === 'custom') {
+                sourceText = podcastCustomText[blockId] || "";
+                if (!sourceText || sourceText.length < 50) {
+                    alert("אנא הזינו טקסט באורך של לפחות 50 תווים.");
+                    return;
+                }
             } else {
-                alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
+                sourceText = course.fullBookContent || "";
+
+                // FALLBACK: If no course source, aggregate text from the unit's text blocks
+                if (!sourceText || sourceText.length < 50) {
+                    sourceText = editedUnit.activityBlocks
+                        .filter((b: any) => b.type === 'text' && typeof b.content === 'string')
+                        .map((b: any) => b.content)
+                        .join('\n\n');
+                }
+
+                if (!sourceText || sourceText.length < 50) {
+                    alert("אין מספיק תוכן ליצירת פודקאסט.\n\nהמערכת מחפשת תוכן מקור של הקורס, או בלוקים של טקסט ביחידה הנוכחית.\nאנא הוסף תוכן טקסט ליחידה או השתמש באפשרות 'טקסט מותאם'.");
+                    return;
+                }
             }
-        } catch (error) {
-            console.error(error);
-            alert("שגיאה");
-        } finally {
-            // setIsGeneratingPodcast(false);
+
+            // setIsGeneratingPodcast(true);
+            setLoadingBlockId(blockId);
+            console.log("🎙️ Starting Podcast Generation for Grade:", gradeLevel);
+
+            try {
+                const script = await AudioGenerator.generateScript({
+                    sourceText: sourceText.substring(0, 15000), // Safety Cap
+                    targetAudience: gradeLevel || "Student", // PEDAGOGY FIX: Pass the actual grade level
+                    language: "he",
+                    focusTopic: editedUnit.title
+                });
+
+                if (script) {
+                    // 1. Update the Podcast Block with the script
+                    const updatedPodcastBlock = {
+                        ...editedUnit.activityBlocks.find(b => b.id === blockId),
+                        content: {
+                            title: "פודקאסט לסיכום היחידה",
+                            description: "האזינו לשיחה המרתקת בין המנחים וענו על השאלות שאחרי.",
+                            script: script,
+                            audioUrl: null
+                        },
+                        metadata: { autoGenerate: false }
+                    };
+
+                    // 2. Generate Follow-up Questions (Assessment)
+                    // We'll use the script itself as the source for the questions!
+                    const scriptText = script.lines.map(l => `${l.speaker}: ${l.text}`).join('\n');
+
+                    // A. Multiple Choice
+                    const mcqBlock = await generateSingleMultipleChoiceQuestion(
+                        editedUnit.title,
+                        gradeLevel,
+                        [],
+                        scriptText
+                    );
+
+                    // B. Open Question
+                    const openBlock = await generateSingleOpenQuestion(
+                        editedUnit.title,
+                        gradeLevel,
+                        [],
+                        scriptText
+                    );
+
+                    // 3. Update State with ALL new blocks
+                    setEditedUnit(prev => {
+                        const newBlocks = [...prev.activityBlocks];
+                        const podcastIndex = newBlocks.findIndex(b => b.id === blockId);
+
+                        if (podcastIndex !== -1) {
+                            newBlocks[podcastIndex] = updatedPodcastBlock;
+
+                            // Insert questions AFTER the podcast
+                            if (mcqBlock) {
+                                mcqBlock.id = uuidv4(); // Ensure unique
+                                newBlocks.splice(podcastIndex + 1, 0, mcqBlock);
+                            }
+                            if (openBlock) {
+                                openBlock.id = uuidv4(); // Ensure unique
+                                newBlocks.splice(podcastIndex + 2, 0, openBlock);
+                            }
+                        }
+                        return { ...prev, activityBlocks: newBlocks };
+                    });
+
+                } else {
+                    alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
+                }
+            } catch (error) {
+                console.error(error);
+                alert("שגיאה");
+            } finally {
+                setLoadingBlockId(null);
+            }
+        } catch (e: any) {
+            console.error("Outer error in podcast generation:", e);
+            alert("שגיאה כללית ביצירת הפודקאסט");
             setLoadingBlockId(null);
         }
     };
@@ -660,6 +814,25 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             alert("שגיאה ביצירת התמונה. נסה שוב.");
         } finally {
             setLoadingBlockId(null);
+        }
+    };
+
+    const handleEnrichUnit = async () => {
+        if (!confirm("פעולה זו תשדרג את כל השאלות ביחידה עם מטא-דאטה אדפטיבי (Tags, Difficulty, Bloom). להמשיך?")) return;
+
+        setIsAutoGenerating(true);
+        try {
+            console.log("🚀 Starting Adaptive Batch Enrichment...");
+            const currentBlocks = [...editedUnit.activityBlocks];
+            const enrichedBlocks = await enrichUnitBlocks(currentBlocks, unit.title);
+
+            setEditedUnit(prev => ({ ...prev, activityBlocks: enrichedBlocks }));
+            alert("✅ היחידה שודרגה בהצלחה! השאלות כעת 'חכמות'.");
+        } catch (e) {
+            console.error("Enrichment error", e);
+            alert("שגיאה בתהליך ההעשרה.");
+        } finally {
+            setIsAutoGenerating(false);
         }
     };
 
@@ -923,10 +1096,18 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     {showScoring && (<button onClick={handleAutoDistributePoints} className="px-4 py-2 bg-yellow-100/80 hover:bg-yellow-200 text-yellow-800 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border border-yellow-200"><IconBalance className="w-4 h-4" />חלק ניקוד</button>)}
 
                     <button
+                        onClick={handleEnrichUnit}
+                        disabled={isAutoGenerating}
+                        className="px-4 py-2 bg-gradient-to-r from-violet-100 to-purple-100 text-purple-700 hover:from-violet-200 hover:to-purple-200 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2 border border-purple-200 disabled:opacity-50"
+                    >
+                        <IconSparkles className="w-4 h-4 text-purple-600" /> העשרה אדפטיבית (AI)
+                    </button>
+
+                    <button
                         onClick={() => setInspectorMode(!inspectorMode)}
                         className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border ${inspectorMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50'}`}
                     >
-                        {inspectorMode ? <IconCheck className="w-4 h-4" /> : <IconSparkles className="w-4 h-4" />} Wizdi-Monitor
+                        {inspectorMode ? <IconCheck className="w-4 h-4" /> : <IconBrain className="w-4 h-4" />} Wizdi-Monitor
                     </button>
 
                     <button onClick={handleBack} className="px-5 py-2 rounded-xl text-gray-600 hover:bg-white/50 font-medium transition-colors flex items-center gap-2">
@@ -1150,10 +1331,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                                                             log("Block updated. Finished.");
                                                                             setLoadingBlockId(null);
-                                                                            // Keeps the debug box open
-                                                                        }} className="bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold flex items-center gap-2 self-end">
-                                                                            {loadingBlockId === block.id ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : null}
-                                                                            הטמע וידאו (DEBUG)
+                                                                            setMediaInputMode({ ...mediaInputMode, [block.id]: null });
+                                                                            setMediaInputValue({ ...mediaInputValue, [block.id]: '' });
+
+                                                                        }} className="bg-red-600 text-white text-xs font-bold px-4 py-2 rounded shadow hover:bg-red-700 transition-colors">
+                                                                            אישור והטמעה
                                                                         </button>
 
                                                                         <div id={`debug-${block.id}`} className="text-[10px] font-mono bg-black text-green-400 p-2 rounded h-32 overflow-y-auto w-full text-left ltr border border-gray-700 shadow-inner">
@@ -1215,45 +1397,28 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     </div>
 
                                                     {block.content.script ? (
-                                                        <div className="space-y-4 animate-fade-in">
-                                                            <div className="bg-white/80 backdrop-blur rounded-xl p-4 border border-indigo-100 max-h-60 overflow-y-auto">
-                                                                <div className="flex justify-between items-center mb-2 sticky top-0 bg-white/95 pb-2 border-b border-indigo-50 backdrop-blur z-10">
-                                                                    <span className="text-xs font-bold text-gray-500 uppercase">תסריט השיחה</span>
-                                                                    <button onClick={() => updateBlock(block.id, { ...block.content, script: null, audioUrl: null })} className="text-xs text-red-400 hover:text-red-600 underline">חדש פודקאסט</button>
-                                                                </div>
-                                                                <div className="space-y-3 text-sm">
-                                                                    {block.content.script.map((line: any, idx: number) => (
-                                                                        <div key={idx} className={`flex flex-col ${line.speaker.includes('Host') ? 'items-start' : 'items-end'}`}>
-                                                                            <span className="text-[10px] font-bold text-gray-400 mb-0.5 px-1">{line.speaker}</span>
-                                                                            <div className={`p-2.5 rounded-2xl max-w-[90%] ${line.speaker.includes('Host') ? 'bg-indigo-50 text-indigo-900 rounded-tl-none' : 'bg-purple-50 text-purple-900 rounded-tr-none'}`}>
-                                                                                {line.text}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                            {/* Audio Player Placeholder (Until Real TTS is linked) */}
-                                                            {block.content.audioUrl ? (
-                                                                <audio src={block.content.audioUrl} controls className="w-full h-10 mt-2" />
-                                                            ) : (
-                                                                <div className="bg-black/5 rounded-lg p-3 text-center text-xs text-gray-500 font-mono">
-                                                                    ממתין להמרת שמע (TTS)...
-                                                                </div>
-                                                            )}
+                                                        <div className="animate-fade-in w-full max-w-2xl mx-auto">
+                                                            <PodcastPlayer
+                                                                script={block.content.script}
+                                                                title={block.content.title}
+                                                            // Future: Handle onAudioGenerated to persist blobs?
+                                                            />
                                                         </div>
                                                     ) : (
                                                         <div className="text-center py-8">
                                                             {/* Source Selection Toggle */}
                                                             <div className="inline-flex bg-white p-1 rounded-xl shadow-sm border border-indigo-100 mb-6">
                                                                 <button
-                                                                    onClick={() => setPodcastSourceMode(prev => ({ ...prev, [block.id]: 'full' }))}
+                                                                    onClick={() => setPodcastSourceMode((prev: any) => ({ ...prev, [block.id]: 'full' }))}
                                                                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${(!podcastSourceMode[block.id] || podcastSourceMode[block.id] === 'full') ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                                                                    disabled={loadingBlockId === block.id}
                                                                 >
                                                                     <IconBook className="w-4 h-4" /> כל היחידה
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => setPodcastSourceMode(prev => ({ ...prev, [block.id]: 'custom' }))}
+                                                                    onClick={() => setPodcastSourceMode((prev: any) => ({ ...prev, [block.id]: 'custom' }))}
                                                                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${podcastSourceMode[block.id] === 'custom' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                                                                    disabled={loadingBlockId === block.id}
                                                                 >
                                                                     <IconEdit className="w-4 h-4" /> טקסט מותאם
                                                                 </button>
@@ -1264,25 +1429,38 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                                 <div className="mb-6 animate-scale-in">
                                                                     <textarea
                                                                         value={podcastCustomText[block.id] || ''}
-                                                                        onChange={(e) => setPodcastCustomText(prev => ({ ...prev, [block.id]: e.target.value }))}
+                                                                        onChange={(e) => setPodcastCustomText((prev: any) => ({ ...prev, [block.id]: e.target.value }))}
                                                                         placeholder="הדביקו כאן את הטקסט עליו יבוסס הפודקאסט..."
                                                                         className="w-full p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 min-h-[120px] text-sm bg-white/50 focus:bg-white transition-colors"
+                                                                        disabled={loadingBlockId === block.id}
                                                                     />
                                                                     <p className="text-right text-xs text-gray-400 mt-1">מינימום 50 תווים</p>
                                                                 </div>
                                                             )}
 
-                                                            <button
-                                                                onClick={() => handleGeneratePodcastBlock(block.id)}
-                                                                disabled={loadingBlockId === block.id}
-                                                                className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2 mx-auto"
-                                                            >
-                                                                {loadingBlockId === block.id ? <IconLoader className="w-5 h-5 animate-spin" /> : <IconSparkles className="w-5 h-5" />}
-                                                                צור פודקאסט עכשיו
-                                                            </button>
-                                                            <p className="text-xs text-indigo-400 mt-3 max-w-xs mx-auto">
-                                                                המערכת תנתח את {(!podcastSourceMode[block.id] || podcastSourceMode[block.id] === 'full') ? 'כל תוכן היחידה' : 'הטקסט שהזנתם'} ותפיק תסריט שיחה מרתק בין שני מנחים.
-                                                            </p>
+                                                            {/* LOADING STATE vs ACTION STATE */}
+                                                            {loadingBlockId === block.id ? (
+                                                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 flex flex-col items-center animate-pulse">
+                                                                    <IconLoader className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
+                                                                    <h4 className="text-indigo-800 font-bold mb-1">אנחנו על זה!</h4>
+                                                                    <p className="text-indigo-600 text-sm">
+                                                                        {block.content.description || "המערכת מייצרת תסריט לפודקאסט... אנא המתן."}
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleGeneratePodcastBlock(block.id)}
+                                                                        className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all flex items-center gap-2 mx-auto"
+                                                                    >
+                                                                        <IconSparkles className="w-5 h-5" />
+                                                                        צור פודקאסט עכשיו
+                                                                    </button>
+                                                                    <p className="text-xs text-indigo-400 mt-3 max-w-xs mx-auto">
+                                                                        המערכת תנתח את {(!podcastSourceMode[block.id] || podcastSourceMode[block.id] === 'full') ? 'כל תוכן היחידה' : 'הטקסט שהזנתם'} ותפיק תסריט שיחה מרתק בין שני מנחים.
+                                                                    </p>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>

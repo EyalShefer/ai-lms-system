@@ -26,7 +26,9 @@ import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
 import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
 import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { GamificationService } from '../services/telemetry';
+
 import { useSound } from '../hooks/useSound';
+import { FeedbackWidget } from './FeedbackWidget'; // NEW: Feedback Loop
 
 // Helper to safely extract text from option (string or object)
 const getAnswerText = (val: any): string => {
@@ -769,9 +771,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 // @ts-ignore - Content type is union, TS needs help
                                 if (ans === block.content.correctAnswer) totalScoreObtained += weight;
                             }
-                            else if (block.type === 'cloze') {
+                            else if (block.type === 'fill_in_blanks') {
                                 // @ts-ignore
-                                if (ans && ans === block.content.correctAnswer) totalScoreObtained += weight;
+                                if (ans && ans.score !== undefined) totalScoreObtained += (ans.score / 100) * weight;
                             }
                             // Ordering/Categorization: complex to Grade
                             // Fallback: If they answered *something*, give 0 until teacher grades.
@@ -1078,50 +1080,28 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
             case 'podcast':
                 return (
-                    <div key={block.id} className="mb-8 glass bg-purple-50/50 p-6 rounded-2xl border border-purple-100/60 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="bg-purple-100 p-2 rounded-lg text-purple-600">
-                                <IconHeadphones className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800">{block.content.title || "פודקאסט לסיכום היחידה"}</h3>
-                                <div className="text-xs text-purple-600 font-bold">Wizdi Audio Overview 🎧</div>
-                            </div>
-                        </div>
-
-                        {/* Podcast Player (Mock for now, would be real audio tag) */}
-                        <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm mb-4">
-                            <div className="flex items-center gap-4">
-                                <button className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-700 hover:scale-105 transition-all">
-                                    <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
-                                </button>
-                                <div className="flex-1">
-                                    <div className="h-2 bg-purple-100 rounded-full overflow-hidden cursor-pointer">
-                                        <div className="h-full w-1/3 bg-purple-500 rounded-full relative">
-                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-purple-600 rounded-full shadow-sm"></div>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-xs text-gray-400 mt-2 font-mono">
-                                        <span>02:14</span>
-                                        <span>05:30</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* PODCAST TRIGGER REMOVED FROM HERE */}
-
-                        {/* SPLIT VIEW TRIGGER */}
-                        {block.content.script && (
-                            <div className="bg-white/80 rounded-xl border border-purple-50 p-4 max-h-64 overflow-y-auto custom-scrollbar space-y-3">
-                                {block.content.script.map((line: any, idx: number) => (
-                                    <div key={idx} className={`flex flex-col ${line.speaker.includes('Host') ? 'items-start' : 'items-end'}`}>
-                                        <div className={`p-3 rounded-2xl max-w-[90%] text-sm leading-relaxed ${line.speaker.includes('Host') ? 'bg-purple-50 text-purple-900 rounded-tl-none' : 'bg-indigo-50 text-indigo-900 rounded-tr-none'}`}>
-                                            <span className="font-bold text-[10px] block opacity-50 mb-1">{line.speaker}</span>
-                                            {line.text}
-                                        </div>
-                                    </div>
-                                ))}
+                    <div key={block.id} className="mb-0">
+                        {/* Removing extra glass container since PodcastPlayer has its own style, 
+                             or keeping it minimal. Let's use the PodcastPlayer directly. */}
+                        <PodcastPlayer
+                            title={block.content.title || "פודקאסט לסיכום היחידה"}
+                            script={block.content.script || null}
+                            initialAudioUrl={block.content.audioUrl} // Correct prop name
+                            onAudioGenerated={(url: string) => {
+                                // Optional: Update block logic if we want to persist
+                                handleAnswerSelect(block.id, { audioUrl: url });
+                            }}
+                        />
+                        {/* Feedback Loop Widget */}
+                        {!isExamMode && (
+                            <div className="flex justify-start mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
                             </div>
                         )}
                     </div>
@@ -1161,6 +1141,19 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                         {/* Progressive Hints Section - Handled internally by QuizBlock now */}
                         {/* renderProgressiveHints(block) - Removed to avoid duplication */}
+
+                        {/* Feedback Loop Widget */}
+                        {userAnswers[block.id] && !isExamMode && (
+                            <div className="flex justify-start mt-2">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
                     </div>
                 );
             case 'open-question':
@@ -1280,6 +1273,19 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                         {/* Progressive Hints for Open Question */}
                         {renderProgressiveHints(block)}
+
+                        {/* Feedback Loop Widget (Only if answered) */}
+                        {userAnswers[block.id] && !isExamMode && (
+                            <div className="flex justify-start mt-4 border-t border-indigo-100 pt-2">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
                     </div>
                 );
             case 'fill_in_blanks': {
@@ -1294,7 +1300,21 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
+
+
                         <ClozeQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
+                        {/* Feedback Loop Widget */}
+                        {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
+                            <div className="flex justify-center mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1310,7 +1330,21 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
+
+
                         <OrderingQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
+                        {/* Feedback Loop Widget */}
+                        {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
+                            <div className="flex justify-center mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1337,7 +1371,20 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 }
                             </div>
                         )}
+
                         <CategorizationQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
+                        {/* Feedback Loop Widget */}
+                        {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
+                            <div className="flex justify-center mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
                     </div>
                 );
             }

@@ -107,9 +107,9 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
     };
 
     return (
-        <div className="max-w-xl mx-auto p-6 bg-white rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-xl font-bold mb-2 text-gray-800">סידור לפי סדר</h3>
-            <p className="text-gray-600 mb-6">{instruction}</p>
+        <div className="w-full mx-auto">
+            <h3 className="text-3xl font-black mb-4 text-white text-center drop-shadow-sm">סידור לפי סדר</h3>
+            <p className="text-lg text-white/90 mb-8 text-center font-medium">{instruction}</p>
 
             <div className="space-y-3 mb-8">
                 {items.map((item, index) => (

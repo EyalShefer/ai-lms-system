@@ -138,9 +138,10 @@ export interface MediaBlock extends ActivityBlockBase {
 
 // Complex / Legacy Blocks
 export interface GenericBlock extends ActivityBlockBase {
-    type: 'interactive-chat' | 'memory_game' | 'fill_in_blanks';
+    type: 'interactive-chat' | 'memory_game' | 'fill_in_blanks' | 'true_false_speed';
     content: any;
 }
+
 
 export interface PodcastBlock extends ActivityBlockBase {
     type: 'podcast';

@@ -1685,56 +1685,7 @@ export const generateImagePromptBlock = async (context: string) => {
   } catch (e) { return "Educational illustration"; }
 };
 
-export const generateSingleOpenQuestion = async (context: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${context}"`;
-  try {
-    const res = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: [{
-        role: "user", content: `Create 1 challenging open - ended question.
-      ${grounding}
-    Language: Hebrew.
-      JSON format(Strictly follow syntax): {
-      "question": "The question string (must be at least 10 chars)",
-        "modelAnswer": "Detailed answer in Hebrew."
-    } ` }],
-      response_format: { type: "json_object" }
-    });
-    const result = JSON.parse(res.choices[0].message.content || "{}");
-    if (!result.question || result.question.length < 2) return null; // Validation
-    return result;
-  } catch (e) { return null; }
-};
 
-export const generateSingleMultipleChoiceQuestion = async (context: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${context}"`;
-  try {
-    const res = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: [{
-        role: "user", content: `Create 1 multiple - choice question.
-      ${grounding}
-    Language: Hebrew.
-      JSON format(Strictly follow syntax): { "question": "Question string", "options": ["Option 1", "Option 2", "Option 3", "Option 4"], "correctAnswer": "Option 1" } ` }],
-      response_format: { type: "json_object" }
-    });
-    const text = res.choices[0].message.content || "{}";
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = JSON.parse(cleanJsonString(text));
-    }
-
-    // Validate and fix structure if needed
-    if (!parsed.question || parsed.question.length < 2) return null; // Validation: Must have question
-    if (!parsed.options || !Array.isArray(parsed.options) || parsed.options.length < 2) {
-      console.warn("MC Generation failed validation: Not enough options");
-      return null;
-    }
-    return parsed;
-  } catch (e) { return null; }
-};
 
 // ==========================================
 // NEW GENERATORS (Categorization, Ordering, etc.)
@@ -2035,6 +1986,113 @@ export const generateClassAnalysis = async (students: any[]) => {
     return JSON.parse(text);
   } catch (e) {
     console.error("Class Analysis Error:", e);
+    return null;
+  }
+};
+
+// --- PODCAST FOLLOW-UP GENERATORS (Single Block) ---
+
+export const generateSingleMultipleChoiceQuestion = async (
+  topic: string,
+  gradeLevel: string,
+  taxonomy: any,
+  sourceText: string
+): Promise<any | null> => {
+  const prompt = `
+    Based on the following text (Podcast Script), create a single Multiple Choice Question.
+    
+    TEXT:
+    """${sourceText.substring(0, 5000)}"""
+
+    Target Audience: ${gradeLevel}.
+    Language: Hebrew.
+    
+    Goal: Test understanding of the core message.
+    
+    OUTPUT JSON:
+    {
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct_answer": "Option A"
+    }
+  `;
+
+  try {
+    const res = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+    const parsed = JSON.parse(res.choices[0].message.content || "{}");
+
+    if (!parsed.question || !parsed.options || !parsed.correct_answer) return null;
+
+    return {
+      id: uuidv4(),
+      type: 'multiple-choice',
+      content: {
+        question: parsed.question,
+        options: parsed.options,
+        correctAnswer: parsed.correct_answer
+      },
+      metadata: {
+        score: 10,
+        difficulty: 1
+      }
+    };
+  } catch (e) {
+    console.error("Single MCQ Gen Error:", e);
+    return null;
+  }
+};
+
+export const generateSingleOpenQuestion = async (
+  topic: string,
+  gradeLevel: string,
+  taxonomy: any,
+  sourceText: string
+): Promise<any | null> => {
+  const prompt = `
+    Based on the following text (Podcast Script), create a single Open-Ended Question.
+    
+    TEXT:
+    """${sourceText.substring(0, 5000)}"""
+
+    Target Audience: ${gradeLevel}.
+    Language: Hebrew.
+    
+    Goal: Encourage deep thinking or opinion.
+    
+    OUTPUT JSON:
+    {
+      "question": "The open question text",
+      "model_answer": "A model answer or key points to look for."
+    }
+  `;
+
+  try {
+    const res = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+    const parsed = JSON.parse(res.choices[0].message.content || "{}");
+
+    if (!parsed.question) return null;
+
+    return {
+      id: uuidv4(),
+      type: 'open-question',
+      content: {
+        question: parsed.question
+      },
+      metadata: {
+        score: 20,
+        modelAnswer: parsed.model_answer || "תשובה פתוחה לשיקול דעת המורה."
+      }
+    };
+  } catch (e) {
+    console.error("Single Open Gen Error:", e);
     return null;
   }
 };

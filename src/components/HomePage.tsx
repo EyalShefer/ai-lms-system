@@ -1,9 +1,9 @@
-import React from 'react';
+
 import { useAuth } from '../context/AuthContext';
 import {
-    IconBook, IconList, IconSparkles, IconUpload,
-    IconChart, IconRobot, IconBack, IconSearch, // שיניתי כאן ל-IconBack
-    IconCheck, IconLayer, IconStudent, IconWand, IconConstruction
+    IconList, IconSparkles,
+    IconChart, IconBack, // שיניתי כאן ל-IconBack
+    IconStudent, IconConstruction
 } from '../icons';
 
 const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void }) => {
@@ -70,12 +70,12 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                                 <span className="bg-white/20 text-xs px-2 py-1 rounded-lg border border-white/30 backdrop-blur-md">מומלץ להתחלה</span>
                             </div>
 
-                            <h2 className="text-3xl font-black mb-3 leading-tight">
-                                יצירת פעילות <br /> חדשה <span className="animate-wiggle inline-block">🪄</span>
+                            <h2 className="text-4xl font-black mb-3 leading-tight">
+                                יצירת תוכן <br /> חדש <span className="animate-wiggle inline-block">🪄</span>
                             </h2>
 
-                            <p className="text-blue-100 text-md opacity-90 leading-relaxed font-medium">
-                                הגדירו נושא או העלו טקסטים, קבצים וסרטונים. המערכת תבנה עבורכם יחידת לימוד הכוללת סוכן הוראה אישי, תוכן עשיר ותרגול פעיל.
+                            <p className="text-blue-100 text-lg opacity-90 leading-relaxed font-medium">
+                                התחילו בבחירת נושא, קובץ או סרטון. המערכת תאפשר לכם ליצור <strong>שיעור אינטראקטיבי, פודקאסט AI, או משחקוני תרגול</strong> עשירים בתוך שניות.
                             </p>
                         </div>
 
@@ -98,11 +98,11 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                                     <IconList className="w-8 h-8 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black leading-tight text-wizdi-royal">יצירת מבחן <br /> והערכה אוטומטית</h3>
+                                    <h3 className="text-3xl font-black leading-tight text-wizdi-royal">יצירת מבחן <br /> והערכה אוטומטית</h3>
                                 </div>
                             </div>
-                            <p className="text-wizdi-royal text-md opacity-90 leading-relaxed font-medium pl-2">
-                                הפכו חומרי לימוד למבחני ידע, שאלונים ומטלות סיכום. המערכת תבדוק עבורכם את התשובות, תעניק ציונים ותציג תמונת מצב כיתתית בזמן אמת.
+                            <p className="text-wizdi-royal text-lg opacity-90 leading-relaxed font-medium pl-2">
+                                הזינו חומר לימוד ובחרו באפשרות <b>'מבחן'</b> באשף היצירה. המערכת תבנה שאלון הערכה מלא, תבדוק תשובות, ותנהל ציונים באופן אוטומטי.
                             </p>
                         </div>
 
@@ -119,14 +119,14 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                 >
                     <div className="absolute left-0 bottom-0 w-20 h-20 bg-wizdi-cyan rounded-tr-full opacity-30 pointer-events-none"></div>
                     <div className="relative z-10 pointer-events-none">
-                        <div className="flex items-center gap-2 mb-3 text-blue-200 text-2xl font-bold uppercase">
+                        <div className="flex items-center gap-2 mb-3 text-blue-200 text-3xl font-bold uppercase">
                             <IconChart className="w-8 h-8" /> ניהול
                         </div>
-                        <h3 className="text-3xl font-bold mb-2 leading-tight">לוח הפעילויות <br /> והמבחנים</h3>
-                        <p className="text-blue-100 text-lg mb-4 opacity-90 font-medium">
+                        <h3 className="text-4xl font-bold mb-2 leading-tight">לוח הפעילויות <br /> והמבחנים</h3>
+                        <p className="text-blue-100 text-xl mb-4 opacity-90 font-medium">
                             צפייה בנתוני התלמידים, דוחות מפורטים, ציונים ומעקב אחר התקדמות בזמן אמת.
                         </p>
-                        <div className="flex items-center gap-2 text-sm font-bold group-hover:translate-x-[-5px] transition-transform text-white">
+                        <div className="flex items-center gap-2 text-lg font-bold group-hover:translate-x-[-5px] transition-transform text-white">
                             כניסה ללוח <IconBack className="w-4 h-4 rotate-180" /> {/* שימוש ב-IconBack */}
                         </div>
                     </div>
