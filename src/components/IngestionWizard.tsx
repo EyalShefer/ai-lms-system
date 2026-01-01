@@ -205,6 +205,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [includeBot] = useState(false); // Restore includeBot state
     const [botPersona] = useState('socratic');
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
+    const [teachingStyle, setTeachingStyle] = useState<'frontal' | 'inquiry' | 'game'>('frontal'); // NEW
     // const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
     // --- Effects ---
@@ -357,7 +358,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                     courseMode,
                     // showSourceToStudent,
-                    productType: selectedProduct // Pass the product type!
+                    productType: selectedProduct, // Pass the product type!
+                    teachingStyle: selectedProduct === 'lesson' ? teachingStyle : undefined // NEW
                 },
                 targetAudience: grade
             };
@@ -632,16 +634,31 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                         </select>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">אורך הפעילות</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[{ id: 'short', l: 'קצרה' }, { id: 'medium', l: 'בינונית' }, { id: 'long', l: 'ארוכה' }].map(o => (
-                                            <button key={o.id} onClick={() => setActivityLength(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all ${activityLength === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
-                                                {o.l}
-                                            </button>
-                                        ))}
+
+                                {/* Dynamic Settings based on Product Type */}
+                                {selectedProduct === 'lesson' ? (
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">סגנון הוראה</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {[{ id: 'frontal', l: 'פרונטלי' }, { id: 'inquiry', l: 'חקר' }, { id: 'game', l: 'משחקי' }].map(o => (
+                                                <button key={o.id} onClick={() => setTeachingStyle(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all ${teachingStyle === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
+                                                    {o.l}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">אורך הפעילות</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {[{ id: 'short', l: 'קצרה' }, { id: 'medium', l: 'בינונית' }, { id: 'long', l: 'ארוכה' }].map(o => (
+                                                <button key={o.id} onClick={() => setActivityLength(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all ${activityLength === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
+                                                    {o.l}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
@@ -681,7 +698,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     </button>
 
                     <button
-                        onClick={handleNext}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleNext();
+                        }}
                         disabled={!canProceed() || isProcessing}
                         className={`
                             btn-lip-action px-12 py-4 text-xl flex items-center gap-3 shadow-xl

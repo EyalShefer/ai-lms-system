@@ -147,6 +147,7 @@ export interface PodcastBlock extends ActivityBlockBase {
     type: 'podcast';
     content: {
         title?: string;
+        description?: string;
         audioUrl?: string | null;
         script?: any; // DialogueScript
         transcript?: string;
@@ -209,6 +210,8 @@ export interface Course {
     fullBookContent?: string; // THe full extracted text
     showSourceToStudent?: boolean; // Visibility toggle
     pdfSource?: string | null; // URL of the original PDF file
+    lessonPlanContent?: string; // The generated markdown for the lesson plan
+    teachingStyle?: 'frontal' | 'inquiry' | 'game'; // The selected teaching style
     settings?: {
         totalScore: number;
         passScore: number;

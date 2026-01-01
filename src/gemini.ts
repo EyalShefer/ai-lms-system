@@ -157,7 +157,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     bloomLevel: item.bloom_level || "ידע ומיומנויות יסוד",
     feedbackCorrect: rawData.feedback_correct || rawData.feedback || "כל הכבוד! התשובה תואמת את הטקסט.",
     feedbackIncorrect: rawData.feedback_incorrect || "לא מדויק. כדאי לנסות שוב או להיעזר ברמז המודגש.",
-    sourceReference: rawData.source_reference || rawData.source_reference_hint || null
+    sourceReference: rawData.source_reference || rawData.source_reference_hint || null,
+    progressiveHints: rawData.progressive_hints || [] // Scaffolding for ALL types
   };
 
   // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
@@ -220,7 +221,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
       metadata: {
         ...commonMetadata,
         score: 10,
-        progressiveHints: rawData.progressive_hints || [],
+        // progressiveHints handled in commonMetadata
         richOptions: options.some(o => typeof o === 'object') ? options : undefined
       }
     };
@@ -2095,4 +2096,151 @@ export const generateSingleOpenQuestion = async (
     console.error("Single Open Gen Error:", e);
     return null;
   }
+};
+
+import { LESSON_PLAN_SYSTEM_PROMPT } from './prompts/lessonPlanPrompts';
+
+/**
+ * Generates a full Lesson Plan (MarkDown) based on the source text and settings.
+ */
+export const generateLessonPlan = async (
+  sourceText: string,
+  topic: string,
+  targetAudience: string,
+  activityLength: 'short' | 'medium' | 'long',
+  teachingStyle: 'frontal' | 'inquiry' | 'game' = 'frontal'
+): Promise<string | null> => {
+
+  console.log("📝 Generating Lesson Plan with params:", { topic, targetAudience, activityLength, teachingStyle });
+
+  let duration = 45;
+  if (activityLength === 'short') duration = 30;
+  if (activityLength === 'long') duration = 90;
+
+  const userPrompt = `
+    Content Source: """${sourceText.substring(0, 20000)}"""
+    Topic/Subject: ${topic}
+    Target Audience: ${targetAudience}
+    Lesson Duration: ${duration} minutes
+    Teaching Style: ${teachingStyle}
+    `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        { role: "system", content: LESSON_PLAN_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7
+    });
+
+    return completion.choices[0].message.content || "# שגיאה ביצירת המערך";
+  } catch (e) {
+    console.error("Lesson Plan Gen Error:", e);
+    return null;
+  }
+};
+
+
+// ==========================================
+// REGENERATION & EDITING (NEW FEATURE)
+// ==========================================
+
+export const regenerateBlockContent = async (
+  blockType: string,
+  currentContent: any,
+  userInstruction: string,
+  extraContext: string = ""
+): Promise<any | null> => {
+  console.log(`♻️ Regenerating ${blockType} with instruction: "${userInstruction}"`);
+
+  const corePrompt = `
+    TASK: Modify the following Educational Content based on the User's Instruction.
+    
+    BLOCK TYPE: ${blockType}
+    CURRENT CONTENT (JSON):
+    ${JSON.stringify(currentContent, null, 2)}
+    
+    USER INSTRUCTION: "${userInstruction}"
+    
+    CONTEXT: ${extraContext.substring(0, 1000)}...
+    
+    GUIDELINES:
+    1. KEEP the same valid JSON structure as the input.
+    2. APPLY the user's change (e.g., "Make it harder", "Translate to English", "Fix typo").
+    3. IMPROVE clarity and pedagogy if needed.
+    4. OUTPUT ONLY VALID JSON.
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        { role: "system", content: "You are an expert curriculum editor. You edit JSON content blocks precisely based on user instructions." },
+        { role: "user", content: corePrompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    return JSON.parse(completion.choices[0].message.content || "{}");
+  } catch (e) {
+    console.error("Regeneration Error:", e);
+    return null;
+  }
+};
+
+export const generateAudioResponsePrompt = async (topic: string, gradeLevel: string, sourceText?: string) => {
+  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""` : `Topic: "${topic}"`;
+  const prompt = `
+    Create an Audio Response / Oral Exam Prompt.
+    ${grounding}
+    Target Audience: ${gradeLevel}.
+    Language: Hebrew.
+
+    Output JSON:
+    {
+      "question": "The main open question to answer orally...",
+      "description": "Short guidelines (e.g. 'Explain in your own words...')",
+      "maxDuration": 60 (Seconds, integer 30-300)
+    }
+  `;
+
+  try {
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const parsed = JSON.parse(res.choices[0].message.content || "{}");
+    if (!parsed.question) return null;
+    return {
+      question: parsed.question,
+      description: parsed.description || "הקליטו את תשובתכם באופן ברור.",
+      maxDuration: parsed.maxDuration || 60
+    };
+  } catch { return null; }
+};
+
+export const generateTrueFalseQuestion = async (topic: string, gradeLevel: string, sourceText?: string) => {
+  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""` : `Topic: "${topic}"`;
+  const prompt = `
+      Create a "Speed True/False" Set (5 statements).
+      ${grounding}
+      Target Audience: ${gradeLevel}.
+      Language: Hebrew.
+  
+      Output JSON:
+      {
+        "statements": [
+           { "text": "Statement 1", "is_true": true },
+           { "text": "Statement 2", "is_true": false },
+           ...
+        ]
+      }
+    `;
+
+  try {
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const parsed = JSON.parse(res.choices[0].message.content || "{}");
+    if (!parsed.statements || parsed.statements.length < 3) return null;
+    return parsed.statements;
+  } catch { return null; }
 };

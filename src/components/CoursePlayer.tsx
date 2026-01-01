@@ -268,6 +268,9 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         if (!course || !userAnswers || Object.keys(gradingState).length > 0) return;
 
         const initialGrading: Record<string, AnswerAttempt & { score: number }> = {};
+        const initialOpenFeedback: Record<string, { status: string, feedback: string }> = {};
+        const initialFeedbackVisible: Record<string, boolean> = {};
+
         let hasUpdates = false;
 
         course.syllabus.forEach(module => {
@@ -285,6 +288,12 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             if (typeof ans === 'object' && ans.provisional_score !== undefined) {
                                 score = ans.provisional_score;
                                 isCorrect = score > 0;
+                            }
+                            // NEW: Hydrate Feedback for Open Questions
+                            if (typeof ans === 'object' && ans.feedback) {
+                                initialOpenFeedback[block.id] = ans.feedback;
+                                initialFeedbackVisible[block.id] = true;
+                                hasUpdates = true;
                             }
                         } else if (isMultipleChoice) {
                             isCorrect = ans === block.content.correctAnswer;
@@ -309,6 +318,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
         if (hasUpdates) {
             setGradingState(prev => ({ ...prev, ...initialGrading }));
+            setOpenQuestionFeedback(prev => ({ ...prev, ...initialOpenFeedback }));
+            setFeedbackVisible(prev => ({ ...prev, ...initialFeedbackVisible }));
         }
     }, [course, userAnswers, gradingState]); // careful with deps to avoid loops
 

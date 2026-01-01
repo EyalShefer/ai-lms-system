@@ -6,7 +6,8 @@ import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
     generateCategorizationQuestion, generateOrderingQuestion, generateFillInBlanksQuestion, generateMemoryGame,
-    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock
+    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock,
+    regenerateBlockContent, generateTrueFalseQuestion, generateAudioResponsePrompt // NEW IMPORTS
 } from '../gemini';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
@@ -40,6 +41,7 @@ import { db } from '../firebase';
 import { createPortal } from 'react-dom';
 import InspectorBadge from './InspectorBadge';
 import InspectorDashboard from './InspectorDashboard';
+import { AIInstructionModal } from './AIInstructionModal'; // NEW COMPONENT
 
 const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
@@ -55,6 +57,19 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'true_false_speed': 'אמת או שקר',
     'matching': 'התאמה',
     'audio-response': 'תשובה קולית'
+};
+
+// HELPER FOR SOURCE AGGREGATION
+const getAggregatedContext = (unit: any, course: any) => {
+    // 1. Current Source Text (Base)
+    const baseText = course.fullBookContent || "";
+    // 2. Video Transcripts from ALL blocks in the unit
+    const transcripts = unit.activityBlocks
+        .map((b: any) => b.metadata?.transcript)
+        .filter((t: any) => t && t.length > 20)
+        .join("\n\n--- Video Context ---\n");
+
+    return baseText + (transcripts ? `\n\n${transcripts}` : "");
 };
 
 // --- הגדרות מקומיות ---
@@ -106,9 +121,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     }, [editedUnit]);
 
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
+    const [isAutoGenerating, setIsAutoGenerating] = useState(false);
     const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
-    const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+    // AI MODAL STATE
+    const [aiModalOpen, setAiModalOpen] = useState(false);
+    const [activeAiBlockId, setActiveAiBlockId] = useState<string | null>(null);
+    const [aiModalTitle, setAiModalTitle] = useState("עריכה ב-AI");
+    const [aiInitialPrompt, setAiInitialPrompt] = useState("");
+    const [aiOperationMode, setAiOperationMode] = useState<'create' | 'edit'>('edit'); // Track intent
+
     // const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false); // Podcast Loading State
     const [showSource, setShowSource] = useState(false); // New: Source Split View State
 
@@ -146,10 +168,104 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         instructions: ''
     });
 
+
+
     const handleCopyLinkClick = () => {
         setAssignmentData(prev => ({ ...prev, title: `הגשה: ${unit.title || editedUnit.title}` }));
         setAssignmentModalOpen(true);
     };
+
+    // --- GENERIC AI HANDLER (Routes everything through the modal) ---
+    const handleOpenAiModal = (blockId: string, mode: 'create' | 'edit' = 'edit', title: string = "עריכה ב-AI") => {
+        setActiveAiBlockId(blockId);
+        setAiOperationMode(mode);
+        setAiModalTitle(title);
+        setAiModalOpen(true);
+        setAiInitialPrompt(mode === 'create' ? "כתוב הוראה ליצירה (למשל: '3 שאלות על החלל')..." : "");
+    };
+
+    const handleConfirmAiGeneration = async (instruction: string) => {
+        if (!activeAiBlockId) return;
+        const block = editedUnit.activityBlocks.find((b: any) => b.id === activeAiBlockId);
+        if (!block) return;
+
+        setLoadingBlockId(activeAiBlockId);
+        // Don't close modal yet if you want to show spinner there, BUT standard is to close and show spinner on block
+        // Actually, let's keep modal open if we want "processing" state there too? 
+        // nah, let's look at the implementation - we pass `isGenerating` to modal.
+        // But for big generations, maybe better to show on block. Let's decide: Close modal, show global loader on block.
+        setAiModalOpen(false);
+
+        try {
+            const context = getAggregatedContext(editedUnit, course);
+
+            if (aiOperationMode === 'create') {
+                // === CREATE NEW CONTENT LOGIC ===
+                let result = null;
+
+                if (block.type === 'open-question') {
+                    result = await generateSingleOpenQuestion(editedUnit.title, gradeLevel, {}, instruction || context); // Fallback to context if no instruction
+                    if (result) updateBlock(activeAiBlockId, { question: result.content.question }, { modelAnswer: result.metadata.modelAnswer });
+                }
+                else if (block.type === 'multiple-choice') {
+                    // If user gave instruction, use regenerateBlock to "create from instruction" or modify the "generateSingle..." signature?
+                    // Actually, 'generateSingleMCQ' only takes source text. 
+                    // Let's use the new `regenerateBlockContent` for EVERYTHING where we have custom instructions!
+                    // It's robust enough to create from scratch if we give it an empty template.
+                    const emptyTemplate = { question: "Placeholder", options: ["A", "B"], correctAnswer: "A" };
+                    result = await regenerateBlockContent(block.type, emptyTemplate, instruction, context);
+                    if (result) updateBlock(activeAiBlockId, { question: result.question, options: result.options, correctAnswer: result.correct_answer || result.correctAnswer });
+                }
+                else if (block.type === 'true_false_speed') {
+                    if (!instruction) {
+                        result = await generateTrueFalseQuestion(editedUnit.title, gradeLevel, context);
+                    } else {
+                        const empty = { statements: [] };
+                        result = await regenerateBlockContent('true_false_speed', empty, instruction, context);
+                    }
+                    // Map result
+                    // Check format
+                    if (result && Array.isArray(result.statements)) updateBlock(activeAiBlockId, { statements: result.statements });
+                    else if (Array.isArray(result)) updateBlock(activeAiBlockId, { statements: result });
+                }
+                else if (block.type === 'audio-response') {
+                    const promptRes = await generateAudioResponsePrompt(editedUnit.title, gradeLevel, context);
+                    if (promptRes) updateBlock(activeAiBlockId, promptRes);
+                }
+                else {
+                    // Generic Fallback for Ordering, Categorization, etc. using Regenerate on Empty
+                    const result = await regenerateBlockContent(block.type, {}, instruction || `Create a ${block.type} activity about ${editedUnit.title}`, context);
+                    if (result) updateBlock(activeAiBlockId, result);
+                }
+
+            } else {
+                // === EDIT / REGENERATE LOGIC ===
+                // Pass the CURRENT content to be modified
+                const result = await regenerateBlockContent(block.type, block.content, instruction, context);
+                if (result) {
+                    // Merging logic might be specific per block, but usually we replace the content object
+                    // BEWARE: Some blocks have content spread (e.g. metadata).
+
+                    // Special handling for legacy mapping if needed, but `regenerateBlockContent` tries to return exact structure.
+
+                    // Sanitize result keys if mismatched (e.g. correct_answer vs correctAnswer)
+                    if (block.type === 'multiple-choice' && result.correct_answer) {
+                        result.correctAnswer = result.correct_answer;
+                        delete result.correct_answer;
+                    }
+
+                    updateBlock(activeAiBlockId, result);
+                }
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("שגיאה ביצירת התוכן");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
+
 
     const handleCreateAssignment = async () => {
         if (!assignmentData.title || !assignmentData.dueDate) return alert("חסרים פרטים");
@@ -354,7 +470,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 }));
                             }).catch(err => console.warn("Auto-enrichment failed", err));
                         }
-                    });
+                    }
+                });
 
                 await Promise.all(promises);
 
@@ -718,8 +835,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 if (script) {
                     // 1. Update the Podcast Block with the script
+                    const originalBlock = editedUnit.activityBlocks.find(b => b.id === blockId);
+                    if (!originalBlock) {
+                        console.error("Podcast block not found");
+                        return;
+                    }
+
                     const updatedPodcastBlock = {
-                        ...editedUnit.activityBlocks.find(b => b.id === blockId),
+                        ...originalBlock,
+                        type: 'podcast',
                         content: {
                             title: "פודקאסט לסיכום היחידה",
                             description: "האזינו לשיחה המרתקת בין המנחים וענו על השאלות שאחרי.",
@@ -1196,6 +1320,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="flex flex-wrap items-center gap-2 mt-3 bg-blue-50/40 p-2 rounded-xl border border-blue-100/50 backdrop-blur-sm justify-between">
                                                     <div className="flex gap-2 items-center">
                                                         <div className="flex items-center gap-1 text-blue-600 px-2 font-bold text-xs"><IconSparkles className="w-4 h-4" /> AI:</div>
+                                                        <button onClick={() => handleOpenAiModal(block.id, 'edit', 'הוסף הנחיה לשיפור הטקסט')} disabled={loadingBlockId === block.id} className="text-xs bg-white/80 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium shadow-sm flex items-center gap-1"><IconEdit className="w-3 h-3" /> הוראה חופשית</button>
                                                         {AI_ACTIONS.map(action => (<button key={action.label} onClick={() => handleAiAction(block.id, block.content, action.prompt)} disabled={loadingBlockId === block.id} className="text-xs bg-white/80 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium shadow-sm disabled:opacity-50">{loadingBlockId === block.id ? '...' : action.label}</button>))}
                                                     </div>
                                                     <div className="flex gap-1 border-r border-blue-200 pr-2">
@@ -1470,8 +1595,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {/* AUDIO RESPONSE BLOCK */}
                                         {block.type === 'audio-response' && (
                                             <div className="bg-rose-50/50 p-5 rounded-xl border border-rose-100">
-                                                <div className="flex items-center gap-2 mb-4 text-rose-700 font-bold">
-                                                    <IconMicrophone className="w-5 h-5" /> תשובה קולית
+                                                <div className="flex items-center gap-2 mb-4 text-rose-700 font-bold justify-between">
+                                                    <div className="flex items-center gap-2"><IconMicrophone className="w-5 h-5" /> תשובה קולית</div>
+                                                    <button onClick={() => handleOpenAiModal(block.id, 'create', 'שאלת תשובה קולית ב-AI')} disabled={loadingBlockId === block.id} className="bg-rose-200 hover:bg-rose-300 text-rose-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div>
@@ -1517,6 +1643,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                             <span className="font-bold text-sm block">מצב פעילות פעיל</span>
                                                             <span className="text-xs text-indigo-600">הבוט מוגדר כמנחה מלווה ומסייע בפעילות.</span>
                                                         </div>
+                                                        <button
+                                                            onClick={() => handleOpenAiModal(block.id, 'create', 'הגדרת אישיות הבוט')}
+                                                            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-2 rounded-lg transition-colors"
+                                                            title="ערוך הגדרות בוט עם AI"
+                                                        >
+                                                            <IconSparkles className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 )}
 
@@ -1572,7 +1705,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                                 {block.type === 'multiple-choice' && (
                                                     <div className="space-y-2 pr-7">
-                                                        {!(block.content && block.content.question) && (<div className="flex justify-end mb-4"><button onClick={() => handleAutoGenerateMCQuestion(block.id)} disabled={loadingBlockId === block.id} className="bg-sky-100 text-sky-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-sky-200 transition-colors"><IconSparkles className="w-3 h-3" /> צרו שאלה</button></div>)}
+                                                        {!(block.content && block.content.question) && (
+                                                            <div className="flex justify-end mb-4">
+                                                                <button onClick={() => handleOpenAiModal(block.id, 'create', 'יצירת שאלה אמריקאית')} disabled={loadingBlockId === block.id} className="bg-sky-100 text-sky-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-sky-200 transition-colors">
+                                                                    <IconSparkles className="w-3 h-3" /> צרו שאלה (AI)
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         {(block.content?.options || []).map((opt: any, idx: number) => {
                                                             const optText = getOptionText(opt);
                                                             return (
@@ -1595,7 +1734,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 )}
                                                 {block.type === 'open-question' && (
                                                     <div className="pr-7 mt-2">
-                                                        {!(block.content && block.content.question) && (<div className="flex justify-end mb-2"><button onClick={() => handleAutoGenerateOpenQuestion(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-100 text-teal-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-teal-200 transition-colors"><IconSparkles className="w-3 h-3" /> צרו שאלה באמצעות AI</button></div>)}
+                                                        {!(block.content && block.content.question) && (
+                                                            <div className="flex justify-end mb-2">
+                                                                <button onClick={() => handleOpenAiModal(block.id, 'create', 'יצירת שאלה פתוחה')} disabled={loadingBlockId === block.id} className="bg-teal-100 text-teal-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-teal-200 transition-colors">
+                                                                    <IconSparkles className="w-3 h-3" /> צרו שאלה באמצעות AI
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         <label className="text-xs font-bold text-gray-400 mb-1 block flex items-center gap-1"><IconBrain className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:</label>
                                                         <textarea className="w-full p-3 border border-gray-200/80 rounded-xl bg-white/80 text-sm focus:bg-white transition-colors outline-none focus:border-teal-300" rows={4} value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { modelAnswer: e.target.value })} placeholder="כתבו כאן את התשובה המצופה..." />
                                                     </div>
@@ -1613,7 +1758,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-purple-50/50 p-5 rounded-xl border border-purple-100">
                                                 <div className="flex items-center gap-2 mb-2 text-purple-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconEdit className="w-5 h-5" /> השלמת משפטים (Cloze)</div>
-                                                    <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    <button onClick={() => handleOpenAiModal(block.id, block.content ? 'edit' : 'create', 'השלמת משפטים ב-AI')} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'ערוך/צור ב-AI'}</button>
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
                                                 <textarea className="w-full p-4 border border-purple-200/60 bg-white rounded-xl focus:ring-2 focus:ring-purple-100 outline-none transition-all text-gray-800 text-lg leading-relaxed min-h-[160px]" dir="rtl" value={typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || '')} onChange={(e) => updateBlock(block.id, e.target.value)} />
@@ -1625,7 +1770,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                                                 <div className="flex items-center gap-2 mb-4 text-blue-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconList className="w-5 h-5" /> סידור רצף</div>
-                                                    <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    <button onClick={() => handleOpenAiModal(block.id, block.content?.correct_order ? 'edit' : 'create', 'סידור רצף ב-AI')} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'ערוך/צור ב-AI'}</button>
                                                 </div>
                                                 <input type="text" className="w-full p-3 mb-4 border border-blue-200 rounded-lg bg-white text-base" placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)" value={(block.content && block.content.instruction) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
                                                 <div className="space-y-2">
@@ -1646,7 +1791,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-teal-50/50 p-5 rounded-xl border border-teal-100">
                                                 <div className="flex items-center gap-2 mb-4 text-teal-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconLayer className="w-5 h-5" /> מיון לקטגוריות</div>
-                                                    <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    <button onClick={() => handleOpenAiModal(block.id, block.content?.items ? 'edit' : 'create', 'מיון לקטגוריות ב-AI')} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'ערוך/צור ב-AI'}</button>
                                                 </div>
 
                                                 <input type="text" className="w-full p-3 mb-4 border border-teal-200 rounded-lg bg-white text-base" placeholder="הנחיה..." value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
@@ -1690,7 +1835,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-pink-50/50 p-5 rounded-xl border border-pink-100">
                                                 <div className="flex items-center gap-2 mb-4 text-pink-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconBrain className="w-5 h-5" /> משחק זיכרון</div>
-                                                    <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    <button onClick={() => handleOpenAiModal(block.id, block.content?.pairs ? 'edit' : 'create', 'משחק זיכרון ב-AI')} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'ערוך/צור ב-AI'}</button>
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-4">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
 
@@ -1719,7 +1864,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {/* TRUE/FALSE SPEED */}
                                         {block.type === 'true_false_speed' && (
                                             <div className="bg-red-50/50 p-5 rounded-xl border border-red-100">
-                                                <div className="flex items-center gap-2 mb-4 text-red-700 font-bold"><IconClock className="w-5 h-5" /> אמת או שקר (ספיד)</div>
+                                                <div className="flex items-center gap-2 mb-4 text-red-700 font-bold justify-between">
+                                                    <div className="flex items-center gap-2"><IconClock className="w-5 h-5" /> אמת או שקר (ספיד)</div>
+                                                    <button onClick={() => handleOpenAiModal(block.id, 'create', 'אמת או שקר ב-AI')} disabled={loadingBlockId === block.id} className="bg-red-200 hover:bg-red-300 text-red-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                </div>
                                                 <p className="text-xs text-gray-500 mb-4">משחק מהירות: התלמיד צריך להחליט במהירות אם המשפט נכון או לא.</p>
 
                                                 <div className="space-y-2">
@@ -1738,9 +1886,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <button onClick={() => updateBlock(block.id, { ...block.content, statements: [...(block.content?.statements || []), { text: "", is_true: true }] })} className="w-full py-2 border-2 border-dashed border-red-200 rounded-lg text-red-400 font-bold text-sm hover:bg-red-50">+ הוסף שאלה</button>
                                                 </div>
                                             </div>
+
                                         )}
                                     </div>
                                 </div>
+
                                 <InsertMenu index={index + 1} />
                             </React.Fragment>
                         ))}
@@ -1843,7 +1993,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     document.body
                 )
             }
-        </div>
+            {/* AI INSTRUCTION MODAL */}
+            <AIInstructionModal
+                isOpen={aiModalOpen}
+                onClose={() => setAiModalOpen(false)}
+                onGenerate={handleConfirmAiGeneration}
+                title={aiModalTitle}
+                initialPrompt={aiInitialPrompt}
+                isGenerating={loadingBlockId === activeAiBlockId && aiModalOpen}
+            />
+        </div >
     );
 };
 

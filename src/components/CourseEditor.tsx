@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCourseStore } from '../context/CourseContext';
 import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
+import LessonPlanView from './LessonPlanView'; // NEW
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
 import { generateCoursePlan, generateFullUnitContent, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock, generatePodcastScript } from '../gemini';
@@ -114,7 +115,7 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
 
 
 
-import TicTacToeLoader from './TicTacToeLoader';
+// TicTacToeLoader removed
 
 // ... existing imports ...
 
@@ -144,7 +145,7 @@ const CourseEditor: React.FC = () => {
         // בדיקה האם הקורס מאוכלס בסילבוס
         const hasSyllabus = course.syllabus && course.syllabus.length > 0;
 
-        if (hasSyllabus && !hasAutoSelected.current) {
+        if (hasSyllabus && !hasAutoSelected.current && !course.lessonPlanContent) {
             const firstModule = course.syllabus[0];
             if (firstModule.learningUnits?.length > 0) {
                 const firstUnit = firstModule.learningUnits[0];
@@ -436,12 +437,34 @@ const CourseEditor: React.FC = () => {
 
 
 
+    const handleAddUnit = async (type: 'practice' | 'test') => {
+        const newUnit: LearningUnit = {
+            id: crypto.randomUUID(),
+            title: type === 'test' ? "מבחן חדש" : "פעילות חדשה",
+            type: type === 'test' ? 'test' : 'practice',
+            baseContent: "",
+            activityBlocks: []
+        };
+
+        const newSyllabus = [...(course.syllabus || [])];
+        if (newSyllabus.length === 0) {
+            newSyllabus.push({ id: crypto.randomUUID(), title: "יחידה 1", learningUnits: [] });
+        }
+        newSyllabus[0].learningUnits.push(newUnit);
+
+        const updated = { ...course, syllabus: newSyllabus };
+        setCourse(updated);
+        await updateDoc(doc(db, "courses", course.id), { syllabus: newSyllabus });
+        setSelectedUnitId(newUnit.id);
+    };
+
     const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
 
     // --- Single Activity Logic ---
     // Fallback: If no unit is selected but units exist, default to the first one immediately.
     const defaultUnit = course.syllabus?.[0]?.learningUnits?.[0];
-    const unitToRender = activeUnit || defaultUnit;
+    const unitToRender = activeUnit || (!course.lessonPlanContent ? defaultUnit : null);
+    const showLessonPlan = course.lessonPlanContent && !unitToRender;
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
@@ -452,7 +475,7 @@ const CourseEditor: React.FC = () => {
                     onCancel={() => {
                         setShowWizard(false);
                         // אם עדיין אין תוכן וביטלנו, חוזרים הביתה
-                        if (!course?.syllabus?.length) {
+                        if (!course?.syllabus?.length && !course.lessonPlanContent) {
                             navigate('/');
                         }
                     }}
@@ -460,14 +483,6 @@ const CourseEditor: React.FC = () => {
                     title="הגדרות פעילות"
                     cancelLabel="סגור"
                     cancelIcon={<IconX className="w-6 h-6" />}
-                />
-            )}
-
-            {/* Global Loading Overlay (Tic-Tac-Toe Zen Mode) */}
-            {showLoader && (
-                <TicTacToeLoader
-                    isLoading={isGenerating}
-                    onContinue={() => setShowLoader(false)}
                 />
             )}
 
@@ -480,15 +495,22 @@ const CourseEditor: React.FC = () => {
             )}
 
             {/* Main Content Area */}
-            {unitToRender ? (
+            {showLessonPlan ? (
+                <LessonPlanView
+                    content={course.lessonPlanContent!}
+                    title={course.title}
+                    onCreateActivity={() => handleAddUnit('practice')}
+                    onCreateAssessment={() => handleAddUnit('test')}
+                />
+            ) : unitToRender ? (
                 <UnitEditor
                     unit={unitToRender}
                     gradeLevel={displayGrade}
                     subject={course.subject}
                     onSave={handleSaveUnit}
-                    onCancel={() => setShowWizard(true)} // "Back" opens Settings
+                    onCancel={() => course.lessonPlanContent ? setSelectedUnitId(null) : setShowWizard(true)}
                     onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
-                    cancelLabel="הגדרות" // RENAME BACK BUTTON
+                    cancelLabel={course.lessonPlanContent ? "חזרה למערך" : "הגדרות"}
                 />
             ) : (
                 // Empty State (Only if no units exist) - Minimal loading

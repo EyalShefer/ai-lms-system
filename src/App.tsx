@@ -5,7 +5,7 @@ import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
 import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { generateCoursePlan } from './gemini';
+import { generateCoursePlan, generateLessonPlan } from './gemini';
 import type { Assignment } from './courseTypes';
 
 // --- Lazy Loading ---
@@ -57,7 +57,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-import TicTacToeLoader from './components/TicTacToeLoader'; // Import new Loader
+// TicTacToeLoader removed
 
 // ... existing imports
 
@@ -163,12 +163,14 @@ const AuthenticatedApp = () => {
   };
 
   // --- הפונקציה המתוקנת (v2 - Fixed Redirect Bug) ---
+  // TicTacToeLoader removed
+
   const handleWizardComplete = async (wizardData: any) => {
     if (!currentUser) return;
 
     // 1. Close Wizard Immediately & Show Loading
     setWizardMode(null);
-    setShowLoader(false); // DIRECT ENTRY: Skip game loader, go straight to editor
+    setShowLoader(false);
 
     // Safety check: verify currentUser exists again just in case
     if (!currentUser) {
@@ -178,6 +180,11 @@ const AuthenticatedApp = () => {
 
     try {
       setIsGenerating(true);
+
+      console.log("🛠️ App.tsx: Wizard Completion Data:", JSON.stringify(wizardData, null, 2));
+      console.log("🛠️ App.tsx: Product Type:", wizardData.settings?.productType);
+      console.log("🛠️ App.tsx: Teaching Style:", wizardData.settings?.teachingStyle);
+
       let fileUrl = null;
       let fileType = null;
       let fileName = null;
@@ -246,22 +253,38 @@ const AuthenticatedApp = () => {
       const userSubject = wizardData.settings?.subject || "כללי";
 
       let aiSyllabus = [];
-      try {
-        // --- NEW: Instant "Skeleton" Generation Strategy ---
-        // Instead of waiting for Cloud Function, we create an EMPTY shell and let UnitEditor fill it.
-        console.log("🚀 Skipping Cloud Gen -> Starting Instant Skeleton Strategy");
+      let lessonPlanContent: string | undefined = undefined;
 
-        // Create a basic syllabus shell
-        aiSyllabus = [{
-          id: crypto.randomUUID(),
-          title: "פעילות חדשה",
-          learningUnits: [{
+      try {
+        if (wizardData.settings?.productType === 'lesson') {
+          console.log("🚀 Generating Lesson Plan via AI...");
+          lessonPlanContent = await generateLessonPlan(
+            aiSourceText || `Topic: ${topicForAI}`,
+            topicForAI,
+            extractedGrade,
+            activityLength,
+            wizardData.settings?.teachingStyle
+          ) || "";
+
+          // Empty syllabus for now, user will add units manually via the Lesson Plan interactions
+          aiSyllabus = [];
+        } else {
+          // --- NEW: Instant "Skeleton" Generation Strategy ---
+          // Instead of waiting for Cloud Function, we create an EMPTY shell and let UnitEditor fill it.
+          console.log("🚀 Skipping Cloud Gen -> Starting Instant Skeleton Strategy");
+
+          // Create a basic syllabus shell
+          aiSyllabus = [{
             id: crypto.randomUUID(),
-            title: topicForAI,
-            type: 'practice',
-            activityBlocks: [] // Empty blocks trigger the UnitEditor's useEffect!
-          }]
-        }];
+            title: "פעילות חדשה",
+            learningUnits: [{
+              id: crypto.randomUUID(),
+              title: topicForAI,
+              type: 'practice',
+              activityBlocks: [] // Empty blocks trigger the UnitEditor's useEffect!
+            }]
+          }];
+        }
 
       } catch (aiError) {
         console.error("AI Init Failed (Non-fatal):", aiError);
@@ -285,6 +308,8 @@ const AuthenticatedApp = () => {
         showSourceToStudent: wizardData.settings?.showSourceToStudent ?? true,
         fullBookContent: aiSourceText || "",
         pdfSource: fileUrl || null,
+        lessonPlanContent: lessonPlanContent || undefined, // NEW
+        teachingStyle: wizardData.settings?.teachingStyle, // NEW
         wizardData: { ...cleanWizardData, fileUrl, fileName, fileType }
       };
 
@@ -455,12 +480,12 @@ const AuthenticatedApp = () => {
         </div>
       )}
 
-      {/* Global Loading Overlay (Tic-Tac-Toe Zen Mode) */}
+      {/* Global Loading Overlay (Tic-Tac-Toe Removed) */}
       {showLoader && (
-        <TicTacToeLoader
-          isLoading={isGenerating}
-          onContinue={() => setShowLoader(false)}
-        />
+        <div className="fixed inset-0 z-[200] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center font-sans">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-500 font-bold">מכין את הפעילות...</p>
+        </div>
       )}
     </div>
   );
