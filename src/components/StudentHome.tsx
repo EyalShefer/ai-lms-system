@@ -13,6 +13,10 @@ import {
     IconShieldLock
 } from '@tabler/icons-react';
 
+// import { PersonalityVerificationWidget } from './PersonalityVerificationWidget'; // Unused
+
+
+
 // --- MOCK GAMIFICATION ENGINE (SIMULATION) ---
 const useGamification = () => {
     // Simulated State
@@ -44,9 +48,10 @@ const useGamification = () => {
 
 interface StudentHomeProps {
     onSelectAssignment: (assignmentId: string) => void;
+    highlightCourseId?: string | null;
 }
 
-const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
+const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlightCourseId }) => {
     const { currentUser } = useAuth();
     const { assignments, loading, error } = useMyAssignments(currentUser?.uid);
     const gameStats = useGamification();
@@ -56,7 +61,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
 
     // --- LOGIC: CREATE THE SAGA PATH ---
     // Merge all assignments into a linear "Saga"
-    let allAssignments = [
+    let allAssignments: any[] = [
         ...assignments.completed.map(a => ({ ...a, status: 'completed' })),
         ...assignments.inProgress.map(a => ({ ...a, status: 'active' })),
         ...assignments.new.map(a => ({ ...a, status: 'new' }))
@@ -75,8 +80,35 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
         ];
     }
 
+    // --- INJECT HIGHLIGHTED COURSE (Optimization) ---
+    // If we came from a specific course link, ensure it shows up as the ACTIVE mission
+    if (highlightCourseId) {
+        // Check if already in list
+        const exists = allAssignments.find(a => a.courseId === highlightCourseId || a.id === highlightCourseId);
+
+        if (!exists) {
+            // Inject it as the ACTIVE one
+            const injectedMission = {
+                id: highlightCourseId,
+                title: "הפעילות הנוכחית שלך", // Fallback title since we might not have the full object here yet
+                topic: "למידה",
+                status: 'active',
+                date: 'עכשיו'
+            };
+
+            // Should be the one "next in line" or the very first active one
+            // We'll put it at the end of completed, or beginning of active
+            const completedCount = allAssignments.filter(a => a.status === 'completed').length;
+            allAssignments.splice(completedCount, 0, injectedMission);
+        }
+    }
+
     // Identify the "Current" active mission
-    const activeMission = allAssignments.find(a => a.status === 'active' || a.status === 'new') || allAssignments[allAssignments.length - 1];
+    // If we highlighted one, we want THAT to be the active one visually
+    let activeMission = allAssignments.find(a => a.id === highlightCourseId);
+    if (!activeMission) {
+        activeMission = allAssignments.find(a => a.status === 'active' || a.status === 'new') || allAssignments[allAssignments.length - 1];
+    }
 
     const handleNodeClick = (mission: any) => {
         setSelectedMission(mission);
@@ -128,6 +160,8 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
                             <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">יהלומים</div>
                             <div className="text-sm font-black text-blue-600">{gameStats.currency.gems}</div>
                         </div>
+                        {/* Mobile Gem Count */}
+                        <div className="md:hidden text-sm font-black text-blue-600 pl-1">{gameStats.currency.gems}</div>
                     </div>
 
                 </div>
@@ -137,7 +171,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
 
                 {/* --- GREETING HEADER --- */}
                 <div className="text-center mb-8 animate-in slide-in-from-top-5 duration-700">
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-sm">
+                    <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight drop-shadow-sm">
                         הלוח של {currentUser?.displayName?.split(' ')[0] || 'אלוף'} 🚀
                     </h1>
                     <p className="text-slate-500 font-medium text-sm mt-1">מוכן לכבוש עוד יעד היום?</p>
@@ -270,7 +304,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
 
 
                     {/* The Character (Stylized visual) */}
-                    <div className="fixed bottom-6 left-6 z-50">
+                    <div className="fixed bottom-6 left-6 z-50 animate-float">
                         <div className="bg-white border-2 border-slate-100 rounded-2xl p-3 shadow-xl flex items-center gap-3 animate-slide-in hover:scale-105 transition-transform cursor-pointer">
                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-2xl">🧞‍♂️</div>
                             <div className="text-xs font-bold text-slate-600">
@@ -335,7 +369,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment }) => {
                             </button>
                             <button
                                 onClick={handleLaunch}
-                                className={`w-full py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-indigo-200 transition-transform active:scale-95
+                                className={`w-full py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-indigo-200 transition-transform active:scale-95 animate-pop
                                     ${selectedMission.status === 'completed' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'}
                                 `}
                             >

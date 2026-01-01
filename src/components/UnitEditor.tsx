@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { LearningUnit, ActivityBlock } from '../courseTypes';
+import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
     generateCategorizationQuestion, generateOrderingQuestion, generateFillInBlanksQuestion, generateMemoryGame,
-    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock
-} from '../gemini';
+    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent
+} from '../services/ai/geminiApi';
+import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
 import { SourceViewer } from './SourceViewer';
+import { AiRefineToolbar } from './AiRefineToolbar';
 import { uploadMediaFile } from '../firebaseUtils';
 import { MultimodalService } from '../services/multimodalService'; // Restore Import
 import {
     enrichUnitBlocks, enrichActivityBlock
 } from '../services/adaptiveContentService';
+import { createBlock } from '../shared/config/blockDefinitions'; // DECOUPLER FIX
 
 // ... (existing imports)
 
@@ -309,6 +312,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 const promises = skeleton.steps.map(async (step: any) => {
                     const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined, course.mode || 'learning'); // Pass sourceText
 
+                    console.log(`📦 AI Response for Step ${step.step_number}:`, Object.keys(stepContent || {}));
+                    if (stepContent?.teach_content) console.log(`   📝 Found Teach Content for Step ${step.step_number}`);
+                    else console.warn(`   ⚠️ NO Teach Content for Step ${step.step_number} (Mode: ${course.mode})`);
+
                     if (stepContent) {
                         const newBlocks: any[] = [];
 
@@ -354,7 +361,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 }));
                             }).catch(err => console.warn("Auto-enrichment failed", err));
                         }
-                    });
+                    }
+                });
 
                 await Promise.all(promises);
 
@@ -487,33 +495,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const addBlockAtIndex = (type: string, index: number) => {
         // Use course default persona if available, otherwise Socratic
         const initialPersonaId = course.botPersona || 'socratic';
-        const personaData = BOT_PERSONAS[initialPersonaId as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.socratic;
 
-        const safeSystemPrompt = type === 'interactive-chat' ? generatePedagogicalPrompt(initialPersonaId) : '';
-        const newBlock = {
-            id: uuidv4(),
-            type: type,
-            content: type === 'multiple-choice' ? { question: '', options: ['', '', '', ''], correctAnswer: '' }
-                : type === 'open-question' ? { question: '' }
-                    : type === 'interactive-chat' ? { title: personaData.name, description: 'צ\'אט...' }
-                        : type === 'fill_in_blanks' ? "השלימו את המשפט: [מילה] חסרה."
-                            : type === 'ordering' ? { instruction: 'סדרו את ...', correct_order: ['פריט 1', 'פריט 2', 'פריט 3'] }
-                                : type === 'categorization' ? { question: 'מיינו לקטגוריות...', categories: ['קטגוריה 1', 'קטגוריה 2'], items: [{ text: 'פריט 1', category: 'קטגוריה 1' }] }
-                                    : type === 'memory_game' ? { pairs: [{ card_a: 'חתול', card_b: 'Cat' }, { card_a: 'כלב', card_b: 'Dog' }] }
-                                        : type === 'true_false_speed' ? { statement: 'השמיים כחולים', answer: true }
-                                            : type === 'true_false_speed' ? { statement: 'השמיים כחולים', answer: true }
-                                                : type === 'podcast' ? { title: 'פודקאסט AI', audioUrl: null, script: null, description: 'פרק האזנה' }
-                                                    : type === 'audio-response' ? { question: 'הקליטו את תשובתכם:', description: 'לחצו על ההקלטה כדי לענות', maxDuration: 60 }
-                                                        : '',
-            metadata: {
-                score: 0,
-                systemPrompt: safeSystemPrompt,
-                initialMessage: showScoring ? 'אני כאן להשגחה בלבד.' : personaData.initialMessage,
-                botPersona: initialPersonaId,
-                caption: '',
-                relatedQuestion: null
-            }
-        } as ActivityBlock;
+        // DECOUPLER FIX: Use Factory
+        const newBlock = createBlock(type, initialPersonaId);
+
         const newBlocks = [...(editedUnit.activityBlocks || [])];
         newBlocks.splice(index, 0, newBlock);
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
@@ -755,16 +740,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         const podcastIndex = newBlocks.findIndex(b => b.id === blockId);
 
                         if (podcastIndex !== -1) {
-                            newBlocks[podcastIndex] = updatedPodcastBlock;
+                            newBlocks[podcastIndex] = updatedPodcastBlock as ActivityBlock;
 
                             // Insert questions AFTER the podcast
                             if (mcqBlock) {
                                 mcqBlock.id = uuidv4(); // Ensure unique
-                                newBlocks.splice(podcastIndex + 1, 0, mcqBlock);
+                                newBlocks.splice(podcastIndex + 1, 0, mcqBlock as ActivityBlock);
                             }
                             if (openBlock) {
                                 openBlock.id = uuidv4(); // Ensure unique
-                                newBlocks.splice(podcastIndex + 2, 0, openBlock);
+                                newBlocks.splice(podcastIndex + 2, 0, openBlock as ActivityBlock);
                             }
                         }
                         return { ...prev, activityBlocks: newBlocks };
@@ -951,7 +936,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
                     <span className="text-xs font-bold text-blue-600">קישור ל-YouTube:</span>
                     <div className="flex gap-2">
-                        <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="https://youtube.com/..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <input type="text" dir="ltr" className="flex-1 p-2 border rounded text-sm text-left" placeholder="https://youtube.com/..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
                         <button onClick={async () => {
                             const url = mediaInputValue[blockId];
                             if (!url) return;
@@ -1053,11 +1038,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         );
     };
 
+    // --- Dynamic Loading Text ---
+    const productType = (course as any)?.wizardData?.settings?.productType || 'lesson';
+    const productTypeHebrew = {
+        'lesson': 'מערך השיעור',
+        'game': 'המשחק',
+        'exam': 'המבחן',
+        'podcast': 'הפודקאסט'
+    }[productType as string] || 'הפעילות';
+
+    const productTypeStatusLabel = {
+        'lesson': 'מצב למידה',
+        'game': 'מצב משחק',
+        'exam': 'מצב מבחן',
+        'podcast': 'מצב האזנה'
+    }[productType as string] || 'מצב פעילות';
+
     if (isAutoGenerating) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
                 <div className="relative mb-6"><div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div></div>
-                <h2 className="text-2xl font-bold text-gray-800">ה-AI כותב את תוכן הפעילות...</h2>
+                <h2 className="text-2xl font-bold text-gray-800">ה-AI כותב את תוכן {productTypeHebrew}...</h2>
             </div>
         );
     }
@@ -1065,9 +1066,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     return (
         <div className="min-h-screen p-8 font-sans pb-24 bg-gray-50/50">
             {/* Header */}
-            <div className="sticky top-4 z-40 glass backdrop-blur-lg shadow-lg rounded-2xl p-4 flex justify-between items-center mb-10 border border-white/60 bg-white/80 gap-4">
+            <div className="sticky top-4 z-40 card-glass p-4 flex justify-between items-center mb-10 gap-4">
                 <div className="flex-1 min-w-0">
-                    <input type="text" value={editedUnit.title} onChange={(e) => { setEditedUnit({ ...editedUnit, title: e.target.value }); setIsDirty(true); }} className="text-2xl font-bold text-gray-800 bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-2 transition-colors placeholder-gray-400 w-full" placeholder="כותרת הפעילות" />
+                    <input type="text" value={editedUnit.title} onChange={(e) => { setEditedUnit({ ...editedUnit, title: e.target.value }); setIsDirty(true); }} className="text-2xl font-bold text-gray-800 bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-2 transition-colors placeholder-gray-400 w-full" placeholder={`כותרת ${productTypeHebrew}`} />
                     <div className="text-sm text-gray-500 px-2 mt-1 flex items-center gap-2">
                         <span>שכבת גיל: {gradeLevel}</span>
                         {subject && (
@@ -1077,7 +1078,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             </>
                         )}
                         <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                        <span className={`font-bold ${showScoring ? 'text-blue-800' : 'text-green-700'}`}>{showScoring ? 'מצב מבחן' : 'מצב פעילות'}</span>
+                        <span className={`font-bold ${showScoring ? 'text-blue-800' : 'text-green-700'}`}>{showScoring ? 'מצב מבחן' : productTypeStatusLabel}</span>
                     </div>
                 </div>
 
@@ -1120,7 +1121,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         </button>
                     )}
 
-                    <button onClick={handleCopyLinkClick} className="px-5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold transition-colors flex items-center gap-2 border border-indigo-200">
+                    <button onClick={handleCopyLinkClick} className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2">
                         <IconLink className="w-4 h-4" /> קישור לתלמיד
                     </button>
 
@@ -1163,7 +1164,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                         {editedUnit.activityBlocks?.map((block: any, index: number) => (
                             <React.Fragment key={block.id}>
-                                <div className="glass p-6 rounded-2xl shadow-sm border border-white/60 hover:shadow-xl hover:border-blue-200 transition-all relative group bg-white/80">
+                                <div className="card-glass p-6 relative group transition-all hover:scale-[1.01]">
                                     {/* Controls */}
                                     <div className="absolute top-4 left-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur border border-gray-100 rounded-lg p-1 z-10 shadow-sm">
                                         <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors"><IconArrowUp className="w-4 h-4" /></button>
@@ -1190,7 +1191,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <div className="text-blue-300 text-xs">ה-AI עובד על זה...</div>
                                                     </div>
                                                 ) : (
-                                                    <textarea className="w-full p-4 border border-gray-200/60 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-gray-700 leading-relaxed resize-y min-h-[200px]" value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} placeholder="כתבו כאן את תוכן הפעילות..." />
+                                                    <textarea className="w-full p-4 border border-gray-200/60 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-gray-700 leading-relaxed resize-y min-h-[200px]" value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} placeholder={`כתבו כאן את תוכן ${productTypeHebrew}...`} />
                                                 )}
                                                 {renderEmbeddedMedia(block.id, block.metadata)}
                                                 <div className="flex flex-wrap items-center gap-2 mt-3 bg-blue-50/40 p-2 rounded-xl border border-blue-100/50 backdrop-blur-sm justify-between">
@@ -1201,6 +1202,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <div className="flex gap-1 border-r border-blue-200 pr-2">
                                                         {renderMediaToolbar(block.id)}
                                                     </div>
+                                                </div>
+                                                <div className="mt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="text"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
                                                 </div>
                                             </div>
                                         )}
@@ -1280,7 +1289,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         {mediaInputMode[block.id] === 'link' && (
                                                             <div className="col-span-2 bg-white p-4 rounded-xl border border-red-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
                                                                 <h4 className="text-sm font-bold text-red-700 mb-2">הדבק קישור (YouTube / Vimeo):</h4>
-                                                                <input type="text" className="w-full p-2 border rounded-lg mb-2 text-sm" placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
+                                                                <input type="text" dir="ltr" className="w-full p-2 border rounded-lg mb-2 text-sm text-left" placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
                                                                 <div className="flex gap-2 justify-end">
                                                                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
                                                                     <div className="flex flex-col gap-2 w-full">
@@ -1514,8 +1523,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <div className="flex items-center gap-2 bg-white/60 p-3 rounded-lg text-indigo-800 mb-4 border border-indigo-100 shadow-sm">
                                                         <div className="bg-indigo-100 p-1.5 rounded-full"><IconRobot className="w-5 h-5 text-indigo-600" /></div>
                                                         <div className="flex-1">
-                                                            <span className="font-bold text-sm block">מצב פעילות פעיל</span>
-                                                            <span className="text-xs text-indigo-600">הבוט מוגדר כמנחה מלווה ומסייע בפעילות.</span>
+                                                            <span className="font-bold text-sm block">{productTypeStatusLabel}</span>
+                                                            <span className="text-xs text-indigo-600">{`הבוט מוגדר כמנחה מלווה עבור ${productTypeHebrew}.`}</span>
                                                         </div>
                                                     </div>
                                                 )}
@@ -1605,6 +1614,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     {/* השימוש החדש ברכיב המאוחד */}
                                                     {renderMediaToolbar(block.id)}
                                                 </div>
+                                                <div className="mt-2">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType={block.type}
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
 
@@ -1617,6 +1634,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
                                                 <textarea className="w-full p-4 border border-purple-200/60 bg-white rounded-xl focus:ring-2 focus:ring-purple-100 outline-none transition-all text-gray-800 text-lg leading-relaxed min-h-[160px]" dir="rtl" value={typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || '')} onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                                <div className="mt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="fill_in_blanks"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
 
@@ -1637,6 +1662,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         </div>
                                                     ))}
                                                     <button onClick={() => updateBlock(block.id, { ...block.content, correct_order: [...(block.content?.correct_order || []), "פריט חדש"] })} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-full mt-2">+ הוסף פריט</button>
+                                                </div>
+                                                <div className="mt-4 border-t border-blue-100 pt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="ordering"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
                                                 </div>
                                             </div>
                                         )}
@@ -1682,6 +1715,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         </div>
                                                     </div>
                                                 </div>
+                                                <div className="mt-4 border-t border-teal-100 pt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="categorization"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
 
@@ -1713,6 +1754,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <span className="text-xs font-bold">הוסף זוג</span>
                                                     </button>
                                                 </div>
+                                                <div className="mt-4 border-t border-pink-100 pt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="memory_game"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
 
@@ -1737,6 +1786,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     ))}
                                                     <button onClick={() => updateBlock(block.id, { ...block.content, statements: [...(block.content?.statements || []), { text: "", is_true: true }] })} className="w-full py-2 border-2 border-dashed border-red-200 rounded-lg text-red-400 font-bold text-sm hover:bg-red-50">+ הוסף שאלה</button>
                                                 </div>
+                                                <div className="mt-4 border-t border-red-100 pt-2 flex justify-end">
+                                                    <AiRefineToolbar
+                                                        blockId={block.id}
+                                                        blockType="true_false_speed"
+                                                        content={block.content}
+                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1748,16 +1805,18 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 </div>
 
                 {/* Source Viewer Column */}
-                {showSource && (
-                    <div className="w-1/2 border-r border-gray-200 bg-white shadow-xl z-20 animate-slide-in-left relative overflow-hidden flex flex-col h-full bg-slate-50">
-                        <SourceViewer
-                            content={course.fullBookContent || "אין תוכן זמין."}
-                            pdfSource={course.pdfSource || undefined}
-                            onClose={() => setShowSource(false)}
-                        />
-                    </div>
-                )}
-            </div>
+                {
+                    showSource && (
+                        <div className="w-1/2 border-r border-gray-200 bg-white shadow-xl z-20 animate-slide-in-left relative overflow-hidden flex flex-col h-full bg-slate-50">
+                            <SourceViewer
+                                content={course.fullBookContent || "אין תוכן זמין."}
+                                pdfSource={course.pdfSource || undefined}
+                                onClose={() => setShowSource(false)}
+                            />
+                        </div>
+                    )
+                }
+            </div >
             {/* Sticky Score Footer */}
             {
                 showScoring && (
@@ -1843,7 +1902,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     document.body
                 )
             }
-        </div>
+        </div >
     );
 };
 

@@ -2,6 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { connectFirestoreEmulator } from "firebase/firestore";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -18,5 +20,14 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
+
+// --- LOCAL EMULATOR CONNECTION ---
+// Emulator connection removed to deploy to production (Java missing locally)
+// if (window.location.hostname === "localhost") {
+//     console.log("🔧 Localhost detected! Connecting to Emulators...");
+//     connectFunctionsEmulator(functions, "localhost", 5001);
+//     connectFirestoreEmulator(db, "localhost", 8080);
+// }
 
 export default app;

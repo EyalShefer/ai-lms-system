@@ -220,7 +220,7 @@ const AuthenticatedApp = () => {
       }
 
       // --- לוג ביקורת ---
-      console.log("🚀 Generating with AI... Wizard Data:", wizardData);
+      console.log("🚀 Generating with AI... Wizard Data:", JSON.stringify(wizardData, null, 2));
 
       // --- חילוץ חכם של הגיל (ROBUST EXTRACTION) ---
       let extractedGrade =
@@ -365,6 +365,16 @@ const AuthenticatedApp = () => {
               <IconEditSimple /> <span>חזור לעריכה</span>
             </button>
           )}
+
+          {/* Enter Student Area (For Link Students) */}
+          {mode === 'student' && isStudentLink && (
+            <button
+              onClick={() => setMode('student-dashboard')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-bold cursor-pointer text-sm animate-pulse-slow"
+            >
+              <span>👨‍🎓</span> <span>כנס לאזור התלמיד</span>
+            </button>
+          )}
           <div className="h-6 w-px bg-gray-300 mx-1"></div>
 
           {/* Temporary Switch for Dev / Demo */}
@@ -415,11 +425,16 @@ const AuthenticatedApp = () => {
                 <LoadingSpinner />
                 <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
               </div>
-            ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} /> : (
+            ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
                 {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
                 {mode === 'editor' && <CourseEditor />}
-                {mode === 'student' && <SequentialCoursePlayer assignment={currentAssignment || undefined} simulateGuest={isGuestMode} />}
+                {mode === 'student' && <SequentialCoursePlayer
+                  assignment={currentAssignment || undefined}
+                  simulateGuest={isGuestMode}
+                  onExit={() => setMode('editor')}
+                  onEdit={() => setMode('editor')}
+                />}
                 {mode === 'dashboard' && (
                   <TeacherDashboard
                     onEditCourse={handleCourseSelect}
@@ -428,7 +443,10 @@ const AuthenticatedApp = () => {
                     onNavigateToAnalytics={() => setMode('analytics')}
                   />
                 )}
-                {mode === 'student-dashboard' && <StudentHome onSelectAssignment={handleStudentAssignmentSelect} />}
+                {mode === 'student-dashboard' && <StudentHome
+                  onSelectAssignment={handleStudentAssignmentSelect}
+                  highlightCourseId={currentAssignment?.courseId || (isStudentLink && !currentAssignment ? new URLSearchParams(window.location.search).get('studentCourseId') : undefined)}
+                />}
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
                 {mode === 'analytics' && <AdaptiveDashboard />}
               </>

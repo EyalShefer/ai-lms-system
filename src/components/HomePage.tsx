@@ -1,5 +1,6 @@
 
 import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
 import {
     IconList, IconSparkles,
     IconChart, IconBack, // שיניתי כאן ל-IconBack
@@ -9,6 +10,31 @@ import {
 const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void }) => {
     const { currentUser } = useAuth();
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
+    const [activeStep, setActiveStep] = useState<number>(0);
+
+    // Animation Effect
+    useEffect(() => {
+        const hasSeenAnimation = localStorage.getItem('wizdi_how_it_works_seen');
+
+        if (!hasSeenAnimation) {
+            // Sequence
+            const timeouts: NodeJS.Timeout[] = [];
+
+            // Start after 1s
+            timeouts.push(setTimeout(() => setActiveStep(1), 1000));
+            timeouts.push(setTimeout(() => setActiveStep(2), 2000));
+            timeouts.push(setTimeout(() => setActiveStep(3), 3000));
+            timeouts.push(setTimeout(() => setActiveStep(4), 4000));
+
+            // End and mark as seen
+            timeouts.push(setTimeout(() => {
+                setActiveStep(0);
+                localStorage.setItem('wizdi_how_it_works_seen', 'true');
+            }, 5000));
+
+            return () => timeouts.forEach(clearTimeout);
+        }
+    }, []);
 
     // פונקציית עזר ללחיצה עם לוג
     const handleCardClick = (actionName: string, callback: () => void) => {
@@ -146,7 +172,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 1 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                        <div className={`bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative transition-all duration-500 shadow-sm border border-blue-200 ${activeStep === 1 ? 'scale-125 ring-4 ring-offset-2 ring-wizdi-cyan/50 bg-white' : 'group-hover:scale-110'}`}>
                             <IconSparkles className="w-8 h-8 text-wizdi-cyan" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">1</span>
                         </div>
@@ -156,7 +182,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 2 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                        <div className={`bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative transition-all duration-500 shadow-sm border border-blue-200 ${activeStep === 2 ? 'scale-125 ring-4 ring-offset-2 ring-wizdi-royal/50 bg-white' : 'group-hover:scale-110'}`}>
                             <IconConstruction className="w-8 h-8 text-wizdi-royal" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-royal text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">2</span>
                         </div>
@@ -166,7 +192,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 3 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                        <div className={`bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative transition-all duration-500 shadow-sm border border-blue-200 ${activeStep === 3 ? 'scale-125 ring-4 ring-offset-2 ring-wizdi-cyan/50 bg-white' : 'group-hover:scale-110'}`}>
                             <IconStudent className="w-8 h-8 text-wizdi-cyan" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-cyan text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">3</span>
                         </div>
@@ -176,7 +202,7 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
 
                     {/* Step 4 */}
                     <div className="flex flex-col items-center text-center relative z-10 group">
-                        <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative group-hover:scale-110 transition-transform shadow-sm border border-blue-200">
+                        <div className={`bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative transition-all duration-500 shadow-sm border border-blue-200 ${activeStep === 4 ? 'scale-125 ring-4 ring-offset-2 ring-wizdi-royal/50 bg-white' : 'group-hover:scale-110'}`}>
                             <IconChart className="w-8 h-8 text-wizdi-royal" />
                             <span className="absolute -top-2 -right-2 bg-wizdi-royal text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white">4</span>
                         </div>

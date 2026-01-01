@@ -1,0 +1,935 @@
+[
+  {
+    "case_id": "student_1_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_2_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned, which should be allowed only in practice mode.",
+      "The 'Fire' animation was triggered after selecting the first correct answer, but it should only trigger after 3 correct answers in a row."
+    ],
+    "ido_feedback": "Several UI and gamification issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_3_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Lightbulb icon with a deduction of 2 points, but the color should be Blue (#0056b3) as a primary action.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Hint' button should be a primary action button and thus should be Blue (#0056b3).",
+      "The 'Fire' animation should only trigger after answering 3 correct in a row, but it triggered after 2 correct answers."
+    ],
+    "ido_feedback": "The system has several UI and gamification issues that need addressing to align with the System Manifesto."
+  },
+  {
+    "case_id": "student_4_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "Next button is correctly disabled initially, but no information on enabling after answer selection.",
+      "No 'Back' button mentioned, which is only allowed in practice mode.",
+      "Fire animation triggered after 2 correct answers instead of 3."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_5_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_6_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Lightbulb icon but with a primary action color Blue (#0056b3).",
+      "The 'Next' button is disabled correctly, but the 'Back' button is not present, which is acceptable since it's not practice mode.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak was only 2 before the correct answer."
+    ],
+    "ido_feedback": "Several UI and feature inconsistencies were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_7_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but the 'Back' button is not present, which is acceptable since it's not practice mode.",
+      "The 'Fire' animation was triggered after only 2 correct answers in a row, but it should trigger after 3 correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the streak animation triggered prematurely. Ensure all UI elements and animations adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_8_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no information is provided about its status after selecting an answer.",
+      "The 'Fire' animation was triggered after only 2 correct answers in a row instead of 3."
+    ],
+    "ido_feedback": "The system has several issues: incorrect button color for the hint, premature triggering of the streak animation, and incomplete information on the 'Next' button status after answer selection."
+  },
+  {
+    "case_id": "student_9_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not specified in the System Manifesto.",
+      "The 'Next' button is correctly disabled until an answer is selected, which is as per the rules.",
+      "The 'Fire' animation was triggered after only 2 correct answers in a row, but it should trigger after 3 correct answers."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but there are issues with the hint button color and the premature triggering of the 'Fire' animation."
+  },
+  {
+    "case_id": "student_10_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color doesn't match the required primary action color, and the 'Fire' animation logic is not applicable here but should be noted for future streaks. Ensure all UI elements adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_11_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_12_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but the color requirement for primary actions is not verified in the data provided."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect, and the 'Next' button color needs verification."
+  },
+  {
+    "case_id": "student_13_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite achieving a streak of 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a few issues with button color and missing animations for streaks. Ensure compliance with the System Manifesto for a better user experience."
+  },
+  {
+    "case_id": "student_14_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after 3 correct answers in a row, but current streak is only 1, so this is not applicable yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_15_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all primary actions use the correct color."
+  },
+  {
+    "case_id": "student_16_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, although current streak is 0, this should be checked in future tests."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect. Ensure primary actions use the correct color."
+  },
+  {
+    "case_id": "student_17_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a streak of 3 correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color is incorrect, and the streak animation did not trigger as expected."
+  },
+  {
+    "case_id": "student_18_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 1, so this is not applicable yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all primary actions use the correct color."
+  },
+  {
+    "case_id": "student_19_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, which should have increased the streak."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color is incorrect, and the streak animation is missing. These need to be fixed for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_20_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure primary actions use the correct color."
+  },
+  {
+    "case_id": "student_21_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but there is no information on whether it becomes enabled after an answer is selected.",
+      "The 'Fire' animation should only trigger after answering 3 correct in a row, but the current streak was 2 before the correct answer, indicating a potential error in streak tracking."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_22_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Blue (#0056b3) as a primary action button.",
+      "The 'Fire' animation should not have been triggered since the current streak was only 2 before the correct answer."
+    ],
+    "ido_feedback": "The system has a couple of issues: the hint button is not using the correct primary color, and the 'Fire' animation was incorrectly triggered. These need to be addressed for consistency with the System Manifesto."
+  },
+  {
+    "case_id": "student_23_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite achieving a streak of 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the 'Fire' animation for a streak of 3 correct answers is missing. These need to be addressed for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_24_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as per primary action button requirement.",
+      "The 'Next' button is correctly disabled initially, but no information is provided about its status after an answer is selected.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2 before the correct answer is selected."
+    ],
+    "ido_feedback": "The system has several UI and functional discrepancies that need addressing to align with the System Manifesto rules."
+  },
+  {
+    "case_id": "student_25_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after achieving a streak of 3 correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the streak animation is missing. These need fixing for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_26_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color."
+  },
+  {
+    "case_id": "student_27_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after achieving a streak of 3 correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color is incorrect, and the streak animation is missing. These need to be fixed for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_28_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation was triggered after selecting the first correct answer, but it should only trigger after 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the 'Fire' animation is triggered prematurely."
+  },
+  {
+    "case_id": "student_29_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, although the current streak is 0, this should be noted for future streaks."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect. Ensure primary actions use the correct color. Also, verify streak animations in future tests."
+  },
+  {
+    "case_id": "student_30_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, which should have increased the streak to 1."
+    ],
+    "ido_feedback": "The system correctly deducted points for using a hint and provided immediate feedback for the answer. However, the hint button color does not match the required primary action color, and the streak animation was not triggered as expected."
+  },
+  {
+    "case_id": "student_31_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the streak animation logic needs verification."
+  },
+  {
+    "case_id": "student_32_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as per primary action button requirement.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned in the context of practice mode.",
+      "The 'Fire' animation should trigger after answering 3 correct in a row, but the current streak is only 2 before the correct answer."
+    ],
+    "ido_feedback": "Several UI and feature discrepancies were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_33_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no information on its status after an answer is selected.",
+      "No 'Back' button is present, which is acceptable since it's not in practice mode.",
+      "The 'Fire' animation is triggered after selecting the correct answer, but the current streak was 2, not 3."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_34_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Lightbulb icon with a deduction of 2 points, but the color should be Blue (#0056b3) as it is a primary action.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Hint' button should be a primary action button and thus should be Blue (#0056b3).",
+      "The 'Fire' animation should only trigger after answering 3 correct in a row, but it triggered after 2 correct answers."
+    ],
+    "ido_feedback": "The system has several UI and functional discrepancies, including incorrect button colors and premature animation triggers."
+  },
+  {
+    "case_id": "student_35_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary action buttons.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned, which should be allowed only in practice mode.",
+      "The 'Fire' animation is triggered after selecting the correct answer, but the current streak was 2, so it should not have triggered yet."
+    ],
+    "ido_feedback": "The system has a few UI and logic issues that need addressing, particularly with button colors and streak animations."
+  },
+  {
+    "case_id": "student_36_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not marked as such in the System Manifesto.",
+      "The 'Next' button is disabled correctly, but the 'Back' button is not present, which is acceptable since it's not practice mode.",
+      "The 'Lightbulb' icon for the hint is present, but the color is not specified as per the System Manifesto.",
+      "The 'Fire' animation for a streak is not triggered because the current streak is 0, which is correct."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but there are issues with button colors and missing animations."
+  },
+  {
+    "case_id": "student_37_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color does not match the required primary action color, and the 'Fire' animation is not applicable yet as the streak is only 1. Ensure all UI elements adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_38_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Lightbulb icon with a deduction of 2 points, but the color must be Blue (#0056b3) as a primary action button.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned, which should be allowed in practice mode only.",
+      "The 'Fire' animation for a streak of 3 correct answers in a row is missing, although the current streak is 1, it should be prepared for when it reaches 3."
+    ],
+    "ido_feedback": "The system has some UI inconsistencies and missing features according to the System Manifesto. Ensure all buttons follow the color guidelines and animations are prepared for streaks."
+  },
+  {
+    "case_id": "student_39_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite achieving a streak of 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the Hint button and failed to trigger the required animation for a streak."
+  },
+  {
+    "case_id": "student_40_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned, which should be allowed only in practice mode.",
+      "The 'Fire' animation should trigger after answering 3 correct in a row, but the current streak is 2, so it should not have triggered yet."
+    ],
+    "ido_feedback": "Several UI and functional issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_41_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached, but this should be noted for future checks."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure primary action buttons are Blue (#0056b3)."
+  },
+  {
+    "case_id": "student_42_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system correctly deducted points for hint usage and provided immediate feedback with the correct icon and text. However, the hint button color does not comply with the primary action button color requirement."
+  },
+  {
+    "case_id": "student_43_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be a primary action button and therefore Blue (#0056b3), not Light Blue (Secondary).",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being achieved yet."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color does not comply with the primary action button color rule, and the 'Fire' animation is not applicable yet but should be noted for future streaks."
+  },
+  {
+    "case_id": "student_44_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the 'Fire' animation logic needs verification."
+  },
+  {
+    "case_id": "student_45_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the 'Fire' animation triggered prematurely. Ensure compliance with the System Manifesto for accurate functionality."
+  },
+  {
+    "case_id": "student_46_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the hint button and lacks the required animation for a streak, but other functionalities like hint deduction and feedback are working correctly."
+  },
+  {
+    "case_id": "student_47_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not specified in the rules.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the color of the 'Hint' button is not compliant with the primary action button color rule."
+    ],
+    "ido_feedback": "The system mostly follows the rules, but the 'Hint' button color is not compliant with the specified primary action button color. Ensure all UI elements adhere to the color guidelines."
+  },
+  {
+    "case_id": "student_48_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_49_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not marked as primary.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the color of the Hint button does not match the primary action button color requirement."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button's color is incorrect, and it should be marked as a primary action button. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_50_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, which should have increased the streak to 1."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color doesn't match the required primary action color, and the streak animation wasn't triggered correctly. Ensure all UI elements and animations adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_51_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not specified as such in the System Manifesto.",
+      "The 'Next' button is disabled correctly, but there is no mention of its color. It should be Blue (#0056b3) as per the primary action button rule.",
+      "The 'Fire' animation was triggered after selecting the correct answer, but the current streak was only 2 before the action. It should trigger after 3 correct answers in a row."
+    ],
+    "ido_feedback": "Several UI and gamification inconsistencies were found, including incorrect button colors and premature animation triggering."
+  },
+  {
+    "case_id": "student_52_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The hint button color does not match the required primary action button color. Ensure all primary actions use the correct color code."
+  },
+  {
+    "case_id": "student_53_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Blue (#0056b3) as a primary action button.",
+      "The 'Next' button is correctly disabled initially, but there is no information about its status after an answer is selected.",
+      "No 'Fire' animation triggered despite a correct answer, but current streak is 0, so this is expected.",
+      "The 'Back' button is not mentioned, but since it's not practice mode, it should not be available."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the 'Next' button status post-answer selection is unclear."
+  },
+  {
+    "case_id": "student_54_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no issue found here.",
+      "The 'Fire' animation was triggered after selecting the first correct answer, but the streak was only 2, not 3 as required."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the 'Fire' animation was triggered prematurely. Ensure all UI elements and animations adhere to the System Manifesto rules."
+  },
+  {
+    "case_id": "student_55_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Lightbulb icon but is Light Blue (Secondary) instead of Blue (#0056b3).",
+      "No 'Fire' animation triggered after 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a few issues with button colors and animations. Ensure all UI elements adhere to the System Manifesto rules."
+  },
+  {
+    "case_id": "student_56_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not marked as such.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the color of the 'Hint' button should be Blue (#0056b3) if it is a primary action button."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but there are issues with button colors that need fixing."
+  },
+  {
+    "case_id": "student_57_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the streak animation logic needs clarification."
+  },
+  {
+    "case_id": "student_58_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not specified in the rules.",
+      "The 'Next' button is disabled correctly, but there is no mention of its color. It should be Blue (#0056b3) as a primary action button.",
+      "The 'Fire' animation is triggered after selecting the correct answer, but the current streak was 2, so it should not have triggered yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but there are issues with button colors and incorrect animation triggering."
+  },
+  {
+    "case_id": "student_59_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_60_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, although the current streak is 0, the simulation does not cover this scenario."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the Hint button, which should be a primary action button. Additionally, ensure the 'Fire' animation is triggered correctly when applicable."
+  },
+  {
+    "case_id": "student_61_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet, but the streak should be monitored for future animations."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the hint button, and while the streak animation isn't triggered yet, it should be monitored for future compliance."
+  },
+  {
+    "case_id": "student_62_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Hint' button should be a primary action button and thus should be Blue (#0056b3)."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button's color does not match the required primary action button color. Ensure all primary action buttons are Blue (#0056b3)."
+  },
+  {
+    "case_id": "student_63_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 being reached."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color does not match the primary action color requirement, and the 'Fire' animation for a streak of 3 correct answers is missing."
+  },
+  {
+    "case_id": "student_64_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no information is provided about its status after an answer is selected.",
+      "The 'Fire' animation is triggered after selecting the first correct answer, but the current streak was only 2 before the answer, not 3."
+    ],
+    "ido_feedback": "The system has several UI and functional discrepancies that need addressing, particularly with button colors and streak animations."
+  },
+  {
+    "case_id": "student_65_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as per primary action button requirement.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the primary action button color requirement. Ensure all UI elements follow the specified color guidelines."
+  },
+  {
+    "case_id": "student_66_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but there is no mention of enabling it after selecting an answer.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2 before the correct answer."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_67_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system correctly deducted points for the hint and provided immediate feedback for the answer. However, the hint button color does not match the required primary action button color."
+  },
+  {
+    "case_id": "student_68_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet, but this should be noted for future checks."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure primary actions use the specified blue color."
+  },
+  {
+    "case_id": "student_69_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation was triggered after selecting the first correct answer, but the current streak was only 2, not 3."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the Hint button and incorrectly triggers the 'Fire' animation after only 2 correct answers in a row."
+  },
+  {
+    "case_id": "student_70_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, which should have increased the streak to 1."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the streak animation is missing. Ensure all UI elements and animations adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_71_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation should not have been triggered since the current streak was 2 before the correct answer, making it 3 after the answer."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the hint button and incorrectly triggers the 'Fire' animation at the wrong streak count."
+  },
+  {
+    "case_id": "student_72_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Hint' button should be a primary action button and thus should be Blue (#0056b3)."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure all primary action buttons use the correct color."
+  },
+  {
+    "case_id": "student_73_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a current streak of 1 and a correct answer given, which should increase the streak to 2."
+    ],
+    "ido_feedback": "The system has a few issues with button color and streak animations. Ensure primary actions use the correct color and animations trigger as expected."
+  },
+  {
+    "case_id": "student_74_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system correctly deducted points for using a hint and provided immediate feedback for the answer. However, the hint button color does not comply with the primary action button color requirement."
+  },
+  {
+    "case_id": "student_75_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached, which is correct, but should be noted for clarity."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_76_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a streak of 3 correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button color doesn't match the primary action color requirement, and the 'Fire' animation for a streak of 3 correct answers wasn't triggered. These need to be fixed for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_77_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation was triggered after selecting the first correct answer, but the current streak was only 2, not 3."
+    ],
+    "ido_feedback": "The system has a couple of issues: the hint button color does not match the primary action button color requirement, and the 'Fire' animation was incorrectly triggered after only two correct answers in a row."
+  },
+  {
+    "case_id": "student_78_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but it triggered after 2."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color doesn't match the primary action color requirement, and the 'Fire' animation triggered prematurely. These need fixing to align with the System Manifesto."
+  },
+  {
+    "case_id": "student_79_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 being achieved."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color doesn't match the primary action color requirement, and the streak animation is missing. Ensure all UI elements and animations adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_80_Omer_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite achieving a streak of 3 correct answers in a row."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the streak animation is missing. These need to be addressed for full compliance with the System Manifesto."
+  },
+  {
+    "case_id": "student_81_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but there is no mention of it being enabled after an answer is selected.",
+      "The 'Fire' animation should only trigger after answering 3 correct in a row, but the current streak was 2 before the correct answer, so it should not have triggered."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation triggering."
+  },
+  {
+    "case_id": "student_82_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system correctly deducted points for the hint and provided immediate feedback for the answer. However, the hint button color does not match the required primary action button color."
+  },
+  {
+    "case_id": "student_83_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_84_Tamar_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary action buttons.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the streak animation logic needs review."
+  },
+  {
+    "case_id": "student_85_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Fire' animation was triggered after selecting the first correct answer instead of after three consecutive correct answers."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color is incorrect, and the 'Fire' animation is triggered prematurely. These need to be fixed to align with the System Manifesto."
+  },
+  {
+    "case_id": "student_86_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled until an answer is selected, but the 'Back' button is not mentioned, which should be allowed only in practice mode.",
+      "The 'Fire' animation should trigger after answering 3 correct in a row, but the current streak is only 2 before the correct answer, indicating a potential issue in streak tracking."
+    ],
+    "ido_feedback": "Several UI and functionality issues were identified, including incorrect button color and potential streak tracking problems."
+  },
+  {
+    "case_id": "student_87_Yoni_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but this is not applicable here as the current streak is 0."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure primary actions use the correct color."
+  },
+  {
+    "case_id": "student_88_Ben_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but the 'Back' button is not mentioned, which should be allowed only in practice mode.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2 before the correct answer."
+    ],
+    "ido_feedback": "The system has some UI inconsistencies and incorrect animation triggers. Ensure primary actions use the correct color and animations trigger at the right streak count."
+  },
+  {
+    "case_id": "student_89_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system has a few issues: the Hint button is not using the correct primary action color, and the 'Fire' animation logic is not applicable here but should be noted for future streaks. Ensure all UI elements adhere to the System Manifesto."
+  },
+  {
+    "case_id": "student_90_Dan_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the streak animation logic needs verification."
+  },
+  {
+    "case_id": "student_91_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet, but the current streak is 1, so this is expected.",
+      "The 'Next' button is correctly disabled until an answer is selected, which is as per the rules."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the Hint button. Ensure all primary actions use the correct color. The streak animation is not applicable yet, but the system correctly handles button states."
+  },
+  {
+    "case_id": "student_92_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the hint button color is incorrect, and the streak animation logic needs verification."
+  },
+  {
+    "case_id": "student_93_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is incorrect. It should be Light Blue (Secondary) but is not marked as such in the System Manifesto.",
+      "The 'Next' button is disabled correctly, but there is no mention of its color. It should be Blue (#0056b3) as a primary action button.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2 before the correct answer is selected."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but there are issues with button colors and animation triggers."
+  },
+  {
+    "case_id": "student_94_Maya_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this case."
+    ],
+    "ido_feedback": "The system correctly deducted points for using a hint and provided immediate feedback for the answer. However, the hint button color does not comply with the primary action button color requirement."
+  },
+  {
+    "case_id": "student_95_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered after 3 correct answers in a row, but this is not applicable in the current context as the streak is 0."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color is incorrect. Ensure primary actions use the correct color."
+  },
+  {
+    "case_id": "student_96_Noa_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer being selected, which should have increased the streak to 1."
+    ],
+    "ido_feedback": "The system has a few issues: the hint button color does not match the primary action color requirement, and the streak animation is not functioning as expected. Immediate feedback is correctly implemented."
+  },
+  {
+    "case_id": "student_97_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as per primary action button requirement.",
+      "No 'Fire' animation triggered after answering 3 correct in a row, but current streak is 0, so this is not applicable in this context."
+    ],
+    "ido_feedback": "The system mostly adheres to the rules, but the Hint button color does not match the required primary action button color. Ensure all UI elements follow the color guidelines."
+  },
+  {
+    "case_id": "student_98_Gal_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "No 'Fire' animation triggered despite a correct answer streak of 3 not being reached yet."
+    ],
+    "ido_feedback": "The system has a color inconsistency with the Hint button and lacks the 'Fire' animation trigger for streaks."
+  },
+  {
+    "case_id": "student_99_Ido_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no information on its status after an answer is selected.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak was 2 before the correct answer, so it should not have triggered yet."
+    ],
+    "ido_feedback": "Several UI and functionality issues were found, including incorrect button color and premature animation trigger."
+  },
+  {
+    "case_id": "student_100_Adi_FIXED",
+    "status": "FAIL",
+    "issues_found": [
+      "Hint button color is Light Blue (Secondary) instead of Blue (#0056b3) as required for primary actions.",
+      "The 'Next' button is correctly disabled initially, but no information on its status after an answer is selected.",
+      "The 'Fire' animation should trigger after 3 correct answers in a row, but the current streak is only 2 before the correct answer."
+    ],
+    "ido_feedback": "The system has some UI inconsistencies and incorrect animation triggers. Ensure button colors and animations align with the System Manifesto."
+  }
+]

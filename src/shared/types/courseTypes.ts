@@ -234,6 +234,15 @@ export interface StudentAnalyticsProfile {
     psychologicalProfile: 'Impulsive' | 'Persistent' | 'Deep Thinker' | 'Hesitant';
     recommendedFocus: string; // What topic to review
     engagementScore: number; // calculated from hints/time
+
+    // Pedagogical Personality System
+    learningPreferences?: {
+        visual: number; // 0-1 confidence
+        textual: number;
+        gamified: number;
+        scaffolded: number;
+    };
+    confirmedTraits?: string[]; // e.g. ["Visual Learner", "Competitive"]
 }
 
 // --- Validation Types ---

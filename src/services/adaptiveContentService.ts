@@ -1,6 +1,6 @@
 
-import type { ActivityBlock } from '../courseTypes';
-import { openai, MODEL_NAME } from '../gemini';
+import type { ActivityBlock } from '../shared/types/courseTypes';
+import { openai, MODEL_NAME } from './ai'; // Updated import
 
 /**
  * Service to enrich "Dumb" content blocks with "Smart" pedagogical metadata.

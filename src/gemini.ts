@@ -3,8 +3,9 @@ import { getApp } from "firebase/app";
 import OpenAI from "openai";
 import { v4 as uuidv4 } from 'uuid';
 import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT, EXAM_MODE_SYSTEM_PROMPT } from './prompts/pedagogicalPrompts';
-import type { ValidationResult } from './courseTypes';
+import type { ValidationResult } from './shared/types/courseTypes';
 import { getFunctions } from "firebase/functions";
+import { cleanJsonString, mapSystemItemToBlock } from './shared/utils/geminiParsers';
 
 export const functions = getFunctions(getApp());
 // if (window.location.hostname === "localhost") {
@@ -55,35 +56,8 @@ export const BOT_PERSONAS = {
 
 export const MODEL_NAME = "gpt-4o-mini";
 
-export const cleanJsonString = (text: string): string => {
-  try {
-    let clean = text.replace(/```json|```/g, '').trim();
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
-    let startIndex = -1;
-    let endIndex = -1;
-
-    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
-      startIndex = firstBracket;
-      endIndex = clean.lastIndexOf(']') + 1;
-    } else if (firstBrace !== -1) {
-      startIndex = firstBrace;
-      endIndex = clean.lastIndexOf('}') + 1;
-    }
-
-    if (startIndex !== -1 && endIndex !== -1) {
-      clean = clean.substring(startIndex, endIndex);
-    }
-    clean = clean.replace(/}\s*{/g, '}, {');
-    return clean;
-  } catch (e) {
-    console.error("JSON cleaning failed, returning original:", e);
-    return text;
-  }
-};
-
-import type { RawAiItem, MappedLearningBlock } from './types/gemini.types';
-import type { ActivityBlockType, RichOption } from './courseTypes';
+// Output cleaned via shared parser
+// export const cleanJsonString ... (Moved to shared/utils/geminiParsers)
 
 // Helper for Wizdi Pyramid
 // Helper for Wizdi Pyramid (Dynamic based on Wizard Settings)
@@ -118,322 +92,15 @@ const getBloomDistribution = (count: number, requestedDistribution?: Record<stri
 
 /**
  * Maps the raw, chaotic JSON returned by AI into a strict, UI-ready Content Block.
- * 
- * @param item - The raw JSON object from the AI (RawAiItem).
- * @returns {MappedLearningBlock | null} A strictly typed block ready for the Course Player, or null if invalid.
+ * NOW IMPORTED FROM SHARED UTILS
  */
-export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBlock | null => {
-  if (!item) return null;
-
-  // 1. ROBUST DATA NORMALIZATION
-  console.log("Raw AI Item for Mapping:", JSON.stringify(item)); // DEBUG LOG
-
-  // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
-  // Sometimes AI returns data: { data: { ... } }
-  // We use 'as RawAiItem' because the nesting can be recursive and unpredictable, but we know it conforms to the partial shape
-  const rawData: RawAiItem = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
-
-  // Extract Type
-  // Keep as string for loose matching against AI outputs (which might use underscores)
-  const typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
-
-  // Extract Question Text (Handle all known variations - Check Root AND Data)
-  const questionObj = rawData.question || item.question;
-  const questionText =
-    (typeof questionObj === 'object' ? questionObj?.text : questionObj) || // Handle { question: { text: "..." } }
-    rawData.question_text ||
-    rawData.text ||
-    rawData.instruction ||
-    rawData.text ||
-    rawData.instruction;
-
-  // REMOVED GLOBAL FAIL: Allow specific types to default their question text.
-  // if (!questionText || questionText.length < 2) {
-  //   console.warn("Block skipped: No question text found");
-  //   return null; 
-  // }
-
-  const commonMetadata = {
-    bloomLevel: item.bloom_level || "ידע ומיומנויות יסוד",
-    feedbackCorrect: rawData.feedback_correct || rawData.feedback || "כל הכבוד! התשובה תואמת את הטקסט.",
-    feedbackIncorrect: rawData.feedback_incorrect || "לא מדויק. כדאי לנסות שוב או להיעזר ברמז המודגש.",
-    sourceReference: rawData.source_reference || rawData.source_reference_hint || null
-  };
-
-  // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
-  // Compare against loose strings from AI
-  if (typeString === 'multiple_choice' || typeString === 'multiple-choice' || typeString === 'true_false' || typeString === 'teach_then_ask') {
-    // Robust Options Extraction
-    let options: (string | RichOption)[] = [];
-    if (Array.isArray(rawData.options)) options = rawData.options;
-    else if (Array.isArray(item.options)) options = item.options; // Check root as fallback
-    else if (Array.isArray(rawData.choices)) options = rawData.choices;
-    else if (Array.isArray(rawData.answers)) options = rawData.answers;
-
-    // Normalize Options to Strings for Content, Keep Rich Data in Metadata
-    const normalizedOptions: string[] = options.map((o) =>
-      typeof o === 'string' ? o : (o.text || o.label || "")
-    );
-
-    // Fallback if empty options
-    if (normalizedOptions.length < 2) {
-      if (typeString === 'true_false') {
-        normalizedOptions.push("נכון", "לא נכון");
-      } else {
-        console.warn("Invalid options detected for MC, returning null to force retry/skip");
-        return null; // Better to fail than show "Option A"
-      }
-    }
-
-    // Robust Correct Answer Extraction
-    let correctAnswer = "";
-
-    // 1. Check for "is_correct" flag in rich objects
-    const correctOptObj = options.find((o) => typeof o === 'object' && (o.is_correct || o.isCorrect === true)) as RichOption | undefined;
-    if (correctOptObj) {
-      correctAnswer = correctOptObj.text || correctOptObj.label || "";
-    }
-    // 2. Check for explicit correct answer string
-    else if (rawData.correct_answer && typeof rawData.correct_answer === 'string') {
-      correctAnswer = rawData.correct_answer;
-    }
-    // 3. Check for correct index
-    else if (rawData.correct_index !== undefined && normalizedOptions[rawData.correct_index]) {
-      correctAnswer = normalizedOptions[rawData.correct_index];
-    }
-    // 4. Fallback to first option
-    else {
-      correctAnswer = normalizedOptions[0];
-    }
-
-    // Normalize type to accepted enum
-    const finalType: ActivityBlockType = typeString === 'true_false' ? 'multiple-choice' : 'multiple-choice';
-
-    return {
-      id: uuidv4(),
-      type: finalType,
-      content: {
-        question: questionText,
-        options: normalizedOptions,
-        correctAnswer: correctAnswer
-      },
-      metadata: {
-        ...commonMetadata,
-        score: 10,
-        progressiveHints: rawData.progressive_hints || [],
-        richOptions: options.some(o => typeof o === 'object') ? options : undefined
-      }
-    };
-  }
-
-  // === CASE B: OPEN QUESTION ===
-  if (typeString === 'open_question' || typeString === 'open-question' || typeString === 'open_ended') {
-    return {
-      id: uuidv4(),
-      type: 'open-question',
-      content: { question: questionText },
-      metadata: {
-        ...commonMetadata,
-        modelAnswer: Array.isArray(rawData.model_answer)
-          ? rawData.model_answer.join('\n- ')
-          : (rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key || "התשובה נמצאת בחומר הלימוד."),
-        score: 20
-      }
-    };
-  }
-
-  // === CASE C: ORDERING / SEQUENCING ===
-  if (typeString === 'ordering' || typeString === 'sequencing') {
-    const rawItems = rawData.items || rawData.steps || rawData.correct_order || [];
-    // Ensure items are strings
-    const items = rawItems.map((i) => {
-      if (typeof i === 'string') return i;
-      // i is an object from the union in RawAiItem
-      return i.text || i.step || i.content || (i as any).description || JSON.stringify(i);
-    });
-
-    // Valid Sequence Check
-    if (items.length < 2) {
-      console.warn("Ordering items missing or too few. Attempting auto-repair from text.");
-      // Fallback: Try to split the question/instruction text into steps
-      if (questionText && questionText.length > 20) {
-        // Try splitting by newlines first
-        let splitText = questionText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-        if (splitText.length < 2) {
-          // Try splitting by periods (sentences)
-          splitText = questionText.split('.').map(s => s.trim()).filter(s => s.length > 5);
-        }
-
-        if (splitText.length >= 2) {
-          items.push(...splitText);
-          // Update items in the block
-        } else {
-          return null; // Truly failed
-        }
-      } else {
-        return null; // Fail
-      }
-    }
-
-    return {
-      id: uuidv4(),
-      type: 'ordering',
-      content: {
-        instruction: questionText !== "שאלה ללא טקסט" ? questionText : "סדרו את הצעדים הבאים:",
-        correct_order: items
-      },
-      metadata: { ...commonMetadata, score: 15 }
-    };
-  }
-
-  // === CASE D: CATEGORIZATION / GROUPING / MATCHING ===
-  if (typeString === 'categorization' || typeString === 'grouping' || typeString === 'matching') {
-    let categories: string[] = [];
-    let items: { text: string; category: string }[] = [];
-
-    // Handle Matching (Pairs)
-    if (typeString === 'matching' || rawData.pairs) {
-      const pairs = rawData.pairs || [];
-      const uniqueCats = new Set<string>();
-      pairs.forEach((p) => uniqueCats.add(p.right || p.category || ""));
-      categories = Array.from(uniqueCats).filter(Boolean);
-      items = pairs.map((p) => ({
-        text: p.left || p.item || "",
-        category: p.right || p.category || ""
-      }));
-    }
-    // Handle Standard Grouping
-    else {
-      categories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
-      const rawListing = rawData.items || [];
-
-      // Map items with group index if needed
-      items = rawListing.map((item) => {
-        // If item is object with 'category' prop
-        if (typeof item === 'object' && item.category) {
-          const txt = item.text || item.content || JSON.stringify(item);
-          return { text: txt, category: item.category };
-        }
-        // If item has group_index
-        if (typeof item === 'object' && item.group_index !== undefined && categories[item.group_index]) {
-          return { text: item.text || item.content || "", category: categories[item.group_index] };
-        }
-        // Fallback: If AI returns items as simple strings but didn't assign categories, we can't guess.
-        // But if AI returns { text: "X", group: "Y" } handle that.
-        if (typeof item === 'object' && item.group) return { text: item.text || JSON.stringify(item), category: item.group };
-
-        // Fallback for simple strings (default to first category to prevent crash, or mark as Uncategorized)
-        return {
-          text: typeof item === 'string' ? item : (item.text || JSON.stringify(item)),
-          category: categories[0] || "כללי"
-        };
-      });
-    }
-
-    // Fallback for empty items
-    if (items.length === 0) {
-      console.warn("Categorization items missing. Attempting to parse from text.");
-
-      // Auto-Repair: Look for bullet points in text
-      const bulletPoints = questionText ? questionText.match(/[-*•]\s?(.+)/g) : null;
-      if (bulletPoints && bulletPoints.length >= 2) {
-        bulletPoints.forEach(bp => {
-          const cleanText = bp.replace(/[-*•]\s?/, '').trim();
-          if (cleanText) {
-            items.push({ text: cleanText, category: categories[0] || "General" });
-          }
-        });
-      }
-
-      if (items.length === 0) {
-        return null; // Truly failed
-      }
-    }
-
-    return {
-      id: uuidv4(),
-      type: 'categorization',
-      content: {
-        question: questionText !== "שאלה ללא טקסט" ? questionText : "מיינו את הפריטים לקטגוריות:",
-        categories: categories,
-        items: items
-      },
-      metadata: { ...commonMetadata, score: 20 }
-    };
-  }
-
-  // === CASE F: FILL IN BLANKS ===
-  if (typeString === 'fill_in_blanks' || typeString === 'cloze') {
-    return {
-      id: uuidv4(),
-      type: 'fill_in_blanks',
-      content: {
-        sentence: rawData.text || rawData.content || questionText || "חסר טקסט להשלמה",
-      },
-      metadata: {
-        ...commonMetadata,
-        score: 15,
-        wordBank: rawData.word_bank || rawData.options || [] // Optional word bank
-      }
-    };
-  }
-
-  // === CASE G: AUDIO RESPONSE ===
-  if (typeString === 'audio_response' || typeString === 'oral_answer' || typeString === 'record_answer') {
-    return {
-      id: uuidv4(),
-      type: 'audio-response',
-      content: {
-        question: questionText || "הקליטו את תשובתכם:",
-        description: rawData.description || "לחצו על כפתור ההקלטה כדי לענות.",
-        maxDuration: rawData.max_duration || 60
-      },
-      metadata: {
-        ...commonMetadata,
-        score: 20
-      }
-    };
-  }
-
-  // === CASE E: MEMORY GAME ===
-  if (typeString === 'memory_game' || typeString === 'memory' || typeString === 'matching_pairs') {
-    const pairs = rawData.pairs || rawData.cards || [];
-
-    // Normalize Pairs
-    const normalizedPairs: { card_a: string; card_b: string }[] = [];
-
-    if (Array.isArray(pairs)) {
-      pairs.forEach((p: any) => {
-        if (p.card_a && p.card_b) normalizedPairs.push({ card_a: p.card_a, card_b: p.card_b });
-        else if (p.left && p.right) normalizedPairs.push({ card_a: p.left, card_b: p.right });
-        else if (Array.isArray(p) && p.length === 2) normalizedPairs.push({ card_a: p[0], card_b: p[1] });
-      });
-    }
-
-    if (normalizedPairs.length < 2) {
-      console.warn("Memory game pairs missing or too few.");
-      return null;
-    }
-
-    return {
-      id: uuidv4(),
-      type: 'memory_game',
-      content: {
-        pair_count: normalizedPairs.length,
-        pairs: normalizedPairs,
-        question: questionText || "מצאו את הזוגות המתאימים:"
-      },
-      metadata: { ...commonMetadata, score: 15 }
-    };
-  }
-
-  return null;
-};
+export { mapSystemItemToBlock };
 
 // === PERFORMANCE OPTIMIZATION START ===
 
 // 1. Generate Skeleton (Fast Structure)
-import type { UnitSkeleton, SkeletonStep } from './types/gemini.types';
+// 1. Generate Skeleton (Fast Structure)
+import type { UnitSkeleton, SkeletonStep } from './shared/types/gemini.types';
 
 /**
  * 1. Generate Skeleton (The "Brain")
@@ -453,52 +120,74 @@ export const generateUnitSkeleton = async (
   activityLength: 'short' | 'medium' | 'long',
   sourceText?: string,
   mode: 'learning' | 'exam' = 'learning',
-  bloomPreferences?: Record<string, number>
+  bloomPreferences?: Record<string, number>,
+  productType: 'lesson' | 'game' | 'exam' = 'lesson',
+  studentProfile?: any // StudentAnalyticsProfile (Using any to avoid circular dependency issues if strict)
 ): Promise<UnitSkeleton | null> => {
-  console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Length: ${activityLength}`); // DEBUG LOG
+  console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Product: ${productType}, Length: ${activityLength}`);
+
+  // Personality Injection
+  let personalityInstruction = "";
+  if (studentProfile?.confirmedTraits && studentProfile.confirmedTraits.length > 0) {
+    personalityInstruction = `\n    PERSONALIZATION OVERRIDE:\n    The student has confirmed traits: ${JSON.stringify(studentProfile.confirmedTraits)}.\n    ADAPT THE SKELETON TO THESE PREFERENCES (e.g. if 'Visual Learner', prefer visual blocks. If 'Competitive', increase difficulty).`;
+    console.log("Injecting Personality:", personalityInstruction);
+  }
+
   let stepCount = 5;
   let structureGuide = "";
 
-  if (mode === 'exam') {
-    // === EXAM MODE STRUCTURE ===
+  if (productType === 'exam' || mode === 'exam') {
+    // === EXAM PRODUCT / MODE STRUCTURE ===
+    // Force strict structure for exams
+    stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
+
+    structureGuide = `
+      STEP 1: Knowledge Check. Type: multiple_choice OR true_false (Strict).
+      STEP 2: Application. Type: categorization OR ordering.
+      STEP 3-${stepCount}: Synthesis/Audio. Type: open_question OR audio_response. NO teaching content.
+      `;
+  } else if (productType === 'game') {
+    // === GAME PRODUCT STRUCTURE ===
+    // Focus on INTERACTIVE blocks only.
     if (activityLength === 'short') {
       stepCount = 3;
       structureGuide = `
-      STEP 1: Knowledge Check. Type: multiple_choice OR true_false (Strict).
-      STEP 2: Application. Type: categorization OR ordering.
-      STEP 3: Synthesis/Audio. Type: open_question OR audio_response.
+        STEP 1: Speed Challenge. Type: true_false_speed OR memory_game.
+        STEP 2: Puzzle Challenge. Type: ordering OR categorization.
+        STEP 3: Master Challenge. Type: memory_game OR categorization (Hard).
       `;
     } else {
+      // Medium/Long
       stepCount = activityLength === 'long' ? 7 : 5;
       structureGuide = `
-      STEPS 1-2: Knowledge Verification. Type: multiple_choice.
-      STEPS 3-${stepCount - 2}: Deep Analysis. Type: categorization / fill_in_blanks / ordering.
-      STEPS ${stepCount - 1}-${stepCount}: Evaluation. Type: open_question / audio_response.
+        STEPS 1-2: Warmup Games. Type: memory_game / true_false_speed.
+        STEPS 3-4: Logic Puzzles. Type: ordering / categorization / matching.
+        STEPS 5-${stepCount}: Boss Levels. Type: categorization / matching (Complex).
       `;
     }
   } else {
-    // === LEARNING MODE STRUCTURE ===
+    // === STANDARD LESSON STRUCTURE ===
     if (activityLength === 'short') {
       stepCount = 3;
       structureGuide = `
-        STEP 1: Foundation (Remember/Understand). Type: memory_game OR multiple_choice.
-        STEP 2: Connection (Apply/Analyze). Type: fill_in_blanks OR categorization.
-        STEP 3: Synthesis (Evaluate/Create). Type: open_question OR multiple_choice (scenario).
+        STEP 1: Introduction & Exposition (Teach + Check). Type: multiple_choice (as Knowledge Check). DO NOT use memory_game.
+        STEP 2: Deep Dive (Understand). Type: fill_in_blanks (Conceptual Cloze).
+        STEP 3: Conclusion & Reflection. Type: open_question.
       `;
     } else if (activityLength === 'long') {
       stepCount = 7;
       structureGuide = `
-        STEPS 1-2: Foundation. Type: memory_game / multiple_choice / true_false.
-        STEPS 3-5: Connection. Type: fill_in_blanks / ordering / categorization / matching.
-        STEPS 6-7: Synthesis. Type: open_question / multiple_choice.
+        STEPS 1-2: Exposition & Concepts. Type: multiple_choice (Knowledge Check) / true_false.
+        STEPS 3-5: Application & Practice. Type: fill_in_blanks / categorization / ordering.
+        STEPS 6-7: Synthesis & Critical Thinking. Type: open_question / multiple_choice (Complex Scenario).
       `;
     } else {
       // Medium
       stepCount = 5;
       structureGuide = `
-        STEPS 1-2: Foundation (Remember). Type: memory_game OR multiple_choice.
-        STEPS 3-4: Connection (Analyze). Type: fill_in_blanks OR categorization.
-        STEP 5: Synthesis (Create). Type: open_question OR audio_response.
+        STEPS 1-2: Core Concepts (Teach). Type: multiple_choice (Concept Check) OR true_false (Misconception Buster).
+        STEPS 3-4: Analysis (Apply). Type: fill_in_blanks OR categorization.
+        STEP 5: Synthesis (Create/Evaluate). Type: open_question OR audio_response.
       `;
     }
   }
@@ -513,7 +202,8 @@ export const generateUnitSkeleton = async (
     Task: Create a "Skeleton" for a learning unit.
     ${contextPart}
     Target Audience: ${gradeLevel}.
-    Mode: ${mode === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : 'Learning/Tutorial Mode'}
+    ${personalityInstruction}
+    Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'game' ? 'GAMIFICATION / PLAY MODE' : 'Learning/Tutorial Mode')}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
     
@@ -529,14 +219,19 @@ export const generateUnitSkeleton = async (
        - **Constraint:** Chunk A must end completely before Chunk B begins.
 
     3. **ZERO-TEXT-WALL POLICY (V4 ANTI-BATCHING):**
-       ${mode === 'exam'
+       ${(mode === 'exam' || productType === 'exam')
       ? `- **EXAM MODE / ASSESSMENT ONLY:**
            - **Structure:** Question Block ONLY. No introduction text.
            - **Content:** Do NOT output 'teach_content'. Output strictly assessment items.
            - **Logic:** Each step is a test item.`
-      : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
-           - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
-           - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.`}
+      : (productType === 'game'
+        ? `- **GAME MODE / INTERACTIVE ONLY:**
+             - **Structure:** 100% Interaction. No long text explanations.
+             - **Content:** Gamified challenges.
+             - **Logic:** Fun, pacing, engaging.`
+        : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
+             - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
+             - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.`)}
 
     4. **Topic Policing:**
        - For each step, define a strict **narrative_focus** (Allowed Content) and **forbidden_topics** (Banned Content).
@@ -589,7 +284,8 @@ export const generateUnitSkeleton = async (
 };
 
 // 2. Generate Single Step Content (Detailed & Slow - Run in Parallel)
-import type { StepContentResponse } from './types/gemini.types';
+// 2. Generate Single Step Content (Detailed & Slow - Run in Parallel)
+import type { StepContentResponse } from './shared/types/gemini.types';
 
 // Helper to generate Grade-Specific Linguistic Constraints
 const getLinguisticConstraints = (gradeLevel: string): string => {
@@ -783,7 +479,9 @@ export const generateStepContent = async (
 
 // === PERFORMANCE OPTIMIZATION END ===
 
-import type { DialogueScript } from './types/gemini.types';
+// === PERFORMANCE OPTIMIZATION END ===
+
+import type { DialogueScript } from './shared/types/gemini.types';
 
 /**
  * Generates a "Deep Dive" Podcast Script (Dan & Noa)
@@ -1993,9 +1691,9 @@ export const generateClassAnalysis = async (students: any[]) => {
 // --- PODCAST FOLLOW-UP GENERATORS (Single Block) ---
 
 export const generateSingleMultipleChoiceQuestion = async (
-  topic: string,
+  _topic: string,
   gradeLevel: string,
-  taxonomy: any,
+  _taxonomy: any,
   sourceText: string
 ): Promise<any | null> => {
   const prompt = `
@@ -2047,9 +1745,9 @@ export const generateSingleMultipleChoiceQuestion = async (
 };
 
 export const generateSingleOpenQuestion = async (
-  topic: string,
+  _topic: string,
   gradeLevel: string,
-  taxonomy: any,
+  _taxonomy: any,
   sourceText: string
 ): Promise<any | null> => {
   const prompt = `
@@ -2094,5 +1792,58 @@ export const generateSingleOpenQuestion = async (
   } catch (e) {
     console.error("Single Open Gen Error:", e);
     return null;
+  }
+};
+
+// --- פונקציה חדשה: חידוד תוכן (Refine) עבור כל סוגי הבלוקים (Universal Refine) ---
+export const refineBlockContent = async (
+  blockType: string,
+  content: any,
+  instruction: string
+): Promise<any> => {
+  console.log(`✨ Refining ${blockType} with instruction: "${instruction}"`);
+
+  const prompt = `
+    You are an expert Pedagogical Editor and Content Developer.
+    Your Task: Refine the provided JSON content based on the User's Instruction.
+
+    Block Type: ${blockType}
+    User Instruction: "${instruction}"
+
+    Current Content (JSON):
+    ${JSON.stringify(content, null, 2)}
+
+    RULES:
+    1.  **Strict Schema Preservation:** Return JSON that EXACTLY matches the structure of the input content. Do NOT change key names.
+    2.  **Pedagogical Quality:** Ensure the refined content is educational, clear, and engaging.
+    3.  **Language:** Hebrew (unless instruction specifies otherwise).
+    4.  **No Markdown:** Return pure JSON.
+    5.  **Fallback:** If the instruction is impossible for this structure, return the original content unchanged but try your best to adapt.
+
+    Output the REFINED JSON ONLY.
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    const result = JSON.parse(text);
+
+    // Basic validation: Check if empty
+    if (Object.keys(result).length === 0) {
+      console.warn("Refine returned empty JSON");
+      return content;
+    }
+
+    return result;
+
+  } catch (e) {
+    console.error("Refine Block Error:", e);
+    return content; // Return original on error to prevent data loss
   }
 };

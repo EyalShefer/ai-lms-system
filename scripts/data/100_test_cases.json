@@ -1,0 +1,6502 @@
+[
+  {
+    "id": "student_1_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Physics",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 157,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_2_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 422,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_3_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 390,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_4_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 423,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_5_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 455,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_6_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Literature",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 148,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_7_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 389,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_8_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 437,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_9_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 309,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_10_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Science",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 134,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_11_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Physics",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 339,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_12_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: History",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 104,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_13_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Science",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 162,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_14_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: History",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 140,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_15_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 156,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_16_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 256,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_17_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 413,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_18_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: Geography",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 2,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_19_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 333,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_20_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 191,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_21_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 239,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_22_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: History",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 48,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_23_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 96,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_24_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 304,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_25_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: Math",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 90,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_26_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 197,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_27_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 401,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_28_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 342,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_29_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Science",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 414,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_30_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 31,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_31_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Science",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 139,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_32_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: Physics",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 165,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_33_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 11,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_34_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 413,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_35_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Physics",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 424,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_36_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 245,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_37_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Physics",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 155,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_38_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Math",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 386,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_39_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: History",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 437,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_40_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 221,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_41_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Science",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 225,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_42_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Science",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 270,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_43_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Geography",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 284,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_44_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Geography",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 232,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_45_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 382,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_46_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Science",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 342,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_47_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 17,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_48_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Science",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 391,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_49_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 181,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_50_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 353,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_51_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 449,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_52_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Geography",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 287,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_53_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 262,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_54_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 358,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_55_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Physics",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 430,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_56_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: History",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 182,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_57_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Physics",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 293,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_58_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Physics",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 393,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_59_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 11,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_60_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 146,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_61_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Physics",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 258,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_62_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 76,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_63_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 252,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_64_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 171,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_65_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 419,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_66_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 21,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_67_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Geography",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 110,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_68_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 320,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_69_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Literature",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 288,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_70_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 407,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_71_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Literature",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 153,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_72_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 236,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_73_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Science",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 384,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_74_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 391,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_75_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Physics",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 258,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_76_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: History",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 457,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_77_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 447,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_78_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 228,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_79_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 3: Geography",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 150,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_80_Omer_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 2: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Omer",
+            "pointsBalance": 380,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_81_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Geography",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 220,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_82_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: History",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 259,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_83_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Literature",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 46,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_84_Tamar_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: History",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Tamar",
+            "pointsBalance": 196,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_85_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 430,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_86_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 4: Physics",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 328,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_87_Yoni_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Science",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Yoni",
+            "pointsBalance": 89,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_88_Ben_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Physics",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ben",
+            "pointsBalance": 6,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_89_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: History",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 74,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_90_Dan_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Math",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Dan",
+            "pointsBalance": 201,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_91_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Literature",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 494,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_92_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Math",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 15,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_93_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 5: Math",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 18,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_94_Maya_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 0: Geography",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Maya",
+            "pointsBalance": 124,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_95_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 7: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 240,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_96_Noa_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 8: Math",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Noa",
+            "pointsBalance": 8,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_97_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 6: Geography",
+      "context": {
+        "currentStreak": 0,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 335,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_98_Gal_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 9: Geography",
+      "context": {
+        "currentStreak": 1,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Gal",
+            "pointsBalance": 98,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "none"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_99_Ido_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Science",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Ido",
+            "pointsBalance": 321,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "student_100_Adi_FIXED",
+    "description": "Post-Repair Simulation",
+    "mockActivityData": {
+      "screenName": "Lesson 1: Literature",
+      "context": {
+        "currentStreak": 2,
+        "isPracticeMode": false
+      },
+      "uiElements": [
+        {
+          "type": "header",
+          "content": {
+            "userName": "Adi",
+            "pointsBalance": 119,
+            "pointsBalanceLabel": "Points Balance",
+            "notificationBell": true
+          }
+        },
+        {
+          "type": "question_text",
+          "content": "Random Question?"
+        },
+        {
+          "type": "button",
+          "label": "Hint",
+          "icon": "lightbulb",
+          "status": "visible",
+          "color": "Light Blue (Secondary)",
+          "isPrimary": false
+        },
+        {
+          "type": "button",
+          "label": "Next",
+          "status": "disabled"
+        },
+        {
+          "type": "options",
+          "items": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      ],
+      "simulationEvents": [
+        {
+          "action": "Click Hint",
+          "result": {
+            "pointsDeducted": 2,
+            "hintShown": "Here is a hint."
+          }
+        },
+        {
+          "action": "Select Answer: A",
+          "result": {
+            "feedbackIcon": "Green V",
+            "pointsAdded": 10,
+            "feedbackText": "Correct! Good job.",
+            "animation": "fire"
+          }
+        }
+      ]
+    }
+  }
+]

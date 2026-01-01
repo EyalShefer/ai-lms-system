@@ -7,7 +7,7 @@ import {
     IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconHeadphones, IconMicrophone
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
-import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../gemini';
+import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../services/ai/geminiApi';
 import type { DialogueScript } from '../types/gemini.types';
 import { PodcastPlayer } from './PodcastPlayer';
 import ReactMarkdown from 'react-markdown';
@@ -29,6 +29,7 @@ import { GamificationService } from '../services/telemetry';
 
 import { useSound } from '../hooks/useSound';
 import { FeedbackWidget } from './FeedbackWidget'; // NEW: Feedback Loop
+import TeacherCockpit from './TeacherCockpit'; // TEACHER VIEW
 
 // Helper to safely extract text from option (string or object)
 const getAnswerText = (val: any): string => {
@@ -1431,6 +1432,27 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 <p className="text-sm opacity-70 mt-2">אנא המתן מספר שניות</p>
             </div>
         );
+    }
+
+    // --- Teacher Cockpit Logic ---
+    const productType = (course as any)?.wizardData?.settings?.productType;
+    console.log("🕵️ CoursePlayer: Product Type:", productType);
+
+    if (productType === 'lesson' && !isExamMode && !inspectorMode && !simulateGuest) {
+        // Find the active unit to display in Cockpit
+        const unit = activeUnit || course?.syllabus?.[0]?.learningUnits?.[0];
+        if (unit) {
+            return (
+                <TeacherCockpit
+                    unit={unit}
+                    onExit={onExitReview || (() => window.history.back())}
+                    onEdit={() => {
+                        // If we are in review mode (preview), we just close or signal edit
+                        if (onExitReview) onExitReview();
+                    }}
+                />
+            );
+        }
     }
 
     return (

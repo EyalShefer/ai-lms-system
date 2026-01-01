@@ -1,6 +1,6 @@
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
-import { generateStudentAnalysis } from '../gemini';
+import { generateStudentAnalysis } from './ai/geminiApi';
 
 export interface SubmissionData {
     assignmentId: string;

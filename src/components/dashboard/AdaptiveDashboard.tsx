@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getCourseAnalytics, type StudentAnalytics } from '../../services/analyticsService';
 import { IconAlertTriangle, IconCheck, IconX, IconActivity } from '@tabler/icons-react';
 import { IconChevronLeft, IconBrain } from '../../icons'; // Reusing existing
@@ -64,6 +64,44 @@ const JourneyTrace = ({ student }: { student: StudentAnalytics }) => {
     );
 };
 
+const WizdiInsightsWidget = ({ onGenerate }: { onGenerate: () => void }) => {
+    return (
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-6 text-white shadow-lg mb-8 relative overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+                <IconBrain className="absolute -right-10 -top-10 w-[200px] h-[200px]" />
+            </div>
+
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                    <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+                        <IconBrain className="w-8 h-8 text-white" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                            Wizdi Insights
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
+                        </h3>
+                        <p className="text-indigo-100 text-lg leading-relaxed max-w-2xl">
+                            "30% מהכיתה מתקשים בהבנת הנקרא. מומלץ ליצור יחידת תגבור ממוקדת."
+                        </p>
+                    </div>
+                </div>
+
+                <div className="shrink-0">
+                    <button
+                        onClick={onGenerate}
+                        className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg flex items-center gap-2 group"
+                    >
+                        <IconActivity className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        צור יחידת תגבור
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const AdaptiveDashboard = () => {
     const [students, setStudents] = useState<StudentAnalytics[]>([]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -73,6 +111,39 @@ export const AdaptiveDashboard = () => {
     }, []);
 
     const selectedStudent = students.find(s => s.id === selectedStudentId) || students[0];
+
+    // Helper for action button config
+    const getStudentAction = (risk: string) => {
+        if (risk === 'high') {
+            return {
+                label: 'צור יחידת חיזוק אישית',
+                icon: <IconAlertTriangle className="w-5 h-5" />,
+                color: 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-200',
+                type: 'Remediation'
+            };
+        } else if (risk === 'low') {
+            return {
+                label: 'צור יחידת אתגר',
+                icon: <IconActivity className="w-5 h-5" />,
+                color: 'bg-emerald-100 text-emerald-900 border-emerald-200 hover:bg-emerald-200',
+                type: 'Challenge'
+            };
+        }
+        return {
+            label: 'צור יחידה מותאמת',
+            icon: <IconBrain className="w-5 h-5" />,
+            color: 'bg-indigo-100 text-indigo-900 border-indigo-200 hover:bg-indigo-200',
+            type: 'Adaptive'
+        };
+    };
+
+    const handleCreateUnit = (type: string, studentName?: string) => {
+        const message = studentName
+            ? `Generating ${type} unit for ${studentName}...`
+            : `Generating Class ${type} Unit...`;
+        console.log(message);
+        alert(message);
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 p-6 font-sans overflow-x-hidden" dir="rtl">
@@ -100,6 +171,11 @@ export const AdaptiveDashboard = () => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Insights Widget */}
+            <div className="max-w-7xl mx-auto">
+                <WizdiInsightsWidget onGenerate={() => handleCreateUnit('Remediation Class')} />
             </div>
 
             <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-8 items-start">
@@ -187,12 +263,25 @@ export const AdaptiveDashboard = () => {
                                         </div>
                                     </div>
 
-                                    {/* Mini Stats */}
-                                    <div className="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto">
-                                        <div className="text-3xl md:text-4xl font-black font-mono text-indigo-600">
-                                            {Math.round(Object.values(selectedStudent.mastery).reduce((a, b) => a + b, 0) / 4 * 100)}%
+                                    {/* Action & Stats Column */}
+                                    <div className="flex flex-col gap-3 w-full md:w-auto">
+                                        <div className="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                            <div className="text-3xl md:text-4xl font-black font-mono text-indigo-600">
+                                                {Math.round(Object.values(selectedStudent.mastery).reduce((a, b) => a + b, 0) / 4 * 100)}%
+                                            </div>
+                                            <div className="text-slate-400 uppercase font-bold text-xs tracking-wider">שליטה ממוצעת</div>
                                         </div>
-                                        <div className="text-slate-400 uppercase font-bold text-xs tracking-wider">שליטה ממוצעת</div>
+
+                                        {/* Dynamic Action Button */}
+                                        <button
+                                            onClick={() => handleCreateUnit(getStudentAction(selectedStudent.riskLevel).type, selectedStudent.name)}
+                                            className={`w-full py-3 px-4 rounded-xl font-bold text-sm border flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm
+                                                ${getStudentAction(selectedStudent.riskLevel).color}
+                                            `}
+                                        >
+                                            {getStudentAction(selectedStudent.riskLevel).icon}
+                                            {getStudentAction(selectedStudent.riskLevel).label}
+                                        </button>
                                     </div>
                                 </div>
 

@@ -1,4 +1,6 @@
-import { openai } from '../gemini';
+import { openaiLegacy } from './ai/legacyClient';
+// functions will be imported dynamically or from firebase
+
 
 export const MultimodalService = {
     /**
@@ -10,7 +12,7 @@ export const MultimodalService = {
         try {
             console.log("Starting Whisper transcription for:", file.name);
 
-            const transcription = await openai.audio.transcriptions.create({
+            const transcription = await openaiLegacy.audio.transcriptions.create({
                 file: file,
                 model: "whisper-1",
                 language: "he", // Optimize for Hebrew
@@ -49,7 +51,7 @@ export const MultimodalService = {
             console.log("Calling transcribeYoutube cloud function for ID:", videoId);
 
             // Lazy load functions
-            const { functions } = await import('../gemini');
+            const { functions } = await import('../firebase');
             const { httpsCallable } = await import('firebase/functions');
 
             const transcribeFn = httpsCallable(functions, 'transcribeYoutube');

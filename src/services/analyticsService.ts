@@ -32,6 +32,11 @@ const STUDENTS = [
     { id: 's7', name: 'רוני טל', risk: 'low' },
 ];
 
+// TODO: Replace with real Firestore call
+// Example:
+// const q = query(collection(db, 'course_analytics'), where('courseId', '==', courseId));
+// const snapshot = await getDocs(q);
+// return snapshot.docs.map(doc => doc.data() as StudentAnalytics);
 export const getCourseAnalytics = async (courseId: string) => {
     // Simulate API delay
     await new Promise(r => setTimeout(r, 500));

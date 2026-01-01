@@ -5,7 +5,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { validateInput, checkForDistress } from '../services/securityService';
-import { openai, MODEL_NAME, BOT_PERSONAS } from '../gemini';
+import { openai, MODEL_NAME, BOT_PERSONAS } from '../services/ai/geminiApi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 

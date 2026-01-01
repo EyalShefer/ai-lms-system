@@ -1,4 +1,4 @@
-import type { Course } from './courseTypes';
+import type { Course } from './shared/types/courseTypes';
 
 export const mockCourse: Course = {
     id: 'c1',
@@ -64,6 +64,7 @@ export const mockCourse: Course = {
                             id: 'ab_cat',
                             type: 'categorization',
                             content: {
+                                question: 'מיין את הפריטים הבאים:',
                                 categories: ['Frontend', 'Backend'],
                                 items: [
                                     { text: 'React', category: 'Frontend' },

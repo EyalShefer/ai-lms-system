@@ -411,3 +411,45 @@ Executed between steps (Wizard Mode):
 -   **Immediate Gratification:** XP "Floaters" and Streak "Flames" provide visceral confirmation of competence.
 -   **Adaptive Toasts:** System explicitly informs user of adaptive leaps ("Challenge Unlocked").
 
+# 18. 🏭 OPERATIONAL AGENTS (The Work Force)
+## 18.1 Agent 1: "The Living Loop" (Remediation UX)
+- **Goal:** Transform the "Moment of Failure" into a pedagogical opportunity.
+- **Methodology:**
+    - **Visual:** Use `ThinkingOverlay` (Brain Pulse) instead of static text during generic latency.
+    - **Transition:** Seamless fade-in of the Remedial Block.
+    - **Integrity:** NEVER modify the BKT logic (`submitAdaptiveAnswer`). ONLY enhance the presentation layer.
+
+## 18.2 Agent 2: "The Economy" (Gamification Persistence)
+- **Goal:** Create an "Engagement Lock-in" via persistent value.
+- **Methodology:**
+    - **Data:** Sync local state (`sessionXp`, `streak`) to Firestore (`users/{uid}/gamification`).
+    - **Economy:** Implement `ShopModal` for spending Gems on "Streak Freezes".
+    - **Integrity:** Graceful fallback if DB is unreachable. The Lesson must continue even if XP fails to save.
+
+## 18.3 Agent 3: "Neural Insights" (Actionable Dashboard)
+- **Goal:** Turn data into immediate pedagogical action.
+- **Methodology:**
+    - **Smart Logic:** The "Create Unit" button behaves differently based on student state:
+        - **Struggling (<60%):** Generates **Remediation** (Scaffolding, simpler terms).
+        - **Excelling (>90%):** Generates **Challenge/Enrichment** (Deep dive, higher Bloom).
+    - **Class View:** "Wizdi Insights" widget aggregates trends (e.g., "30% struggled with Topic X").
+
+## 18.4 Agent 4: "Adaptive Content Factory" (Ingestion Pipeline)
+- **Goal:** Zero-friction creation of diverse product types.
+- **Methodology:**
+    - **Differentiation:** `generateUnitSkeleton` accepts `productType`:
+        - `game`: Forces `memory_game`, `ordering`, `categorization`. Minimizes text.
+        - `exam`: Forces `mode: assessment`. No teaching blocks.
+        - `lesson`: Standard narrative flow.
+
+# 19. 🛡️ AGENTIC SAFETY PROTOCOL (The Shield)
+## 19.1 Regression Prevention
+- **Rule:** "Do No Harm."
+- **Mandate:** Before upgrading a UI component (e.g., Player), ensure the *existing* flow works. New features (Overlays) must be additive, not destructive.
+
+## 19.2 Pedagogical Timing & Latency
+- **Rule:** Animation for animation's sake is forbidden.
+- **Limit:** `ThinkingOverlay` should reflect *actual* processing time. If the backend is fast (<500ms), do NOT force an artificial "fake thinking" delay > 1.5s.
+
+## 19.3 Logic Preservation
+- **Rule:** The BKT Engine (`submitAdaptiveAnswer`) is the Core Truth. Agents may read from it, but only the `Adaptive Brain` (Cloud Function) may write to it.

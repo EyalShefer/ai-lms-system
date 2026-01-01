@@ -1,6 +1,7 @@
-import { openai, MODEL_NAME, cleanJsonString } from '../gemini';
+import { openai, MODEL_NAME } from './ai';
+import { cleanJsonString } from '../shared/utils/geminiParsers';
 import { CitationService } from './citationService';
-import type { SourceGuideData } from '../types/gemini.types';
+import type { SourceGuideData } from '../shared/types/gemini.types';
 
 export const SourceGuideService = {
     /**

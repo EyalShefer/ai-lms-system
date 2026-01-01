@@ -5,11 +5,13 @@ import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateUnitSkeleton, generateStepContent, mapSystemItemToBlock, generatePodcastScript } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent } from '../gemini';
+import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
+import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import type { LearningUnit, ActivityBlock } from '../courseTypes';
-import * as pdfjsLib from 'pdfjs-dist';
+import { db } from '../firebase'; // Keep db for direct doc updates if needed
+import { saveCourseToFirestore, saveUnitToFirestore } from '../firebaseUtils';
+import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 
 // הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -234,7 +236,10 @@ const CourseEditor: React.FC = () => {
                 activityLength: data.settings?.activityLength || 'medium',
                 botPersona: data.settings?.botPersona || null,
                 showSourceToStudent: data.settings?.showSourceToStudent || false,
-                fullBookContent: processedSourceText || course.fullBookContent || "" // שמירת התוכן המחולץ
+                botPersona: data.settings?.botPersona || null,
+                showSourceToStudent: data.settings?.showSourceToStudent || false,
+                fullBookContent: processedSourceText || course.fullBookContent || "", // שמירת התוכן המחולץ
+                wizardData: data // CRITICAL: Save full wizard data including settings.productType
             };
 
             setCourse(updatedCourseState);
@@ -248,7 +253,8 @@ const CourseEditor: React.FC = () => {
                 activityLength: updatedCourseState.activityLength,
                 botPersona: updatedCourseState.botPersona,
                 showSourceToStudent: updatedCourseState.showSourceToStudent,
-                fullBookContent: updatedCourseState.fullBookContent
+                fullBookContent: updatedCourseState.fullBookContent,
+                wizardData: data // CRITICAL: Persist to DB
             }));
 
             await updateDoc(doc(db, "courses", course.id), cleanDataForFirestore);
@@ -264,7 +270,9 @@ const CourseEditor: React.FC = () => {
 
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
-            await updateDoc(doc(db, "courses", course.id), { syllabus });
+
+            // ARCHITECT FIX: Use granular save
+            await saveCourseToFirestore(courseWithSyllabus);
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
@@ -302,9 +310,11 @@ const CourseEditor: React.FC = () => {
                             )
                         }));
 
+
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithPodcast };
                         setCourse(finalCourse);
-                        await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithPodcast });
+                        // ARCHITECT FIX: Use safe save (splits metadata and content)
+                        await saveCourseToFirestore(finalCourse);
                         setSelectedUnitId(firstUnit.id);
                     } else {
                         alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
@@ -358,11 +368,28 @@ const CourseEditor: React.FC = () => {
                             )
                         }));
 
+
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
                         setCourse(finalCourse);
-                        await updateDoc(doc(db, "courses", course.id), { syllabus: syllabusWithContent });
+                        // ARCHITECT FIX: Use safe save
+                        await saveCourseToFirestore(finalCourse);
 
                         setSelectedUnitId(firstUnit.id);
+
+                        // NEW: If product type is "lesson", auto-open the Teacher Cockpit (Preview Mode)
+
+                        // NEW ADAPTIVE LOGIC:
+                        console.log("🕵️ Checking Product Type for Auto-Preview:", data.settings?.productType);
+
+                        if (data.settings?.productType === 'lesson') {
+                            console.log("👩‍🏫 Auto-Opening Teacher Cockpit... Dismissing Loader.");
+                            setShowLoader(false); // Force Loader Close
+
+                            // Find the fully populated unit from the new syllabus
+                            const populatedUnit = syllabusWithContent[0].learningUnits[0];
+                            console.log("📦 Setting Preview Unit:", populatedUnit?.title);
+                            setPreviewUnit(populatedUnit);
+                        }
                     } else {
                         console.error("❌ Skeleton Generation Failed");
                         setSelectedUnitId(firstUnit.id);
@@ -422,15 +449,28 @@ const CourseEditor: React.FC = () => {
                             u.id === nextUnitToGenerate!.id ? { ...u, activityBlocks: newBlocks } : u
                         )
                     }));
+                    // ARCHITECT FIX: Save only the specific generated unit
+                    const unitToSave = backgroundSyllabus
+                        .flatMap(m => m.learningUnits)
+                        .find(u => u.id === nextUnitToGenerate!.id);
+
+                    if (unitToSave) {
+                        saveUnitToFirestore(course.id, unitToSave).catch(e => console.error("Background unit save failed", e));
+                    }
+
+                    // Update state
                     setCourse({ ...course, syllabus: backgroundSyllabus });
-                    updateDoc(doc(db, "courses", course.id), { syllabus: backgroundSyllabus });
                 }
             });
         }
 
         const updatedCourse = { ...course, syllabus: newSyllabus };
         setCourse(updatedCourse);
-        try { await updateDoc(doc(db, "courses", course.id), { syllabus: newSyllabus }); }
+
+        try {
+            // ARCHITECT FIX: Save specific unit instead of full doc
+            await saveUnitToFirestore(course.id, updatedUnit);
+        }
         catch (e) { console.error("Save error:", e); }
     };
 

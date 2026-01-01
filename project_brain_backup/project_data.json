@@ -1,0 +1,24 @@
+{
+  "project_name": "ai-lms-system",
+  "last_global_update": "2026-01-01T10:50:32.096Z",
+  "modules": {
+    "core": {
+      "id": "module_core",
+      "name": "Core System",
+      "version": "1.0.0",
+      "last_updated": "2026-01-01T10:30:00+02:00",
+      "status": "Active",
+      "dependencies": [],
+      "summary": "Initial system core."
+    },
+    "module_project_brain_guardian": {
+      "id": "module_project_brain_guardian",
+      "name": "Project Brain Guardian",
+      "version": "1.0.3",
+      "last_updated": "2026-01-01T10:50:32.096Z",
+      "status": "Active",
+      "dependencies": [],
+      "summary": "Optional Cloud Sync Update"
+    }
+  }
+}

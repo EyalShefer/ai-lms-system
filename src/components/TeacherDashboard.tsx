@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { generateClassAnalysis, generateStudentReport } from '../gemini';
+import { generateClassAnalysis, generateStudentReport } from '../services/ai/geminiApi';
 // type SubmissionData unused removed
 // gradeBatch removed
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
+import { feedbackService } from '../services/feedbackService';
 import type { StudentAnalyticsProfile } from '../courseTypes';
 
 import { db } from '../firebase';
@@ -181,7 +182,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [searchTerm, setSearchTerm] = useState("");
 
     // View State
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // Default to LIST
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'feedback'>('list'); // Added 'feedback' mode
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
     // Detail View State
@@ -198,6 +199,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [isSavingFeedback, setIsSavingFeedback] = useState(false);
     // isGrading removed
     const [showOnlyAlerts, setShowOnlyAlerts] = useState(false); // New Filter State
+
+    // Feedback View State
+    const [courseFeedbackStats, setCourseFeedbackStats] = useState<any>(null);
+    const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+
+    useEffect(() => {
+        if (viewMode === 'feedback' && selectedCourseId) {
+            setIsFeedbackLoading(true);
+            feedbackService.getFeedbackStats(selectedCourseId)
+                .then(stats => setCourseFeedbackStats(stats))
+                .catch(err => console.error(err))
+                .finally(() => setIsFeedbackLoading(false));
+        }
+    }, [viewMode, selectedCourseId]);
 
     useEffect(() => {
         if (viewingTestStudent) {
@@ -698,11 +713,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-white/60 p-2 rounded-2xl border border-white shadow-sm backdrop-blur-md">
+                                <div className="card-glass flex flex-wrap items-center gap-3 w-full xl:w-auto p-2 border border-white/50 shadow-sm backdrop-blur-md">
                                     {/* View Toggle */}
                                     <div className="flex bg-slate-100/80 rounded-xl p-1 gap-1">
                                         <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'grid' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת כרטיסיות"><IconLayer className="w-5 h-5" /></button>
                                         <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'list' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת רשימה"><IconList className="w-5 h-5" /></button>
+                                        <button onClick={() => setViewMode('feedback')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'feedback' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="משוב תלמידים"><IconFlag className="w-5 h-5" /></button>
                                     </div>
 
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
@@ -770,7 +786,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                     <button
                                         onClick={onNavigateToAnalytics}
-                                        className="bg-gradient-to-r from-wizdi-royal to-blue-600 text-white border border-blue-500/20 px-5 py-2 rounded-2xl text-sm font-bold shadow-lg hover:shadow-indigo-500/30 flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+                                        className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                                         title="Neural Dashboard"
                                     >
                                         <IconBrain className="w-5 h-5" />
@@ -916,7 +932,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             </div>
                                         ))}
                                     </div>
-                                ) : (
+                                ) : viewMode === 'list' ? (
                                     /* --- LIST VIEW --- */
                                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                                         <div className="overflow-x-auto">
@@ -1001,7 +1017,88 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             </table>
                                         </div>
                                     </div>
-                                )}
+                                ) : viewMode === 'feedback' ? (
+                                    <div className="space-y-6 animate-fade-in">
+                                        {/* Stats Cards */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {/* Positive/Negative Ratio */}
+                                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-sm font-bold text-slate-500 mb-1">יחס משוב</div>
+                                                    <div className="text-3xl font-black text-slate-800 flex items-center gap-2">
+                                                        <span className="text-green-500">{courseFeedbackStats?.stats?.positive || 0}</span>
+                                                        <span className="text-slate-300 text-lg">/</span>
+                                                        <span className="text-red-500">{courseFeedbackStats?.stats?.negative || 0}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center">
+                                                    {(courseFeedbackStats?.stats?.positive || 0) > (courseFeedbackStats?.stats?.negative || 0) ?
+                                                        <IconCheck className="w-8 h-8 text-green-500" /> :
+                                                        <IconAlertTriangle className="w-8 h-8 text-red-500" />
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            {/* Top Pain Points */}
+                                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm col-span-2">
+                                                <div className="text-sm font-bold text-slate-500 mb-4">נושאים לשיפור (תגיות נפוצות)</div>
+                                                <div className="flex gap-3 flex-wrap">
+                                                    {Object.entries(courseFeedbackStats?.stats?.tags || {}).map(([tag, count]: any) => (
+                                                        <div key={tag} className="bg-red-50 border border-red-100 text-red-700 px-4 py-2 rounded-xl flex items-center gap-2 font-bold">
+                                                            <span>{tag === 'confusing' ? 'לא מובן' : tag === 'boring' ? 'משעמם' : tag === 'too_hard' ? 'קשה מדי' : tag === 'bug' ? 'תקלה' : tag}</span>
+                                                            <span className="bg-red-200 text-red-800 text-xs px-2 py-0.5 rounded-full">{count}</span>
+                                                        </div>
+                                                    ))}
+                                                    {Object.keys(courseFeedbackStats?.stats?.tags || {}).length === 0 && (
+                                                        <div className="text-slate-400 text-sm italic">אין מספיק נתונים עדיין</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Recent Feedback List */}
+                                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
+                                            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                                <h3 className="font-bold text-slate-700">תגובות אחרונות</h3>
+                                            </div>
+                                            <div className="divide-y divide-slate-100">
+                                                {isFeedbackLoading ? (
+                                                    <div className="p-12 text-center text-indigo-600 font-bold animate-pulse">טוען משובים...</div>
+                                                ) : courseFeedbackStats?.recent?.length > 0 ? (
+                                                    courseFeedbackStats.recent.map((fb: any) => (
+                                                        <div key={fb.id} className="p-6 hover:bg-slate-50 transition-colors flex gap-4">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${fb.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                                {fb.type === 'positive' ? <IconCheck className="w-5 h-5" /> : <IconFlag className="w-5 h-5" />}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex justify-between items-start mb-1">
+                                                                    <div className="font-bold text-slate-800 text-sm">
+                                                                        {/* We might want to resolve student name here later, for now showing context/id */}
+                                                                        תלמיד (ID: {fb.userId.substring(0, 6)}...)
+                                                                    </div>
+                                                                    <div className="text-xs text-slate-400">{fb.timestamp?.toDate ? fb.timestamp.toDate().toLocaleDateString('he-IL') : 'היום'}</div>
+                                                                </div>
+
+                                                                {fb.tags && fb.tags.length > 0 && (
+                                                                    <div className="flex gap-2 mb-2">
+                                                                        {fb.tags.map((t: string) => (
+                                                                            <span key={t} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">{t}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+
+                                                                {fb.comment && <div className="text-slate-600 text-sm bg-slate-50 p-3 rounded-xl">{fb.comment}</div>}
+                                                                <div className="text-xs text-slate-400 mt-2">הקשר: {fb.context?.blockType || 'כללי'}</div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-12 text-center text-slate-400">לא נמצאו משובים</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
                             </>
                         )}
                     </div>

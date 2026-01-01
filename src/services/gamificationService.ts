@@ -1,120 +1,208 @@
-import type { GamificationProfile, GamificationEventPayload } from '../courseTypes';
+import { db } from "../firebase";
+import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import type { GamificationProfile } from "../shared/types/courseTypes";
 
-const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500]; // Example curve
+const USERS_COLLECTION = "users";
 
-export class GamificationService {
+export const DEFAULT_GAMIFICATION_PROFILE: GamificationProfile = {
+    xp: 0,
+    level: 1,
+    currentStreak: 0,
+    lastActivityDate: new Date().toISOString(),
+    frozenDays: 0,
+    gems: 0,
+    leagueTier: 'BRONZE',
+    leagueWeeklyXp: 0,
+    unlockedThemes: ['default'],
+    equippedTheme: 'default'
+};
 
-    static getInitialProfile(): GamificationProfile {
-        return {
-            xp: 0,
-            level: 1,
-            currentStreak: 0,
-            lastActivityDate: new Date(0).toISOString(), // Epoch
-            frozenDays: 0, // Start with 0 freezes
-            gems: 0,
-            leagueTier: 'BRONZE',
-            leagueWeeklyXp: 0,
-            unlockedThemes: ['default'],
-            equippedTheme: 'default'
-        };
+
+
+export const getInitialProfile = (): GamificationProfile => ({ ...DEFAULT_GAMIFICATION_PROFILE });
+
+/**
+ * Calculates new state for optimistic UI updates.
+ * Returns the new profile and any events (level up).
+ */
+export const addXp = (
+    currentProfile: GamificationProfile,
+    amount: number,
+    reason: string
+): { newProfile: GamificationProfile, events: string[] } => {
+    const events: string[] = [];
+    const newProfile = { ...currentProfile };
+
+    newProfile.xp += amount;
+    newProfile.leagueWeeklyXp = (newProfile.leagueWeeklyXp || 0) + amount;
+
+    const newLevel = calculateLevel(newProfile.xp);
+    if (newLevel > newProfile.level) {
+        newProfile.level = newLevel;
+        newProfile.gems = (newProfile.gems || 0) + 50; // Level up bonus
+        events.push('LEVEL_UP');
     }
 
-    /**
-     * Calculates new state after adding XP.
-     * Returns the new profile and any events that occurred (e.g. Level Up).
-     */
-    static addXp(profile: GamificationProfile, amount: number, reason: string): { newProfile: GamificationProfile, events: GamificationEventPayload[] } {
-        const events: GamificationEventPayload[] = [];
+    return { newProfile, events };
+};
 
-        let newXp = profile.xp + amount;
-        let newLevel = profile.level;
-        let newGems = profile.gems;
-        let newWeeklyXp = (profile.leagueWeeklyXp || 0) + amount;
+/**
+ * Calculates level based on XP.
+ * Simple formula: Level = floor(sqrt(XP / 100)) + 1
+ */
+export const calculateLevel = (xp: number): number => {
+    return Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1;
+};
 
-        // Check Level Up
-        // Current Level N requires LEVEL_THRESHOLDS[N] XP is wrong mental model usually.
-        // Let's say Level 1 is 0-99, Level 2 is 100-299.
-        // So if newXp >= LEVEL_THRESHOLDS[newLevel], we level up.
-        // We might level up multiple times.
+/**
+ * Syncs user progress (XP, Gems) to Firestore.
+ * Handles level up checks and returns the updated profile.
+ */
+export const syncProgress = async (
+    uid: string,
+    xpDelta: number,
+    gemsDelta: number
+): Promise<GamificationProfile | null> => {
+    if (!uid) return null;
 
-        while (newLevel < LEVEL_THRESHOLDS.length && newXp >= LEVEL_THRESHOLDS[newLevel]) {
-            newLevel++;
-            events.push({ type: 'LEVEL_UP', newLevel, timestamp: Date.now() });
+    const userRef = doc(db, USERS_COLLECTION, uid);
 
-            // Level Up Reward? Gems?
-            const gemReward = 10 * newLevel; // Simple reward
-            newGems += gemReward;
-            events.push({ type: 'GEM_EARNED', amount: gemReward, reason: `Level ${newLevel} Bonus`, timestamp: Date.now() });
+    try {
+        const docSnap = await getDoc(userRef);
+        let profile: GamificationProfile;
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Merge with default to ensure all fields exist
+            profile = { ...DEFAULT_GAMIFICATION_PROFILE, ...(data.gamification || {}) };
+        } else {
+            profile = { ...DEFAULT_GAMIFICATION_PROFILE };
         }
 
-        events.push({ type: 'XP_GAIN', amount, reason, timestamp: Date.now() });
+        // Update stats
+        profile.xp = (profile.xp || 0) + xpDelta;
+        profile.gems = (profile.gems || 0) + gemsDelta;
+        profile.leagueWeeklyXp = (profile.leagueWeeklyXp || 0) + xpDelta;
 
-        const newProfile: GamificationProfile = {
-            ...profile,
-            xp: newXp,
-            level: newLevel,
-            gems: newGems,
-            leagueWeeklyXp: newWeeklyXp
-        };
+        // Recalculate level
+        const newLevel = calculateLevel(profile.xp);
+        if (newLevel > profile.level) {
+            profile.level = newLevel;
+            // Bonus gems for leveling up?
+            profile.gems += 50;
+        }
 
-        return { newProfile, events };
+        // Update Streak Timestamp
+        profile.lastActivityDate = new Date().toISOString();
+
+        // Save to Firestore
+        // We use setDoc with merge to ensure we don't overwrite other user fields
+        await setDoc(userRef, { gamification: profile }, { merge: true });
+
+        return profile;
+
+    } catch (error) {
+        console.error("Error syncing gamification progress:", error);
+        return null;
     }
+};
 
-    /**
-     * Checks and updates streak based on current time.
-     * Should be called on app load or activity.
-     */
-    static checkStreak(profile: GamificationProfile): { newProfile: GamificationProfile, events: GamificationEventPayload[] } {
-        const events: GamificationEventPayload[] = [];
-        const now = new Date();
-        const lastActivity = new Date(profile.lastActivityDate);
+/**
+ * Checks and updates the daily streak.
+ * Should be called when the user logs in or starts a session.
+ */
+export const checkDailyStreak = async (uid: string): Promise<{ currentStreak: number; frozenDays: number; status: 'maintained' | 'frozen_used' | 'reset' }> => {
+    if (!uid) return { currentStreak: 0, frozenDays: 0, status: 'reset' };
 
-        // Strip time
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const lastDate = new Date(lastActivity.getFullYear(), lastActivity.getMonth(), lastActivity.getDate());
+    const userRef = doc(db, USERS_COLLECTION, uid);
 
-        const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+    try {
+        const docSnap = await getDoc(userRef);
+        if (!docSnap.exists()) return { currentStreak: 0, frozenDays: 0, status: 'reset' };
+
+        const data = docSnap.data();
+        const profile: GamificationProfile = { ...DEFAULT_GAMIFICATION_PROFILE, ...(data.gamification || {}) };
+
+        const lastDate = new Date(profile.lastActivityDate);
+        const today = new Date();
+
+        // Normalize dates to midnight for comparison
+        const lastDateMidnight = new Date(lastDate);
+        lastDateMidnight.setHours(0, 0, 0, 0);
+
+        const todayMidnight = new Date(today);
+        todayMidnight.setHours(0, 0, 0, 0);
+
+        const diffTime = Math.abs(todayMidnight.getTime() - lastDateMidnight.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        let newStreak = profile.currentStreak;
-        let newFrozenDays = profile.frozenDays;
+        let status: 'maintained' | 'frozen_used' | 'reset' = 'maintained';
 
         if (diffDays === 0) {
-            // Already active today, no change to streak count yet (or maybe we already incremented it?)
-            // We only increment streak on the FIRST activity of the day.
-            // But here we rely on the fact that if diffDays === 0, we simply update the timestamp later.
-            return { newProfile: profile, events: [] };
+            // Already active today
+            return { currentStreak: profile.currentStreak, frozenDays: profile.frozenDays, status: 'maintained' };
         } else if (diffDays === 1) {
-            // Consecutive day!
-            newStreak += 1;
-            events.push({ type: 'STREAK_MAINTAINED', amount: newStreak, timestamp: Date.now() });
-        } else if (diffDays > 1) {
-            // Missed a day (or more)
-            // Check for freezes
-            const daysMissed = diffDays - 1;
-            if (profile.frozenDays >= daysMissed) {
-                // Thaw
-                newFrozenDays -= daysMissed;
-                // Streak preserved (but not incremented? or preserved as is?)
-                // Usually streak just stays same, doesn't increment for missed days.
-                // But today is a NEW active day, so we should increment if we survived the gap?
-                // Logic: Missed yesterday. Used freeze. Today is active. So streak continues + 1.
-                newStreak += 1;
-                events.push({ type: 'STREAK_MAINTAINED', amount: newStreak, reason: 'Freeze Used', timestamp: Date.now() });
+            // Consecutive day
+            // We assume calling this implies activity or check on load.
+            // Ideally we don't increment until they DO something, but this function just checks status.
+        } else {
+            // Missed one or more days
+            const missedDays = diffDays - 1;
+            if (profile.frozenDays >= missedDays) {
+                // Use freeze(s)
+                profile.frozenDays -= missedDays;
+                status = 'frozen_used';
             } else {
-                // Freeze broken
-                newStreak = 1; // Reset to 1 (starting today)
-                events.push({ type: 'STREAK_LOST', timestamp: Date.now() });
+                // Not enough freezes
+                profile.currentStreak = 0;
+                status = 'reset';
             }
         }
 
-        const newProfile: GamificationProfile = {
-            ...profile,
-            currentStreak: newStreak,
-            frozenDays: newFrozenDays,
-            lastActivityDate: now.toISOString()
-        };
+        if (status !== 'maintained') {
+            await updateDoc(userRef, {
+                "gamification.currentStreak": profile.currentStreak,
+                "gamification.frozenDays": profile.frozenDays
+            });
+        }
 
-        return { newProfile, events };
+        return { currentStreak: profile.currentStreak, frozenDays: profile.frozenDays, status };
+
+    } catch (error) {
+        console.error("Error checking streak:", error);
+        return { currentStreak: 0, frozenDays: 0, status: 'reset' };
     }
-}
+};
+
+/**
+ * Buys a Streak Freeze item.
+ * Deducts gems and adds to inventory.
+ */
+export const buyStreakFreeze = async (uid: string): Promise<{ success: boolean; message: string; newBalance?: number }> => {
+    const PRICE = 50;
+    const userRef = doc(db, USERS_COLLECTION, uid);
+
+    try {
+        const docSnap = await getDoc(userRef);
+        if (!docSnap.exists()) return { success: false, message: "User not found" };
+
+        const data = docSnap.data();
+        const profile: GamificationProfile = { ...DEFAULT_GAMIFICATION_PROFILE, ...(data.gamification || {}) };
+
+        if (profile.gems < PRICE) {
+            return { success: false, message: "אין מספיק יהלומים" };
+        }
+
+        // Transaction-like update
+        await updateDoc(userRef, {
+            "gamification.gems": increment(-PRICE),
+            "gamification.frozenDays": increment(1)
+        });
+
+        return { success: true, message: "מקפיא רצף נרכש בהצלחה!", newBalance: profile.gems - PRICE };
+
+    } catch (error) {
+        console.error("Error purchasing item:", error);
+        return { success: false, message: "שגיאה ברכישה" };
+    }
+};

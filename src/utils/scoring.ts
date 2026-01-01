@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export const SCORING_CONFIG = {
     CORRECT_FIRST_TRY: 100,
-    HINT_PENALTY: 15,
+    HINT_PENALTY: 2,
     RETRY_PARTIAL: 50,
 };
 

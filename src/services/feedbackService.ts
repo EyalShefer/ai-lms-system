@@ -67,5 +67,34 @@ export const feedbackService = {
             console.error("Error fetching feedback: ", error);
             return [];
         }
+    },
+
+    /**
+     * Get aggregated feedback stats
+     */
+    getFeedbackStats: async (courseId: string) => {
+        try {
+            const feedbackList = await feedbackService.getFeedbackForCourse(courseId);
+            const stats = {
+                positive: 0,
+                negative: 0,
+                tags: {} as Record<string, number>
+            };
+
+            feedbackList.forEach(f => {
+                if (f.type === 'positive') stats.positive++;
+                if (f.type === 'negative') {
+                    stats.negative++;
+                    f.tags?.forEach(tag => {
+                        stats.tags[tag] = (stats.tags[tag] || 0) + 1;
+                    });
+                }
+            });
+
+            return { stats, recent: feedbackList.slice(0, 5) };
+        } catch (error) {
+            console.error("Error getting stats:", error);
+            return { stats: { positive: 0, negative: 0, tags: {} }, recent: [] };
+        }
     }
 };

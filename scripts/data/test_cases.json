@@ -1,0 +1,215 @@
+[
+    {
+        "id": "case_1_hint_bug",
+        "description": "Bug: Deducting 0 points for hint instead of 2. UI: Hint button is yellow.",
+        "mockActivityData": {
+            "screenName": "Lesson 1: Ancient History - Question 3",
+            "uiElements": [
+                {
+                    "type": "header",
+                    "content": {
+                        "userName": "Ido",
+                        "points": 150,
+                        "notificationBell": true
+                    }
+                },
+                {
+                    "type": "question_text",
+                    "content": "Who built the pyramids?"
+                },
+                {
+                    "type": "button",
+                    "label": "Hint",
+                    "icon": "lightbulb",
+                    "status": "visible",
+                    "color": "yellow"
+                },
+                {
+                    "type": "button",
+                    "label": "Next",
+                    "status": "disabled"
+                },
+                {
+                    "type": "options",
+                    "items": [
+                        "Aliens",
+                        "Egyptians",
+                        "Romans"
+                    ]
+                }
+            ],
+            "simulationEvents": [
+                {
+                    "action": "Click Hint",
+                    "result": {
+                        "pointsDeducted": 0,
+                        "hintShown": "It was a civilization in Africa."
+                    }
+                },
+                {
+                    "action": "Select Answer: Egyptians",
+                    "result": {
+                        "feedbackIcon": "Green V",
+                        "pointsAdded": 10
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "id": "case_2_happy_path",
+        "description": "Success: Everything behaves perfectly.",
+        "mockActivityData": {
+            "screenName": "Lesson 2: Science - Question 1",
+            "uiElements": [
+                {
+                    "type": "header",
+                    "content": {
+                        "userName": "Ido",
+                        "points": 160,
+                        "notificationBell": true
+                    }
+                },
+                {
+                    "type": "question_text",
+                    "content": "What is H2O?"
+                },
+                {
+                    "type": "button",
+                    "label": "Hint",
+                    "icon": "lightbulb",
+                    "status": "visible",
+                    "color": "blue"
+                },
+                {
+                    "type": "button",
+                    "label": "Next",
+                    "status": "disabled"
+                },
+                {
+                    "type": "options",
+                    "items": [
+                        "Salt",
+                        "Water",
+                        "Gold"
+                    ]
+                }
+            ],
+            "simulationEvents": [
+                {
+                    "action": "Click Hint",
+                    "result": {
+                        "pointsDeducted": 2,
+                        "hintShown": "It covers 70% of Earth."
+                    }
+                },
+                {
+                    "action": "Select Answer: Water",
+                    "result": {
+                        "feedbackIcon": "Green V",
+                        "pointsAdded": 10
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "id": "case_3_ui_failure",
+        "description": "Bug: Missing 'Lightbulb' icon on Hint button.",
+        "mockActivityData": {
+            "screenName": "Lesson 3: Math - Question 5",
+            "uiElements": [
+                {
+                    "type": "header",
+                    "content": {
+                        "userName": "Ido",
+                        "points": 168,
+                        "notificationBell": true
+                    }
+                },
+                {
+                    "type": "question_text",
+                    "content": "2 + 2 = ?"
+                },
+                {
+                    "type": "button",
+                    "label": "Hint",
+                    "status": "visible",
+                    "color": "blue"
+                },
+                {
+                    "type": "button",
+                    "label": "Next",
+                    "status": "disabled"
+                },
+                {
+                    "type": "options",
+                    "items": [
+                        "3",
+                        "4",
+                        "5"
+                    ]
+                }
+            ],
+            "simulationEvents": [
+                {
+                    "action": "Select Answer: 4",
+                    "result": {
+                        "feedbackIcon": "Green V",
+                        "pointsAdded": 10
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "id": "case_4_streak_failure",
+        "description": "Bug: 3rd Correct answer in a row, but NO FIRE animation.",
+        "mockActivityData": {
+            "screenName": "Lesson 4: Geography - Question 3 (Streak)",
+            "uiElements": [
+                {
+                    "type": "header",
+                    "content": {
+                        "userName": "Ido",
+                        "points": 178,
+                        "notificationBell": true
+                    }
+                },
+                {
+                    "type": "question_text",
+                    "content": "Capital of France?"
+                },
+                {
+                    "type": "button",
+                    "label": "Hint",
+                    "icon": "lightbulb",
+                    "status": "visible",
+                    "color": "blue"
+                },
+                {
+                    "type": "options",
+                    "items": [
+                        "Paris",
+                        "London",
+                        "Berlin"
+                    ]
+                }
+            ],
+            "simulationEvents": [
+                {
+                    "action": "Context",
+                    "state": "User answered previous 2 questions correctly."
+                },
+                {
+                    "action": "Select Answer: Paris",
+                    "result": {
+                        "feedbackIcon": "Green V",
+                        "pointsAdded": 10,
+                        "animation": "none"
+                    }
+                }
+            ]
+        }
+    }
+]

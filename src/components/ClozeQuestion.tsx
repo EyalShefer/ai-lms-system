@@ -61,7 +61,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
 
         // 4. Extreme Fallback: If absolutely no hidden words found, auto-hide random words (up to 3)
         // This handles "Text Only" failure cases from the AI
-        if ((!providedHiddenWords || providedHiddenWords.length === 0) && !hasBrackets && !block.metadata?.wordBank) {
+        if ((!providedHiddenWords || providedHiddenWords.length === 0) && !hasBrackets && (!block.metadata?.wordBank || block.metadata.wordBank.length === 0)) {
             const words = rawText.split(' ');
             if (words.length > 5) {
                 // Pick 2-3 random words to hide, preferring longer words

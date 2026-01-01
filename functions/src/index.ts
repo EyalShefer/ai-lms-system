@@ -13,20 +13,22 @@ const db = getFirestore();
 const openAiApiKey = defineSecret("OPENAI_API_KEY");
 const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
 
-// --- TYPES ---
-interface StepInfo {
-    step_number: number;
-    title: string;
-    narrative_focus: string;
-    forbidden_topics: string[];
-    bloom_level: string;
-    suggested_interaction_type: string;
-}
+// --- CONTROLLERS ---
+import { createAiController } from "./controllers/aiController";
 
-interface UnitSkeleton {
-    unit_title: string;
-    steps: StepInfo[];
-}
+const { generateUnitSkeleton, generateStepContent, generatePodcastScript } = createAiController(openAiApiKey);
+export { generateUnitSkeleton, generateStepContent, generatePodcastScript };
+
+// --- SHARED IMPORTS ---
+import { mapSystemItemToBlock } from './shared/utils/geminiParsers';
+import type { RawAiItem } from './shared/types/gemini.types';
+import type { MappedLearningBlock } from './shared/types/gemini.types';
+import type { UnitSkeleton, SkeletonStep, StepContentResponse } from './shared/types/gemini.types';
+
+// --- TYPES ---
+// --- TYPES REMOVED (Imported from Shared) ---
+// interface StepInfo ...
+// interface UnitSkeleton ...
 
 // --- PROXY FUNCTION (Production Fix) ---
 export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, async (req, res) => {
@@ -169,270 +171,7 @@ const sanitizeData = (data: any): any => {
     }));
 };
 
-const cleanJsonString = (text: string): string => {
-    try {
-        let clean = text.replace(/```json|```/g, '').trim();
-        const firstBrace = clean.indexOf('{');
-        const firstBracket = clean.indexOf('[');
-        let startIndex = -1;
-        let endIndex = -1;
-
-        if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
-            startIndex = firstBracket;
-            endIndex = clean.lastIndexOf(']') + 1;
-        } else if (firstBrace !== -1) {
-            startIndex = firstBrace;
-            endIndex = clean.lastIndexOf('}') + 1;
-        }
-
-        if (startIndex !== -1 && endIndex !== -1) {
-            clean = clean.substring(startIndex, endIndex);
-        }
-        clean = clean.replace(/}\s*{/g, '}, {');
-        return clean;
-    } catch (e) {
-        logger.error("JSON cleaning failed", e);
-        return text;
-    }
-};
-
-const mapSystemItemToBlock = (item: any) => {
-    if (!item) return null;
-
-    // 1. ROBUST DATA NORMALIZATION
-    // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
-    const rawData: any = (item.data?.data || item.data || item.interactive_question || item);
-
-    // Extract Type
-    // Keep as string for loose matching against AI outputs (which might use underscores)
-    const typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
-
-    // Extract Question Text (Handle all known variations - Check Root AND Data)
-    const questionObj = rawData.question || item.question;
-    const questionText =
-        (typeof questionObj === 'object' ? questionObj?.text : questionObj) || // Handle { question: { text: "..." } }
-        rawData.question_text ||
-        rawData.text ||
-        rawData.instruction ||
-        rawData.text ||
-        rawData.instruction;
-
-    const commonMetadata = {
-        bloomLevel: item.bloom_level || "General",
-        feedbackCorrect: rawData.feedback_correct || rawData.feedback || "תשובה נכונה!",
-        feedbackIncorrect: rawData.feedback_incorrect || "נסו שוב.",
-        sourceReference: rawData.source_reference || rawData.source_reference_hint || null
-    };
-
-    // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
-    if (typeString === 'multiple_choice' || typeString === 'multiple-choice' || typeString === 'true_false' || typeString === 'teach_then_ask') {
-        let options: any[] = [];
-        if (Array.isArray(rawData.options)) options = rawData.options;
-        else if (Array.isArray(item.options)) options = item.options;
-        else if (Array.isArray(rawData.choices)) options = rawData.choices;
-        else if (Array.isArray(rawData.answers)) options = rawData.answers;
-
-        // Normalize Options to Strings for Content
-        const normalizedOptions: string[] = options.map((o) =>
-            typeof o === 'string' ? o : (o.text || o.label || "")
-        );
-
-        // Fallback if empty options
-        if (normalizedOptions.length < 2) {
-            if (typeString === 'true_false') {
-                normalizedOptions.push("נכון", "לא נכון");
-            } else {
-                return null;
-            }
-        }
-
-        let correctAnswer = "";
-        // 1. Check for "is_correct" flag in rich objects
-        const correctOptObj = options.find((o) => typeof o === 'object' && (o.is_correct || o.isCorrect === true));
-        if (correctOptObj) {
-            correctAnswer = correctOptObj.text || correctOptObj.label || "";
-        }
-        // 2. Check for explicit correct answer string
-        else if (rawData.correct_answer && typeof rawData.correct_answer === 'string') {
-            correctAnswer = rawData.correct_answer;
-        }
-        // 3. Check for correct index
-        else if (rawData.correct_index !== undefined && normalizedOptions[rawData.correct_index]) {
-            correctAnswer = normalizedOptions[rawData.correct_index];
-        }
-        // 4. Fallback to first option
-        else {
-            correctAnswer = normalizedOptions[0];
-        }
-
-        const finalType = typeString === 'true_false' ? 'multiple-choice' : 'multiple-choice';
-
-        return {
-            id: uuidv4(),
-            type: finalType,
-            content: {
-                question: questionText || "שאלה",
-                options: normalizedOptions,
-                correctAnswer: correctAnswer
-            },
-            metadata: {
-                ...commonMetadata,
-                score: 10,
-                progressiveHints: rawData.progressive_hints || [],
-                richOptions: options.some(o => typeof o === 'object') ? options : undefined
-            }
-        };
-    }
-
-    // === CASE B: OPEN QUESTION ===
-    if (typeString === 'open_question' || typeString === 'open-question' || typeString === 'open_ended') {
-        return {
-            id: uuidv4(),
-            type: 'open-question',
-            content: { question: questionText || "שאלה פתוחה" },
-            metadata: {
-                ...commonMetadata,
-                modelAnswer: Array.isArray(rawData.model_answer)
-                    ? rawData.model_answer.join('\n- ')
-                    : (rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key || "התשובה נמצאת בחומר הלימוד."),
-                score: 20
-            }
-        };
-    }
-
-    // === CASE C: ORDERING / SEQUENCING ===
-    if (typeString === 'ordering' || typeString === 'sequencing') {
-        const rawItems = rawData.items || rawData.steps || rawData.correct_order || [];
-        const items = rawItems.map((i: any) => {
-            if (typeof i === 'string') return i;
-            const iObj = i as any;
-            return iObj.text || iObj.step || iObj.content || iObj.description || JSON.stringify(i);
-        });
-
-        if (items.length < 2) {
-            return null;
-        }
-
-        return {
-            id: uuidv4(),
-            type: 'ordering',
-            content: {
-                instruction: (questionText && questionText !== "שאלה ללא טקסט") ? questionText : "סדרו את השלבים לפי הסדר הנכון:",
-                correct_order: items
-            },
-            metadata: { ...commonMetadata, score: 15 }
-        };
-    }
-
-    // === CASE D: CATEGORIZATION / GROUPING / MATCHING ===
-    if (typeString === 'categorization' || typeString === 'grouping' || typeString === 'matching' || typeString === 'sorting') {
-        let categories: string[] = [];
-        let items: { text: string; category: string }[] = [];
-
-        if (typeString === 'matching' || rawData.pairs) {
-            const pairs = rawData.pairs || [];
-            const uniqueCats = new Set<string>();
-            pairs.forEach((p: any) => uniqueCats.add(p.right || p.category || ""));
-            categories = Array.from(uniqueCats).filter(Boolean) as string[];
-            items = pairs.map((p: any) => ({
-                text: p.left || p.item || "",
-                category: p.right || p.category || ""
-            }));
-        }
-        else {
-            categories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
-            const rawListing = (rawData.items || []) as any[];
-
-            items = rawListing.map((item) => {
-                if (typeof item === 'object' && item.category) {
-                    return { text: item.text || item.content || JSON.stringify(item), category: item.category };
-                }
-                if (typeof item === 'object' && item.group_index !== undefined && categories[item.group_index]) {
-                    return { text: item.text || item.content || "", category: categories[item.group_index] };
-                }
-                if (typeof item === 'object' && item.group) return { text: item.text, category: item.group };
-
-                return {
-                    text: typeof item === 'string' ? item : (item.text || JSON.stringify(item)),
-                    category: categories[0] || "כללי"
-                };
-            });
-        }
-
-        if (items.length === 0 || categories.length === 0) {
-            return null;
-        }
-
-        return {
-            id: uuidv4(),
-            type: 'categorization',
-            content: {
-                question: (questionText && questionText !== "שאלה ללא טקסט") ? questionText : "מיינו את הפריטים לקטגוריות:",
-                categories: categories,
-                items: items
-            },
-            metadata: { ...commonMetadata, score: 20 }
-        };
-    }
-
-    // === CASE E: FILL IN BLANKS ===
-    if (typeString === 'fill_in_blanks' || typeString === 'cloze') {
-        const safeData = rawData as any;
-        return {
-            id: uuidv4(),
-            type: 'fill_in_blanks',
-            content: {
-                text: safeData.text || safeData.content || questionText || "חסר טקסט להשלמה",
-            },
-            metadata: {
-                ...commonMetadata,
-                score: 15,
-                wordBank: safeData.word_bank || safeData.options || []
-            }
-        };
-    }
-
-    // === CASE F: MEMORY GAME ===
-    if (typeString === 'memory_game' || typeString === 'memory' || typeString === 'matching_pairs') {
-        const pairs = rawData.pairs || rawData.cards || [];
-        const normalizedPairs: { card_a: string; card_b: string }[] = [];
-
-        if (Array.isArray(pairs)) {
-            pairs.forEach((p: any) => {
-                if (p.card_a && p.card_b) normalizedPairs.push({ card_a: p.card_a, card_b: p.card_b });
-                else if (p.left && p.right) normalizedPairs.push({ card_a: p.left, card_b: p.right });
-                else if (Array.isArray(p) && p.length === 2) normalizedPairs.push({ card_a: p[0], card_b: p[1] });
-            });
-        }
-
-        if (normalizedPairs.length < 2) {
-            return null;
-        }
-
-        return {
-            id: uuidv4(),
-            type: 'memory_game',
-            content: {
-                pair_count: normalizedPairs.length,
-                pairs: normalizedPairs,
-                question: questionText || "התאימו בין הזוגות:"
-            },
-            metadata: { ...commonMetadata, score: 15 }
-        };
-    }
-
-    // === CASE G: PLAIN TEXT ===
-    if (typeString === 'text' || typeString === 'explanation' || typeString === 'content') {
-        return {
-            id: uuidv4(),
-            type: 'text',
-            content: typeof rawData === 'string' ? rawData : (rawData.text || rawData.content || questionText || ""),
-            metadata: { ...commonMetadata, score: 0 }
-        };
-    }
-
-    return null;
-};
+// [cleanJsonString and mapSystemItemToBlock removed - imported from shared]
 
 // --- Agentic Workflow Stages ---
 
@@ -563,7 +302,7 @@ async function runArchitectStage(openai: OpenAI, context: { topic: string, grade
 }
 
 // Stage 2: The Generator (Drafter) - HANDS (Parallel)
-async function generateSingleStep(openai: OpenAI, stepInfo: StepInfo, context: { topic: string, gradeLevel: string, sourceText?: string, mode?: string }): Promise<any | null> {
+async function generateSingleStep(openai: OpenAI, stepInfo: SkeletonStep, context: { topic: string, gradeLevel: string, sourceText?: string, mode?: string }): Promise<any | null> {
     const contextText = context.sourceText
         ? `Source Material:\n"""${context.sourceText.substring(0, 3000)}..."""`
         : `Topic: ${context.topic}`;

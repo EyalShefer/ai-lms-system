@@ -1,5 +1,5 @@
 
-import { validateContent, attemptAutoFix, safeGenerationWorkflow } from '../gemini';
+import { validateContent, attemptAutoFix, safeGenerationWorkflow } from '../services/ai/geminiApi';
 
 // Mock content for testing
 const BAD_CONTENT_ELEMENTARY = {

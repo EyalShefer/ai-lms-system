@@ -24,6 +24,71 @@ const SUBJECTS = [
 
 type ProductType = 'lesson' | 'podcast' | 'exam' | 'game' | null;
 
+const PRODUCT_CONFIG: Record<string, {
+    titleLabel: string;
+    lengthLabel: string;
+    headerLabel: string;
+    defaultTitleName: string;
+    lengthOptions: { id: string; label: string }[];
+}> = {
+    lesson: {
+        titleLabel: "כותרת השיעור",
+        lengthLabel: "היקף השיעור",
+        headerLabel: "יצירת מערך שיעור",
+        defaultTitleName: "שיעור חדש",
+        lengthOptions: [
+            { id: 'short', label: 'קצר (ממוקד)' },
+            { id: 'medium', label: 'בינוני (סטנדרטי)' },
+            { id: 'long', label: 'ארוך (מקיף)' }
+        ]
+    },
+    exam: {
+        titleLabel: "כותרת המבחן",
+        lengthLabel: "היקף המבחן",
+        headerLabel: "יצירת מבחן",
+        defaultTitleName: "מבחן חדש",
+        lengthOptions: [
+            { id: 'short', label: 'קצר' },
+            { id: 'medium', label: 'בינוני' },
+            { id: 'long', label: 'ארוך' }
+        ]
+    },
+    game: {
+        titleLabel: "כותרת המשחק",
+        lengthLabel: "משך המשחק",
+        headerLabel: "יצירת משחק",
+        defaultTitleName: "משחק חדש",
+        lengthOptions: [
+            { id: 'short', label: 'קצר' },
+            { id: 'medium', label: 'בינוני' },
+            { id: 'long', label: 'ארוך' }
+        ]
+    },
+    podcast: {
+        titleLabel: "כותרת הפודקאסט",
+        lengthLabel: "משך הפרק",
+        headerLabel: "יצירת פודקאסט",
+        defaultTitleName: "פודקאסט חדש",
+        lengthOptions: [
+            { id: 'short', label: 'קצר' },
+            { id: 'medium', label: 'בינוני' },
+            { id: 'long', label: 'ארוך' }
+        ]
+    }
+};
+
+const DEFAULT_CONFIG = {
+    titleLabel: "כותרת הפעילות",
+    lengthLabel: "אורך הפעילות",
+    headerLabel: "יצירת פעילות חדשה",
+    defaultTitleName: "פעילות חדשה",
+    lengthOptions: [
+        { id: 'short', label: 'קצרה' },
+        { id: 'medium', label: 'בינונית' },
+        { id: 'long', label: 'ארוכה' }
+    ]
+};
+
 interface IngestionWizardProps {
     onComplete: (data: any) => void;
     onCancel: () => void;
@@ -207,6 +272,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
     // const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
+    const config = (selectedProduct && PRODUCT_CONFIG[selectedProduct]) || DEFAULT_CONFIG;
+
     // --- Effects ---
     useEffect(() => {
         if (initialTopic && initialTopic !== "טוען..." && initialTopic.trim() !== "") {
@@ -344,7 +411,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 mode,
                 file,
                 pastedText,
-                title: customTitle || topic || "פעילות חדשה",
+                title: customTitle || topic || config.defaultTitleName,
                 originalTopic: topic,
                 settings: {
                     subject: subject || "כללי",
@@ -372,7 +439,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-8 animate-fade-in overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-8 animate-fade-in overflow-y-auto bg-slate-900/60 backdrop-blur-sm" dir="rtl">
             <div className="bg-slate-50 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col min-h-[600px] relative transition-all duration-500">
 
                 {/* --- Header (Deep Royal) --- */}
@@ -387,7 +454,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div>
                             <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
                                 <IconSparkles className="w-8 h-8 text-wizdi-lime animate-wiggle" />
-                                יצירת פעילות חדשה
+                                {step === 3 ? config.headerLabel : "יצירת פעילות חדשה"}
                             </h2>
                             <p className="text-blue-100/80 font-medium text-lg">
                                 {step === 1 && "בואו נתחיל! איך תרצו להזין את התוכן?"}
@@ -509,7 +576,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                         <div className="flex gap-2 mb-4">
                                             <input
                                                 type="text"
-                                                className="flex-1 p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none dir-ltr"
+                                                dir="ltr"
+                                                className="flex-1 p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-left"
                                                 placeholder="https://www.youtube.com/..."
                                                 id="youtube-input"
                                                 onKeyDown={(e) => {
@@ -610,7 +678,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-slide-up">
                             <div className="space-y-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">כותרת הפעילות</label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">{config.titleLabel}</label>
                                     <input
                                         type="text"
                                         value={customTitle}
@@ -633,11 +701,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">אורך הפעילות</label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">{config.lengthLabel}</label>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {[{ id: 'short', l: 'קצרה' }, { id: 'medium', l: 'בינונית' }, { id: 'long', l: 'ארוכה' }].map(o => (
+                                        {config.lengthOptions.map(o => (
                                             <button key={o.id} onClick={() => setActivityLength(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all ${activityLength === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
-                                                {o.l}
+                                                {o.label}
                                             </button>
                                         ))}
                                     </div>

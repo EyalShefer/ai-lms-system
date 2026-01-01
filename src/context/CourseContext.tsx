@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
-import { GamificationService } from '../services/gamificationService';
+import * as GamificationService from '../services/gamificationService';
 import type { GamificationProfile } from '../courseTypes';
 
 const initialEmptyCourse: Course = {

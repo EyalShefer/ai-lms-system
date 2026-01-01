@@ -1,7 +1,7 @@
 import { db, storage } from "./firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import type { Course } from "./courseTypes";
+import type { Course } from "./shared/types/courseTypes";
 
 // פונקציית עזר לניקוי נתונים לפני שמירה (מונעת קריסות של undefined ב-Firestore)
 const cleanDataForFirestore = (data: any): any => {
@@ -18,33 +18,110 @@ const cleanDataForFirestore = (data: any): any => {
     return data;
 };
 
-// שמירת קורס/מערך שיעור
+// שמירת קורס/מערך שיעור (Split to Sub-collections)
 export const saveCourseToFirestore = async (course: Course) => {
     if (!course.id) throw new Error("Course ID is missing");
 
+    const batch = writeBatch(db);
     const courseRef = doc(db, "courses", course.id);
-    const cleanCourse = cleanDataForFirestore(course);
 
-    // עדכון תאריך שינוי
-    cleanCourse.updatedAt = new Date().toISOString();
+    // 1. Prepare Main Course Document (Lightweight)
+    const lightweightSyllabus = course.syllabus.map(module => ({
+        ...module,
+        learningUnits: module.learningUnits.map(unit => ({
+            id: unit.id,
+            title: unit.title,
+            type: unit.type,
+            isLazy: true, // Marker for new schema
+            // Strip heavy content
+            baseContent: null,
+            activityBlocks: [],
+            audioOverview: null
+        }))
+    }));
+
+    const cleanCourseMain = cleanDataForFirestore({
+        ...course,
+        syllabus: lightweightSyllabus,
+        updatedAt: new Date().toISOString()
+    });
+
+    batch.set(courseRef, cleanCourseMain, { merge: true });
+
+    // 2. Prepare Unit Documents (Sub-collection)
+    course.syllabus.forEach(module => {
+        module.learningUnits.forEach(unit => {
+            if (unit.id) {
+                const unitRef = doc(db, "courses", course.id, "units", unit.id);
+                const cleanUnit = cleanDataForFirestore(unit);
+                batch.set(unitRef, cleanUnit, { merge: true });
+            }
+        });
+    });
 
     try {
-        await setDoc(courseRef, cleanCourse, { merge: true });
-        console.log("Lesson plan saved successfully:", course.id);
+        await batch.commit();
+        console.log("Lesson plan (split) saved successfully:", course.id);
     } catch (error) {
         console.error("Error saving lesson plan:", error);
         throw error;
     }
 };
 
-// טעינת קורס
+// שמירת יחידה בודדת (Granular Update)
+export const saveUnitToFirestore = async (courseId: string, unit: any) => {
+    if (!courseId || !unit.id) throw new Error("Missing Course ID or Unit ID");
+
+    const unitRef = doc(db, "courses", courseId, "units", unit.id);
+    const cleanUnit = cleanDataForFirestore(unit);
+
+    try {
+        await setDoc(unitRef, cleanUnit, { merge: true });
+        console.log(`Unit ${unit.id} saved to sub-collection.`);
+    } catch (error) {
+        console.error(`Error saving unit ${unit.id}:`, error);
+        throw error;
+    }
+};
+
+// טעינת קורס (עם תמיכה בטעינה עצלה/תת-אוספים)
 export const getCourseFromFirestore = async (courseId: string): Promise<Course | null> => {
     try {
         const docRef = doc(db, "courses", courseId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-            return docSnap.data() as Course;
+            const courseData = docSnap.data() as Course;
+
+            // בדיקה אם הקורס בפורמט החדש (Lazy)
+            const hasLazyUnits = courseData.syllabus?.some(m => m.learningUnits?.some(u => (u as any).isLazy));
+
+            if (hasLazyUnits) {
+                console.log("Loading lazy units for course:", courseId);
+                // שליפת כל היחידות מתת-האוסף
+                // אופטימיזציה לעתיד: שליפה רק לפי הצורך (Lazy Loading ממש)
+                const unitsRef = collection(db, "courses", courseId, "units");
+                const unitsSnap = await getDocs(unitsRef);
+
+                const unitsMap = new Map();
+                unitsSnap.forEach(doc => {
+                    unitsMap.set(doc.id, doc.data());
+                });
+
+                // מיזוג היחידות המלאות לתוך הסילבוס
+                courseData.syllabus = courseData.syllabus.map(module => ({
+                    ...module,
+                    learningUnits: module.learningUnits.map(unit => {
+                        if ((unit as any).isLazy && unitsMap.has(unit.id)) {
+                            // מיזוג: לוקחים את המידע מהמסמך המלא, אך שומרים על הסדר מהסילבוס
+                            return unitsMap.get(unit.id) as any;
+                        }
+                        return unit;
+                    })
+                }));
+            }
+
+            return courseData;
         } else {
             console.log("No such document!");
             return null;

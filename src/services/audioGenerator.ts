@@ -1,5 +1,6 @@
-import { openai, MODEL_NAME, cleanJsonString } from "../gemini";
-import type { AudioOverviewRequest, DialogueScript } from "../types/gemini.types";
+import { openai, MODEL_NAME } from "./ai";
+import { cleanJsonString } from "../shared/utils/geminiParsers";
+import type { AudioOverviewRequest, DialogueScript } from "../shared/types/gemini.types"; // Fixed path if needed
 import { AUDIO_OVERVIEW_PROMPT } from "../prompts/audioPrompts";
 
 /**

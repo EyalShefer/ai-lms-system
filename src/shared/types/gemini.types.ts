@@ -1,4 +1,4 @@
-import type { ActivityBlockType, BloomLevel, StrictBlockContent, RichOption } from '../courseTypes';
+import type { ActivityBlockType, BloomLevel, StrictBlockContent, RichOption } from './courseTypes';
 
 /**
  * Represents the distinct "Raw" structure returned by the AI.
