@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCourseStore } from '../context/CourseContext';
+import * as pdfjsLib from 'pdfjs-dist';
 import CoursePlayer from './CoursePlayer';
 import UnitEditor from './UnitEditor';
+import TeacherCockpit from './TeacherCockpit';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent } from '../gemini';
-import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
+import { generateCoursePlan, generateFullUnitContent, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent } from '../gemini';
+// import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Keep db for direct doc updates if needed
 import { saveCourseToFirestore, saveUnitToFirestore } from '../firebaseUtils';
-import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
+import type { LearningUnit, ActivityBlock, Module } from '../shared/types/courseTypes';
 
 // הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -116,7 +118,8 @@ const UnitPreviewModal: React.FC<{ unit: any, onClose: () => void }> = ({ unit, 
 
 
 
-import TicTacToeLoader from './TicTacToeLoader';
+
+import { LessonPlanOverview } from './LessonPlanOverview';
 
 // ... existing imports ...
 
@@ -127,7 +130,8 @@ const CourseEditor: React.FC = () => {
     const [previewUnit, setPreviewUnit] = useState<LearningUnit | null>(null);
     const [showWizard, setShowWizard] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [showLoader, setShowLoader] = useState(false); // New state logic
+    // Loader removed by user request
+    // const [showLoader, setShowLoader] = useState(false); 
 
     // משתנה לעקיפת התצוגה
     const [forcedGrade, setForcedGrade] = useState<string>("");
@@ -135,6 +139,7 @@ const CourseEditor: React.FC = () => {
     const wizardHasRun = useRef(false);
     const hasAutoSelected = useRef(false);
 
+    // --- התיקון לקריטי למניעת 429 ולולאות ---
     // --- התיקון לקריטי למניעת 429 ולולאות ---
     useEffect(() => {
         // הגנה ראשונית: אם כבר רץ וויזארד או שיש תהליך יצירה, עוצרים
@@ -146,11 +151,24 @@ const CourseEditor: React.FC = () => {
         // בדיקה האם הקורס מאוכלס בסילבוס
         const hasSyllabus = course.syllabus && course.syllabus.length > 0;
 
+        // Detect Lesson Mode
+        const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
+
+        // 🚀 AUTO-GENERATION TRIGGER FOR FRESH SHELLS
+        // If we have a shell syllabus (from App.tsx) but it's empty, AND we have wizard data -> GENERATE!
+        const firstUnit = course.syllabus?.[0]?.learningUnits?.[0];
+        const isFreshShell = hasSyllabus && firstUnit && (!firstUnit.activityBlocks || firstUnit.activityBlocks.length === 0);
+
+        if (isFreshShell && course.wizardData && isLessonMode) {
+            // console.log("🚀 Detected Fresh Lesson Shell. Triggering V4 Auto-Generation...");
+            handleWizardComplete(course.wizardData);
+            return;
+        }
+
         if (hasSyllabus && !hasAutoSelected.current) {
-            const firstModule = course.syllabus[0];
-            if (firstModule.learningUnits?.length > 0) {
-                const firstUnit = firstModule.learningUnits[0];
-                if (!selectedUnitId) {
+            if (firstUnit && !selectedUnitId) {
+                // CRITICAL: Prevent auto-select for Lesson Plans
+                if (!isLessonMode) {
                     setSelectedUnitId(firstUnit.id);
                     hasAutoSelected.current = true;
                 }
@@ -158,25 +176,323 @@ const CourseEditor: React.FC = () => {
         }
         else if (!hasSyllabus) {
             // אם אין תוכן - פותחים את הוויזארד אוטומטית תמיד
-            if (!showWizard) {
+            if (!showWizard && !isGenerating) {
                 setShowWizard(true);
             }
         }
     }, [course, showWizard, isGenerating, selectedUnitId]);
 
+    const handleGenerateWithAI = async (type: 'unit' | 'module', id: string, _instruction?: string) => {
+        if (type === 'unit') {
+            // console.log(`🤖 Manual AI Trigger for Unit ${id}`);
+            const unit = course.syllabus.flatMap((m: Module) => m.learningUnits).find((u: LearningUnit) => u.id === id);
+            if (!unit) return;
+
+            // 1. Set Generating State
+            setCourse((prev: any) => {
+                const newSyllabus = prev.syllabus.map((m: Module) => ({
+                    ...m,
+                    learningUnits: m.learningUnits.map((u: LearningUnit) => u.id === id ? { ...u, metadata: { ...u.metadata, status: 'generating' } } : u)
+                }));
+                return { ...prev, syllabus: newSyllabus };
+            });
+
+            // 2. Generate Content
+            try {
+                const skeleton = await generateUnitSkeleton(
+                    unit.title,
+                    course.gradeLevel || "General",
+                    course.activityLength || 'medium',
+                    course.fullBookContent,
+                    course.mode === 'lesson' ? 'learning' : course.mode,
+                    undefined,
+                    course.wizardData?.settings?.productType
+                );
+
+                if (skeleton && skeleton.steps) {
+                    const stepPromises = skeleton.steps.map(async (step: any) => {
+                        const content = await generateStepContent(unit.title, step, course.gradeLevel || "General", course.fullBookContent);
+                        return mapSystemItemToBlock(content);
+                    });
+                    const newBlocksRaw = await Promise.all(stepPromises);
+                    let newBlocks = newBlocksRaw.filter((b: any) => b !== null);
+
+                    // FALLBACK: If AI Failed completely
+                    if (newBlocks.length === 0) {
+                        newBlocks = [{
+                            id: crypto.randomUUID(),
+                            type: 'text',
+                            content: "⚠️ **שגיאה ביצירת התוכן**\n\nהמערכת לא הצליחה לייצר תוכן עבור יחידה זו. ייתכן שישנה בעיה בחיבור ל-AI או שהתוכן המקורי לא הספיק.\n\nאנא נסו ללחוץ שוב על כפתור 'עריכה עם AI' או הוסיפו תוכן ידנית.",
+                            metadata: { score: 0, bloomLevel: 'evaluation' }
+                        }];
+                    }
+
+                    // 3. Save
+                    setCourse((prev: any) => {
+                        const newSyllabus = prev.syllabus.map((m: Module) => ({
+                            ...m,
+                            learningUnits: m.learningUnits.map((u: LearningUnit) => u.id === id ? { ...u, activityBlocks: newBlocks, metadata: { ...u.metadata, status: 'ready' } } : u)
+                        }));
+                        const final = { ...prev, syllabus: newSyllabus };
+                        saveCourseToFirestore(final);
+                        return final;
+                    });
+                }
+            } catch (e) {
+                console.error("Manual Gen Error", e);
+                alert("Generation failed");
+                setCourse((prev: any) => {
+                    const newSyllabus = prev.syllabus.map((m: Module) => ({
+                        ...m,
+                        learningUnits: m.learningUnits.map((u: LearningUnit) => u.id === id ? { ...u, metadata: { ...u.metadata, status: 'error' } } : u)
+                    }));
+                    return { ...prev, syllabus: newSyllabus };
+                });
+            }
+        }
+    };
+
     if (!course) return <div className="flex items-center justify-center h-screen text-gray-500">נא לבחור שיעור...</div>;
 
     const displayGrade = forcedGrade || course.gradeLevel || course.targetAudience || "כללי";
+
+
+    // --- Progressive Generation Helper ---
+    const processLessonPlanQueue = async (
+        initialSyllabus: Module[],
+        sourceText: string,
+        grade: string,
+        activityLength: 'short' | 'medium' | 'long',
+        mode: 'learning' | 'exam' | 'lesson',
+        taxonomy?: any,
+        productType?: any
+    ) => {
+        // We iterate sequentially to manage rate limits and UX flow
+        const flatUnits = initialSyllabus.flatMap(m => m.learningUnits).filter(u => !u.activityBlocks || u.activityBlocks.length === 0);
+
+        for (const unit of flatUnits) {
+            // 1. Mark as Generating
+            setCourse((currentCourse: any) => {
+                if (!currentCourse) return currentCourse;
+                const updatedSyllabus = currentCourse.syllabus.map((m: Module) => ({
+                    ...m,
+                    learningUnits: m.learningUnits.map((u: LearningUnit) =>
+                        u.id === unit.id ? { ...u, metadata: { ...u.metadata, status: 'generating' } } : u
+                    )
+                }));
+                return { ...currentCourse, syllabus: updatedSyllabus };
+            });
+
+            try {
+                // === TEACHER LESSON MODE (Master Teacher V2) ===
+                if (mode === 'lesson' || productType === 'lesson') {
+                    // 1. Determine Source Type
+                    let sourceType: 'YOUTUBE' | 'TEXT_FILE' | 'TOPIC_ONLY' = 'TOPIC_ONLY';
+                    const wizardData = course?.wizardData;
+
+                    if (wizardData) {
+                        // Check for Youtube
+                        if (wizardData.mediaType === 'youtube' || (wizardData.sourceText && wizardData.sourceText.includes("TRANSCRIPT:"))) {
+                            sourceType = 'YOUTUBE';
+                        }
+                        // Check for Text File (Length heuristic)
+                        else if (wizardData.sourceText && wizardData.sourceText.length > 100) {
+                            sourceType = 'TEXT_FILE';
+                        }
+                    }
+
+                    // 2. Generate Full Lesson Plan (No Skeleton)
+                    const lessonPlan = await generateTeacherStepContent(
+                        unit.title,
+                        sourceText,
+                        grade,
+                        sourceType,
+                        wizardData?.fileData
+                    );
+
+                    if (lessonPlan) {
+                        // 3. Map to Blocks (Visual Guide)
+                        const newBlocks = [
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section hook">
+                                        <h3>🪝 פתיחה (The Hook) - ${lessonPlan.hook.media_asset?.type === 'youtube_timestamp' ? '🎬 וידאו' : '🖼️ תמונה'}</h3>
+                                        <p class="teacher-script">${lessonPlan.hook.script_for_teacher}</p>
+                                        ${lessonPlan.hook.media_asset ? `<div class="media-badge">${lessonPlan.hook.media_asset.content}</div>` : ''}
+                                    </div>
+                                `,
+                                metadata: { time: '5 min', bloomLevel: 'remember' }
+                            },
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section instruction">
+                                        <h3>🎓 הוראה פרונטלית (Direct Instruction)</h3>
+                                        ${lessonPlan.direct_instruction.slides.map((slide, idx) => `
+                                            <div class="slide-card">
+                                                <h4>שקף ${idx + 1}: ${slide.slide_title}</h4>
+                                                <div class="board-points">
+                                                    <strong>📝 על הלוח:</strong>
+                                                    <ul>${slide.bullet_points_for_board.map(p => `<li>${p}</li>`).join('')}</ul>
+                                                </div>
+                                                <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
+                                                ${slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                `,
+                                metadata: { time: '15 min', bloomLevel: 'understand' }
+                            },
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section practice">
+                                        <h3>🛠️ תרגול מודרך (Guided Practice)</h3>
+                                        <p>${lessonPlan.guided_practice.teacher_instruction}</p>
+                                        <div class="wizdi-tool">
+                                            <strong>🚀 כלי דיגיטלי:</strong> ${lessonPlan.guided_practice.wizdi_tool_reference}
+                                        </div>
+                                    </div>
+                                `,
+                                metadata: { time: '15 min', bloomLevel: 'apply' }
+                            },
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section summary">
+                                        <h3>💬 סיכום ודיון</h3>
+                                        <ul>${lessonPlan.discussion.questions.map(q => `<li>❓ ${q}</li>`).join('')}</ul>
+                                        <hr/>
+                                        <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> ${lessonPlan.summary.takeaway_sentence}</p>
+                                    </div>
+                                `,
+                                metadata: { time: '10 min', bloomLevel: 'evaluate' }
+                            }
+                        ];
+
+                        // 4. Save
+                        setCourse((prev: any) => {
+                            if (!prev) return prev;
+                            const newSyllabus = prev.syllabus.map((m: Module) => ({
+                                ...m,
+                                learningUnits: m.learningUnits.map((u: LearningUnit) =>
+                                    u.id === unit.id ? { ...u, activityBlocks: newBlocks, metadata: { ...u.metadata, status: 'ready' } } : u
+                                )
+                            }));
+                            const newCourse = { ...prev, syllabus: newSyllabus };
+                            saveCourseToFirestore(newCourse);
+                            return newCourse;
+                        });
+
+                        continue; // Skip the rest of the loop (Skeleton generation)
+                    }
+                }
+
+                // === STUDENT ACTIVITY MODE (Legacy / Gamification) ===
+                // 2. Generate Skeleton
+                const skeleton = await generateUnitSkeleton(
+                    unit.title,
+                    grade,
+                    activityLength,
+                    sourceText,
+                    mode === 'lesson' ? 'learning' : mode,
+                    taxonomy,
+                    productType
+                );
+
+                if (skeleton && skeleton.steps) {
+
+
+
+                    const stepPromises = skeleton.steps.map(async (step: any) => {
+
+                        const content = await generateStepContent(
+                            unit.title,
+                            step,
+                            grade,
+                            sourceText
+                        );
+
+
+                        const mapped = mapSystemItemToBlock(content);
+                        // console.log(`🧩 [Step ${step.step_number}] Mapped Block:`, mapped);
+                        return mapped;
+                    });
+
+                    const newBlocksRaw = await Promise.all(stepPromises);
+                    // DEBUG: Instead of filtering, map failures to Error Blocks
+                    let newBlocks = newBlocksRaw.map((b: any, idx) => {
+                        if (b === null) {
+                            return {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `⚠️ **Debug: Block Generation Failed for Step ${idx + 1}**\n\nCheck console logs for 'step content' or 'mapping' errors.`,
+                                metadata: { score: 0, bloomLevel: 'evaluation' }
+                            };
+                        }
+                        return b;
+                    });
+
+
+
+                    if (newBlocks.length === 0) {
+                        console.warn("Generation yielded 0 blocks. Inserting Error Block.");
+                        newBlocks = [{
+                            id: crypto.randomUUID(),
+                            type: 'text',
+                            content: "⚠️ **תקלה ביצירה**\n\nלא הצלחנו לייצר את שלבי השיעור באופן אוטומטי. אנא נסו לייצר שוב ידנית.\n\n(Debug Info: API returned null or empty blocks)",
+                            metadata: { score: 0, bloomLevel: 'evaluation' }
+                        }];
+                    }
+
+                    // 4. Save Ready Unit
+                    setCourse((prev: any) => {
+                        if (!prev) return prev;
+                        // DEEP DEBUG: Check if we find the unit
+                        let updateFound = false;
+                        const newSyllabus = prev.syllabus.map((m: Module) => ({
+                            ...m,
+                            learningUnits: m.learningUnits.map((u: LearningUnit) => {
+                                if (u.id === unit.id) {
+                                    updateFound = true;
+
+                                    return { ...u, activityBlocks: newBlocks, metadata: { ...u.metadata, status: 'ready' } };
+                                }
+                                return u;
+                            })
+                        }));
+
+                        if (!updateFound) console.error(`❌ [State Update] Unit ${unit.id} NOT FOUND in current state! IDs mismatch.`);
+
+                        const newCourse = { ...prev, syllabus: newSyllabus };
+                        saveCourseToFirestore(newCourse).catch((e: any) => console.error("Auto-save failed", e));
+                        return newCourse;
+                    });
+
+                } else {
+                    console.warn("Skeleton generation failed for", unit.title);
+                }
+
+            } catch (err) {
+                console.error("Error building unit", unit.title, err);
+            }
+        }
+    };
 
     const handleWizardComplete = async (data: any) => {
         if (isGenerating) return; // מניעת לחיצות כפולות
 
         wizardHasRun.current = true;
         setShowWizard(false);
-        setShowLoader(true); // Start game loader
+        // setShowLoader(true); // Removed by user request
         setIsGenerating(true);
 
-        console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
+        // console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
 
         try {
             const topicToUse = data.topic || course.title || "נושא כללי";
@@ -190,7 +506,7 @@ const CourseEditor: React.FC = () => {
                 (data.settings?.grade) ||
                 "כללי";
 
-            console.log("🎯 FINAL GRADE DETECTED:", extractedGrade);
+            // console.log("🎯 FINAL GRADE DETECTED:", extractedGrade);
 
             const userSubject = data.settings?.subject || data.subject || "כללי";
 
@@ -202,13 +518,13 @@ const CourseEditor: React.FC = () => {
 
             if (data.file) {
                 const file = data.file;
-                console.log("Processing file:", file.name, file.type);
+                // console.log("Processing file:", file.name, file.type);
 
                 try {
                     if (file.type === 'application/pdf') {
                         // חילוץ טקסט מ-PDF
                         processedSourceText = await extractTextFromPDF(file);
-                        console.log("PDF Text Extracted (First 5 pages)");
+                        // console.log("PDF Text Extracted (First 5 pages)");
                     } else if (file.type.startsWith('image/')) {
                         // המרה ל-Base64 עבור תמונות
                         processedFileData = await fileToBase64(file);
@@ -223,7 +539,7 @@ const CourseEditor: React.FC = () => {
                     alert("שגיאה בעיבוד הקובץ. המערכת תמשיך על בסיס הנושא בלבד.");
                 }
             } else if (data.pastedText) {
-                console.log("Using pasted text as source");
+                // console.log("Using pasted text as source");
                 processedSourceText = data.pastedText;
             }
 
@@ -234,8 +550,6 @@ const CourseEditor: React.FC = () => {
                 gradeLevel: extractedGrade,
                 mode: data.settings?.courseMode || 'learning',
                 activityLength: data.settings?.activityLength || 'medium',
-                botPersona: data.settings?.botPersona || null,
-                showSourceToStudent: data.settings?.showSourceToStudent || false,
                 botPersona: data.settings?.botPersona || null,
                 showSourceToStudent: data.settings?.showSourceToStudent || false,
                 fullBookContent: processedSourceText || course.fullBookContent || "", // שמירת התוכן המחולץ
@@ -259,14 +573,43 @@ const CourseEditor: React.FC = () => {
 
             await updateDoc(doc(db, "courses", course.id), cleanDataForFirestore);
 
-            // יצירת סילבוס עם הנתונים המעובדים
-            const syllabus = await generateCoursePlan(
-                topicToUse,
-                extractedGrade,
-                processedFileData, // לתמונות
-                userSubject,
-                processedSourceText // לטקסט מחולץ
-            );
+            // יצירת סילבוס (מבנה בלבד עבור מערך שיעור, מלא עבור אחרים)
+            let syllabus: Module[] = [];
+
+            if (data.settings?.productType === 'lesson') {
+                // progressive loading strategy
+                // console.log("🏗️ Building Skeleton Syllabus (Client-Side)...");
+                syllabus = await generateCourseSyllabus(
+                    topicToUse,
+                    extractedGrade,
+                    data.settings?.activityLength || 'medium',
+                    userSubject,
+                    processedSourceText,
+                    data.settings?.productType
+                );
+
+
+                // --- PROGRESSIVE QUEUE TRIGGER ---
+                processLessonPlanQueue(
+                    syllabus,
+                    processedSourceText || topicToUse,
+                    extractedGrade,
+                    data.settings?.activityLength || 'medium',
+                    'lesson',
+                    null,
+                    data.settings?.productType
+                ).catch(e => console.error("Queue Error:", e));
+
+            } else {
+                // legacy / cloud function strategy (games, exams)
+                syllabus = await generateCoursePlan(
+                    topicToUse,
+                    extractedGrade,
+                    processedFileData,
+                    userSubject,
+                    processedSourceText
+                );
+            }
 
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
@@ -276,11 +619,11 @@ const CourseEditor: React.FC = () => {
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
-                console.log("🧠 Starting V4 Generation for:", firstUnit.title);
+                // console.log("🧠 Starting V4 Generation for:", firstUnit.title);
 
                 // --- PODCAST PRODUCT HANDLER ---
                 if (data.settings?.productType === 'podcast') {
-                    console.log("🎙️ Generating Podcast Product...");
+                    // console.log("🎙️ Generating Podcast Product...");
                     const script = await generatePodcastScript(
                         processedSourceText || course.title,
                         topicToUse
@@ -320,32 +663,107 @@ const CourseEditor: React.FC = () => {
                         alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
                     }
                 }
+                // --- DIFFERENTIATED INSTRUCTION HANDLER ---
+                else if (data.settings?.isDifferentiated) {
+                    // console.log("🧬 Starting Differentiated Instruction Generation...");
+
+                    const diffContent = await generateDifferentiatedContent(
+                        topicToUse,
+                        extractedGrade,
+                        processedSourceText || course.title,
+                        userSubject
+                    );
+
+                    if (diffContent) {
+                        // Helper to create a unit from raw items
+                        const createDiffUnit = (levelName: string, items: any[]) => {
+                            const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
+                            return {
+                                id: crypto.randomUUID(),
+                                title: `${firstUnit.title} (${levelName})`,
+                                // duration: "45 דק", // Removed: Not in interface
+                                // isCompleted: false, // Removed: Not in interface
+                                baseContent: processedSourceText || "", // Required
+                                activityBlocks: blocks,
+                                type: 'practice' // 'acquisition' | 'practice' | 'test'
+                            } as LearningUnit;
+                        };
+
+                        const unitSupport = createDiffUnit("תמיכה", diffContent.support);
+                        const unitCore = createDiffUnit("ליבה", diffContent.core);
+                        const unitEnrichment = createDiffUnit("העשרה", diffContent.enrichment);
+
+                        // Replace the single placeholder unit with our 3 new units
+                        const syllabusWithDiff = syllabus.map((mod: any) => ({
+                            ...mod,
+                            learningUnits: mod.learningUnits.map((u: any) =>
+                                u.id === firstUnit.id ? [unitSupport, unitCore, unitEnrichment] : u
+                            ).flat()
+                        }));
+
+                        const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithDiff };
+                        setCourse(finalCourse);
+                        await saveCourseToFirestore(finalCourse);
+
+                        // Select the Core unit by default
+                        setSelectedUnitId(unitCore.id);
+
+                        // Auto-preview Core unit if it's a lesson
+                        if (data.settings?.productType === 'lesson') {
+                            // setShowLoader(false);
+                            setPreviewUnit(unitCore);
+                        }
+                    } else {
+                        alert("שגיאה ביצירת תוכן דיפרנציאלי.");
+                    }
+                }
                 // --- STANDARD UNIT HANDLER ---
                 else {
-                    console.log("🧠 Starting V4 'Brain & Hands' Generation for First Unit:", firstUnit.title);
+                    // console.log("🧠 Starting V4 Generation...");
+
+                    // CHECK FOR LESSON MODE -> PROGRESSIVE BUILD
+                    if (data.settings?.productType === 'lesson' || updatedCourseState.mode === 'lesson') {
+                        // Lesson Mode: We want to build the WHOLE plan progressively.
+                        // 1. We already have the Syllabus (Schema) saved above.
+                        // 2. Close the loader immediately so user sees the "Schema" in Overview.
+                        // setShowLoader(false);
+                        setSelectedUnitId(null); // Ensure Overview is shown
+
+                        // 3. Trigger Background Progressive Build
+                        processLessonPlanQueue(
+                            syllabus, // Use the fresh syllabus
+                            processedSourceText || updatedCourseState.fullBookContent,
+                            extractedGrade,
+                            updatedCourseState.activityLength || 'medium',
+                            updatedCourseState.mode || 'learning',
+                            data.settings?.taxonomy,
+                            data.settings?.productType
+                        );
+                        return; // Exit here, queue runs in background
+                    }
+
+                    // ORIGINAL SINGLE UNIT LOGIC (For Legacy/Game Modes)
+                    // console.log("🧠 Starting Standard Single Unit Generation for:", firstUnit.title);
 
                     // 1. BRAIN: Generate Skeleton
-                    // We use the same 'activityLength' from settings
                     const skeleton = await generateUnitSkeleton(
                         firstUnit.title,
                         extractedGrade,
                         updatedCourseState.activityLength || 'medium', // Default to medium
-                        processedSourceText, // Use grounding
+                        processedSourceText || updatedCourseState.fullBookContent, // GROUNDING FIX: Fallback to stored content
                         updatedCourseState.mode || 'learning',
-                        data.settings?.taxonomy // Pass Dynamic Bloom Preferences
+                        data.settings?.taxonomy, // Pass Dynamic Bloom Preferences
+                        data.settings?.productType // Pass product type (lesson/game/exam)
                     );
 
                     if (skeleton && skeleton.steps) {
-                        console.log("💀 Skeleton Generated:", skeleton.steps.length, "steps");
-
                         // 2. HANDS: Generate Step Content (Parallel)
-                        // We map over the skeleton steps and call the 'Hands'
                         const stepPromises = skeleton.steps.map(async (step: any) => {
                             const stepContent = await generateStepContent(
                                 firstUnit.title,
                                 step, // Pass the skeleton step info
                                 extractedGrade,
-                                processedSourceText,
+                                processedSourceText || updatedCourseState.fullBookContent,
                                 processedFileData // Images if any
                             );
 
@@ -357,9 +775,7 @@ const CourseEditor: React.FC = () => {
                         const newBlocksRaw = await Promise.all(stepPromises);
 
                         // Filter out nulls (failures)
-                        const newBlocks = newBlocksRaw.filter(b => b !== null);
-
-                        console.log("✅ V4 Generation Complete. Blocks:", newBlocks.length);
+                        const newBlocks = newBlocksRaw.filter((b: any) => b !== null);
 
                         const syllabusWithContent = syllabus.map((mod: any) => ({
                             ...mod,
@@ -368,28 +784,12 @@ const CourseEditor: React.FC = () => {
                             )
                         }));
 
-
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
                         setCourse(finalCourse);
                         // ARCHITECT FIX: Use safe save
                         await saveCourseToFirestore(finalCourse);
 
                         setSelectedUnitId(firstUnit.id);
-
-                        // NEW: If product type is "lesson", auto-open the Teacher Cockpit (Preview Mode)
-
-                        // NEW ADAPTIVE LOGIC:
-                        console.log("🕵️ Checking Product Type for Auto-Preview:", data.settings?.productType);
-
-                        if (data.settings?.productType === 'lesson') {
-                            console.log("👩‍🏫 Auto-Opening Teacher Cockpit... Dismissing Loader.");
-                            setShowLoader(false); // Force Loader Close
-
-                            // Find the fully populated unit from the new syllabus
-                            const populatedUnit = syllabusWithContent[0].learningUnits[0];
-                            console.log("📦 Setting Preview Unit:", populatedUnit?.title);
-                            setPreviewUnit(populatedUnit);
-                        }
                     } else {
                         console.error("❌ Skeleton Generation Failed");
                         setSelectedUnitId(firstUnit.id);
@@ -399,18 +799,26 @@ const CourseEditor: React.FC = () => {
 
         } catch (error) {
             console.error("Error generating content:", error);
-            alert("אירעה שגיאה ביצירת התוכן. ייתכן שיש עומס על השרת.");
+            // CRITICAL FIX: Close loader IMMEDIATELY before alert
+            // setShowLoader(false);
+            // Small timeout to allow React to render the closed state before alert blocks thread
+            setTimeout(() => {
+                alert("אירעה שגיאה ביצירת התוכן. ייתכן שיש עומס על השרת.");
+            }, 100);
         } finally {
             setIsGenerating(false);
         }
     };
 
+
+
+
     const handleSaveUnit = async (updatedUnit: LearningUnit) => {
         if (isGenerating) return;
 
-        const newSyllabus = course.syllabus.map(mod => ({
+        const newSyllabus = course.syllabus.map((mod: any) => ({
             ...mod,
-            learningUnits: mod.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u)
+            learningUnits: mod.learningUnits.map((u: any) => u.id === updatedUnit.id ? updatedUnit : u)
         }));
 
         let nextUnitToGenerate = null;
@@ -443,16 +851,16 @@ const CourseEditor: React.FC = () => {
                 course.activityLength || 'medium'
             ).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
-                    const backgroundSyllabus = newSyllabus.map(m => ({
+                    const backgroundSyllabus = newSyllabus.map((m: any) => ({
                         ...m,
-                        learningUnits: m.learningUnits.map(u =>
+                        learningUnits: m.learningUnits.map((u: any) =>
                             u.id === nextUnitToGenerate!.id ? { ...u, activityBlocks: newBlocks } : u
                         )
                     }));
                     // ARCHITECT FIX: Save only the specific generated unit
                     const unitToSave = backgroundSyllabus
-                        .flatMap(m => m.learningUnits)
-                        .find(u => u.id === nextUnitToGenerate!.id);
+                        .flatMap((m: any) => m.learningUnits)
+                        .find((u: any) => u.id === nextUnitToGenerate!.id);
 
                     if (unitToSave) {
                         saveUnitToFirestore(course.id, unitToSave).catch(e => console.error("Background unit save failed", e));
@@ -476,12 +884,17 @@ const CourseEditor: React.FC = () => {
 
 
 
-    const activeUnit = course.syllabus?.flatMap(m => m.learningUnits).find(u => u.id === selectedUnitId);
+    const activeUnit = course.syllabus?.flatMap((m: any) => m.learningUnits).find((u: any) => u.id === selectedUnitId);
 
     // --- Single Activity Logic ---
-    // Fallback: If no unit is selected but units exist, default to the first one immediately.
+    // Fallback: If no unit is selected but units exist, default to the first one immediately ONLY IF NOT LESSON MODE.
     const defaultUnit = course.syllabus?.[0]?.learningUnits?.[0];
-    const unitToRender = activeUnit || defaultUnit;
+    const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
+    // FIX: Lesson Mode should ALWAYS show the unit (Single Unit). Legacy modes might vary.
+    // For now, we restrict the "Always Open" behavior to Lesson Mode to avoid trapping Game Mode users.
+    const unitToRender = activeUnit || (isLessonMode ? defaultUnit : null);
+
+    // console.log("DEBUG: Editor Render. active:", !!activeUnit, "default:", !!defaultUnit, "isLesson:", isLessonMode, "RENDER:", unitToRender ? "UnitEditor" : "Overview");
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
@@ -504,12 +917,13 @@ const CourseEditor: React.FC = () => {
             )}
 
             {/* Global Loading Overlay (Tic-Tac-Toe Zen Mode) */}
-            {showLoader && (
+            {/* Global Loading Overlay Removed by User Request */}
+            {/* {showLoader && (
                 <TicTacToeLoader
                     isLoading={isGenerating}
                     onContinue={() => setShowLoader(false)}
                 />
-            )}
+            )} */}
 
             {/* Preview Modal */}
             {previewUnit && (
@@ -520,31 +934,59 @@ const CourseEditor: React.FC = () => {
             )}
 
             {/* Main Content Area */}
+            {/* Main Content Area */}
             {unitToRender ? (
-                <UnitEditor
-                    unit={unitToRender}
-                    gradeLevel={displayGrade}
-                    subject={course.subject}
-                    onSave={handleSaveUnit}
-                    onCancel={() => setShowWizard(true)} // "Back" opens Settings
-                    onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
-                    cancelLabel="הגדרות" // RENAME BACK BUTTON
-                />
+                // Logic: Check if we should show TeacherCockpit (Lesson Mode) or UnitEditor (Builder Mode)
+                (course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson') ? (
+                    <TeacherCockpit
+                        unit={unitToRender}
+                        onExit={() => navigate('/')} // EXIT TO HOME for Single Unit Mode
+                        onUpdateBlock={async (blockId: string, content: any) => {
+                            // Handle AI Refinement Updates from Cockpit
+                            const updatedUnit = {
+                                ...unitToRender,
+                                activityBlocks: unitToRender.activityBlocks.map((b: any) => b.id === blockId ? { ...b, content } : b)
+                            };
+                            handleSaveUnit(updatedUnit);
+                        }}
+                    />
+                ) : (
+                    <UnitEditor
+                        unit={unitToRender}
+                        gradeLevel={displayGrade}
+                        subject={course.subject}
+                        onSave={handleSaveUnit}
+                        onCancel={() => {
+                            setShowWizard(true); // Open Settings
+                        }}
+                        onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
+                        cancelLabel="הגדרות"
+                    />
+                )
             ) : (
-                // Empty State (Only if no units exist) - Minimal loading
-                <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-center px-4">
-                    <div className="w-16 h-16 border-4 border-gray-200 border-t-gray-400 rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-600 font-medium text-lg">טוען את הפעילות...</p>
-                    <p className="text-gray-400 text-sm mt-2 max-w-md">הנתונים מתעדכנים מהענן. אם זה לוקח זמן רב, נסה לרענן.</p>
-                    <button onClick={() => window.location.reload()} className="mt-6 text-indigo-600 hover:text-indigo-800 text-sm font-bold underline">
-                        רענן עמוד
-                    </button>
-                    {/* Debug Info (Hidden in Prod) */}
-                    <div className="hidden mt-4 text-xs text-left text-gray-300 font-mono">
-                        ID: {course?.id}<br />
-                        Syllabus: {course?.syllabus?.length || 0}
+                // Empty State OR Lesson Plan Overview
+                (course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson') ? (
+                    <LessonPlanOverview
+                        course={course}
+                        onUpdateCourse={(updated) => {
+                            setCourse(updated);
+                            saveCourseToFirestore(updated).catch(console.error);
+                        }}
+                        onSelectUnit={(id) => setSelectedUnitId(id)}
+                        onUnitUpdate={(unit) => handleSaveUnit(unit)}
+                        onGenerateWithAI={handleGenerateWithAI}
+                    />
+                ) : (
+                    // Classic Loading State
+                    <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-center px-4">
+                        <div className="w-16 h-16 border-4 border-gray-200 border-t-gray-400 rounded-full animate-spin mb-4"></div>
+                        <p className="text-gray-600 font-medium text-lg">טוען את הפעילות...</p>
+                        <p className="text-gray-400 text-sm mt-2 max-w-md">הנתונים מתעדכנים מהענן. אם זה לוקח זמן רב, נסה לרענן.</p>
+                        <button onClick={() => window.location.reload()} className="mt-6 text-indigo-600 hover:text-indigo-800 text-sm font-bold underline">
+                            רענן עמוד
+                        </button>
                     </div>
-                </div>
+                )
             )}
         </div>
     );

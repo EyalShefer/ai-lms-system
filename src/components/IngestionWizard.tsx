@@ -103,13 +103,13 @@ interface IngestionWizardProps {
 const StepIndicator = ({ num, label, isActive, isCompleted }: any) => (
     <div className={`flex flex-col items-center gap-2 relative z-10 ${isActive ? 'scale-110' : 'opacity-80'}`}>
         <div className={`
-            w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300
+            w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-lg transition-all duration-300
             ${isActive ? 'bg-white text-wizdi-royal shadow-lg ring-4 ring-blue-500/20' :
                 isCompleted ? 'bg-wizdi-lime text-wizdi-royal' : 'bg-blue-800/50 text-white border-2 border-blue-400/30'}
         `}>
-            {isCompleted ? <IconCheck className="w-6 h-6" /> : num}
+            {isCompleted ? <IconCheck className="w-5 h-5 md:w-6 md:h-6" /> : num}
         </div>
-        <span className={`text-sm font-medium ${isActive ? 'text-white' : 'text-blue-200'}`}>
+        <span className={`text-xs md:text-sm font-medium hidden md:block ${isActive ? 'text-white' : 'text-blue-200'}`}>
             {label}
         </span>
     </div>
@@ -272,6 +272,17 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
     // const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
+    const [isDifferentiated, setIsDifferentiated] = useState(false);
+
+    useEffect(() => {
+        console.log("DEBUG: IngestionWizard MOUNTED");
+        return () => { };
+    }, []);
+
+    useEffect(() => {
+        console.log("DEBUG: isDifferentiated changed to:", isDifferentiated);
+    }, [isDifferentiated]);
+
     const config = (selectedProduct && PRODUCT_CONFIG[selectedProduct]) || DEFAULT_CONFIG;
 
     // --- Effects ---
@@ -399,7 +410,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         setCustomTitle(suggestedTitle);
     };
 
-    const handleNext = async () => {
+    const handleNext = async (e?: React.MouseEvent) => {
+        console.log("DEBUG: handleNext CALLED. Source:", e?.target, "Type:", e?.type);
+        if (e && e.stopPropagation) e.stopPropagation();
+
         if (step === 1 && canProceed()) {
             updateTitleFromInput();
             setStep(2);
@@ -424,7 +438,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                     courseMode,
                     // showSourceToStudent,
-                    productType: selectedProduct // Pass the product type!
+                    productType: selectedProduct, // Pass the product type!
+                    isDifferentiated // Pass new flag
                 },
                 targetAudience: grade
             };
@@ -439,11 +454,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-8 animate-fade-in overflow-y-auto bg-slate-900/60 backdrop-blur-sm" dir="rtl">
-            <div className="bg-slate-50 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col min-h-[600px] relative transition-all duration-500">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-0 md:p-4 md:pt-8 animate-fade-in overflow-y-auto bg-slate-900/60 backdrop-blur-sm" dir="rtl">
+            <div className="bg-slate-50 w-full max-w-5xl md:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col h-full md:h-auto md:min-h-[600px] relative transition-all duration-500">
 
                 {/* --- Header (Deep Royal) --- */}
-                <div className="bg-wizdi-royal p-8 pt-10 pb-16 relative overflow-hidden shrink-0 shadow-lg">
+                <div className="bg-wizdi-royal p-4 pt-6 pb-12 md:p-8 md:pt-10 md:pb-16 relative overflow-hidden shrink-0 shadow-lg">
                     {/* Background Pattern */}
                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                     <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-10 -translate-y-10 animate-pulse">
@@ -478,7 +493,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 </div>
 
                 {/* --- Main Content Area --- */}
-                <div className="p-8 pb-32 flex-1 overflow-y-auto custom-scrollbar -mt-6">
+                <div className="p-4 md:p-8 pb-24 md:pb-32 flex-1 overflow-y-auto custom-scrollbar -mt-6">
 
                     {/* Step 1: Input Selection */}
                     {step === 1 && (
@@ -636,8 +651,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
                             <ProductCard
                                 id="lesson"
-                                label="שיעור מלא"
-                                desc="מערך שיעור מובנה עם שלבים, הסברים ושאלות הבנה."
+                                label="מערך שיעור"
+                                desc="בניית יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום."
                                 icon={IconBook}
                                 color="blue"
                                 isActive={selectedProduct === 'lesson'}
@@ -712,39 +727,116 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 </div>
                             </div>
 
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm transition-all duration-300">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                     <IconBrain className="w-5 h-5 text-wizdi-royal" />
                                     התאמה פדגוגית
                                 </h3>
-                                {/* Simple Sliders for taxonomy */}
-                                {[
-                                    { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
-                                    { k: 'application', l: 'יישום וניתוח', c: 'blue' },
-                                    { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
-                                ].map((t: any) => (
-                                    <div key={t.k} className="mb-4">
-                                        <div className="flex justify-between text-sm mb-1 px-1">
-                                            <span className="font-medium text-slate-600">{t.l}</span>
-                                            <span className="font-bold text-wizdi-royal">{(taxonomy as any)[t.k]}%</span>
+
+                                {selectedProduct !== 'lesson' && (
+                                    <>
+                                        {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
+                                        <div
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                console.log("DEBUG: Toggle clicked!");
+                                                setIsDifferentiated(!isDifferentiated);
+                                            }}
+                                            className={`
+                                        mb-6 p-4 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden group
+                                        ${isDifferentiated
+                                                    ? 'border-wizdi-royal bg-blue-50/50 shadow-md'
+                                                    : 'border-slate-100 bg-slate-50 hover:border-blue-200'}
+                                    `}
+                                        >
+                                            <div className="flex justify-between items-start relative z-10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`
+                                                p-2 rounded-xl transition-colors
+                                                ${isDifferentiated ? 'bg-wizdi-royal text-white' : 'bg-slate-200 text-slate-500'}
+                                            `}>
+                                                        <IconWand className="w-6 h-6" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className={`font-bold text-lg ${isDifferentiated ? 'text-wizdi-royal' : 'text-slate-700'}`}>
+                                                            הוראה דיפרנציאלית (3 רמות)
+                                                        </h4>
+                                                        <p className="text-sm text-slate-500 max-w-[250px] leading-tight mt-1">
+                                                            יצירת 3 גרסאות פעילות הדרגתיות (תמיכה, ליבה, העשרה) באופן אוטומטי מהמקור.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* iOS Toggle Switch */}
+                                                <div className={`
+                                            w-12 h-7 rounded-full transition-colors flex items-center px-1
+                                            ${isDifferentiated ? 'bg-wizdi-royal' : 'bg-slate-300'}
+                                        `}>
+                                                    <div className={`
+                                                w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300
+                                                ${isDifferentiated ? 'translate-x-[20px]' : 'translate-x-0'}
+                                            `} />
+                                                </div>
+                                            </div>
+
+                                            {/* 3 VISUAL BADGES (Only visible when active) */}
+                                            <div className={`
+                                        grid grid-cols-3 gap-2 mt-4 transition-all duration-500 origin-top
+                                        ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
+                                    `}>
+                                                <div className="bg-green-50 border border-green-100 p-2 rounded-xl text-center">
+                                                    <span className="block text-xs font-bold text-green-600 mb-1">רמה 1: תמיכה</span>
+                                                    <div className="h-1 w-8 bg-green-400 rounded-full mx-auto" />
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 p-2 rounded-xl text-center">
+                                                    <span className="block text-xs font-bold text-blue-600 mb-1">רמה 2: ליבה</span>
+                                                    <div className="h-1 w-12 bg-blue-500 rounded-full mx-auto" />
+                                                </div>
+                                                <div className="bg-purple-50 border border-purple-100 p-2 rounded-xl text-center">
+                                                    <span className="block text-xs font-bold text-purple-600 mb-1">רמה 3: העשרה</span>
+                                                    <div className="h-1 w-16 bg-purple-500 rounded-full mx-auto" />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <input
-                                            type="range"
-                                            value={(taxonomy as any)[t.k]}
-                                            onChange={(e) => handleTaxonomyChange(t.k, parseInt(e.target.value))}
-                                            className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
-                                        />
+
+                                    </>
+                                )}
+
+                                {/* SLIDERS (Hidden if Differentiated is ON) */}
+                                <div className={`transition-all duration-300 ${isDifferentiated ? 'opacity-30 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-sm font-bold text-slate-500">או התאמה ידנית (אקולייזר):</span>
                                     </div>
-                                ))}
+                                    {[
+                                        { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
+                                        { k: 'application', l: 'יישום וניתוח', c: 'blue' },
+                                        { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
+                                    ].map((t: any) => (
+                                        <div key={t.k} className="mb-4">
+                                            <div className="flex justify-between text-sm mb-1 px-1">
+                                                <span className="font-medium text-slate-600">{t.l}</span>
+                                                <span className="font-bold text-wizdi-royal">{(taxonomy as any)[t.k]}%</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                value={(taxonomy as any)[t.k]}
+                                                onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
+                                                className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
+                                                disabled={isDifferentiated}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
 
                 {/* --- Footer (Actions) --- */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-100 flex justify-between items-center z-50">
-                    <button onClick={handleBack} className="text-slate-400 hover:text-wizdi-royal font-bold px-4 transition-colors flex items-center gap-2">
-                        <IconArrowBack className="w-5 h-5 rotate-180" />
+                <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-white border-t border-slate-100 flex justify-between items-center z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                    <button onClick={handleBack} className="text-slate-400 hover:text-wizdi-royal font-bold px-2 md:px-4 transition-colors flex items-center gap-2 text-sm md:text-base">
+                        <IconArrowBack className="w-4 h-4 md:w-5 md:h-5 rotate-180" />
                         חזרה
                     </button>
 
@@ -752,16 +844,16 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         onClick={handleNext}
                         disabled={!canProceed() || isProcessing}
                         className={`
-                            btn-lip-action px-12 py-4 text-xl flex items-center gap-3 shadow-xl
+                            btn-lip-action px-6 md:px-12 py-3 md:py-4 text-lg md:text-xl flex items-center gap-2 md:gap-3 shadow-xl w-full md:w-auto justify-center ml-2
                             ${(!canProceed() || isProcessing) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}
                         `}
                     >
                         {isProcessing ? (
-                            <span className="animate-pulse">מעבד נתונים...</span>
+                            <span className="animate-pulse text-sm md:text-base">מעבד...</span>
                         ) : (
                             <>
-                                {step === 3 ? 'סיום ויצירה' : 'המשך לשלב הבא'}
-                                <IconArrowBack className="w-6 h-6" />
+                                {step === 3 ? 'סיום ויצירה' : 'המשך'}
+                                <IconArrowBack className="w-5 h-5 md:w-6 md:h-6" />
                             </>
                         )}
                     </button>

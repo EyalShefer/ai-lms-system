@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
+import LandingPage from './components/LandingPage'; // Import Landing Page
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
 import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
@@ -74,6 +75,10 @@ const AuthenticatedApp = () => {
   const { currentUser } = useAuth();
 
   useEffect(() => {
+    // console.log("DEBUG: App wizardMode changed to:", wizardMode);
+  }, [wizardMode]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const studentLinkID = params.get('studentCourseId');
     const assignmentId = params.get('assignmentId');
@@ -121,7 +126,7 @@ const AuthenticatedApp = () => {
   };
 
   const handleStudentAssignmentSelect = async (assignmentId: string) => {
-    console.log("Selected assignment from dashboard:", assignmentId);
+    // console.log("Selected assignment from dashboard:", assignmentId);
     try {
       const assignSnap = await getDoc(doc(db, "assignments", assignmentId)); // Or assume it's valid if coming from the hook
       // Ideally we should just verify it exists or pass the full object if we want to avoid a read, 
@@ -187,7 +192,7 @@ const AuthenticatedApp = () => {
       let aiSourceText: string | undefined = undefined;
 
       if (wizardData.file) {
-        console.log("Processing file:", wizardData.file.name, wizardData.file.type);
+        // console.log("Processing file:", wizardData.file.name, wizardData.file.type);
         const file = wizardData.file;
         fileType = file.type;
         fileName = file.name;
@@ -205,7 +210,7 @@ const AuthenticatedApp = () => {
         try {
           if (file.type === 'application/pdf') {
             aiSourceText = await extractTextFromPDF(file);
-            console.log("PDF Text Extracted");
+            // console.log("PDF Text Extracted");
           } else if (file.type.startsWith('image/')) {
             aiFileData = await fileToGenerativePart(file);
           } else if (file.type === 'text/plain') {
@@ -215,12 +220,12 @@ const AuthenticatedApp = () => {
           console.error("Error processing file for AI", e);
         }
       } else if (wizardData.pastedText) {
-        console.log("Processing successfully pasted text");
+        // console.log("Processing successfully pasted text");
         aiSourceText = wizardData.pastedText;
       }
 
       // --- לוג ביקורת ---
-      console.log("🚀 Generating with AI... Wizard Data:", JSON.stringify(wizardData, null, 2));
+      // console.log("🚀 Generating with AI... Wizard Data:", JSON.stringify(wizardData, null, 2));
 
       // --- חילוץ חכם של הגיל (ROBUST EXTRACTION) ---
       let extractedGrade =
@@ -232,7 +237,7 @@ const AuthenticatedApp = () => {
         (wizardData.settings?.gradeLevel) ||
         "כללי";
 
-      console.log("🎯 Extracted Grade for AI (App.tsx):", extractedGrade);
+      // console.log("🎯 Extracted Grade for AI (App.tsx):", extractedGrade);
 
       // Use originalTopic if available (for precise Topic Mode), otherwise title, or filename
       const topicForAI = wizardData.originalTopic || wizardData.topic || fileName || "נושא כללי";
@@ -241,7 +246,7 @@ const AuthenticatedApp = () => {
       const courseTitle = wizardData.title || wizardData.topic || fileName || "פעילות חדשה";
 
       const courseMode = wizardData.settings?.courseMode || 'learning';
-      console.log("🛠️ App.tsx: Detected Course Mode:", courseMode); // DEBUG LOG
+      // console.log("🛠️ App.tsx: Detected Course Mode:", courseMode); // DEBUG LOG
       const activityLength = wizardData.settings?.activityLength || 'medium'; // NEW
       const userSubject = wizardData.settings?.subject || "כללי";
 
@@ -249,7 +254,7 @@ const AuthenticatedApp = () => {
       try {
         // --- NEW: Instant "Skeleton" Generation Strategy ---
         // Instead of waiting for Cloud Function, we create an EMPTY shell and let UnitEditor fill it.
-        console.log("🚀 Skipping Cloud Gen -> Starting Instant Skeleton Strategy");
+        // console.log("🚀 Skipping Cloud Gen -> Starting Instant Skeleton Strategy");
 
         // Create a basic syllabus shell
         aiSyllabus = [{
@@ -297,12 +302,12 @@ const AuthenticatedApp = () => {
         createdAt: serverTimestamp()
       };
 
-      console.log("🔥 Attempting to save to Firestore...");
+      // console.log("🔥 Attempting to save to Firestore...");
       // FIX: Use setDoc with merge to avoid 'Document already exists' errors if retried or collides
       const newDocRef = doc(collection(db, "courses"));
       await setDoc(newDocRef, dataToSave, { merge: true });
       const docRef = newDocRef;
-      console.log("✅ Firestore Save Success! Doc ID:", docRef.id);
+      // console.log("✅ Firestore Save Success! Doc ID:", docRef.id);
 
       // --- CRITICAL FIX: WAIT FOR PROPAGATION ---
       // We wait for getDoc to actually return the document before switching mode
@@ -314,9 +319,9 @@ const AuthenticatedApp = () => {
           const snap = await getDoc(doc(db, "courses", docRef.id));
           if (snap.exists()) {
             docFound = true;
-            console.log("✅ Document Verified in Firestore.");
+            // console.log("✅ Document Verified in Firestore.");
           } else {
-            console.log("⏳ Waiting for Firestore propagation...", attempts);
+            // console.log("⏳ Waiting for Firestore propagation...", attempts);
             await new Promise(r => setTimeout(r, 500));
           }
         } catch (e) {
@@ -330,7 +335,7 @@ const AuthenticatedApp = () => {
 
       // Force short delay to ensure React state updates don't clash
       setTimeout(() => {
-        console.log("🔄 Switching to Editor Mode...");
+        // console.log("🔄 Switching to Editor Mode...");
         setMode('editor');
         setIsGenerating(false); // Stop spinner only after mode switch
       }, 100);
@@ -486,12 +491,19 @@ const AuthenticatedApp = () => {
 
 const AppWrapper = () => {
   const { currentUser, loading } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
+
   if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען מערכת...</div>;
-  return currentUser ? (
-    <GeoGuard>
-      <AuthenticatedApp />
-    </GeoGuard>
-  ) : <Login />;
+
+  if (currentUser) {
+    return (
+      <GeoGuard>
+        <AuthenticatedApp />
+      </GeoGuard>
+    );
+  }
+
+  return showLogin ? <Login /> : <LandingPage onLogin={() => setShowLogin(true)} />;
 };
 
 function App() {

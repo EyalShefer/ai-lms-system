@@ -176,6 +176,7 @@ export const getStepContentPrompt = (
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}", 
        "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
+       "teacher_tip": "A short, actionable tip for the teacher on how to facilitate this specific step effectively (in Hebrew), based on the content.",
        "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
           "progressive_hints": ["Hint 1", "Hint 2"],

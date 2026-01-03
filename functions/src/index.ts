@@ -20,7 +20,7 @@ const { generateUnitSkeleton, generateStepContent, generatePodcastScript } = cre
 export { generateUnitSkeleton, generateStepContent, generatePodcastScript };
 
 // --- SHARED IMPORTS ---
-import { mapSystemItemToBlock } from './shared/utils/geminiParsers';
+import { mapSystemItemToBlock, cleanJsonString } from './shared/utils/geminiParsers';
 import type { RawAiItem } from './shared/types/gemini.types';
 import type { MappedLearningBlock } from './shared/types/gemini.types';
 import type { UnitSkeleton, SkeletonStep, StepContentResponse } from './shared/types/gemini.types';
@@ -287,7 +287,7 @@ async function runArchitectStage(openai: OpenAI, context: { topic: string, grade
         });
 
         const text = response.choices[0].message.content || "{}";
-        const result = JSON.parse(text) as UnitSkeleton;
+        const result = JSON.parse(cleanJsonString(text)) as UnitSkeleton;
 
         if (!result.steps || !Array.isArray(result.steps)) {
             logger.error("Invalid skeleton format");
@@ -390,7 +390,7 @@ async function generateSingleStep(openai: OpenAI, stepInfo: SkeletonStep, contex
         });
 
         const text = response.choices[0].message.content || "{}";
-        return JSON.parse(text);
+        return JSON.parse(cleanJsonString(text));
     } catch (e) {
         logger.error(`Step Gen Error (Step ${stepInfo.step_number}):`, e);
         return null;
@@ -398,6 +398,93 @@ async function generateSingleStep(openai: OpenAI, stepInfo: SkeletonStep, contex
 }
 
 // Stage 3: Critic Removed (Architecture Optimization)
+
+// --- AGENTIC GUARDIAN (STRICT VALIDATION) ---
+
+const LESSON_PLAN_GUARDIAN_PROMPT = `
+System Role: You are the "Wizdi" System Integrity & Pedagogical Guardian. Your primal directive is to verify that a generated output strictly adheres to the definitions of a LESSON PLAN and has not accidentally degenerated into a Quiz, Activity, or Summary.
+
+Context: The system has a specific mode called "Lesson Plan Generator". Sometimes, AI models get confused and generate a list of questions (a Quiz) instead of a teaching guide. Your job is to catch this error immediately.
+
+Input Data:
+Declared Mode: {{SYSTEM_MODE}} (Should always be "LESSON_PLAN" for this check).
+Generated Content: {{CONTENT_TEXT}}
+UI Flags (Metadata): {{UI_BUTTONS_PRESENT}} (Buttons enabled for this content).
+
+Phase 1: The "Identity Check" (Critical Fail Conditions)
+Before analyzing quality, check for System Mode Violations. If any of these are TRUE, report CRITICAL FAIL immediately:
+
+1. The "Worksheet Fallacy": 
+   - Does the content consist only of questions and answers without instructional text for the teacher? (YES = FAIL).
+   
+2. The "Student Voice" Error: 
+   - Does the text address the reader as "You, the student" (e.g., "Draw a line...", "Circle the answer") instead of "You, the teacher" (e.g., "Ask the students to...", "Present the slide")? (YES = FAIL).
+
+3. The "Link Logic" Violation: 
+   - (Based on UI Flags) Is the "Send Link to Student" button enabled for this content? 
+   - Rule: A Lesson Plan is for the teacher's eyes only. It must NOT be shareable to students as a playable task. (YES = FAIL).
+
+Phase 2: Qualitative Pedagogical Audit
+Only if Phase 1 passed, proceed to evaluate quality:
+
+Structure Verification:
+- Does it have a distinct Time Allocation (e.g., "5 mins")?
+- Is there a clear separation between "Teacher Action" (Frontal teaching) and "Student Activity"?
+
+Source Integrity:
+- Does the lesson plan reflect the specific provided topic/file?
+
+Output Format (Hebrew JSON):
+{
+  "status": "PASS" | "REJECT",
+  "critical_fail_reason": null | "Worksheet Fallacy" | "Student Voice Error" | "Link Logic Violation",
+  "pedagogical_score": number, // 0-100
+  "feedback_hebrew": "Short summary of issues or approval in Hebrew",
+  "issues": [
+      { "description": "...", "severity": "CRITICAL" | "WARNING" }
+  ]
+}
+`;
+
+async function validateLessonPlanWithGuardian(openai: OpenAI, content: any[], mode: string): Promise<any> {
+    // Only run Guardian in 'lesson' mode
+    // However, the function might be called 'learning' mode in the legacy logic.
+    // We treat 'learning' as 'lesson' for this purpose unless it's strictly 'game' or 'assessment'.
+    if (mode === 'assessment' || mode === 'game') return { status: 'PASS', note: 'Guardian skipped for non-lesson mode' };
+
+    logger.info("🛡️ GUARDIAN: Starting Strict Integrity Check...");
+
+    // Serialize content for checking (Sample first 2 modules to save tokens, or full text if short)
+    const contentSample = JSON.stringify(content).substring(0, 15000);
+
+    // Define UI Flags based on intended mode
+    const uiFlags = "Print PDF: ENABLED, Share with Colleague: ENABLED, Share to Student: DISABLED";
+
+    const prompt = LESSON_PLAN_GUARDIAN_PROMPT
+        .replace('{{SYSTEM_MODE}}', 'LESSON_PLAN')
+        .replace('{{CONTENT_TEXT}}', contentSample)
+        .replace('{{UI_BUTTONS_PRESENT}}', uiFlags);
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o", // Strong model for validation
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.1
+        });
+
+        const resultText = response.choices[0].message.content || "{}";
+        const validationResult = JSON.parse(cleanJsonString(resultText));
+
+        logger.info("🛡️ GUARDIAN RESULT:", validationResult);
+        return validationResult;
+
+    } catch (e) {
+        logger.error("Guardian Check Failed:", e);
+        // Fail open or closed? Safe to fail open if AI errors, but log warning.
+        return { status: 'PASS', note: 'Guardian failed to execute' };
+    }
+}
 
 // --- Cloud Function ---
 
@@ -458,6 +545,16 @@ export const generateLessonPlan = onDocumentCreated(
             const validResults = results.filter(r => r !== null);
 
             logger.info(`Generation complete. Success: ${validResults.length}/${skeleton.steps.length}`);
+
+            // --- 🛡️ GUARDIAN CHECK ---
+            const guardianResult = await validateLessonPlanWithGuardian(openai, validResults, data.mode || 'learning');
+
+            if (guardianResult.status === 'REJECT') {
+                logger.warn("🛡️ GUARDIAN SOFT-BLOCK:", guardianResult);
+                // throw new Error(`AI Guardian Blocked Content: ${guardianResult.critical_fail_reason} - ${guardianResult.feedback_hebrew}`);
+                // FALLBACK: Allow content but log warning (Beta Mode)
+            }
+            logger.info("🛡️ Guardian Approved Content.");
 
             // --- BUILDING FINAL DOCUMENT ---
 

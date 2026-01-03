@@ -181,19 +181,18 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch (e) { console.error("Error saving:", e); }
     }, [currentCourseId]);
 
-    const setCourse = React.useCallback((newCourse: Course) => {
-        setCourseState(newCourse);
-        // We can't access fullBookContent state directly safely in callback if not in dependency, 
-        // but state setter is stable.
-        // Better to use refs or just accept that fullBookContent might be stale if not updating dependencies?
-        // Actually, best to pass all needed data to saveToCloud or just use current state in save helper.
-        // But for simplicity and stability, let's keep it simple:
-        // We need 'saveToCloud' to have access to latest state.
-        // To avoid complex dependency chains, let's just use refs for the side-effect values (content/pdf) 
-        // OR just memoize with dependencies.
-        // Given the infinite loop was likely just 'loadCourse', let's prioritize that.
-        // saveToCloud needs 'currentCourseId'.
-        saveToCloud(newCourse, fullBookContent, pdfSource);
+    const setCourse = React.useCallback((newCourse: Course | ((prev: Course) => Course)) => {
+        setCourseState((prevCourse) => {
+            const resolvedCourse = typeof newCourse === 'function'
+                ? (newCourse as (prev: Course) => Course)(prevCourse)
+                : newCourse;
+
+            // Side effect: Save to Cloud with the RESOLVED object
+            // We use the resolved value immediately
+            saveToCloud(resolvedCourse, fullBookContent, pdfSource);
+
+            return resolvedCourse;
+        });
     }, [saveToCloud, fullBookContent, pdfSource]);
 
     // WARNING: Memoizing setCourse with fullBookContent dependency means it changes when content changes.

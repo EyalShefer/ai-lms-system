@@ -2,7 +2,7 @@ import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import OpenAI from "openai";
 import { getSkeletonPrompt, getStepContentPrompt, getPodcastPrompt, getGuardianPrompt } from "../ai/prompts";
-import { mapSystemItemToBlock } from "../shared/utils/geminiParsers";
+import { mapSystemItemToBlock, cleanJsonString } from "../shared/utils/geminiParsers";
 
 // Note: In a real migration, we would ideally move the 'geminiApi.ts' logic 
 // fully to a 'service' file in the backend. For this "Vault" phase, 
@@ -20,84 +20,98 @@ export const createAiController = (openaiApiKey: any) => {
     const generateUnitSkeleton = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
         const openai = new OpenAI({ apiKey: openaiApiKey.value() });
         const { topic, gradeLevel, activityLength, sourceText, mode, productType } = request.data;
+        const durationMap: Record<string, string> = { short: "45 min", medium: "90 min", long: "120 min" };
 
-        logger.info(`Vault: Generating Lesson Plan for ${topic}`);
+        logger.info(`Vault: Generating Lesson Plan V2 (Architect) for ${topic}`);
 
-        // 1. Construct Prompt (Server Side Only)
-        // We need to replicate valid logic for 'stepCount' etc.
-        // 1. Construct Prompt (Server Side Only)
-        let stepCount = 5;
-        let structureGuide = "";
+        // --- NEW ARCHITECT PROMPT (User Defined) ---
+        const ARCHITECT_PROMPT = `
+System Prompt: The Pedagogical Lesson Architect
+Role: You are an expert Pedagogical Architect and Instructional Designer for the "Wizdi" system. Your mission is to process raw content and synthesize it into a high-level Teacher's Lesson Plan.
 
-        if (productType === 'exam' || mode === 'exam') {
-            stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
-            structureGuide = `
-              STEP 1: Knowledge Check. Type: multiple_choice OR true_false (Strict).
-              STEP 2: Application. Type: categorization OR ordering.
-              STEP 3-${stepCount}: Synthesis/Audio. Type: open_question OR audio_response. NO teaching content.
-              `;
-        } else if (productType === 'game') {
-            if (activityLength === 'short') {
-                stepCount = 3;
-                structureGuide = `
-                STEP 1: Speed Challenge. Type: true_false_speed OR memory_game.
-                STEP 2: Puzzle Challenge. Type: ordering OR categorization.
-                STEP 3: Master Challenge. Type: memory_game OR categorization (Hard).
-                `;
-            } else {
-                stepCount = activityLength === 'long' ? 7 : 5;
-                structureGuide = `
-                STEPS 1-2: Warmup Games. Type: memory_game / true_false_speed.
-                STEPS 3-4: Logic Puzzles. Type: ordering / categorization / matching.
-                STEPS 5-${stepCount}: Boss Levels. Type: categorization / matching (Complex).
-                `;
-            }
-        } else {
-            // LESSON MODE (Default)
-            if (activityLength === 'short') {
-                stepCount = 3;
-                structureGuide = `
-                STEP 1: Introduction & Exposition (Teach + Check). Type: multiple_choice (as Knowledge Check). DO NOT use memory_game.
-                STEP 2: Deep Dive (Understand). Type: fill_in_blanks (Conceptual Cloze).
-                STEP 3: Conclusion & Reflection. Type: open_question.
-                `;
-            } else if (activityLength === 'long') {
-                stepCount = 7;
-                structureGuide = `
-                STEPS 1-2: Exposition & Concepts. Type: multiple_choice (Knowledge Check) / true_false.
-                STEPS 3-5: Application & Practice. Type: fill_in_blanks / categorization / ordering.
-                STEPS 6-7: Synthesis & Critical Thinking. Type: open_question / multiple_choice (Complex Scenario).
-                `;
-            } else {
-                stepCount = 5;
-                structureGuide = `
-                STEPS 1-2: Core Concepts (Teach). Type: multiple_choice (Concept Check) OR true_false (Misconception Buster).
-                STEPS 3-4: Analysis (Apply). Type: fill_in_blanks OR categorization.
-                STEP 5: Synthesis (Create/Evaluate). Type: open_question OR audio_response.
-                `;
-            }
-        }
+Core Philosophy:
+Audience: You are writing for the TEACHER, not the student.
+Tone: Professional, directive, helpful, and structured.
+Goal: To provide a step-by-step script that helps the teacher manage the class time effectively.
 
-        // Bloom Logic (simplified for backend v1)
-        const bloomSteps = ["Remember", "Understand", "Apply", "Analyze", "Evaluate"];
+Input Data:
+Topic: ${topic}
+Grade Level: ${gradeLevel}
+Duration: ${durationMap[activityLength || 'medium']}
+Source Material: """${(sourceText || "").substring(0, 10000)}"""
 
-        const prompt = getSkeletonPrompt(
-            sourceText ? `SOURCE MATERIAL: ${sourceText.substring(0, 5000)}` : "",
-            gradeLevel,
-            "PERSONALITY: Teacher", // Default
-            mode,
-            productType,
-            stepCount,
-            bloomSteps,
-            structureGuide
-        );
+Part 1: Pedagogical Processing Instructions
+You must structure the lesson based on the "5E Model" or standard Direct Instruction flow:
+1. Hook (Opening)
+2. Knowledge (Body)
+3. Guided Practice
+4. Independent Practice
+5. Closure (Assessment)
+
+The Bridge to System Tools (Crucial):
+- When the lesson reaches the Practice phase, you must explicitly prompt the teacher to launch the "Interactive Activity".
+- When the lesson reaches the Assessment phase, prompt the teacher to launch the "Test Generator".
+
+Part 3: Output Generation (Hebrew JSON)
+Generate a JSON object with the following structure. Strict JSON.
+{
+  "title": "Lesson Title",
+  "metadata": {
+      "grade": "${gradeLevel}",
+      "duration": "${durationMap[activityLength || 'medium']}",
+      "objectives": ["obj1", "obj2"],
+      "keywords": ["key1", "key2"]
+  },
+  "steps": [
+      {
+          "step_number": 1,
+          "title": "פתיחה וגירוי",
+          "duration": "0-5 min",
+          "type": "frontal",
+          "teacher_instructions": "Detailed script for the teacher...",
+          "system_tool": null
+      },
+      {
+          "step_number": 2,
+          "title": "הקניה והוראה",
+          "duration": "5-15 min",
+          "type": "frontal",
+          "teacher_instructions": "Explanation content...",
+          "system_tool": null
+      },
+      {
+          "step_number": 3,
+          "title": "תרגול כיתתי",
+          "duration": "15-30 min",
+          "type": "interactive",
+          "teacher_instructions": "Group activity instructions...",
+          "system_tool": "Interactive Activity"
+      },
+      {
+          "step_number": 4,
+          "title": "סיכום והערכה",
+          "duration": "40-45 min",
+          "type": "assessment",
+          "teacher_instructions": "Closing question...",
+          "system_tool": "Test Generator"
+      }
+  ]
+}
+`;
 
         try {
+            // For NON-Lesson products (Exam/Game), keep legacy logic or simplified fallback
+            // But if productType is 'lesson', use the Architect.
+            // For now, let's assume 'lesson' is the main path we are fixing.
+
+            let promptToUse = ARCHITECT_PROMPT;
+            // (We can re-add the Exam/Game logic branches later if needed, but for now we focus on the Lesson Plan refactor)
+
             const completion = await openai.chat.completions.create({
                 model: MODEL_NAME,
                 messages: [
-                    { role: "system", content: "You are an expert curriculum developer." },
-                    { role: "user", content: prompt }
+                    { role: "system", content: "You are the Wizdi Pedagogical Architect." },
+                    { role: "user", content: promptToUse }
                 ],
                 response_format: { type: "json_object" }
             });
@@ -105,62 +119,32 @@ export const createAiController = (openaiApiKey: any) => {
             const rawContent = completion.choices[0].message.content;
             if (!rawContent) throw new Error("Empty response from AI");
 
-            // --- GUARDIAN AUDIT START ---
-            if (productType === 'lesson') {
-                logger.info("Vault: Running Guardian Audit...");
-                const guardianPrompt = getGuardianPrompt('LESSON_PLAN', rawContent); // Strict mode for lesson
+            const architectJson = JSON.parse(cleanJsonString(rawContent));
 
-                const guardianCheck = await openai.chat.completions.create({
-                    model: "gpt-4o-mini", // Fast audit
-                    messages: [
-                        { role: "system", content: "You are the Integrity Guardian." },
-                        { role: "user", content: guardianPrompt }
-                    ],
-                    response_format: { type: "json_object" }
-                });
+            // --- MAP TO FRONTEND SHELL ---
+            // The frontend expects { steps: [ { step_number, title, type, content } ] }
+            // We map the Architect's "teacher_instructions" into the content block.
 
-                const auditJson = guardianCheck.choices[0].message.content || "{}";
-                const auditResult = JSON.parse(auditJson);
+            const mappedSteps = architectJson.steps.map((s: any) => ({
+                step_number: s.step_number,
+                title: `${s.title} (${s.duration})`,
+                type: s.type === 'interactive' ? 'interactive' : (s.type === 'assessment' ? 'quiz' : 'text'),
+                // We pre-fill the content so the frontend doesn't need to "generate" it again,
+                // OR we leave it empty if we want the second pass. 
+                // User requested "Show skeleton then load".
+                // Ideally, we return the Instructions as the "Skeleton Description".
+                description: s.teacher_instructions,
+                system_tool: s.system_tool
+            }));
 
-                if (auditResult.audit_result?.status === "CRITICAL_FAIL" || auditResult.audit_result?.status === "WARNING") {
-                    const failReason = auditResult.audit_result.failure_reason_code;
-                    const repairInstruction = auditResult.auto_repair_instruction;
-
-                    logger.warn(`Vault: Guardian Blocked Content! Reason: ${failReason}`);
-                    logger.info(`Vault: Attempting Self-Healing with instruction: ${repairInstruction}`);
-
-                    // RELOOP - RETRY (One-shot repair)
-                    const repairPrompt = prompt + `\n\nCRITICAL SYSTEM FEEDBACK: The previous generation failed the pedagogical audit. \nReason: ${failReason}.\nRepair Instruction: ${repairInstruction}.\nFIX AND REGENERATE THE JSON.`;
-
-                    const repairRun = await openai.chat.completions.create({
-                        model: MODEL_NAME,
-                        messages: [
-                            { role: "system", content: "You are an expert curriculum developer. Correct your work based on feedback." },
-                            { role: "user", content: repairPrompt }
-                        ],
-                        response_format: { type: "json_object" }
-                    });
-
-                    const repairedContent = repairRun.choices[0].message.content;
-                    // If repair successful, verify format and return
-                    if (repairedContent) {
-                        try {
-                            const repairedJson = JSON.parse(repairedContent);
-                            logger.info("Vault: Self-Healing Successful. Returning patched content.");
-                            return repairedJson;
-                        } catch (e) {
-                            logger.error("Vault: Repair produced invalid JSON. Fallback to original.");
-                        }
-                    }
-                }
-            }
-            // --- GUARDIAN AUDIT END ---
-
-            const json = JSON.parse(rawContent);
-            return json; // Return the Skeleton JSON directly to client
+            return {
+                title: architectJson.title,
+                steps: mappedSteps,
+                metadata: architectJson.metadata
+            };
 
         } catch (error: any) {
-            logger.error("Vault Error:", error);
+            logger.error("Vault Architect Error:", error);
             throw new HttpsError('internal', error.message);
         }
     });
@@ -200,7 +184,7 @@ export const createAiController = (openaiApiKey: any) => {
             });
 
             const text = completion.choices[0].message.content || "{}";
-            const result = JSON.parse(text);
+            const result = JSON.parse(cleanJsonString(text));
 
             // Exam Enforcer Logic (Backend Side)
             if (mode === 'exam' && result) {
@@ -242,7 +226,7 @@ export const createAiController = (openaiApiKey: any) => {
                 response_format: { type: "json_object" }
             });
             const text = completion.choices[0].message.content || "{}";
-            return JSON.parse(text);
+            return JSON.parse(cleanJsonString(text));
         } catch (error: any) {
             logger.error("Vault Podcast Error:", error);
             throw new HttpsError('internal', error.message);

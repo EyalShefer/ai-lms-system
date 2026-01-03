@@ -40,7 +40,11 @@ export const cleanJsonString = (text: string): string => {
  * @returns {MappedLearningBlock | null} A strictly typed block ready for the Course Player, or null if invalid.
  */
 export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBlock | null => {
-    if (!item) return null;
+    if (!item) {
+        console.warn("mapSystemItemToBlock received null item");
+        return null;
+    }
+    console.log("Mapping Item:", item.type || item.selected_interaction, item);
 
     // 1. ROBUST DATA NORMALIZATION
     // console.log("Raw AI Item for Mapping:", JSON.stringify(item)); // DEBUG LOG

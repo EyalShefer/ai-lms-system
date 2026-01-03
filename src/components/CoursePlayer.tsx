@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCourseStore } from '../context/CourseContext';
 import { useAuth } from '../context/AuthContext';
-import type { ActivityBlock, Assignment } from '../courseTypes';
+import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import {
     IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconHeadphones, IconMicrophone
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
 import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../services/ai/geminiApi';
-import type { DialogueScript } from '../types/gemini.types';
+import type { DialogueScript } from '../shared/types/gemini.types';
 import { PodcastPlayer } from './PodcastPlayer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,15 +21,17 @@ import { CitationService } from '../services/citationService'; // GROUNDED QA
 // import { SourceViewer } from './SourceViewer'; // NOTEBOOKLM GUIDE (Removed unused import)
 
 import QuizBlock from './QuizBlock';
-import type { TelemetryData } from '../courseTypes';
+import type { TelemetryData } from '../shared/types/courseTypes';
 import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
 import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
 import { AudioRecorderBlock } from './AudioRecorderBlock';
-import { GamificationService } from '../services/telemetry';
+// import { GamificationService } from '../services/telemetry';
 
 import { useSound } from '../hooks/useSound';
 import { FeedbackWidget } from './FeedbackWidget'; // NEW: Feedback Loop
 import TeacherCockpit from './TeacherCockpit'; // TEACHER VIEW
+import { GamificationHUD } from './GamificationHUD';
+
 
 // Helper to safely extract text from option (string or object)
 const getAnswerText = (val: any): string => {
@@ -857,7 +859,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     // Debug Unmount
     useEffect(() => {
-        return () => console.log("⚠️ CoursePlayer Unmounting!");
+        return () => { };
     }, []);
 
     const handleSubmit = async (e?: React.MouseEvent) => {
@@ -1457,9 +1459,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
     return (
         <div className="min-h-full bg-gray-50 flex flex-col items-center">
+
+            {/* Gamification HUD (Student Only, Not Exam, Not Inspector) */}
+            {!inspectorMode && !isExamMode && !productType && <GamificationHUD />}
+
             {inspectorMode && activeUnit && (
                 <InspectorDashboard blocks={activeUnit.activityBlocks || []} mode={course.mode || 'learning'} />
             )}
+
 
             {/* DEBUG: Visual Mode Indicator (Only in Inspector or if Forced) */}
             {(inspectorMode || forceExam) && (
@@ -1629,7 +1636,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                     {/* --- Split View Side Panel (Source Text) --- */}
                     {showSplitView && (
-                        <div className="w-1/2 h-[85vh] sticky top-24 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
+                        <div className="fixed inset-0 z-[100] md:z-auto md:static w-full md:w-1/2 h-full md:h-[85vh] md:sticky md:top-24 bg-white md:rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
                             <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
                                 <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
                                 <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5" /></button>
@@ -1670,7 +1677,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     )}
 
                     {/* --- Main Content Area --- */}
-                    <main className={"transition-all duration-500 " + (showSplitView ? "w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "" : "p-6 md:p-10") + " pb-48"}>
+                    <main className={"transition-all duration-500 " + (showSplitView ? "w-full md:w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "p-4 md:p-0" : "p-4 md:p-10") + " pb-48"}>
                         {activeUnit ? (
                             <>
                                 <header className="mb-8 text-center">

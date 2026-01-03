@@ -98,6 +98,8 @@ export interface SkeletonStep {
     forbidden_topics: string[];
     bloom_level: string;
     suggested_interaction_type: string;
+    description?: string; // Added for V2 Architect
+    system_tool?: string; // Added for V2 Architect
 }
 
 export interface UnitSkeleton {
@@ -145,5 +147,62 @@ export interface SourceGuideData {
     summary: string;
     topics: { term: string; definition: string }[];
     faq: { question: string; answer: string }[];
+}
+
+// === TEACHER LESSON PLAN ARCHITECTURE (Master Teacher V2) ===
+
+export type MediaAssetType = 'image_description' | 'youtube_timestamp' | 'none';
+
+export interface MediaAsset {
+    type: MediaAssetType;
+    content: string; // "Start: 02:10, End: 04:00" OR "Description of image..."
+}
+
+export interface LessonMetadata {
+    title: string;
+    target_audience: string;
+    duration: string;
+}
+
+export interface HookSection {
+    script_for_teacher: string;
+    media_asset?: MediaAsset;
+}
+
+export interface DirectInstructionSlide {
+    slide_title: string;
+    bullet_points_for_board: string[];
+    script_to_say: string;
+    media_asset?: MediaAsset;
+}
+
+export interface DirectInstructionSection {
+    slides: DirectInstructionSlide[];
+}
+
+export interface GuidedPracticeSection {
+    teacher_instruction: string;
+    wizdi_tool_reference: string;
+}
+
+export interface DiscussionSection {
+    questions: string[];
+}
+
+export interface SummarySection {
+    takeaway_sentence: string;
+}
+
+/**
+ * The Master Teacher Lesson Plan Structure
+ * (Distinct from Student Activity / Quiz)
+ */
+export interface TeacherLessonPlan {
+    lesson_metadata: LessonMetadata;
+    hook: HookSection;
+    direct_instruction: DirectInstructionSection;
+    guided_practice: GuidedPracticeSection;
+    discussion: DiscussionSection;
+    summary: SummarySection;
 }
 

@@ -35,7 +35,7 @@ export const submitAssignment = async (data: SubmissionData) => {
         } catch (updateError) {
             // This is expected if the assignmentId refers to a template (Direct Link) 
             // rather than a tracked student_assignment. We don't want to fail the submission.
-            console.log("Note: functional submission, but could not update status tracked document (likely Direct Link mode).", updateError);
+
         }
 
         // 2. Trigger Async Analysis (Client-side trigger for now, ideally Cloud Function)
@@ -47,7 +47,7 @@ export const submitAssignment = async (data: SubmissionData) => {
                         analytics: analysis,
                         analysisStatus: 'completed'
                     });
-                    console.log("Analysis saved for submission:", docRef.id);
+
                 }
             })
             .catch(err => console.error("Analysis trigger failed:", err));

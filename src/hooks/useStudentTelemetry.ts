@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { SessionData, SessionInteraction } from '../types/studentProfile';
+import type { SessionData, SessionInteraction } from '../types/studentProfile';
 
 export const useStudentTelemetry = (userId: string, lessonId: string) => {
     const [startTime] = useState<number>(Date.now());
@@ -20,13 +20,13 @@ export const useStudentTelemetry = (userId: string, lessonId: string) => {
             startTime: Date.now(),
             hintCount: 0
         };
-        console.log(`[Telemetry] Question started: ${questionId} (${type})`);
+
     }, []);
 
     const onHintRequested = useCallback(() => {
         if (currentQuestionRef.current) {
             currentQuestionRef.current.hintCount++;
-            console.log(`[Telemetry] Hint requested. Count: ${currentQuestionRef.current.hintCount}`);
+
         }
     }, []);
 
@@ -47,7 +47,7 @@ export const useStudentTelemetry = (userId: string, lessonId: string) => {
         };
 
         interactionsRef.current.push(interaction);
-        console.log(`[Telemetry] Answer recorded:`, interaction);
+
 
         // Reset current question
         currentQuestionRef.current = null;

@@ -10,7 +10,7 @@ export const MultimodalService = {
      */
     transcribeAudio: async (file: File): Promise<string | null> => {
         try {
-            console.log("Starting Whisper transcription for:", file.name);
+
 
             const transcription = await openaiLegacy.audio.transcriptions.create({
                 file: file,
@@ -18,7 +18,7 @@ export const MultimodalService = {
                 language: "he", // Optimize for Hebrew
             });
 
-            console.log("Transcription complete.");
+
             return transcription.text;
         } catch (e) {
             console.error("Transcription failed:", e);
@@ -48,7 +48,7 @@ export const MultimodalService = {
             const videoId = MultimodalService.validateYouTubeUrl(url);
             if (!videoId) throw new Error("Invalid YouTube URL");
 
-            console.log("Calling transcribeYoutube cloud function for ID:", videoId);
+
 
             // Lazy load functions
             const { functions } = await import('../firebase');

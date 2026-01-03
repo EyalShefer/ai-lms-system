@@ -44,7 +44,7 @@ export const AudioGenerator = {
         // Note: GPT-4o-mini has 128k context, keeping safe buffer.
       `;
 
-            console.log(`Generating Audio Script with ${MODEL_NAME}...`);
+
 
             const completion = await openai.chat.completions.create({
                 model: MODEL_NAME,
@@ -77,8 +77,8 @@ export const AudioGenerator = {
      * Future method for TTS integration
      * (Placeholder for Phase 3)
      */
-    synthesizeAudio: async (script: DialogueScript): Promise<string | null> => {
-        console.log("TTS not implemented yet. Script ready:", script.title);
+    synthesizeAudio: async (_script: DialogueScript): Promise<string | null> => {
+
         return null;
     }
 };

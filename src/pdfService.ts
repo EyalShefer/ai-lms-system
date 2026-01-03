@@ -4,14 +4,14 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export async function extractTextFromPDF(file: File): Promise<string> {
-    console.log("📖 מתחיל לקרוא את הקובץ:", file.name);
+
 
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
         let fullText = "";
-        console.log(`הקובץ מכיל ${pdf.numPages} עמודים.`);
+
 
         // מעבר על כל העמודים בקובץ
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -23,7 +23,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
             fullText += `\n--- עמוד ${i} ---\n${pageText}`;
         }
 
-        console.log(`✅ הקריאה הסתיימה בהצלחה! חולצו ${fullText.length} תווים.`);
+
         return fullText;
 
     } catch (error) {

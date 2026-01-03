@@ -15,8 +15,14 @@
     }
 
     /* כותרות בצבע המותג הכהה */
-    h1, h2, h3, h4, h5, h6 {
-        color: #2B59C3 !important; /* wizdi-royal */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        color: #2B59C3 !important;
+        /* wizdi-royal */
     }
 }
 
@@ -33,7 +39,9 @@
     }
 
     /* --- Rounded Inputs --- */
-    input, textarea, select {
+    input,
+    textarea,
+    select {
         background: #FFFFFF;
         border: 2px solid #E0F2FE;
         color: #2B59C3;
@@ -42,7 +50,9 @@
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    input:focus, textarea:focus, select:focus {
+    input:focus,
+    textarea:focus,
+    select:focus {
         background: #FFFFFF;
         border-color: #00C2FF;
         box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15);
@@ -57,7 +67,8 @@
         background: #8CE81C;
         color: #0d4200;
         border: none;
-        border-bottom: 6px solid #65a30d; /* Thicker Lip */
+        border-bottom: 6px solid #65a30d;
+        /* Thicker Lip */
         border-radius: 9999px;
         font-weight: 800;
         text-transform: uppercase;
@@ -65,12 +76,16 @@
         transition: all 0.1s;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
+
     .btn-lip-action:active {
-        transform: translateY(6px); /* Move down by border width */
+        transform: translateY(6px);
+        /* Move down by border width */
         border-bottom-width: 0px;
-        margin-top: 6px; /* Maintain layout space */
+        margin-top: 6px;
+        /* Maintain layout space */
         box-shadow: none;
     }
+
     .btn-lip-action:hover {
         background: #9ff038;
         filter: brightness(1.05);
@@ -86,6 +101,7 @@
         font-weight: 700;
         transition: all 0.1s;
     }
+
     .btn-lip-primary:active {
         transform: translateY(6px);
         border-bottom-width: 0px;
@@ -93,25 +109,51 @@
     }
 
     /* Text Colors */
-    .text-brand-royal { color: #2B59C3; }
-    .text-brand-lime { color: #8CE81C; }
+    .text-brand-royal {
+        color: #2B59C3;
+    }
+
+    .text-brand-lime {
+        color: #8CE81C;
+    }
 
 
     /* --- Micro-Interactions --- */
     @keyframes wiggle {
-        0%, 100% { transform: rotate(-3deg); }
-        50% { transform: rotate(3deg); }
+
+        0%,
+        100% {
+            transform: rotate(-3deg);
+        }
+
+        50% {
+            transform: rotate(3deg);
+        }
     }
-    .animate-wiggle { animation: wiggle 1s ease-in-out infinite; }
+
+    .animate-wiggle {
+        animation: wiggle 1s ease-in-out infinite;
+    }
 
     @keyframes pop {
-        0% { transform: scale(0.9); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
+        0% {
+            transform: scale(0.9);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
     }
-    .animate-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    
-     /* סרגל צד וניווט */
+
+    .animate-pop {
+        animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    /* סרגל צד וניווט */
     aside,
     header {
         background: rgba(255, 255, 255, 0.4) !important;
@@ -123,9 +165,17 @@
 
 /* אנימציות */
 @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-5px); }
-    100% { transform: translateY(0px); }
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
 }
 
 .animate-float {
@@ -152,6 +202,87 @@
     background-color: #2B59C3;
 }
 
+/* Landing Page Animations */
+@keyframes blob {
+    0% {
+        transform: translate(0px, 0px) scale(1);
+    }
+
+    33% {
+        transform: translate(30px, -50px) scale(1.1);
+    }
+
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+
+    100% {
+        transform: translate(0px, 0px) scale(1);
+    }
+}
+
+.animate-blob {
+    animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+    animation-delay: 4s;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.8s ease-out forwards;
+}
+
+@keyframes progress {
+    from {
+        width: 0%;
+    }
+
+    to {
+        width: 66%;
+    }
+}
+
+.animate-progress {
+    animation: progress 2s ease-out forwards;
+}
+
+@keyframes bounceSlow {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.animate-bounce-slow {
+    animation: bounceSlow 3s infinite ease-in-out;
+}
+
+.perspective-1000 {
+    perspective: 1000px;
+}
+
 /* === תוספות עבור TeacherDashboard ו-Class Utilities ===
    הפרדנו את זה מהבלוק הקודם כדי שזה יעבוד תקין
 */
@@ -169,7 +300,53 @@
     background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
-    border-radius: 20px;
+
+/* === TEACHER LESSON STYLES (V2) === */
+
+.lesson-section {
+    @apply space-y-4 mb-4;
+}
+
+.lesson-section h3 {
+    @apply text-xl font-bold bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-3 text-slate-800;
+}
+
+.teacher-script {
+    @apply font-serif text-lg leading-relaxed text-slate-700 bg-amber-50/50 p-4 rounded-xl border-l-4 border-amber-300 italic;
+}
+
+.teacher-script strong {
+    @apply text-amber-800 not-italic uppercase text-sm tracking-wider block mb-1;
+}
+
+.media-badge {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold border border-indigo-100 mt-2;
+}
+
+.slide-card {
+    @apply bg-white p-5 rounded-2xl border border-slate-200 shadow-sm my-4;
+}
+
+.slide-card h4 {
+    @apply font-bold text-lg text-slate-800 mb-3 border-b pb-2;
+}
+
+.board-points {
+    @apply bg-slate-800 text-white p-4 rounded-xl my-3 shadow-lg font-medium;
+}
+
+.board-points strong {
+    @apply text-slate-300 text-xs uppercase tracking-widest block mb-2;
+}
+
+.board-points ul {
+    @apply list-disc list-inside space-y-1;
+}
+
+.wizdi-tool {
+    @apply bg-blue-600 text-white p-4 rounded-xl shadow-lg flex items-center justify-between font-bold;
+}
+
+.takeaway {
+    @apply text-xl font-bold text-center text-wizdi-royal bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 mt-4 shadow-sm;
 }

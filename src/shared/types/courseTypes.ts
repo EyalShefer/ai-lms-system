@@ -185,6 +185,7 @@ export interface LearningUnit {
         script: any; // Context: DialogueScript from gemini.types.ts
         audioUrl?: string;
     };
+    metadata?: any;
 }
 
 export interface Module {
@@ -201,12 +202,13 @@ export interface Course {
     gradeLevel?: string;
     subject?: string;
     botPersona?: string;
-    mode?: 'learning' | 'exam';
+    mode?: 'learning' | 'exam' | 'lesson';
     activityLength?: 'short' | 'medium' | 'long';
     syllabus: Module[];
     createdAt?: any;
     updatedAt?: any;
     fullBookContent?: string; // THe full extracted text
+    wizardData?: any; // Stores the initial wizard configuration
     showSourceToStudent?: boolean; // Visibility toggle
     pdfSource?: string | null; // URL of the original PDF file
     settings?: {

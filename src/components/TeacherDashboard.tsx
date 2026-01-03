@@ -5,7 +5,7 @@ import { generateClassAnalysis, generateStudentReport } from '../services/ai/gem
 // gradeBatch removed
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import { feedbackService } from '../services/feedbackService';
-import type { StudentAnalyticsProfile } from '../courseTypes';
+import type { StudentAnalyticsProfile } from '../shared/types/courseTypes';
 
 import { db } from '../firebase';
 import {
@@ -63,6 +63,7 @@ interface CourseAggregation {
     atRiskCount: number;
     createdAt?: any;
     type: 'test' | 'activity'; // Added type
+    mode?: 'learning' | 'exam' | 'lesson'; // Added mode
     submittedCount: number; // New field for submitted count
 }
 
@@ -89,7 +90,7 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                     <button onClick={onClose} className="hover:bg-indigo-700 p-2 rounded-full transition-colors"><IconX className="w-6 h-6" /></button>
                 </div>
 
-                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 md:p-8 max-h-[70vh] overflow-y-auto">
                     {/* Header Chips */}
                     <div className="flex gap-4 mb-8 flex-wrap">
                         <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold border border-purple-100 flex items-center gap-2">
@@ -155,7 +156,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [rawStudents, setRawStudents] = useState<any[]>([]);
     const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
     const [safetyAlerts, setSafetyAlerts] = useState<any[]>([]); // New State
-    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }>>({});
+    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, mode?: string, syllabus?: any[] }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -172,6 +173,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
         instructions: ''
     });
 
+    // Share Modal State
+    const [shareModalCourse, setShareModalCourse] = useState<{ id: string; title: string } | null>(null);
+
     // Navigation
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
@@ -186,7 +190,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
     // Detail View State
-    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+    const [selectedStudentIds, setSelectedStudentIds] = new Set();
     const [viewingTestStudent, setViewingTestStudent] = useState<StudentStat | null>(null);
     const [reportStudent, setReportStudent] = useState<any>(null);
     const [viewingInsightStudent, setViewingInsightStudent] = useState<StudentStat | null>(null); // New State
@@ -203,6 +207,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     // Feedback View State
     const [courseFeedbackStats, setCourseFeedbackStats] = useState<any>(null);
     const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+    const [showMobileFilters, setShowMobileFilters] = useState(false); // Mobile Filter State
 
     useEffect(() => {
         if (viewMode === 'feedback' && selectedCourseId) {
@@ -241,6 +246,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                         grade: rawGrade,
                         title: data.title || "ללא שם",
                         createdAt: data.createdAt,
+                        mode: data.mode, // Store mode
                         syllabus: data.syllabus // Store syllabus
                     };
                 });
@@ -451,6 +457,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     createdAt: meta.createdAt,
                     nextDueDate: nextDue, // New Field
                     type: hasTest ? 'test' : 'activity',
+                    mode: meta.mode as any,
                     submittedCount: 0
                 };
             }
@@ -724,48 +731,62 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
 
                                     {/* Filters Group */}
-                                    <div className="flex gap-2">
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
-                                                <IconSparkles className="w-4 h-4" />
+                                    {/* Filters Group - Mobile Optimized */}
+                                    <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto transition-all duration-300">
+                                        <div className="flex gap-2 w-full md:w-auto">
+                                            <div className="relative group flex-1 md:flex-none">
+                                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                    <IconSparkles className="w-4 h-4" />
+                                                </div>
+                                                <select
+                                                    className="w-full md:w-auto bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none"
+                                                    value={filterType}
+                                                    onChange={(e) => setFilterType(e.target.value)}
+                                                >
+                                                    <option value="all">סוג: הכל</option>
+                                                    <option value="test">מבחנים</option>
+                                                    <option value="activity">פעילויות</option>
+                                                </select>
                                             </div>
-                                            <select
-                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none"
-                                                value={filterType}
-                                                onChange={(e) => setFilterType(e.target.value)}
+
+                                            {/* Mobile Filter Toggle */}
+                                            <button
+                                                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                                                className={`md:hidden p-2 rounded-xl border transition-colors ${showMobileFilters ? 'bg-indigo-100 border-indigo-200 text-indigo-600' : 'bg-white border-transparent text-slate-400'}`}
                                             >
-                                                <option value="all">סוג: הכל</option>
-                                                <option value="test">מבחנים</option>
-                                                <option value="activity">פעילויות</option>
-                                            </select>
+                                                <IconList className="w-5 h-5" />
+                                            </button>
                                         </div>
 
-                                        <div className="relative group hidden md:block">
-                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
-                                                <IconBook className="w-4 h-4" />
+                                        {/* Collapsible Filters */}
+                                        <div className={`${showMobileFilters ? 'flex' : 'hidden'} md:flex flex-col md:flex-row gap-2 animate-fade-in origin-top`}>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                    <IconBook className="w-4 h-4" />
+                                                </div>
+                                                <select
+                                                    className="w-full md:w-auto bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-none md:max-w-[150px]"
+                                                    value={filterSubject}
+                                                    onChange={(e) => setFilterSubject(e.target.value)}
+                                                >
+                                                    <option value="all">מקצוע: הכל</option>
+                                                    {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                                                </select>
                                             </div>
-                                            <select
-                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-[150px]"
-                                                value={filterSubject}
-                                                onChange={(e) => setFilterSubject(e.target.value)}
-                                            >
-                                                <option value="all">מקצוע: הכל</option>
-                                                {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
-                                            </select>
-                                        </div>
 
-                                        <div className="relative group hidden md:block">
-                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
-                                                <IconLayer className="w-4 h-4" />
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 group-hover:text-wizdi-royal transition-colors">
+                                                    <IconLayer className="w-4 h-4" />
+                                                </div>
+                                                <select
+                                                    className="w-full md:w-auto bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-none md:max-w-[150px]"
+                                                    value={filterGrade}
+                                                    onChange={(e) => setFilterGrade(e.target.value)}
+                                                >
+                                                    <option value="all">שכבה: הכל</option>
+                                                    {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
+                                                </select>
                                             </div>
-                                            <select
-                                                className="bg-white/50 border border-transparent hover:border-slate-200 hover:bg-white text-sm py-2 pr-9 pl-4 rounded-xl focus:ring-2 focus:ring-wizdi-cyan/20 outline-none text-slate-600 font-bold transition-all cursor-pointer appearance-none max-w-[150px]"
-                                                value={filterGrade}
-                                                onChange={(e) => setFilterGrade(e.target.value)}
-                                            >
-                                                <option value="all">שכבה: הכל</option>
-                                                {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
-                                            </select>
                                         </div>
                                     </div>
 
@@ -843,9 +864,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                                     <div className="relative z-10 flex justify-between items-start">
                                                         <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm
-                                                            ${c.type === 'test' ? 'bg-amber-400 text-amber-900 border-amber-300' : 'bg-wizdi-lime text-green-900 border-lime-300'}
+                                                            ${c.mode === 'lesson'
+                                                                ? 'bg-indigo-400 text-indigo-900 border-indigo-300'
+                                                                : c.type === 'test'
+                                                                    ? 'bg-amber-400 text-amber-900 border-amber-300'
+                                                                    : 'bg-wizdi-lime text-green-900 border-lime-300'}
                                                         `}>
-                                                            {c.type === 'test' ? 'מבחן' : 'פעילות'}
+                                                            {c.mode === 'lesson' ? 'מערך שיעור' : c.type === 'test' ? 'מבחן' : 'פעילות'}
                                                         </span>
                                                         <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
                                                             <IconArrowBack className="w-5 h-5 text-white rotate-180" />
@@ -889,10 +914,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     >
                                                         <IconBrandGoogle className="w-4 h-4" />
                                                     </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setShareModalCourse({ id: c.courseId, title: c.title }); }}
+                                                        className="p-2.5 bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl shadow-lg hover:scale-110 transition-all"
+                                                        title="שתף פעילות/מבחן"
+                                                    >
+                                                        <IconShare className="w-4 h-4" />
+                                                    </button>
                                                 </div>
 
                                                 {/* Body Content */}
-                                                <div className="p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-white to-blue-50/30">
+                                                < div className="p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-white to-blue-50/30" >
                                                     <div className="space-y-3">
                                                         <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wide">
                                                             <span className="flex items-center gap-1"><IconBook className="w-3 h-3" /> {c.subject}</span>
@@ -1102,7 +1134,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                             </>
                         )}
                     </div>
-                )}
+                )
+                }
 
                 {/* Selected View... (ללא שינוי) */}
                 {
@@ -1348,9 +1381,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
 
                 {/* Insights Modal */}
-                {viewingInsightStudent && (
-                    <StudentInsightsModal student={viewingInsightStudent} onClose={() => setViewingInsightStudent(null)} />
-                )}
+                {
+                    viewingInsightStudent && (
+                        <StudentInsightsModal student={viewingInsightStudent} onClose={() => setViewingInsightStudent(null)} />
+                    )
+                }
 
             </div >
             {/* --- מודל אישור מחיקה - שלב 1 --- */}

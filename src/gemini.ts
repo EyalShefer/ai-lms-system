@@ -100,7 +100,7 @@ export { mapSystemItemToBlock };
 
 // 1. Generate Skeleton (Fast Structure)
 // 1. Generate Skeleton (Fast Structure)
-import type { UnitSkeleton, SkeletonStep } from './shared/types/gemini.types';
+import type { UnitSkeleton, SkeletonStep, TeacherLessonPlan } from './shared/types/gemini.types';
 
 /**
  * 1. Generate Skeleton (The "Brain")
@@ -124,13 +124,13 @@ export const generateUnitSkeleton = async (
   productType: 'lesson' | 'game' | 'exam' = 'lesson',
   studentProfile?: any // StudentAnalyticsProfile (Using any to avoid circular dependency issues if strict)
 ): Promise<UnitSkeleton | null> => {
-  console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Product: ${productType}, Length: ${activityLength}`);
+  // console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Product: ${productType}, Length: ${activityLength}`);
 
   // Personality Injection
   let personalityInstruction = "";
   if (studentProfile?.confirmedTraits && studentProfile.confirmedTraits.length > 0) {
     personalityInstruction = `\n    PERSONALIZATION OVERRIDE:\n    The student has confirmed traits: ${JSON.stringify(studentProfile.confirmedTraits)}.\n    ADAPT THE SKELETON TO THESE PREFERENCES (e.g. if 'Visual Learner', prefer visual blocks. If 'Competitive', increase difficulty).`;
-    console.log("Injecting Personality:", personalityInstruction);
+    // console.log("Injecting Personality:", personalityInstruction);
   }
 
   let stepCount = 5;
@@ -268,7 +268,7 @@ export const generateUnitSkeleton = async (
     });
 
     const text = completion.choices[0].message.content || "{}";
-    const result = JSON.parse(text) as UnitSkeleton;
+    const result = JSON.parse(cleanJsonString(text)) as UnitSkeleton;
 
     // Basic validation
     if (!result.steps || !Array.isArray(result.steps)) {
@@ -453,7 +453,8 @@ export const generateStepContent = async (
     });
 
     const text = completion.choices[0].message.content || "{}";
-    const result = JSON.parse(text) as StepContentResponse;
+    // console.log(`🧩 STEP ${stepInfo.step_number} RAW:`, text); // DEBUG
+    const result = JSON.parse(cleanJsonString(text)) as StepContentResponse;
 
     // === 🛡️ PEDAGOGICAL ENFORCER (CODE LEVEL OVERRIDE) ===
     if (mode === 'exam' && result) {
@@ -480,6 +481,147 @@ export const generateStepContent = async (
 // === PERFORMANCE OPTIMIZATION END ===
 
 // === PERFORMANCE OPTIMIZATION END ===
+
+/**
+ * 2b. Generate Teacher Lesson Plan (Master Teacher V2)
+ * 
+ * Distinct architecture from Student Activity.
+ * Focuses on Frontal Instruction, Discussion, and Board Plans.
+ */
+export const generateTeacherStepContent = async (
+  topic: string,
+  sourceText: string,
+  gradeLevel: string,
+  sourceType: 'YOUTUBE' | 'TEXT_FILE' | 'TOPIC_ONLY',
+  fileData?: any
+): Promise<TeacherLessonPlan | null> => {
+  // console.log(`🧑‍🏫 Generating Teacher Lesson. Type: ${sourceType}`);
+
+  const contentToInject = sourceType === 'TOPIC_ONLY' ? topic : sourceText.substring(0, 20000);
+
+  const prompt = `
+    System Prompt: The Adaptive Lesson Architect (Multi-Source)
+    IDENTITY: You are an expert Instructional Designer, Pedagogical Consultant, and Multimedia Director. Your client is the TEACHER. Your goal: Create a precise, professional "Teacher's Guide" (Lesson Plan) ready for classroom display.
+
+    INPUT CONTEXT:
+    SOURCE_TYPE: "${sourceType}"
+    CONTENT: """${contentToInject}"""
+    GRADE_LEVEL: "${gradeLevel}"
+    DURATION: "45 Minutes"
+
+    ⚙️ DYNAMIC MEDIA LOGIC (How to handle visuals):
+
+    CASE A: If SOURCE_TYPE == "YOUTUBE":
+    Source of Truth: Use the transcript provided.
+    Visual Strategy: You must use specific Timestamps from the video.
+    Instruction: In the "Direct Instruction" phase, tell the teacher: "Play video from 02:30 to 03:45 to show [Concept]."
+
+    CASE B: If SOURCE_TYPE == "TEXT_FILE":
+    Source of Truth: Use the provided text.
+    Visual Strategy: You must Hallucinate Visuals. Since there is no video, you must describe an image that should be on the slide.
+    Instruction: "Show an image/diagram of [Description of content in text]."
+
+    CASE C: If SOURCE_TYPE == "TOPIC_ONLY":
+    Source of Truth: Use your internal LLM knowledge base to create the best standard curriculum for this topic.
+    Visual Strategy: Suggest classic historical/scientific images or generic diagrams relevant to the topic.
+
+    🚫 CRITICAL NEGATIVE CONSTRAINTS (Safety Guard):
+    NO QUIZZES IN INSTRUCTION: Do not put multiple-choice or true/false questions in the "Hook" or "Direct Instruction" phases.
+    NO STUDENT ADDRESSING: Never say "Open your books". Say "Ask students to open books".
+    NO GAMIFICATION: Do not mention points/coins/XP in this document.
+
+    STRUCTURE (The 5-Step Model):
+
+    1. THE HOOK (5 min)
+    Goal: Engagement.
+    Format: A short story, a provocative question, or a visual hook.
+    Output: Script for the teacher + Media Asset.
+
+    2. DIRECT INSTRUCTION (The "Meat") (15 min)
+    Goal: Frontal Teaching.
+    Format: Break down the content into 3-4 distinct "Teaching Points" (Slides).
+    Output: For each point, provide the script to say and the visual aid to show.
+
+    3. GUIDED PRACTICE (15 min) - THE BRIDGE
+    Goal: Active Learning.
+    Action: Direct the teacher to launch the external Wizdi Activity.
+    Format: "Transition Phrase: 'Now let's practice [Skill]. Launch the Wizdi Interactive Activity for this unit.'"
+
+    4. DISCUSSION (5 min)
+    Goal: Oral Assessment.
+    Output: 2 Open-Ended Thinking Questions.
+
+    5. SUMMARY (5 min)
+    Goal: Closure.
+    Output: ONE "Takeaway Sentence" for notebooks.
+
+    OUTPUT FORMAT (JSON Schema): Generate valid JSON in Hebrew (except for field keys).
+
+    {
+      "lesson_metadata": {
+        "title": "String",
+        "target_audience": "String",
+        "duration": "45 min"
+      },
+      "hook": {
+        "script_for_teacher": "String (Hebrew)",
+        "media_asset": {
+          "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'image_description'}",
+          "content": "Description OR 'Start: 00:00, End: 02:00'"
+        }
+      },
+      "direct_instruction": {
+        "slides": [
+          {
+            "slide_title": "String",
+            "bullet_points_for_board": ["Point 1", "Point 2"],
+            "script_to_say": "String (Hebrew explanation)",
+            "media_asset": {
+              "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'image_description'}",
+              "content": "String"
+            }
+          }
+        ]
+      },
+      "guided_practice": {
+        "teacher_instruction": "String",
+        "wizdi_tool_reference": "Interactive Activity Generator"
+      },
+      "discussion": {
+        "questions": ["Question 1", "Question 2"]
+      },
+      "summary": {
+        "takeaway_sentence": "String"
+      }
+    }
+  `;
+
+  const userContent: any[] = [{ type: "text", text: prompt }];
+
+  // If we have an image file (and it's not a video transcript), we can pass it
+  if (fileData && sourceType === 'TEXT_FILE') {
+    userContent.push({ type: "image_url", image_url: { url: `data:${fileData.mimeType};base64,${fileData.base64}` } });
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: userContent as any }],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    const result = JSON.parse(cleanJsonString(text)) as TeacherLessonPlan;
+
+    return result;
+
+  } catch (e) {
+    console.error("Teacher Lesson Gen Error:", e);
+    return null;
+  }
+};
+
 
 import type { DialogueScript } from './shared/types/gemini.types';
 
@@ -532,7 +674,7 @@ export const validateContent = async (
   lessonJson: any,
   targetAudience: string
 ): Promise<ValidationResult> => {
-  console.log("🔍 Validating content for:", targetAudience);
+  // console.log("🔍 Validating content for:", targetAudience);
 
   const prompt = `
     User Instruction:
@@ -592,7 +734,7 @@ export const attemptAutoFix = async (
   originalJson: any,
   validationResult: ValidationResult
 ): Promise<any> => {
-  console.log("🔧 Attempting Auto-Fix...", validationResult.issues);
+  // console.log("🔧 Attempting Auto-Fix...", validationResult.issues);
 
   const prompt = `
     You are a Content Editor.
@@ -637,14 +779,14 @@ export const safeGenerationWorkflow = async (
   let attempts = 0;
 
   while (attempts <= maxRetries) {
-    console.log(`🔒 Validation Loop: Attempt ${attempts + 1}/${maxRetries + 1}`);
+    // console.log(`🔒 Validation Loop: Attempt ${attempts + 1}/${maxRetries + 1}`);
 
     // 1. Validate
     const validation = await validateContent(content, targetAudience);
-    console.log("📊 Validation Status:", validation.status);
+    // console.log("📊 Validation Status:", validation.status);
 
     if (validation.status === 'PASS') {
-      console.log("✅ Content Passed Validation!");
+      // console.log("✅ Content Passed Validation!");
       // PERSIST VALIDATION METRICS
       if (content && typeof content === 'object') {
         if (!content.metadata) content.metadata = {};
@@ -657,7 +799,7 @@ export const safeGenerationWorkflow = async (
     console.warn("⚠️ Content Rejected. Issues:", validation.issues);
 
     if (attempts < maxRetries) {
-      console.log("🛠️ Attempting Auto-Fix...");
+      // console.log("🛠️ Attempting Auto-Fix...");
       content = await attemptAutoFix(content, validation);
     } else {
       console.error("❌ Max Retries Reached. Content Generation Failed.");
@@ -665,6 +807,97 @@ export const safeGenerationWorkflow = async (
     }
 
     attempts++;
+  }
+};
+
+/**
+ * Generates the High-Level Structure (Syllabus) ONLY.
+ * Used for "Progressive Skeleton" loading (Lesson Plan Mode).
+ */
+export const generateCourseSyllabus = async (
+  topic: string,
+  gradeLevel: string,
+  activityLength: 'short' | 'medium' | 'long' = 'medium',
+  subject: string = 'General',
+  sourceText?: string,
+  productType: 'lesson' | 'game' | 'exam' = 'game' // Default to game for backward compatibility
+): Promise<any[]> => {
+  // console.log("🏗️ Generating Syllabus Structure (Skeleton)...");
+
+  // FORCE SINGLE UNIT FOR TEACHER LESSON PLAN
+  const unitCount = productType === 'lesson'
+    ? 1
+    : (activityLength === 'short' ? 3 : (activityLength === 'long' ? 8 : 5));
+
+  const prompt = `
+      Task: Create a Syllabus (Table of Contents) for a Lesson Plan.
+      Topic: "${topic}"
+      Subject: ${subject}
+      Target Audience: ${gradeLevel}
+      Count: Exactly ${unitCount} distinct Learning Units.
+      Language: Hebrew.
+
+      ${sourceText ? `Base strict on source text found in context (first 10k chars).` : ''}
+
+      Structure:
+      - Divide the topic into logical "Phases" or "Modules".
+      - Each Module contains 1-2 Learning Units.
+      - Total Learning Units: ${unitCount}.
+
+      Output JSON:
+      {
+        "modules": [
+          {
+            "title": "Module Title (e.g., 'Phase 1: Introduction')",
+            "units": [
+              { "title": "Unit Title (e.g., 'Core Concepts')" }
+            ]
+          }
+        ]
+      }
+    `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o", // Strong model for structure
+      messages: [
+        { role: "system", content: "You are a Curriculum Architect. Output strict JSON." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    const result = JSON.parse(cleanJsonString(text));
+
+    // Map to internal Module[] structure
+    return (result.modules || []).map((m: any) => ({
+      id: uuidv4(),
+      title: m.title,
+      learningUnits: (m.units || []).map((u: any) => ({
+        id: uuidv4(),
+        title: u.title,
+        type: 'practice',
+        activityBlocks: [], // EMPTY INITIALLY
+        metadata: { status: 'pending' } // Ready for queue
+      }))
+    }));
+
+  } catch (e) {
+    console.error("Syllabus Gen Error:", e);
+    // Fallback: Single Module, Single Unit
+    return [{
+      id: uuidv4(),
+      title: "מערך השיעור",
+      learningUnits: [{
+        id: uuidv4(),
+        title: topic,
+        type: 'practice',
+        activityBlocks: [],
+        metadata: { status: 'pending' }
+      }]
+    }];
   }
 };
 
@@ -677,7 +910,7 @@ export const generateCoursePlan = async (
   sourceText?: string, // טקסט שחולץ (PDF/Doc)
   includeBot: boolean = true // האם לכלול בוט
 ) => {
-  console.log("Starting cloud generation for:", topic);
+  // console.log("Starting cloud generation for:", topic);
 
   // קבלת ה-DB
   const db = getFirestore(getApp());
@@ -694,7 +927,7 @@ export const generateCoursePlan = async (
       createdAt: new Date(),
     });
 
-    console.log("Request queued with ID:", docRef.id);
+    // console.log("Request queued with ID:", docRef.id);
 
     // 2. האזנה לשינויים במסמך
     return new Promise<any[]>((resolve, reject) => {
@@ -703,13 +936,13 @@ export const generateCoursePlan = async (
 
         if (!data) return;
 
-        console.log("Generation status:", data.status);
+        // console.log("Generation status:", data.status);
 
         if (data.status === "completed" && data.result) {
           unsubscribe();
 
           // --- CLIENT-SIDE PROCESSING ---
-          console.log("!!! PROCESSING RESULTS CLIENT SIDE !!!", { includeBot, blocksRaw: data.result.length });
+          // console.log("!!! PROCESSING RESULTS CLIENT SIDE !!!", { includeBot, blocksRaw: data.result.length });
           let processedResult = [...data.result];
 
           // 1. Enforce Bot Toggle & Randomization (Deep Traversal)
@@ -1181,7 +1414,7 @@ export const generateFullUnitContent = async (
 
       // === NEW LOGIC: Dynamic Learning Unit ===
       if (mode === 'learning') {
-        console.log("🚀 Parsing Strategy: Dynamic Learning Unit (Robust)");
+        // console.log("🚀 Parsing Strategy: Dynamic Learning Unit (Robust)");
 
         const steps = parsed.learning_unit?.steps || parsed.learning_unit?.cards || [];
 
@@ -1845,5 +2078,88 @@ export const refineBlockContent = async (
   } catch (e) {
     console.error("Refine Block Error:", e);
     return content; // Return original on error to prevent data loss
+  }
+};
+// --- Differentiated Instruction Generation (V5) ---
+
+export const generateDifferentiatedContent = async (
+  topic: string,
+  gradeLevel: string,
+  sourceText: string,
+  subject: string = "כללי"
+): Promise<{
+  support: any[];
+  core: any[];
+  enrichment: any[];
+} | null> => {
+  try {
+    const sysPrompt = `
+        You are an expert curriculum developer specializing in Differentiated Instruction (Bloom's Taxonomy).
+        Your goal is to generate 3 DISTINCT sets of learning activities based on the provided source text.
+        
+        The 3 levels are:
+        1. Level 1: Support (Knowledge & Comprehension). Focus on basics, vocabulary, and simple recall.
+        2. Level 2: Core (Application & Analysis). Focus on standard grade-level tasks, applying concepts.
+        3. Level 3: Enrichment (Evaluation & Synthesis). Focus on critical thinking, creative projects, and deep analysis.
+
+        OUTPUT FORMAT:
+        You must return a single JSON object with exactly these 3 keys:
+        {
+            "level_1_support": [ Array of 4-5 Activity Objects ],
+            "level_2_core": [ Array of 4-5 Activity Objects ],
+            "level_3_enrichment": [ Array of 4-5 Activity Objects ]
+        }
+
+        Each "Activity Object" must follow the standard schema used in this system:
+        {
+            "type": "multiple_choice" | "open_question" | "flashcards" | "sorting",
+            "question": "...",
+            "options": [...], // for multiple choice
+            "correct_answer": "...",
+            "explanation": "...", // explanation for feedback
+            "bloom_level": "knowledge" | "application" | "evaluation"
+        }
+
+        STRICT RULES:
+        1. "level_1_support" must use simple language and scaffolding. 
+        2. "level_3_enrichment" must be challenging.
+        3. All content must be in HEBREW.
+        4. Return ONLY valid JSON.
+        `;
+
+    const userPrompt = `
+        Topic: ${topic}
+        Grade: ${gradeLevel}
+        Subject: ${subject}
+        Source Material:
+        """${sourceText.slice(0, 15000)}"""
+        
+        Generate the 3 levels now.
+        `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // Use a smart model for this complex task
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) return null;
+
+    const parsed = JSON.parse(content);
+
+    return {
+      support: parsed.level_1_support || [],
+      core: parsed.level_2_core || [],
+      enrichment: parsed.level_3_enrichment || []
+    };
+
+  } catch (error) {
+    console.error("Error generating differentiated content:", error);
+    return null;
   }
 };

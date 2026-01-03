@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import type { AuditResult } from '../utils/pedagogicalValidator';
 
 const COLLECTION_NAME = 'pedagogical_audits';
@@ -55,7 +55,7 @@ export const PedagogicalTelemetry = {
             };
 
             await addDoc(collection(db, COLLECTION_NAME), logData);
-            console.log("📈 Pedagogical Audit Logged:", logData);
+
             return true;
         } catch (error) {
             console.error("❌ Failed to log pedagogical audit:", error);

@@ -13,7 +13,7 @@ export const gradeBatch = async (
     assignment: any,
     submissions: any[]
 ) => {
-    console.log("Starting batch grading...", submissions.length, "submissions");
+
 
     // 1. Extract Open Questions
     const openQuestions: any[] = [];
@@ -37,7 +37,7 @@ export const gradeBatch = async (
     }
 
     if (openQuestions.length === 0) {
-        console.log("No open questions found to grade.");
+
         return;
     }
 
@@ -92,12 +92,12 @@ export const gradeBatch = async (
                         });
                     });
                     await batch.commit();
-                    console.log(`Saved grades for chunk of ${chunk.length}`);
+
                 }
             } catch (e) {
                 console.error("Error grading chunk:", e);
             }
         }
     }
-    console.log("Batch grading complete.");
+
 };

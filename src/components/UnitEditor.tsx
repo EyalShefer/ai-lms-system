@@ -7,7 +7,7 @@ import {
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
     generateCategorizationQuestion, generateOrderingQuestion, generateFillInBlanksQuestion, generateMemoryGame,
     generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent
-} from '../services/ai/geminiApi';
+} from '../gemini';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
