@@ -1,17 +1,129 @@
 import React, { useState } from 'react';
-import {
-    IconSparkles, IconBook, IconVideo, IconJoystick, IconTarget, IconPrinter, IconEdit, IconX, IconCheck
-} from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconJoystick, IconTarget, IconPrinter, IconEdit, IconX, IconCheck, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconBack, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink } from '../icons';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
+import { refineBlockContent, openai } from '../services/ai/geminiApi';
+import { v4 as uuidv4 } from 'uuid';
 
 interface TeacherCockpitProps {
     unit: LearningUnit;
-    onExit: () => void;
-    onEdit?: () => void;
+    onExit?: () => void;
+    onEdit?: () => void; // Legacy
+    onUpdateBlock?: (blockId: string, newContent: any) => void; // Legacy
+    onUnitUpdate?: (unit: LearningUnit) => void; // New Full CRUD
+    embedded?: boolean;
 }
 
-const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit }) => {
+const BLOCK_TYPE_MAPPING: Record<string, string> = {
+    'text': 'טקסט / הסבר',
+    'image': 'תמונה',
+    'video': 'וידאו',
+    'multiple-choice': 'שאלה אמריקאית',
+    'open-question': 'שאלה פתוחה',
+    'interactive-chat': 'צ׳אט אינטראקטיבי',
+    'fill_in_blanks': 'השלמת משפטים',
+    'ordering': 'סידור רצף',
+    'categorization': 'מיון לקטגוריות',
+    'memory_game': 'משחק זיכרון',
+    'true_false_speed': 'אמת או שקר',
+    'matching': 'התאמה',
+    'audio-response': 'תשובה קולית',
+    'podcast': 'פודקאסט AI'
+};
+
+const createBlock = (type: string, personaId: string = 'socratic'): ActivityBlock => {
+    return {
+        id: uuidv4(),
+        type: type as any,
+        content: type === 'text' ? '' : type === 'multiple-choice' ? { question: '', options: ['', ''], correctAnswer: '' } : type === 'open-question' ? { question: '' } : type === 'image' ? '' : type === 'video' ? '' : {},
+        metadata: {
+            botPersona: personaId,
+            createdAt: new Date().toISOString()
+        }
+    };
+};
+
+const getBlockTitle = (block: ActivityBlock): string | null => {
+    if (block.type === 'text') {
+        const text = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
+        if (!text) return null;
+
+        // 1. Try extracting text from <h3> tag (HTML content)
+        const h3Match = text.match(/<h3[^>]*>(.*?)<\/h3>/i);
+        if (h3Match && h3Match[1]) {
+            return h3Match[1].replace(/<[^>]+>/g, '').trim();
+        }
+
+        // 2. Try extracting from Markdown # (Text content)
+        const lines = text.split('\n');
+        const titleLine = lines.find((line: string) => line.trim().startsWith('#'));
+        if (titleLine) {
+            return titleLine.replace(/^#+\s*/, '').trim();
+        }
+    }
+    return null;
+};
+
+const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
     const [activeSection, setActiveSection] = useState<string>('all');
+    const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+    const [isRefining, setIsRefining] = useState(false);
+    const [refinePrompt, setRefinePrompt] = useState("");
+    const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
+
+    // Media State
+    const [mediaInputMode, setMediaInputMode] = useState<Record<string, string | null>>({});
+    const [mediaInputValue, setMediaInputValue] = useState<Record<string, string>>({});
+    const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
+
+    // --- CRUD Helpers ---
+    const updateUnitBlocks = (newBlocks: ActivityBlock[]) => {
+        if (onUnitUpdate) {
+            onUnitUpdate({ ...unit, activityBlocks: newBlocks });
+        } else if (onUpdateBlock) {
+            console.warn("Using Legacy onUpdateBlock - Full CRUD not supported properly without onUnitUpdate");
+        }
+    };
+
+    const addBlockAtIndex = (type: string, index: number) => {
+        const newBlock = createBlock(type, 'socratic');
+        const newBlocks = [...(unit.activityBlocks || [])];
+        newBlocks.splice(index, 0, newBlock);
+        updateUnitBlocks(newBlocks);
+        setActiveInsertIndex(null);
+        if (type === 'text') setEditingBlockId(newBlock.id);
+    };
+
+    const deleteBlock = (blockId: string) => {
+        if (confirm("למחוק את הרכיב?")) {
+            const newBlocks = unit.activityBlocks?.filter(b => b.id !== blockId) || [];
+            updateUnitBlocks(newBlocks);
+        }
+    };
+
+    const moveBlock = (index: number, direction: 'up' | 'down') => {
+        const newBlocks = [...(unit.activityBlocks || [])];
+        if (direction === 'up' && index > 0) {
+            [newBlocks[index], newBlocks[index - 1]] = [newBlocks[index - 1], newBlocks[index]];
+        } else if (direction === 'down' && index < newBlocks.length - 1) {
+            [newBlocks[index], newBlocks[index + 1]] = [newBlocks[index + 1], newBlocks[index]];
+        }
+        updateUnitBlocks(newBlocks);
+    };
+
+    const updateBlockContent = (blockId: string, content: any, metadataUpdates?: any) => {
+        const newBlocks = unit.activityBlocks?.map(b => {
+            if (b.id === blockId) {
+                return {
+                    ...b,
+                    content,
+                    metadata: metadataUpdates ? { ...b.metadata, ...metadataUpdates } : b.metadata
+                };
+            }
+            return b;
+        }) || [];
+        updateUnitBlocks(newBlocks);
+    };
+
 
     const handleScrollTo = (id: string) => {
         const element = document.getElementById(id);
@@ -25,7 +137,47 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
         window.print();
     };
 
-    // Timeline Items
+    // --- Media Handlers ---
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, blockId: string) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            updateBlockContent(blockId, reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleGenerateAiImage = async (blockId: string) => {
+        const prompt = mediaInputValue[blockId];
+        if (!prompt) return;
+
+        setLoadingBlockId(blockId);
+        try {
+            const res = await openai.images.generate({
+                prompt: prompt,
+                model: "dall-e-3",
+                size: "1024x1024",
+                response_format: "b64_json",
+                quality: "standard",
+                n: 1,
+            });
+
+            const image_url = res.data[0].b64_json;
+            if (image_url) {
+                updateBlockContent(blockId, `data:image/png;base64,${image_url}`);
+                setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
+            }
+        } catch (error) {
+            console.error("Image Gen Error:", error);
+            alert("שגיאה ביצירת תמונה. נסה שנית.");
+        } finally {
+            setLoadingBlockId(null);
+        }
+    };
+
+
     const timelineItems = [
         { id: 'goals', label: 'יעדים', icon: IconTarget },
         { id: 'opening', label: 'פתיחה', icon: IconBook },
@@ -34,16 +186,302 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
         { id: 'summary', label: 'סיכום', icon: IconCheck },
     ];
 
-    const renderStaticBlock = (block: ActivityBlock) => {
+    const handleRefineBlock = async (block: ActivityBlock, instruction: string) => {
+        if (!onUpdateBlock && !onUnitUpdate) return;
+        setIsRefining(true);
+        try {
+            const newContent = await refineBlockContent(block.type, block.content, instruction);
+            // If text block, we might get back just string or object.
+            let finalContent = newContent;
+            if (block.type === 'text' && newContent.text) {
+                finalContent = newContent.text;
+            }
+
+            // Preserve tip if exists in old content
+            if (block.type === 'text' && typeof block.content === 'object' && block.content.teacher_tip) {
+                if (typeof finalContent === 'string') {
+                    // If we converted to string, we lose the tip unless we re-wrap.
+                    // For now, keep as string if that's what the UI expects, OR upgrade to object.
+                    // The getTeacherTip function below handles both.
+                }
+            }
+
+            updateBlockContent(block.id, finalContent);
+            setEditingBlockId(null);
+            setRefinePrompt("");
+        } catch (error) {
+            console.error("Refine Error:", error);
+            alert("שגיאה בעריכת התוכן");
+        } finally {
+            setIsRefining(false);
+        }
+    };
+
+    // Helper to strip HTML for editing view
+    const getTextContentForEdit = (content: any): string => {
+        const text = typeof content === 'string' ? content : ((content as any)?.teach_content || (content as any)?.text || "");
+        if (!text) return "";
+        if (text.trim().startsWith('<div class="lesson-section')) {
+            return text
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n\n')
+                .replace(/<\/h[1-6]>/gi, '\n\n')
+                .replace(/<[^>]+>/g, '') // Strip remaining tags
+                .replace(/\n\s*\n/g, '\n\n') // Normalize multiple newlines
+                .trim();
+        }
+        return text;
+    };
+
+
+    // --- Sub-Components ---
+    const InsertMenu = ({ index }: { index: number }) => (
+        <div className="flex justify-center my-8 print:hidden group relative z-10 w-full">
+            <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-full border-t border-dashed border-slate-300"></div>
+            </div>
+            <div className="relative bg-[#f0f4f8] px-4">
+                {activeInsertIndex === index ? (
+                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto">
+                        {['text', 'image', 'video', 'multiple-choice', 'open-question'].map(type => (
+                            <button key={type} onClick={() => addBlockAtIndex(type, index)} className="flex flex-col items-center gap-1 p-2 hover:bg-blue-50 rounded-lg text-slate-600 hover:text-blue-600 transition-colors">
+                                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100">
+                                    {type === 'text' && <IconText className="w-4 h-4" />}
+                                    {type === 'image' && <IconImage className="w-4 h-4" />}
+                                    {type === 'video' && <IconVideo className="w-4 h-4" />}
+                                    {type === 'multiple-choice' && <IconList className="w-4 h-4" />}
+                                    {type === 'open-question' && <IconEdit className="w-4 h-4" />}
+                                </div>
+                                <span className="text-[10px] font-bold">{BLOCK_TYPE_MAPPING[type]}</span>
+                            </button>
+                        ))}
+                        <div className="w-px bg-slate-200 mx-2"></div>
+                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setActiveInsertIndex(index)}
+                        className="bg-white text-slate-500 border border-slate-300 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600"
+                    >
+                        <IconPlus className="w-4 h-4" />
+                        <span className="text-xs font-bold">הוסף רכיב</span>
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderRefineToolbar = (block: ActivityBlock) => {
+        if (editingBlockId !== block.id) return null;
+
+        const presets = ["קצר יותר", "פשט שפה", "הוסף דוגמאות", "ניסוח מרתק"];
+
+        return (
+            <div className="absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 animate-fade-in rounded-b-3xl border-t border-slate-100">
+                <h4 className="font-bold text-sm mb-3 flex items-center gap-2 text-wizdi-royal">
+                    <IconWand className="w-4 h-4" />
+                    עריכה עם AI
+                </h4>
+                <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-md">
+                    {presets.map(p => (
+                        <button
+                            key={p}
+                            onClick={() => handleRefineBlock(block, p)}
+                            disabled={isRefining}
+                            className="px-3 py-1.5 bg-slate-50 hover:bg-wizdi-royal hover:text-white rounded-full text-xs font-bold transition-colors border border-slate-200"
+                        >
+                            {p}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex gap-2 w-full max-w-md">
+                    <input
+                        type="text"
+                        value={refinePrompt}
+                        onChange={(e) => setRefinePrompt(e.target.value)}
+                        placeholder="או כתבו בקשה חופשית..."
+                        className="flex-1 p-2 border border-slate-200 rounded-lg focus:border-wizdi-royal outline-none text-sm"
+                    />
+                    <button
+                        onClick={() => handleRefineBlock(block, refinePrompt)}
+                        disabled={!refinePrompt || isRefining}
+                        className="bg-wizdi-royal text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {isRefining ? <IconSparkles className="animate-spin w-4 h-4" /> : <IconCheck className="w-4 h-4" />}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderBlockContent = (block: ActivityBlock) => {
+        // --- MEDIA BLOCKS ---
+        if (block.type === 'image') {
+            if (!block.content) {
+                return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
+                            <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                            <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                        </label>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group relative">
+                            <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
+                            <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
+
+                            {mediaInputMode[block.id] === 'ai' && (
+                                <div className="absolute inset-0 bg-white p-4 rounded-xl z-20 flex flex-col justify-center" onClick={e => e.stopPropagation()}>
+                                    <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה:</h4>
+                                    <textarea
+                                        className="w-full p-2 border rounded-lg mb-2 text-sm focus:border-blue-400 outline-none"
+                                        rows={2}
+                                        placeholder="למשל: מפה עתיקה של ירושלים..."
+                                        onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <button onClick={(e) => { e.stopPropagation(); setMediaInputMode({ ...mediaInputMode, [block.id]: null }) }} className="text-gray-500 text-xs px-2">ביטול</button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleGenerateAiImage(block.id) }} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-xs px-3 py-1 rounded-lg">
+                                            {loadingBlockId === block.id ? "יוצר..." : "צור"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </button>
+                    </div>
+                );
+            }
+            return (
+                <div className="relative group">
+                    <img src={block.content} className="w-full h-80 object-cover rounded-2xl shadow-md" alt="Lesson Visual" />
+                    <button
+                        onClick={() => updateBlockContent(block.id, '')}
+                        className="absolute top-2 right-2 bg-white/80 p-2 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                        title="החלף תמונה"
+                    >
+                        <IconTrash className="w-4 h-4" />
+                    </button>
+                </div>
+            );
+        }
+
+        if (block.type === 'video') {
+            if (!block.content) {
+                return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
+                            <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                            <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת וידאו</span>
+                            <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                        </label>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'link' })} className="flex flex-col items-center justify-center border-2 border-dashed border-red-200 rounded-xl bg-red-50/50 hover:bg-red-50 hover:border-red-300 transition-all group relative">
+                            <IconLink className="w-8 h-8 text-red-400 group-hover:text-red-600 mb-2" />
+                            <span className="font-bold text-red-500 group-hover:text-red-700">YouTube</span>
+
+                            {mediaInputMode[block.id] === 'link' && (
+                                <div className="absolute inset-0 bg-white p-4 rounded-xl z-20 flex flex-col justify-center" onClick={e => e.stopPropagation()}>
+                                    <h4 className="text-sm font-bold text-red-700 mb-2">קישור ליוטיוב:</h4>
+                                    <input
+                                        type="text"
+                                        dir="ltr"
+                                        className="w-full p-2 border rounded-lg mb-2 text-sm text-left focus:border-red-400 outline-none"
+                                        placeholder="https://youtu.be/..."
+                                        onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <button onClick={(e) => { e.stopPropagation(); setMediaInputMode({ ...mediaInputMode, [block.id]: null }) }} className="text-gray-500 text-xs px-2">ביטול</button>
+                                        <button onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateBlockContent(block.id, mediaInputValue[block.id]);
+                                            setMediaInputMode({ ...mediaInputMode, [block.id]: null });
+                                        }} className="bg-red-600 text-white text-xs px-3 py-1 rounded-lg">
+                                            הטמע
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </button>
+                    </div>
+                );
+            }
+            // Simple Video Embed
+            const isYoutube = block.content.includes('youtube') || block.content.includes('youtu.be');
+            return (
+                <div className="relative aspect-video rounded-2xl overflow-hidden shadow-md bg-black group">
+                    {isYoutube ? (
+                        <iframe
+                            src={block.content.replace('watch?v=', 'embed/').split('&')[0]}
+                            className="w-full h-full"
+                            allowFullScreen
+                        />
+                    ) : (
+                        <video src={block.content} controls className="w-full h-full" />
+                    )}
+                    <button
+                        onClick={() => updateBlockContent(block.id, '')}
+                        className="absolute top-2 right-2 bg-white/80 p-2 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
+                        title="החלף וידאו"
+                    >
+                        <IconTrash className="w-4 h-4" />
+                    </button>
+                </div>
+            )
+        }
+
+        // Editable Mode (Text)
+        if (editingBlockId === block.id && block.type === 'text') {
+            const rawContent = getTextContentForEdit(block.content);
+            return (
+                <div className="relative">
+                    <textarea
+                        className="w-full p-6 border border-blue-200 bg-white/50 rounded-xl focus:ring-4 focus:ring-blue-50 outline-none transition-all text-slate-800 leading-relaxed resize-y min-h-[300px] font-sans shadow-inner"
+                        defaultValue={rawContent}
+                        onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                        placeholder="כתבו כאן את תוכן הפעילות..."
+                        autoFocus
+                    />
+                    <div className="absolute bottom-4 left-4 flex gap-2 z-30">
+                        <button onClick={() => setEditingBlockId(null)} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-md transition-all">
+                            סיום עריכה
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // View Mode
         if (block.type === 'text') {
-            return block.content.split('\n').map((line: string, i: number) => {
-                if (line.startsWith('#')) return <h3 key={i} className="text-xl font-bold mt-4 mb-2">{line.replace(/#/g, '')}</h3>;
-                return <p key={i} className="mb-2">{line}</p>;
-            });
+            const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
+            if (!textContent) return <div className="text-slate-400 italic p-4 text-center border-2 border-dashed border-slate-200 rounded-xl cursor-text" onClick={() => setEditingBlockId(block.id)}>לחצו כאן להוספת טקסט</div>;
+
+            if (textContent.trim().startsWith('<div class="lesson-section')) {
+                // Remove h3 title as it is now shown in the block header
+                const contentWithoutTitle = textContent.replace(/<h3[^>]*>.*?<\/h3>/gi, '');
+                return (
+                    <div
+                        onClick={() => setEditingBlockId(block.id)}
+                        className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative group p-2 -m-2"
+                        title="לחץ לעריכה"
+                    >
+                        <div dangerouslySetInnerHTML={{ __html: contentWithoutTitle }} />
+                    </div>
+                );
+            }
+
+            return (
+                <div onClick={() => setEditingBlockId(block.id)} className="cursor-text hover:ring-2 hover:ring-slate-100 rounded-lg p-2 transition-all -m-2">
+                    {textContent.split('\n').map((line: string, i: number) => {
+                        // Skip title lines (starting with #) as they are shown in block header
+                        if (line.startsWith('#')) return null;
+                        return <p key={i} className="mb-2">{line}</p>;
+                    })}
+                </div>
+            )
         }
         if (block.type === 'multiple-choice') {
             return (
-                <div>
+                <div onClick={() => setEditingBlockId(block.id)} className="cursor-pointer hover:ring-2 hover:ring-blue-100 rounded-xl p-2 transition-all -m-2">
                     <h3 className="text-lg font-bold mb-4">{block.content.question}</h3>
                     <ul className="list-disc pr-5 space-y-2">
                         {block.content.options.map((opt: any, idx: number) => (
@@ -57,7 +495,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
         }
         if (block.type === 'open-question') {
             return (
-                <div>
+                <div onClick={() => setEditingBlockId(block.id)} className="cursor-pointer hover:ring-2 hover:ring-blue-100 rounded-xl p-2 transition-all -m-2">
                     <h3 className="text-lg font-bold mb-4">שאלה לדיון: {block.content.question}</h3>
                     <p className="text-sm bg-slate-50 p-4 rounded-lg italic border-r-2 border-slate-300">
                         {/* @ts-ignore */}
@@ -67,13 +505,12 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
             )
         }
 
-        // Handle other types
         return (
-            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200" onClick={() => setEditingBlockId(block.id)}>
                 <h3 className="font-bold text-slate-700 mb-2">{block.type.toUpperCase().replace('_', ' ')}</h3>
                 {block.type === 'fill_in_blanks' && (
                     <p className="text-lg leading-relaxed dir-rtl text-slate-800">
-                        {block.content.text.split(/(\[.*?\])/g).map((part: string, i: number) =>
+                        {(block.content?.text || "").split(/(\[.*?\])/g).map((part: string, i: number) =>
                             part.startsWith('[')
                                 ? <span key={i} className="inline-block border-b-2 border-slate-400 w-24 mx-1 text-center text-slate-400 font-mono text-sm">{part.replace(/[\[\]]/g, '')}</span>
                                 : part
@@ -90,25 +527,109 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
                         </ol>
                     </div>
                 )}
-                {block.type === 'categorization' && (
-                    <div>
-                        <p className="font-bold mb-2">{block.content.question}</p>
-                        <p className="text-sm text-slate-500">פעילות מיון קטגוריות (אינטראקטיבית)</p>
-                    </div>
-                )}
-                {!['fill_in_blanks', 'ordering', 'categorization'].includes(block.type) && (
-                    <p className="text-slate-500 italic">[תוכן אינטראקטיבי: {block.type} - זמין בתצוגת תלמיד]</p>
-                )}
+                <p className="text-slate-500 italic">[תוכן אינטראקטיבי: {block.type} - זמין בתצוגת תלמיד]</p>
             </div>
         );
     };
 
     const getTeacherTip = (block: ActivityBlock) => {
+        // 1. Try to get from AI content
+        if ((block.content as any)?.teacher_tip) {
+            return (block.content as any).teacher_tip;
+        }
+        if (block.metadata?.teacher_tip) {
+            return block.metadata.teacher_tip;
+        }
+
+        // 2. Fallback to generic rules if no AI tip
+        console.log("No AI teacher tip found, using fallback");
         if (block.type === 'multiple-choice') return "ודאו שכל התלמידים מבינים את ההבדל בין המסיחים. שאלו: 'למה לדעתכם תשובה ב' אינה נכונה?'";
         if (block.type === 'open-question') return "עודדו תשובות מגוונות. אין תשובה אחת נכונה. שימו לב לתלמידים השקטים.";
         if (block.type === 'categorization') return "חלקו את הכיתה לקבוצות קטנות. תנו להם 5 דקות לדיון לפני האיסוף במליאה.";
         return "שימו לב לקצב הלימוד. ודאו שכולם איתכם לפני המעבר לשלב הבא.";
     };
+
+    if (embedded) {
+        return (
+            <div className="w-full bg-slate-50 border-t border-slate-100 p-4 md:p-8 animate-fade-in" dir="rtl">
+                <div className="max-w-4xl mx-auto space-y-8">
+                    {/* Embedded Header */}
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+                            <IconEdit className="w-5 h-5 text-indigo-500" />
+                            עריכת תוכן היחידה
+                        </h2>
+                        {onEdit && (
+                            <button onClick={onEdit} className="text-sm text-indigo-600 font-bold hover:underline">
+                                הגדרות מתקדמות
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Content Loop Reuse */}
+                    <div className="space-y-8">
+                        {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
+                            const BlockIcon =
+                                block.type === 'text' ? IconText :
+                                    block.type === 'image' ? IconImage :
+                                        block.type === 'video' ? IconVideo :
+                                            block.type === 'multiple-choice' ? IconList :
+                                                block.type === 'open-question' ? IconChat :
+                                                    IconJoystick;
+                            return (
+                                <div key={block.id} className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                                    {/* Step Header */}
+                                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+                                        <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
+                                            {idx + 1}
+                                        </span>
+
+                                        {/* Block Type Icon & Label (Hebrew Only) */}
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            {getBlockTitle(block) ? (
+                                                <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
+                                            ) : (
+                                                <BlockIcon className="w-4 h-4" />
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={() => setEditingBlockId(block.id)}
+                                            className="mr-auto flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-white hover:bg-wizdi-royal rounded-lg transition-all text-xs font-bold bg-slate-50"
+                                        >
+                                            <IconSparkles className="w-3.5 h-3.5" />
+                                            שפרו עם AI
+                                        </button>
+                                    </div>
+
+                                    {/* Refine Toolbar Overlay */}
+                                    {renderRefineToolbar(block)}
+
+                                    {/* Content */}
+                                    <div className="prose prose-lg max-w-none prose-headings:font-black prose-p:text-slate-600 prose-li:text-slate-600">
+                                        {renderBlockContent(block)}
+                                    </div>
+
+                                    {/* Teacher Tip */}
+                                    <div className="mt-8 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
+                                        <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
+                                            <IconSparkles className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
+                                            <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
+                                                {getTeacherTip(block)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-[#f0f4f8] flex font-sans text-slate-800 z-50" dir="rtl">
@@ -141,27 +662,41 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
             <div className="flex-1 flex flex-col h-full overflow-hidden relative">
 
                 {/* Header */}
-                <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm print:hidden">
-                    <div className="flex flex-col">
-                        <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">מערך שיעור למורה</span>
-                        <h1 className="text-2xl font-black text-slate-800">{unit.title}</h1>
+                <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm print:hidden shrink-0 z-20">
+                    <div className="flex items-center gap-4">
+                        {onExit && (
+                            <button onClick={onExit} className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors" title="חזרה לבית">
+                                <IconBack className="w-5 h-5" />
+                                <span className="font-bold text-sm hidden md:inline ml-2">חזרה</span>
+                            </button>
+                        )}
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">
+                                {(unit.metadata?.status === 'generating') ? "בונה מערך שיעור..." : "מערך שיעור למורה"}
+                            </span>
+                            <h1 className="text-2xl font-black text-slate-800">{unit.title}</h1>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full font-bold transition shadow-sm">
-                            <IconPrinter className="w-5 h-5" />
-                            <span className="hidden md:inline">הדפס PDF</span>
+                        {/* Share Button (New) */}
+                        <button className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl font-bold transition shadow-sm border border-transparent hover:border-slate-200">
+                            <IconShare className="w-5 h-5" />
+                            <span className="hidden md:inline">שתף</span>
                         </button>
-                        {onEdit && (
-                            <button onClick={onEdit} className="flex items-center gap-2 px-6 py-3 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded-full font-bold transition shadow-sm">
-                                <IconEdit className="w-5 h-5" />
-                                <span className="hidden md:inline">ערוך מערך</span>
+
+                        <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full font-bold transition shadow-sm">
+                            <IconPrinter className="w-5 h-5" />
+                            <span className="hidden md:inline">PDF</span>
+                        </button>
+
+                        <div className="h-8 w-px bg-slate-200 mx-2"></div>
+
+                        {onExit && (
+                            <button onClick={onExit} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
+                                <IconX className="w-6 h-6" />
                             </button>
                         )}
-                        <div className="h-8 w-px bg-slate-200 mx-2"></div>
-                        <button onClick={onExit} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
-                            <IconX className="w-6 h-6" />
-                        </button>
                     </div>
                 </div>
 
@@ -169,11 +704,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
                 <div className="flex-1 overflow-y-auto p-4 md:p-12 print:p-0 bg-[#f0f4f8]">
                     <div className="max-w-4xl mx-auto space-y-8 print:max-w-none pb-32">
 
-                        {/* Meta Header (Print Only) */}
-                        <div className="hidden print:block mb-8 text-center border-b pb-4">
-                            <h1 className="text-4xl font-black mb-2">{unit.title}</h1>
-                            <p className="text-slate-500">נוצר על ידי Wizdi AI LMS</p>
-                        </div>
+                        {/* Under Construction Banner */}
+                        {(unit.metadata?.status === 'generating') && (
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4">
+                                <div className="p-2 bg-white rounded-full shadow-sm">
+                                    <IconSparkles className="w-5 h-5 text-amber-500 animate-spin" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-amber-800">המערך בבניה</h3>
+                                    <p className="text-sm text-amber-700">ה-AI עובד כעת על יצירת התוכן. הרכיבים יופיעו בהדרגה.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Goals Card (Static) */}
                         <div id="goals" className="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-blue-500 print:shadow-none print:border scroll-mt-32">
@@ -184,46 +726,97 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit })
                             <ul className="space-y-2 text-slate-600 list-disc list-inside">
                                 <li>התלמיד יבין את הנושא המרכזי ({unit.title}).</li>
                                 <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
-                                <li>התלמיד יפגין הבנה במושגי היסוד.</li>
+                                <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
                             </ul>
                         </div>
 
+                        {/* Insert Initial Block */}
+                        <InsertMenu index={0} />
+
                         {/* Blocks Loop */}
                         <div id="instruction" className="space-y-8">
-                            {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => (
-                                <div key={block.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:shadow-none print:break-inside-avoid relative overflow-hidden group hover:shadow-md transition-shadow">
-                                    {/* Time Estimate Badge (Absolute) */}
-                                    <div className="absolute top-6 left-6 bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full print:hidden">
-                                        ⏱️ 5 דק'
-                                    </div>
+                            {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
+                                const BlockIcon =
+                                    block.type === 'text' ? IconText :
+                                        block.type === 'image' ? IconImage :
+                                            block.type === 'video' ? IconVideo :
+                                                block.type === 'multiple-choice' ? IconList :
+                                                    block.type === 'open-question' ? IconChat :
+                                                        IconJoystick;
 
-                                    {/* Step Header */}
-                                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
-                                        <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
-                                            {idx + 1}
-                                        </span>
-                                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">{block.type.replace('-', ' ')}</span>
-                                    </div>
+                                return (
+                                    <React.Fragment key={block.id}>
+                                        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:shadow-none print:break-inside-avoid relative overflow-hidden group hover:shadow-md transition-shadow">
 
-                                    {/* Content */}
-                                    <div className="prose prose-lg max-w-none prose-headings:font-black prose-p:text-slate-600 prose-li:text-slate-600">
-                                        {renderStaticBlock(block)}
-                                    </div>
+                                            {/* Block Controls (Hover) */}
+                                            <div className="absolute top-4 left-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur border border-slate-100 rounded-lg p-1 z-20 shadow-sm print:hidden">
+                                                <button onClick={() => moveBlock(idx, 'up')} disabled={idx === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למעלה"><IconArrowUp className="w-4 h-4" /></button>
+                                                <button onClick={() => moveBlock(idx, 'down')} disabled={idx === (unit.activityBlocks?.length || 0) - 1} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למטה"><IconArrowDown className="w-4 h-4" /></button>
+                                                <div className="w-px bg-slate-200 my-1 mx-1"></div>
+                                                <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-500 rounded hover:bg-red-50 transition-colors" title="מחק רכיב"><IconTrash className="w-4 h-4" /></button>
+                                            </div>
 
-                                    {/* Teacher Tip */}
-                                    <div className="mt-8 bg-amber-50 rounded-xl p-6 border border-amber-100 flex gap-4 print:border-amber-200">
-                                        <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
-                                            <IconSparkles className="w-5 h-5" />
+                                            {/* Time Estimate Badge (Absolute) */}
+                                            <div className="absolute top-6 left-6 bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full print:hidden">
+                                                ⏱️ 5 דק'
+                                            </div>
+
+                                            {/* Step Header */}
+                                            <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+                                                <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
+                                                    {idx + 1}
+                                                </span>
+
+                                                {/* Block Type Icon & Label (Hebrew Only) */}
+                                                <div className="flex items-center gap-2 text-slate-400">
+                                                    {getBlockTitle(block) ? (
+                                                        <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
+                                                    ) : (
+                                                        <BlockIcon className="w-4 h-4" />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Content */}
+                                            <div className="prose prose-lg max-w-none prose-headings:font-black prose-p:text-slate-600 prose-li:text-slate-600 mb-6">
+                                                {renderBlockContent(block)}
+                                            </div>
+
+                                            {/* Refine Toolbar - Now at bottom of block CONTENT area like UnitEditor */}
+                                            {editingBlockId === block.id && renderRefineToolbar(block)}
+
+                                            {/* Edit Trigger (If Not Editing) - Centered or accessible */}
+                                            {editingBlockId !== block.id && (
+                                                <div className="flex justify-end -mt-4 mb-4">
+                                                    <button
+                                                        onClick={() => setEditingBlockId(block.id)}
+                                                        className="flex items-center gap-2 px-4 py-2 text-blue-500 hover:text-white hover:bg-blue-600 rounded-lg transition-all text-xs font-bold bg-blue-50 border border-blue-100"
+                                                    >
+                                                        <IconSparkles className="w-4 h-4" />
+                                                        שפרו / ערכו עם AI
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Teacher Tip */}
+                                            <div className="mt-4 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
+                                                <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
+                                                    <IconSparkles className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
+                                                    <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
+                                                        {getTeacherTip(block)}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
-                                            <p className="text-base text-amber-800/90 leading-relaxed font-medium">
-                                                {getTeacherTip(block)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+
+                                        {/* Insert Menu After Each Block */}
+                                        <InsertMenu index={idx + 1} />
+                                    </React.Fragment>
+                                );
+                            })}
                         </div>
 
                         {/* Summary Anchor */}
