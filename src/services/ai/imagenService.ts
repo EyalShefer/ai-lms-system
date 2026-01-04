@@ -9,12 +9,15 @@
  * 4. Update firebase.json with Imagen endpoint
  */
 
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { functions } from '../../firebase';
+
 /**
  * Imagen 3 configuration
  */
 export const IMAGEN_CONFIG = {
     model: 'imagen-3.0-generate-001',
-    endpoint: '/api/imagen/generate', // Proxy endpoint
+    endpoint: 'generateImagenImage', // Cloud Function name
     imageSize: '1024x1024',
     outputFormat: 'PNG',
     aspectRatio: '1:1',
@@ -23,11 +26,12 @@ export const IMAGEN_CONFIG = {
 
 /**
  * Check if Imagen is available and configured
+ * Set to true to enable Imagen 3 (requires Cloud Function deployment)
  */
 export const isImagenAvailable = (): boolean => {
-    // Check if Imagen proxy endpoint is configured
-    // In production, this would check environment variables
-    return false; // Set to true when Imagen is fully configured
+    // Enable Imagen after deploying Cloud Functions
+    // Run: firebase deploy --only functions:generateImagenImage
+    return import.meta.env.VITE_ENABLE_IMAGEN === 'true' || false;
 };
 
 /**
@@ -42,39 +46,47 @@ export const generateImagenImage = async (prompt: string): Promise<Blob | null> 
     }
 
     try {
-        console.log('🎨 Generating image with Imagen 3...');
+        console.log('🎨 Generating image with Imagen 3 via Cloud Function...');
 
-        // Call Imagen proxy endpoint
-        const response = await fetch(IMAGEN_CONFIG.endpoint, {
+        // Get user ID for rate limiting
+        const { auth } = await import('../../firebase');
+        const userId = auth.currentUser?.uid;
+
+        // Call Cloud Function directly (HTTP endpoint for better CORS handling)
+        const functionUrl = import.meta.env.VITE_IMAGEN_FUNCTION_URL ||
+            `https://us-central1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net/generateImagenImage`;
+
+        const response = await fetch(functionUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 prompt,
-                model: IMAGEN_CONFIG.model,
-                aspectRatio: IMAGEN_CONFIG.aspectRatio,
-                sampleCount: IMAGEN_CONFIG.sampleCount,
-                outputFormat: IMAGEN_CONFIG.outputFormat
+                userId
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Imagen API error: ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({ error: response.statusText }));
+            throw new Error(`Imagen API error: ${errorData.error || response.statusText}`);
         }
 
         const data = await response.json();
 
-        // Imagen returns base64-encoded images
-        if (data.predictions && data.predictions[0]?.bytesBase64Encoded) {
-            const base64Data = data.predictions[0].bytesBase64Encoded;
+        // Extract base64 image from response
+        if (data.success && data.image?.base64) {
+            const base64Data = data.image.base64;
             const byteCharacters = atob(base64Data);
             const byteNumbers = new Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
                 byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
             const byteArray = new Uint8Array(byteNumbers);
-            return new Blob([byteArray], { type: 'image/png' });
+
+            console.log(`✅ Imagen 3 generation successful (${data.metadata?.generationTime}ms, cost: $${data.metadata?.cost})`);
+
+            return new Blob([byteArray], { type: data.image.mimeType || 'image/png' });
         }
 
         return null;

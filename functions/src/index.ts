@@ -916,3 +916,8 @@ export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
     const deleted = await cleanupOldEvents(30); // Delete events older than 30 days
     logger.info(`Cleaned up ${deleted} old events`);
 });
+
+// --- IMAGEN 3 CLOUD FUNCTIONS ---
+// Import and export Imagen 3 proxy functions
+import { generateImagenImage, imagenHealthCheck, imagenStats } from './imagenProxy';
+export { generateImagenImage, imagenHealthCheck, imagenStats };
