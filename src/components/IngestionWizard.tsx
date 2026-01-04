@@ -733,7 +733,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                     התאמה פדגוגית
                                 </h3>
 
-                                {selectedProduct !== 'lesson' && (
+                                {selectedProduct === 'game' && (
                                     <>
                                         {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
                                         <div
