@@ -147,3 +147,106 @@ export interface SourceGuideData {
     faq: { question: string; answer: string }[];
 }
 
+// === TEACHER LESSON PLAN ARCHITECTURE (Master Teacher V4 - Enhanced) ===
+
+export type MediaAssetType = 'image_description' | 'youtube_timestamp' | 'ai_generated_image' | 'infographic' | 'none';
+
+export interface MediaAsset {
+    type: MediaAssetType;
+    content: string; // "Start: 02:10, End: 04:00" OR "Description of image..." OR Image URL
+    prompt?: string; // AI prompt used to generate the image (if ai_generated_image)
+    url?: string; // Generated image URL (populated after AI generation)
+    status?: 'pending' | 'generated' | 'failed'; // Generation status
+}
+
+export interface LessonMetadata {
+    title: string;
+    target_audience: string;
+    duration: string;
+    subject?: string;
+    learning_objectives?: string[]; // Added: Clear learning goals
+}
+
+export interface HookSection {
+    script_for_teacher: string;
+    media_asset?: MediaAsset;
+    classroom_management_tip?: string; // Added: Tips for teacher (e.g., "If students are noisy, wait 10 seconds")
+}
+
+export interface DirectInstructionSlide {
+    slide_title: string;
+    bullet_points_for_board: string[];
+    script_to_say: string;
+    media_asset?: MediaAsset;
+    timing_estimate?: string; // Added: e.g., "3-5 minutes"
+    differentiation_note?: string; // Added: Tips for advanced/struggling students
+}
+
+export interface DirectInstructionSection {
+    slides: DirectInstructionSlide[];
+}
+
+/**
+ * Guided Practice - Pedagogical guidance for in-class practice
+ * (המורה מנחה את התלמידים בכיתה)
+ */
+export interface GuidedPracticeSection {
+    teacher_facilitation_script: string; // How to introduce and guide the practice
+    suggested_activities: {
+        activity_type: string; // e.g., "multiple-choice", "memory_game"
+        description: string; // What this activity should assess
+        facilitation_tip?: string; // How to guide students through it
+    }[];
+    differentiation_strategies?: {
+        for_struggling_students: string;
+        for_advanced_students: string;
+    };
+    assessment_tips?: string[]; // What to look for while students practice
+}
+
+/**
+ * Independent Practice - Ready-to-use digital activities
+ * (פעילויות דיגיטליות מוכנות לשליחה לתלמידים)
+ */
+export interface IndependentPracticeSection {
+    introduction_text: string; // Brief instructions for students
+    interactive_blocks: any[]; // Array of ActivityBlock (ready-to-use activities)
+    estimated_duration?: string; // e.g., "10-15 דקות"
+    shareable_link?: string; // Generated link to share with students
+}
+
+export interface DiscussionSection {
+    questions: string[];
+    facilitation_tips?: string[]; // Added: How to guide discussion
+}
+
+export interface SummarySection {
+    takeaway_sentence: string;
+    visual_summary?: MediaAsset; // Added: Optional visual summary/infographic
+    homework_suggestion?: string; // Added: Optional follow-up activity
+}
+
+/**
+ * The Master Teacher Lesson Plan Structure V4 (Enhanced)
+ *
+ * KEY IMPROVEMENTS:
+ * - Auto-generated visuals (AI images, infographics)
+ * - TWO types of practice sections:
+ *   1. Guided Practice: Pedagogical guidance for in-class facilitation
+ *   2. Independent Practice: Ready-to-use digital activities (shareable with students)
+ * - Classroom management tips embedded
+ * - Differentiation strategies included
+ * - Rich metadata and learning objectives
+ *
+ * (Distinct from Student Activity / Quiz)
+ */
+export interface TeacherLessonPlan {
+    lesson_metadata: LessonMetadata;
+    hook: HookSection;
+    direct_instruction: DirectInstructionSection;
+    guided_practice: GuidedPracticeSection;
+    independent_practice: IndependentPracticeSection;
+    discussion: DiscussionSection;
+    summary: SummarySection;
+}
+

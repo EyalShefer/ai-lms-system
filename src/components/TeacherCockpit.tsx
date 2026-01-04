@@ -163,10 +163,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
         }
     };
 
-    const handlePrint = () => {
-        window.print();
-    };
-
     const handleExportPDF = () => {
         // Use the stored lesson plan from metadata, or create a basic one from available data
         const lessonPlan: TeacherLessonPlan = unit.metadata?.lessonPlan || {
@@ -184,11 +180,29 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                 slides: []
             },
             guided_practice: {
-                teacher_instruction: 'השתמשו בפעילויות האינטראקטיביות המצורפות',
-                wizdi_tool_reference: 'Interactive Activity Generator',
-                suggested_block_types: unit.activityBlocks
+                teacher_facilitation_script: 'השתמשו בפעילויות האינטראקטיביות המצורפות כדי לתרגל את הנושא בכיתה. הנחו את התלמידים בצורה מדורגת.',
+                suggested_activities: unit.activityBlocks
                     .filter(b => ['multiple-choice', 'memory_game', 'fill_in_blanks', 'ordering', 'categorization', 'drag_and_drop', 'hotspot', 'open-question'].includes(b.type))
-                    .map(b => b.type)
+                    .map(b => ({
+                        activity_type: b.type,
+                        description: `פעילות ${b.type} לתרגול`,
+                        facilitation_tip: 'תנו לתלמידים זמן לעבודה עצמאית ואז דונו בתשובות'
+                    })),
+                differentiation_strategies: {
+                    for_struggling_students: 'תנו רמזים נוספים ופרקו את המשימה לשלבים קטנים יותר',
+                    for_advanced_students: 'הוסיפו שאלות העמקה ואתגרו אותם לחשיבה ביקורתית'
+                },
+                assessment_tips: ['שימו לב להבנת המושגים הבסיסיים', 'בדקו את יכולת היישום']
+            },
+            independent_practice: {
+                introduction_text: 'פעילויות אינטראקטיביות לתרגול עצמאי',
+                interactive_blocks: unit.activityBlocks
+                    .filter(b => ['multiple-choice', 'memory_game', 'fill_in_blanks', 'ordering', 'categorization', 'drag_and_drop', 'hotspot', 'open-question'].includes(b.type))
+                    .map(b => ({
+                        type: b.type,
+                        data: b.content
+                    })),
+                estimated_duration: '10-15 דקות'
             },
             discussion: {
                 questions: []
@@ -729,7 +743,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
         if (block.type === 'multiple-choice') return "ודאו שכל התלמידים מבינים את ההבדל בין המסיחים. שאלו: 'למה לדעתכם תשובה ב' אינה נכונה?'";
         if (block.type === 'open-question') return "עודדו תשובות מגוונות. אין תשובה אחת נכונה. שימו לב לתלמידים השקטים.";
         if (block.type === 'categorization') return "חלקו את הכיתה לקבוצות קטנות. תנו להם 5 דקות לדיון לפני האיסוף במליאה.";
-        return "שימו לב לקצב הלימוד. ודאו שכולם איתכם לפני המעבר לשלב הבא.";
+        return null;
     };
 
     if (embedded) {
@@ -786,17 +800,19 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                                     </div>
 
                                     {/* Teacher Tip */}
-                                    <div className="mt-8 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
-                                        <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
-                                            <IconSparkles className="w-4 h-4" />
+                                    {getTeacherTip(block) && (
+                                        <div className="mt-8 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
+                                            <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
+                                                <IconSparkles className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
+                                                <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
+                                                    {getTeacherTip(block)}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
-                                            <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
-                                                {getTeacherTip(block)}
-                                            </p>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -865,12 +881,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         <button onClick={handleExportPDF} className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition shadow-sm" title="יצוא ל-PDF">
                             <IconPrinter className="w-5 h-5" />
                             <span className="hidden md:inline">יצוא PDF</span>
-                        </button>
-
-                        {/* Print Button */}
-                        <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition" title="הדפס">
-                            <IconPrinter className="w-4 h-4" />
-                            <span className="hidden md:inline text-sm">הדפס</span>
                         </button>
 
                         <div className="h-8 w-px bg-slate-200 mx-2"></div>
@@ -1083,17 +1093,19 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                                             )}
 
                                             {/* Teacher Tip */}
-                                            <div className="mt-4 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
-                                                <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
-                                                    <IconSparkles className="w-4 h-4" />
+                                            {getTeacherTip(block) && (
+                                                <div className="mt-4 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
+                                                    <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
+                                                        <IconSparkles className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
+                                                        <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
+                                                            {getTeacherTip(block)}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
-                                                    <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
-                                                        {getTeacherTip(block)}
-                                                    </p>
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
 
                                         {/* Insert Menu After Each Block */}

@@ -145,12 +145,12 @@ export const exportLessonPlanToPDF = (lessonPlan: TeacherLessonPlan): Blob => {
   });
 
   // ===== GUIDED PRACTICE =====
-  addHeading('תרגול מודרך (Guided Practice)', '🛠️');
-  addText(lessonPlan.guided_practice.teacher_instruction);
+  addHeading('תרגול מודרך - הנחיה בכיתה (Guided Practice)', '🧑‍🏫');
+  addText(lessonPlan.guided_practice.teacher_facilitation_script);
 
-  if (lessonPlan.guided_practice.suggested_block_types && lessonPlan.guided_practice.suggested_block_types.length > 0) {
+  if (lessonPlan.guided_practice.suggested_activities && lessonPlan.guided_practice.suggested_activities.length > 0) {
     doc.setFont('helvetica', 'bold');
-    addText('פעילויות אינטראקטיביות מומלצות:', 11);
+    addText('פעילויות מוצעות עם הנחיות פדגוגיות:', 11);
     doc.setFont('helvetica', 'normal');
 
     const activityNames: { [key: string]: string } = {
@@ -164,9 +164,47 @@ export const exportLessonPlanToPDF = (lessonPlan: TeacherLessonPlan): Blob => {
       'open-question': 'שאלה פתוחה'
     };
 
-    addBulletList(lessonPlan.guided_practice.suggested_block_types.map(
-      type => activityNames[type] || type
-    ));
+    lessonPlan.guided_practice.suggested_activities.forEach(activity => {
+      const activityName = activityNames[activity.activity_type] || activity.activity_type;
+      addText(`• ${activityName}: ${activity.description}`);
+      if (activity.facilitation_tip) {
+        doc.setTextColor(100, 100, 100);
+        addText(`  💡 ${activity.facilitation_tip}`, 9);
+        doc.setTextColor(0, 0, 0);
+      }
+    });
+  }
+
+  if (lessonPlan.guided_practice.differentiation_strategies) {
+    doc.setFont('helvetica', 'bold');
+    addText('דיפרנציאציה:', 11);
+    doc.setFont('helvetica', 'normal');
+    addText(`👥 תלמידים מתקשים: ${lessonPlan.guided_practice.differentiation_strategies.for_struggling_students}`);
+    addText(`🚀 תלמידים מתקדמים: ${lessonPlan.guided_practice.differentiation_strategies.for_advanced_students}`);
+  }
+
+  if (lessonPlan.guided_practice.assessment_tips && lessonPlan.guided_practice.assessment_tips.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    addText('על מה לשים לב:', 11);
+    doc.setFont('helvetica', 'normal');
+    addBulletList(lessonPlan.guided_practice.assessment_tips);
+  }
+
+  // ===== INDEPENDENT PRACTICE =====
+  addHeading('תרגול עצמאי - פעילויות דיגיטליות (Independent Practice)', '💻');
+  addText(lessonPlan.independent_practice?.introduction_text || 'פעילויות אינטראקטיביות לתרגול עצמאי');
+
+  if (lessonPlan.independent_practice?.estimated_duration) {
+    doc.setFont('helvetica', 'italic');
+    addText(`⏱️ משך משוער: ${lessonPlan.independent_practice.estimated_duration}`, 10);
+    doc.setFont('helvetica', 'normal');
+  }
+
+  if (lessonPlan.independent_practice?.interactive_blocks && lessonPlan.independent_practice.interactive_blocks.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    addText(`🎮 ${lessonPlan.independent_practice.interactive_blocks.length} פעילויות אינטראקטיביות מוכנות`, 11);
+    doc.setFont('helvetica', 'normal');
+    addText('(ניתנות לשיתוף עם תלמידים דרך המערכת)', 9);
   }
 
   // ===== DISCUSSION =====

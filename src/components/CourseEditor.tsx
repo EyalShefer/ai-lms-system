@@ -316,17 +316,19 @@ const CourseEditor: React.FC = () => {
                         lessonPlan = await generateLessonVisuals(lessonPlan);
                         console.log("✅ Visual assets generation completed");
 
-                        // 2.6 Auto-Generate Interactive Blocks (NEW!)
-                        let interactiveBlocks: any[] = [];
-                        if (lessonPlan.guided_practice.suggested_block_types && lessonPlan.guided_practice.suggested_block_types.length > 0) {
-                            console.log("🎮 Auto-generating interactive activities...");
-                            interactiveBlocks = await generateInteractiveBlocks(
-                                lessonPlan.guided_practice.suggested_block_types,
-                                sourceText,
-                                unit.title,
-                                grade
-                            );
-                            console.log(`✅ Generated ${interactiveBlocks.length} interactive blocks`);
+                        // 2.6 Process Independent Practice Interactive Blocks (NEW!)
+                        let independentPracticeBlocks: any[] = [];
+                        if (lessonPlan.independent_practice?.interactive_blocks && lessonPlan.independent_practice.interactive_blocks.length > 0) {
+                            console.log("🎮 Processing independent practice interactive blocks...");
+                            // Map the AI-generated blocks to ActivityBlocks format
+                            independentPracticeBlocks = lessonPlan.independent_practice.interactive_blocks.map((block: any) => {
+                                return mapSystemItemToBlock({
+                                    type: block.type,
+                                    selected_interaction: block.type,
+                                    ...block.data
+                                });
+                            });
+                            console.log(`✅ Processed ${independentPracticeBlocks.length} independent practice blocks`);
                         }
 
                         // 3. Map to Blocks (Visual Guide)
@@ -386,34 +388,67 @@ const CourseEditor: React.FC = () => {
                                 type: 'text',
                                 content: `
                                     <div class="lesson-section practice">
-                                        <h3>🛠️ תרגול מודרך (Guided Practice)</h3>
-                                        <p><strong>🎯 הנחיה למורה:</strong> ${lessonPlan.guided_practice.teacher_instruction}</p>
-                                        ${lessonPlan.guided_practice.suggested_block_types ? `
+                                        <h3>🧑‍🏫 תרגול מודרך (Guided Practice - In-Class)</h3>
+                                        <p><strong>🎯 הנחיה להנחיית התרגול:</strong> ${lessonPlan.guided_practice.teacher_facilitation_script}</p>
+                                        ${lessonPlan.guided_practice.suggested_activities && lessonPlan.guided_practice.suggested_activities.length > 0 ? `
                                             <div class="suggested-activities">
-                                                <strong>💡 פעילויות מומלצות להוספה:</strong>
-                                                <ul>${lessonPlan.guided_practice.suggested_block_types.map(type => {
+                                                <strong>💡 פעילויות מוצעות (עם הנחיות פדגוגיות):</strong>
+                                                <ul>${lessonPlan.guided_practice.suggested_activities.map(activity => {
                                                     const typeNames: Record<string, string> = {
                                                         'multiple-choice': 'שאלה אמריקאית',
                                                         'memory_game': 'משחק זיכרון',
                                                         'fill_in_blanks': 'השלמת משפטים',
                                                         'ordering': 'סידור רצף',
                                                         'categorization': 'מיון לקטגוריות',
+                                                        'drag_and_drop': 'גרירה והשמה',
+                                                        'hotspot': 'נקודות חמות',
                                                         'open-question': 'שאלה פתוחה'
                                                     };
-                                                    return `<li>✨ ${typeNames[type] || type}</li>`;
+                                                    return `
+                                                        <li>
+                                                            <strong>✨ ${typeNames[activity.activity_type] || activity.activity_type}</strong>
+                                                            <br/>📋 ${activity.description}
+                                                            ${activity.facilitation_tip ? `<br/>💡 <em>${activity.facilitation_tip}</em>` : ''}
+                                                        </li>
+                                                    `;
                                                 }).join('')}</ul>
-                                                <p style="margin-top: 0.5rem; font-size: 0.9em; color: #666;">💡 לחץ על "הוסף רכיב" למטה כדי להוסיף פעילויות אינטראקטיביות</p>
                                             </div>
                                         ` : ''}
-                                        <div class="wizdi-tool">
-                                            <strong>🚀 כלי דיגיטלי:</strong> ${lessonPlan.guided_practice.wizdi_tool_reference}
+                                        ${lessonPlan.guided_practice.differentiation_strategies ? `
+                                            <div class="differentiation">
+                                                <strong>🎯 דיפרנציאציה:</strong>
+                                                <p>👥 <strong>תלמידים מתקשים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_struggling_students}</p>
+                                                <p>🚀 <strong>תלמידים מתקדמים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_advanced_students}</p>
+                                            </div>
+                                        ` : ''}
+                                        ${lessonPlan.guided_practice.assessment_tips && lessonPlan.guided_practice.assessment_tips.length > 0 ? `
+                                            <div class="assessment-tips">
+                                                <strong>📊 על מה לשים לב במהלך התרגול:</strong>
+                                                <ul>${lessonPlan.guided_practice.assessment_tips.map(tip => `<li>${tip}</li>`).join('')}</ul>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `,
+                                metadata: { time: '10 min', bloomLevel: 'apply' }
+                            },
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section independent-practice">
+                                        <h3>💻 תרגול עצמאי (Independent Practice - Digital)</h3>
+                                        <p><strong>📝 הנחיות לתלמידים:</strong> ${lessonPlan.independent_practice?.introduction_text || 'פעילויות אינטראקטיביות לתרגול'}</p>
+                                        ${lessonPlan.independent_practice?.estimated_duration ? `<div class="duration-badge">⏱️ משך משוער: ${lessonPlan.independent_practice.estimated_duration}</div>` : ''}
+                                        <div class="share-info">
+                                            <p>🔗 <strong>הפעילויות למטה ניתנות לשיתוף עם תלמידים!</strong></p>
+                                            <p style="font-size: 0.9em; color: #666;">💡 גלול למטה כדי לראות את הפעילויות האינטראקטיביות המוכנות</p>
                                         </div>
                                     </div>
                                 `,
-                                metadata: { time: '15 min', bloomLevel: 'apply' }
+                                metadata: { time: '10 min', bloomLevel: 'apply' }
                             },
-                            // AUTO-GENERATED INTERACTIVE BLOCKS (NEW!)
-                            ...interactiveBlocks,
+                            // INDEPENDENT PRACTICE INTERACTIVE BLOCKS (NEW!)
+                            ...independentPracticeBlocks,
                             {
                                 id: crypto.randomUUID(),
                                 type: 'text',

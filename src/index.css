@@ -336,6 +336,10 @@
     /* Tailwind group utility applied in JSX */
 }
 
+.generated-visual:hover {
+    @apply opacity-100;
+}
+
 .generated-visual img {
     @apply w-full rounded-xl shadow-lg border-2 border-slate-100 transition-all;
 }

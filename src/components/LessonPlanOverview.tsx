@@ -3,7 +3,7 @@ import type { Course, Module, LearningUnit } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import {
     IconPlus, IconEdit, IconTrash, IconArrowUp, IconArrowDown,
-    IconRobot, IconEye, IconPrinter, IconShare, IconPlayerPlay, IconBook,
+    IconRobot, IconEye, IconShare, IconPlayerPlay, IconBook,
     IconClock, IconChat, IconJoystick, IconFlag, IconSparkles
 } from '../icons';
 // import { useCourseStore } from '../context/CourseContext'; // Remove unused import if not needed
@@ -132,10 +132,6 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     } | null>(null);
 
     // --- Toolbar Actions ---
-    const handlePrint = () => {
-        window.print();
-    };
-
     const handleShare = (unitId?: string, unitTitle?: string, initialTab: 'link' | 'classroom' | 'collab' = 'link') => {
         setShareOptions({
             courseTitle: course.title,
@@ -199,13 +195,6 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                             title="תצוגת תלמיד דמו"
                         >
                             <IconEye className="w-[22px] h-[22px]" />
-                        </button>
-                        <button
-                            onClick={handlePrint}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors tooltip"
-                            title="הדפסת מערך"
-                        >
-                            <IconPrinter className="w-[22px] h-[22px]" />
                         </button>
                         <button
                             onClick={() => handleShare(undefined, undefined, 'collab')}
@@ -399,6 +388,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                         <TeacherCockpit
                                                             unit={unit}
                                                             embedded={true}
+                                                            onUnitUpdate={onUnitUpdate}
                                                             onUpdateBlock={(blockId, content) => handleBlockUpdateInUnit(unit, blockId, content)}
                                                         // onEdit removed to prevent redundant "Advanced Settings" button
                                                         />

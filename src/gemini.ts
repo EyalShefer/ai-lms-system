@@ -10,6 +10,51 @@ import { auth } from './firebase';
 import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
 import { detectInfographicType } from './utils/infographicDetector';
 
+/**
+ * Maps grade level to age-appropriate character description for image generation
+ */
+const getAgeAppropriateCharacterDescription = (gradeLevel: string): string => {
+  // Extract grade number from various formats (e.g., "כיתה ז", "ז", "7", "Grade 7")
+  const gradeMatch = gradeLevel.match(/[א-ת]|[1-9][0-2]?/);
+  if (!gradeMatch) return 'children aged 10-12';
+
+  const grade = gradeMatch[0];
+
+  // Hebrew grades to age mapping
+  const hebrewGradeMap: Record<string, string> = {
+    'א': 'young children aged 6-7 (first grade)',
+    'ב': 'children aged 7-8 (second grade)',
+    'ג': 'children aged 8-9 (third grade)',
+    'ד': 'children aged 9-10 (fourth grade)',
+    'ה': 'pre-teens aged 10-11 (fifth grade)',
+    'ו': 'pre-teens aged 11-12 (sixth grade)',
+    'ז': 'young teenagers aged 12-13 (seventh grade, middle school)',
+    'ח': 'teenagers aged 13-14 (eighth grade, middle school)',
+    'ט': 'teenagers aged 14-15 (ninth grade, high school)',
+    'י': 'high school students aged 15-16 (tenth grade)',
+    'יא': 'high school students aged 16-17 (eleventh grade)',
+    'יב': 'high school seniors aged 17-18 (twelfth grade)',
+  };
+
+  // Numeric grades to age mapping
+  const numericGradeMap: Record<string, string> = {
+    '1': 'young children aged 6-7 (first grade)',
+    '2': 'children aged 7-8 (second grade)',
+    '3': 'children aged 8-9 (third grade)',
+    '4': 'children aged 9-10 (fourth grade)',
+    '5': 'pre-teens aged 10-11 (fifth grade)',
+    '6': 'pre-teens aged 11-12 (sixth grade)',
+    '7': 'young teenagers aged 12-13 (seventh grade, middle school)',
+    '8': 'teenagers aged 13-14 (eighth grade, middle school)',
+    '9': 'teenagers aged 14-15 (ninth grade, high school)',
+    '10': 'high school students aged 15-16 (tenth grade)',
+    '11': 'high school students aged 16-17 (eleventh grade)',
+    '12': 'high school seniors aged 17-18 (twelfth grade)',
+  };
+
+  return hebrewGradeMap[grade] || numericGradeMap[grade] || 'students aged 10-14';
+};
+
 export const functions = getFunctions(getApp());
 // if (window.location.hostname === "localhost") {
 //     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
@@ -558,6 +603,7 @@ export const generateTeacherStepContent = async (
 
     🎯 IMAGE PROMPT GUIDELINES:
     - Start with art style: "Educational diagram", "Photorealistic", "Colorful illustration for grade ${gradeLevel}"
+    - If showing people/students: MUST specify age-appropriate characters - "${getAgeAppropriateCharacterDescription(gradeLevel)}"
     - Include specific visual elements: colors, labels, arrows, comparisons
     - Keep culturally neutral and age-appropriate
     - Hebrew text in images should be minimal (use English labels)
@@ -623,28 +669,38 @@ export const generateTeacherStepContent = async (
     - GENERIC IMAGE if: Needs illustration, photo, or scene
     So just provide detailed prompts - the system will choose the best format!
 
-    3. GUIDED PRACTICE (15 min) - INTERACTIVE ACTIVITIES
-    Goal: Hands-on practice with immediate feedback
+    3. GUIDED PRACTICE (10 min) - IN-CLASS FACILITATION
+    Goal: Teacher-led practice with pedagogical guidance
     Output:
-    - Teacher transition script
-    - Suggested interactive activity types (choose 2-3 from list):
-      * multiple-choice (for concept checking)
-      * memory_game (for vocabulary/definitions)
-      * fill_in_blanks (for completing key sentences)
-      * ordering (for sequencing events/steps)
-      * categorization (for sorting concepts)
-      * drag_and_drop (for matching items to zones)
-      * hotspot (for exploring labeled diagrams)
-      * open-question (for deeper thinking)
-    - Brief description of what each activity should assess
+    - Teacher facilitation script (how to introduce and guide the practice)
+    - Suggested activities (2-3) with pedagogical reasoning:
+      * activity_type: Choose from multiple-choice, memory_game, ordering, categorization, etc.
+      * description: What this activity should assess (e.g., "בדיקת הבנת המושג...")
+      * facilitation_tip: How to guide students (e.g., "תן 2 דקות לעבודה עצמית, אז דון בזוגות")
+    - Differentiation strategies (for struggling and advanced students)
+    - Assessment tips (what to look for while students practice)
 
-    4. DISCUSSION (5 min)
+    4. INDEPENDENT PRACTICE (10 min) - DIGITAL ACTIVITIES
+    Goal: Ready-to-use interactive activities students can do independently
+    Output:
+    - Brief introduction text for students (in Hebrew)
+    - 2-3 ready-to-use interactive blocks (choose from):
+      * multiple-choice: { question, options (array), correct_answer }
+      * memory_game: { pairs: [{ card_a, card_b }] }
+      * fill_in_blanks: { instruction, items (array), word_bank (array) }
+      * ordering: { instruction, correct_order (array) }
+      * categorization: { question, categories (array), items: [{ text, category }] }
+      * drag_and_drop: { instruction, zones: [{ id, label }], items: [{ id, text, correctZone }] }
+      * open-question: { question }
+    - Estimated duration (e.g., "10-15 דקות")
+
+    5. DISCUSSION (5 min)
     Goal: Oral Assessment + Critical Thinking
     Output:
     - 2-3 open-ended questions (increasing difficulty)
     - Facilitation tips (e.g., "Ask follow-up: 'Why do you think that?'")
 
-    5. SUMMARY (5 min)
+    6. SUMMARY (5 min)
     Goal: Closure + Retention
     Output:
     - ONE memorable takeaway sentence (for notebooks)
@@ -699,12 +755,44 @@ export const generateTeacherStepContent = async (
         ]
       },
       "guided_practice": {
-        "teacher_instruction": "String (Hebrew - transition script)",
-        "wizdi_tool_reference": "Interactive Activity Generator",
-        "suggested_block_types": [
-          "multiple-choice",
-          "memory_game"
+        "teacher_facilitation_script": "String (Hebrew - how to introduce and guide the practice)",
+        "suggested_activities": [
+          {
+            "activity_type": "multiple-choice",
+            "description": "בדיקת הבנת המושג...",
+            "facilitation_tip": "תן 2 דקות לעבודה עצמאית, אז דון בזוגות"
+          }
+        ],
+        "differentiation_strategies": {
+          "for_struggling_students": "Hebrew tip",
+          "for_advanced_students": "Hebrew challenge"
+        },
+        "assessment_tips": [
+          "שים לב ל...",
+          "בדוק אם..."
         ]
+      },
+      "independent_practice": {
+        "introduction_text": "String (Hebrew - brief instructions for students)",
+        "interactive_blocks": [
+          {
+            "type": "multiple-choice",
+            "data": {
+              "question": "String",
+              "options": ["opt1", "opt2", "opt3"],
+              "correct_answer": "opt1"
+            }
+          },
+          {
+            "type": "memory_game",
+            "data": {
+              "pairs": [
+                { "card_a": "מושג 1", "card_b": "הגדרה 1" }
+              ]
+            }
+          }
+        ],
+        "estimated_duration": "10-15 דקות"
       },
       "discussion": {
         "questions": [
@@ -1101,7 +1189,7 @@ export const generateInteractiveBlocks = async (
             {
               "instruction": "לחצו על החלקים השונים בתמונה כדי ללמוד עליהם:",
               "image_description": "תיאור התמונה הנדרשת (לדוגמה: דיאגרמה של מחזור המים)",
-              "image_prompt": "Educational diagram of [topic] with labeled parts, clean illustration style, suitable for grade ${gradeLevel}",
+              "image_prompt": "Educational diagram of [topic] with labeled parts, clean illustration style, suitable for grade ${gradeLevel}. If showing people: feature ${getAgeAppropriateCharacterDescription(gradeLevel)}",
               "hotspots": [
                 {
                   "id": "spot1",
