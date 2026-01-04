@@ -60,10 +60,11 @@ export const generateUnitSkeleton = async (
     productType: 'lesson' | 'game' | 'exam' = 'lesson',
     studentProfile?: any
 ): Promise<UnitSkeleton | null> => {
-    // VAULT MIGRATION: Logic moved to Backend
+    // VAULT MIGRATION: Logic moved to Backend (Fixed Split Brain)
     try {
-        const generateUnitSkeletonFn = httpsCallable(functions, 'generateUnitSkeleton');
-        const response = await generateUnitSkeletonFn({
+        // Mapped to 'generateStudentUnitSkeleton' to ensure it generates a Interactive Unit
+        const generateStudentUnitFn = httpsCallable(functions, 'generateStudentUnitSkeleton');
+        const response = await generateStudentUnitFn({
             topic,
             gradeLevel,
             activityLength,
@@ -83,7 +84,33 @@ export const generateUnitSkeleton = async (
         return null;
 
     } catch (error) {
-        console.error("Vault Error (Backend Generation Failed):", error);
+        console.error("Vault Error (Backend Student Generation Failed):", error);
+        return null;
+    }
+};
+
+export const generateTeacherLessonPlan = async (
+    topic: string,
+    gradeLevel: string,
+    activityLength: 'short' | 'medium' | 'long',
+    sourceText?: string,
+    mode: 'learning' | 'exam' = 'learning',
+    productType: 'lesson' | 'game' | 'exam' = 'lesson'
+): Promise<any | null> => {
+    // New Teacher Flow
+    try {
+        const generateTeacherLessonPlanFn = httpsCallable(functions, 'generateTeacherLessonPlan');
+        const response = await generateTeacherLessonPlanFn({
+            topic,
+            gradeLevel,
+            activityLength,
+            sourceText,
+            mode,
+            productType
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Vault Error (Backend Teacher Plan Failed):", error);
         return null;
     }
 };

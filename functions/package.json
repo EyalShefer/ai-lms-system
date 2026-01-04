@@ -18,6 +18,7 @@
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.0.2",
     "openai": "^6.15.0",
+    "rate-limiter-flexible": "^5.0.3",
     "uuid": "^13.0.0",
     "youtube-transcript": "^1.2.1"
   },

@@ -1,4 +1,5 @@
 import { auth } from '../firebase';
+import { withRetry, withTimeout, getErrorMessage } from '../utils/errorHandling';
 
 export const callAI = async (endpoint: string, payload: any) => {
     // Determine Environment
@@ -48,22 +49,64 @@ export const callAI = async (endpoint: string, payload: any) => {
         body = JSON.stringify(payload);
     }
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body
-        });
+    // Wrap in retry logic with timeout
+    return await withRetry(
+        async () => {
+            return await withTimeout(
+                async () => {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers,
+                        body
+                    });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`AI Request Failed: ${response.status} - ${errorText}`);
+                    if (!response.ok) {
+                        const errorText = await response.text();
+
+                        // Parse rate limit info from headers
+                        const retryAfter = response.headers.get('Retry-After');
+                        const rateLimitReset = response.headers.get('X-RateLimit-Reset');
+
+                        if (response.status === 429) {
+                            const waitTime = retryAfter || '60';
+                            throw new Error(
+                                `Rate Limit Exceeded. נא להמתין ${waitTime} שניות לפני ניסיון נוסף.`
+                            );
+                        }
+
+                        throw new Error(`AI Request Failed: ${response.status} - ${errorText}`);
+                    }
+
+                    return await response.json();
+                },
+                120000, // 2 minutes timeout
+                'הבקשה ארכה זמן רב מדי. נסה שוב.'
+            );
+        },
+        {
+            maxRetries: 3,
+            initialDelay: 1000,
+            backoffMultiplier: 2,
+            onRetry: (attempt, error) => {
+                console.warn(
+                    `[AI Retry] Attempt ${attempt}/3 for ${endpoint}:`,
+                    getErrorMessage(error)
+                );
+            },
+            shouldRetry: (error: Error) => {
+                const message = error.message.toLowerCase();
+                // Don't retry on auth errors or invalid requests
+                if (message.includes('401') || message.includes('403') || message.includes('400')) {
+                    return false;
+                }
+                // Retry on network errors, timeouts, and 500s
+                return (
+                    message.includes('network') ||
+                    message.includes('timeout') ||
+                    message.includes('500') ||
+                    message.includes('econnreset')
+                );
+            }
         }
-
-        return await response.json();
-
-    } catch (error) {
-        console.error("❌ ProxyService Error:", error);
-        throw error;
-    }
+    );
 };
