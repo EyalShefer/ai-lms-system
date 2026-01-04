@@ -1,5 +1,6 @@
 
 import { callAI } from "../ProxyService";
+import { withDeduplication, generateRequestKey } from "../../utils/requestDeduplication";
 import {
     getValidationPrompt,
     getTutorPrompt,
@@ -61,32 +62,48 @@ export const generateUnitSkeleton = async (
     studentProfile?: any
 ): Promise<UnitSkeleton | null> => {
     // VAULT MIGRATION: Logic moved to Backend (Fixed Split Brain)
-    try {
-        // Mapped to 'generateStudentUnitSkeleton' to ensure it generates a Interactive Unit
-        const generateStudentUnitFn = httpsCallable(functions, 'generateStudentUnitSkeleton');
-        const response = await generateStudentUnitFn({
-            topic,
-            gradeLevel,
-            activityLength,
-            sourceText,
-            mode,
-            productType,
-            bloomPreferences, // Optional
-            studentProfile    // Optional
-        });
 
-        const result = response.data as any; // Cast as needed
+    // Generate deduplication key (skip if custom sourceText or bloomPreferences)
+    const shouldDeduplicate = !sourceText && !bloomPreferences && !studentProfile;
+    const requestKey = shouldDeduplicate
+        ? generateRequestKey('generateUnitSkeleton', { topic, gradeLevel, activityLength, mode, productType })
+        : null;
 
-        // Ensure structure matches expectation (Frontend expects JSON with 'steps')
-        if (result && result.steps) {
-            return result as UnitSkeleton;
+    const executeFn = async () => {
+        try {
+            // Mapped to 'generateStudentUnitSkeleton' to ensure it generates a Interactive Unit
+            const generateStudentUnitFn = httpsCallable(functions, 'generateStudentUnitSkeleton');
+            const response = await generateStudentUnitFn({
+                topic,
+                gradeLevel,
+                activityLength,
+                sourceText,
+                mode,
+                productType,
+                bloomPreferences, // Optional
+                studentProfile    // Optional
+            });
+
+            const result = response.data as any; // Cast as needed
+
+            // Ensure structure matches expectation (Frontend expects JSON with 'steps')
+            if (result && result.steps) {
+                return result as UnitSkeleton;
+            }
+            return null;
+
+        } catch (error) {
+            console.error("Vault Error (Backend Student Generation Failed):", error);
+            return null;
         }
-        return null;
+    };
 
-    } catch (error) {
-        console.error("Vault Error (Backend Student Generation Failed):", error);
-        return null;
+    // Use deduplication if applicable
+    if (requestKey) {
+        return withDeduplication(requestKey, executeFn, { ttl: 5000 });
     }
+
+    return executeFn();
 };
 
 export const generateTeacherLessonPlan = async (
