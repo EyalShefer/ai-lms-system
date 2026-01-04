@@ -7,6 +7,8 @@ import type { ValidationResult } from './shared/types/courseTypes';
 import { getFunctions } from "firebase/functions";
 import { cleanJsonString, mapSystemItemToBlock } from './shared/utils/geminiParsers';
 import { auth } from './firebase';
+import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
+import { detectInfographicType } from './utils/infographicDetector';
 
 export const functions = getFunctions(getApp());
 // if (window.location.hostname === "localhost") {
@@ -615,6 +617,12 @@ export const generateTeacherStepContent = async (
     - Timing estimate (e.g., "3-5 minutes")
     - Differentiation note (tips for struggling/advanced students)
 
+    🎨 SMART VISUAL SELECTION FOR SLIDES:
+    The system will automatically detect if your bullet points are suitable for:
+    - INFOGRAPHIC if: Contains numbered steps, timeline, comparison, or cycle
+    - GENERIC IMAGE if: Needs illustration, photo, or scene
+    So just provide detailed prompts - the system will choose the best format!
+
     3. GUIDED PRACTICE (15 min) - INTERACTIVE ACTIVITIES
     Goal: Hands-on practice with immediate feedback
     Output:
@@ -640,8 +648,17 @@ export const generateTeacherStepContent = async (
     Goal: Closure + Retention
     Output:
     - ONE memorable takeaway sentence (for notebooks)
-    - AI image prompt for visual summary/infographic
+    - AI-generated infographic for visual summary
     - Optional homework suggestion
+
+    📊 INFOGRAPHIC GUIDELINES FOR SUMMARY:
+    Your takeaway sentence should be written in a way that naturally fits one of these structures:
+    - FLOWCHART: If the lesson covered a process with sequential steps (תהליך, שלבים)
+    - TIMELINE: If the lesson involved chronological events or historical development (אירועים, התפתחות)
+    - COMPARISON: If the lesson compared different concepts or showed contrasts (השוואה, הבדלים)
+    - CYCLE: If the lesson explained a repeating cycle or loop (מחזור, תהליך חוזר)
+
+    The system will automatically detect the best infographic type based on your takeaway sentence!
 
     OUTPUT FORMAT (JSON Schema): Generate valid JSON in Hebrew (except for field keys).
 
@@ -750,7 +767,7 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
   const updatedPlan = { ...lessonPlan };
   const imagePromises: Promise<void>[] = [];
 
-  // Helper function to generate a single image
+  // Helper function to generate a single image using DALL-E
   const generateImage = async (prompt: string): Promise<string | null> => {
     try {
       const response = await openai.images.generate({
@@ -762,13 +779,32 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
         response_format: "b64_json"
       });
 
-      if (response.data[0].b64_json) {
+      if (response.data && response.data[0]?.b64_json) {
         // Convert base64 to data URL
         return `data:image/png;base64,${response.data[0].b64_json}`;
       }
       return null;
     } catch (error) {
       console.error("Image generation failed for prompt:", prompt, error);
+      return null;
+    }
+  };
+
+  // Helper function to generate infographic using specialized function
+  const generateInfographic = async (
+    text: string,
+    infographicType: InfographicType,
+    topic?: string
+  ): Promise<string | null> => {
+    try {
+      console.log(`🎨 Generating ${infographicType} infographic for: "${text.substring(0, 50)}..."`);
+      const blob = await generateInfographicFromText(text, infographicType, topic);
+      if (blob) {
+        return URL.createObjectURL(blob);
+      }
+      return null;
+    } catch (error) {
+      console.error("Infographic generation failed:", error);
       return null;
     }
   };
@@ -787,26 +823,58 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
     );
   }
 
-  // 2. Generate Direct Instruction Slide Images
+  // 2. Generate Direct Instruction Slide Images with Smart Infographic Detection
   updatedPlan.direct_instruction.slides.forEach((slide, index) => {
     if (slide.media_asset?.type === 'ai_generated_image' && slide.media_asset.prompt) {
-      imagePromises.push(
-        generateImage(slide.media_asset.prompt).then(url => {
-          if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
-            updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
-            updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
-          } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
-            updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
-          }
-        })
-      );
+      // 🔍 SMART DETECTION: Check if slide content is suitable for infographic
+      const slideContent = slide.bullet_points_for_board.join('\n');
+      const detection = detectInfographicType(slideContent);
+
+      if (detection.confidence > 0.6) {
+        // High confidence - use structured infographic instead of generic image
+        console.log(`📊 Slide ${index + 1}: Detected ${detection.suggestedType} pattern (confidence: ${detection.confidence.toFixed(2)})`);
+        imagePromises.push(
+          generateInfographic(slideContent, detection.suggestedType, slide.slide_title).then(url => {
+            if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
+              updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
+              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
+              updatedPlan.direct_instruction.slides[index].media_asset!.type = 'infographic';
+            } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
+              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
+            }
+          })
+        );
+      } else {
+        // Low confidence - use regular DALL-E image
+        imagePromises.push(
+          generateImage(slide.media_asset.prompt).then(url => {
+            if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
+              updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
+              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
+            } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
+              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
+            }
+          })
+        );
+      }
     }
   });
 
-  // 3. Generate Summary Visual
-  if (updatedPlan.summary.visual_summary?.type === 'infographic' && updatedPlan.summary.visual_summary.prompt) {
+  // 3. Generate Summary Visual - USE SPECIALIZED INFOGRAPHIC FUNCTION
+  if (updatedPlan.summary.visual_summary?.type === 'infographic') {
+    // Use the specialized infographic generator instead of generic DALL-E
+    const summaryText = updatedPlan.summary.takeaway_sentence;
+    const detection = detectInfographicType(summaryText);
+
+    console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic (confidence: ${detection.confidence.toFixed(2)})`);
+    console.log(`   Reason: ${detection.reason}`);
+
     imagePromises.push(
-      generateImage(updatedPlan.summary.visual_summary.prompt).then(url => {
+      generateInfographic(
+        summaryText,
+        detection.suggestedType,
+        updatedPlan.lesson_metadata.subject
+      ).then(url => {
         if (url && updatedPlan.summary.visual_summary) {
           updatedPlan.summary.visual_summary.url = url;
           updatedPlan.summary.visual_summary.status = 'generated';
@@ -820,9 +888,13 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
   // Wait for all images to generate (in parallel)
   await Promise.all(imagePromises);
 
-  const successCount = imagePromises.length - imagePromises.filter((_, i) =>
-    updatedPlan.hook.media_asset?.status === 'failed'
-  ).length;
+  // Count successes
+  let successCount = 0;
+  if (updatedPlan.hook.media_asset?.status === 'generated') successCount++;
+  updatedPlan.direct_instruction.slides.forEach(slide => {
+    if (slide.media_asset?.status === 'generated') successCount++;
+  });
+  if (updatedPlan.summary.visual_summary?.status === 'generated') successCount++;
 
   console.log(`✅ Generated ${successCount}/${imagePromises.length} images successfully`);
 
