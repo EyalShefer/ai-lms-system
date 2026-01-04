@@ -104,6 +104,7 @@ export interface SkeletonStep {
 
 export interface UnitSkeleton {
     unit_title: string;
+    goals: string[];
     steps: SkeletonStep[];
 }
 

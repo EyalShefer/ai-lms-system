@@ -724,9 +724,17 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                                 יעדי השיעור
                             </h2>
                             <ul className="space-y-2 text-slate-600 list-disc list-inside">
-                                <li>התלמיד יבין את הנושא המרכזי ({unit.title}).</li>
-                                <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
-                                <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
+                                {(unit.goals && unit.goals.length > 0) ? (
+                                    unit.goals.map((goal, i) => (
+                                        <li key={i}>{goal}</li>
+                                    ))
+                                ) : (
+                                    <>
+                                        <li>התלמיד יבין את הנושא המרכזי ({unit.title}).</li>
+                                        <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
+                                        <li>התלמיד יתרגל יישום של החומר הנלמד.</li>
+                                    </>
+                                )}
                             </ul>
                         </div>
 

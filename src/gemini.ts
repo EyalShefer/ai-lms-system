@@ -246,6 +246,7 @@ export const generateUnitSkeleton = async (
     Output JSON Structure:
     {
       "unit_title": "String",
+      "goals": ["Goal 1 (Understand)", "Goal 2 (Practice)", "Goal 3 (Analyze)"],
       "steps": [
         {
           "step_number": 1,

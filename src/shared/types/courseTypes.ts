@@ -178,6 +178,7 @@ export type ActivityBlock =
 export interface LearningUnit {
     id: string;
     title: string;
+    goals?: string[];
     type: LearningUnitType;
     baseContent: string;
     activityBlocks: ActivityBlock[];

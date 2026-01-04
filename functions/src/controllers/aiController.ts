@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { getSkeletonPrompt, getStepContentPrompt, getPodcastPrompt, getGuardianPrompt } from "../ai/prompts";
 import { mapSystemItemToBlock, cleanJsonString } from "../shared/utils/geminiParsers";
 import { getCached, setCache, getSkeletonCacheKey, getStepContentCacheKey } from "../services/cacheService";
+import { getOpenAIClient } from "../utils/connectionPool";
 
 // Note: In a real migration, we would ideally move the 'geminiApi.ts' logic 
 // fully to a 'service' file in the backend. For this "Vault" phase, 
@@ -19,7 +20,7 @@ export const createAiController = (openaiApiKey: any) => {
     // --- 1. Generate Teacher Lesson PLAN (Teacher View) ---
     // Formerly 'generateUnitSkeleton' - Renamed to avoid confusion with Student Unit
     const generateTeacherLessonPlan = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
-        const openai = new OpenAI({ apiKey: openaiApiKey.value() });
+        const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, gradeLevel, activityLength, sourceText, mode, productType } = request.data;
         const durationMap: Record<string, string> = { short: "45 min", medium: "90 min", long: "120 min" };
 
@@ -139,7 +140,7 @@ Generate a JSON object with the following structure. Strict JSON.
     // --- 2. Generate STUDENT Unit Skeleton (Interactive Flow) ---
     // Ported from frontend/gemini.ts to Fix "Split Brain"
     const generateStudentUnitSkeleton = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
-        const openai = new OpenAI({ apiKey: openaiApiKey.value() });
+        const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, gradeLevel, activityLength, sourceText, mode, productType, bloomPreferences, studentProfile } = request.data;
 
         logger.info(`Vault: Generating STUDENT Unit Skeleton for ${topic} (Mode: ${mode})`);
@@ -310,7 +311,7 @@ Generate a JSON object with the following structure. Strict JSON.
 
     // --- 2. Generate Step Content ---
     const generateStepContent = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
-        const openai = new OpenAI({ apiKey: openaiApiKey.value() });
+        const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, stepInfo, gradeLevel, sourceText, fileData, mode } = request.data;
         logger.info(`Vault: Generating Step ${stepInfo?.step_number} Content`);
 

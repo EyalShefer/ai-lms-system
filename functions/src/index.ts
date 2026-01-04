@@ -736,3 +736,72 @@ export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
         feedback: message
     };
 });
+
+// --- EVENT SOURCING FOR SCALABILITY ---
+import { processEvents, appendEvent, getEventStats, cleanupOldEvents } from './services/eventSourcing';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+
+/**
+ * Event Processor Trigger
+ * Processes pending events when new events are created
+ * This allows 100 concurrent writes without conflicts
+ */
+export const processEventsTrigger = onDocumentCreated('events/{eventId}', async (event) => {
+    const eventData = event.data?.data();
+    if (!eventData || eventData.processed) {
+        return;
+    }
+
+    const aggregateId = eventData.aggregateId;
+
+    // Debounce: only process if multiple events pending
+    const pendingCount = await db.collection('events')
+        .where('aggregateId', '==', aggregateId)
+        .where('processed', '==', false)
+        .count()
+        .get();
+
+    // Process when 10+ events accumulated (reduces function invocations)
+    if (pendingCount.data().count >= 10) {
+        logger.info(`Processing ${pendingCount.data().count} events for ${aggregateId}`);
+        await processEvents(aggregateId);
+    }
+});
+
+/**
+ * Scheduled Event Processor
+ * Processes remaining events every 5 minutes (catches stragglers)
+ */
+export const processEventsScheduled = onSchedule('every 5 minutes', async () => {
+    const stats = await getEventStats();
+    logger.info(`Event stats: ${stats.pending} pending, ${stats.processed} processed`);
+
+    if (stats.pending > 0) {
+        // Get unique aggregate IDs with pending events
+        const snapshot = await db.collection('events')
+            .where('processed', '==', false)
+            .limit(100)
+            .get();
+
+        const aggregateIds = new Set<string>();
+        snapshot.docs.forEach(doc => {
+            aggregateIds.add(doc.data().aggregateId);
+        });
+
+        // Process each aggregate
+        for (const aggregateId of aggregateIds) {
+            await processEvents(aggregateId);
+        }
+
+        logger.info(`Processed events for ${aggregateIds.size} aggregates`);
+    }
+});
+
+/**
+ * Cleanup Old Events
+ * Runs daily at 2 AM
+ */
+export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
+    const deleted = await cleanupOldEvents(30); // Delete events older than 30 days
+    logger.info(`Cleaned up ${deleted} old events`);
+});
