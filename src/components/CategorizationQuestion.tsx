@@ -5,6 +5,9 @@ import { IconCheck, IconX } from '../icons';
 interface CategorizationQuestionProps {
     block: ActivityBlock;
     onComplete?: (score: number, telemetry?: TelemetryData) => void;
+    isExamMode?: boolean; // ✨ NEW
+    hints?: string[]; // ✨ NEW
+    onHintUsed?: () => void; // ✨ NEW
 }
 
 interface Item {
@@ -13,10 +16,17 @@ interface Item {
     category: string;
 }
 
-const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({ block, onComplete }) => {
+const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
+    block,
+    onComplete,
+    isExamMode = false,
+    hints = [],
+    onHintUsed
+}) => {
     // Telemetry
     const startTimeRef = useRef<number>(Date.now());
     const attemptsRef = useRef<number>(0);
+    const hintsUsedRef = useRef<number>(0); // ✨ NEW
 
     // Safe parsing
     // Safe parsing

@@ -1,16 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
+import { calculateQuestionScore } from '../utils/scoring';
 
 interface OrderingQuestionProps {
     block: ActivityBlock;
     onComplete?: (score: number, telemetry?: TelemetryData) => void;
+    isExamMode?: boolean; // ✨ NEW: Disable hints in exam mode
+    hints?: string[]; // ✨ NEW: Progressive hints
+    onHintUsed?: () => void; // ✨ NEW: Callback when hint revealed
 }
 
-const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }) => {
+const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
+    block,
+    onComplete,
+    isExamMode = false,
+    hints = [],
+    onHintUsed
+}) => {
     // Telemetry
     const startTimeRef = useRef<number>(Date.now());
     const attemptsRef = useRef<number>(0);
+    const hintsUsedRef = useRef<number>(0); // ✨ NEW: Track hints
 
     // Safe parsing
     // Safe parsing
@@ -43,6 +54,10 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
     const [isSubmitted, setIsSubmitted] = useState(false);
     const draggingItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
+
+    // ✨ NEW: Hint state
+    const [currentHintLevel, setCurrentHintLevel] = useState(0);
+    const [hasAttempted, setHasAttempted] = useState(false);
 
     useEffect(() => {
         // Reset Telemetry
@@ -89,10 +104,18 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
 
     const checkOrder = () => {
         setIsSubmitted(true);
+        setHasAttempted(true); // ✨ Unlock hints after first attempt
         attemptsRef.current += 1;
 
         const isCorrect = JSON.stringify(items) === JSON.stringify(correct_order);
-        const score = isCorrect ? 100 : 0;
+
+        // ✅ FIXED: Use central scoring function with hints tracking
+        const score = calculateQuestionScore({
+            isCorrect,
+            attempts: attemptsRef.current,
+            hintsUsed: hintsUsedRef.current, // ✨ Now tracking hints!
+            responseTimeSec: (Date.now() - startTimeRef.current) / 1000
+        });
 
         const timeSpent = (Date.now() - startTimeRef.current) / 1000;
 
@@ -100,9 +123,18 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
             onComplete(score, {
                 timeSeconds: Math.round(timeSpent),
                 attempts: attemptsRef.current,
-                hintsUsed: 0,
+                hintsUsed: hintsUsedRef.current, // ✨ Pass actual hints used
                 lastAnswer: items
             });
+        }
+    };
+
+    // ✨ NEW: Handle hint reveal
+    const handleShowHint = () => {
+        if (currentHintLevel < hints.length) {
+            setCurrentHintLevel(prev => prev + 1);
+            hintsUsedRef.current += 1;
+            onHintUsed?.(); // Notify parent
         }
     };
 
@@ -145,6 +177,55 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({ block, onComplete }
                     </div>
                 ))}
             </div>
+
+            {/* ✨ NEW: Progressive Hints Section */}
+            {!isExamMode && hints.length > 0 && !isSubmitted && (
+                <div className="mb-6">
+                    {currentHintLevel === 0 ? (
+                        <div className="text-center">
+                            <button
+                                onClick={handleShowHint}
+                                disabled={!hasAttempted}
+                                className={`px-6 py-2 rounded-full font-medium transition-all ${
+                                    hasAttempted
+                                        ? 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                            >
+                                💡 {hasAttempted ? 'רמז' : 'רמז (זמין אחרי ניסיון ראשון)'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {hints.slice(0, currentHintLevel).map((hint, idx) => (
+                                <div
+                                    key={idx}
+                                    className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-2xl">💡</span>
+                                        <div className="flex-1">
+                                            <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
+                                            <div className="text-gray-700">{hint}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {currentHintLevel < hints.length && (
+                                <div className="text-center">
+                                    <button
+                                        onClick={handleShowHint}
+                                        className="px-6 py-2 rounded-full font-medium bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg transition-all"
+                                    >
+                                        💡 רמז נוסף ({currentHintLevel}/{hints.length})
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {!isSubmitted && (
                 <div className="text-center">

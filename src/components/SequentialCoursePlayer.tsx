@@ -8,6 +8,7 @@ import {
     IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell
 } from '../icons';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
+import { getIconForBlockType } from '../utils/pedagogicalIcons';
 import { useSound } from '../hooks/useSound';
 import { FeedbackWidget } from './FeedbackWidget'; // NEW: Feedback Loop
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +19,7 @@ import ShopModal from './ShopModal';
 import SuccessModal from './SuccessModal';
 import type { GamificationProfile } from '../shared/types/courseTypes';
 import TeacherCockpit from './TeacherCockpit'; // NEW: Teacher View
+import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring'; // CRITICAL FIX: Import scoring system
 
 
 // --- Specialized Sub-Components ---
@@ -229,19 +231,38 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     }, [currentBlock, userAnswers, stepStatus]);
 
     // 3. Process Result (Gamification + ADAPTIVE BKT Logic)
+    // ✅ FIXED: Now uses central scoring system according to PROJECT_DNA.md
     const processResult = async (isCorrect: boolean) => {
         // Save Result for Timeline
         setStepResults(prev => ({ ...prev, [currentBlock.id]: isCorrect ? 'success' : 'failure' }));
+
+        // ✅ CRITICAL FIX: Calculate score using the central scoring function
+        const hintsUsed = hintsVisible[currentBlock.id] || 0;
+        const prevAttempts = stepResults[currentBlock.id] ? 1 : 0; // If already attempted, it's at least attempt #2
+
+        const score = calculateQuestionScore({
+            isCorrect,
+            attempts: prevAttempts + 1,
+            hintsUsed: hintsUsed,
+            responseTimeSec: 0 // Could track actual time if needed
+        });
+
+        console.log(`🎯 Scoring: isCorrect=${isCorrect}, attempts=${prevAttempts + 1}, hints=${hintsUsed}, score=${score}`);
 
         if (isCorrect) {
             setStepStatus('success');
             playSound('success');
 
-            // XP Calculation
-            const baseXp = 10;
-            const comboBonus = Math.min(combo, 5) * 2;
-            const totalXpGain = baseXp + comboBonus;
-            const totalGemGain = 1 + Math.floor(combo / 3); // 1 Gem + bonus for combo
+            // ✅ FIXED: XP is now directly tied to score (0-100)
+            const totalXpGain = score;
+
+            // ✅ FIXED: Gems based on score quality
+            let totalGemGain = 0;
+            if (score === SCORING_CONFIG.CORRECT_FIRST_TRY) {
+                totalGemGain = 2; // Perfect score: 2 gems
+            } else if (score >= SCORING_CONFIG.RETRY_PARTIAL) {
+                totalGemGain = 1; // Partial/retry: 1 gem
+            }
 
             // Optimistic UI Update
             setGamificationProfile(prev => ({
@@ -249,13 +270,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 xp: prev.xp + totalXpGain,
                 gems: prev.gems + totalGemGain,
                 currentStreak: prev.currentStreak + 1,
-                // Naive level update (will be corrected by DB return)
             }));
 
             setCombo(prev => prev + 1);
             setShowFloater({ id: Date.now(), amount: totalXpGain });
 
-            setFeedbackMsg(["מעולה!", "כל הכבוד!", "יפה מאוד!", "בול!"][Math.floor(Math.random() * 4)]);
+            // ✅ FIXED: Contextual feedback based on score
+            let feedback: string;
+            if (score === SCORING_CONFIG.CORRECT_FIRST_TRY) {
+                feedback = ["מעולה!", "כל הכבוד!", "יפה מאוד!", "מושלם!"][Math.floor(Math.random() * 4)];
+            } else if (score >= SCORING_CONFIG.RETRY_PARTIAL) {
+                if (hintsUsed > 0) {
+                    const penalty = SCORING_CONFIG.CORRECT_FIRST_TRY - score;
+                    feedback = `יפה! (${penalty} נקודות הופחתו בגלל ${hintsUsed} רמזים)`;
+                } else {
+                    feedback = "טוב! (תשובה נכונה בניסיון נוסף)";
+                }
+            } else {
+                feedback = "כמעט!";
+            }
+            setFeedbackMsg(feedback);
 
             // Background Sync
             if (currentUser?.uid) {
@@ -269,8 +303,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         } else {
             setStepStatus('failure');
             playSound('failure');
-            // Reset combo but NOT streak (streak is daily, checking logic handles it)
-            // But we might want to reset the *session* combo
             setCombo(0);
 
             setFeedbackMsg(currentBlock.type === 'multiple-choice'
@@ -340,8 +372,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     };
 
     // Callback for "Self-Checking" components (Cloze, Ordering)
-    const handleComplexBlockComplete = (score: number) => {
+    // ✅ FIXED: Now properly processes score from complex components
+    const handleComplexBlockComplete = (score: number, telemetryData?: { attempts?: number, hintsUsed?: number }) => {
+        // Complex blocks pass their own score (0-100)
+        // We map this to isCorrect for processResult
         const passed = score > 60;
+
+        // Update hints if provided by the component
+        if (telemetryData?.hintsUsed && telemetryData.hintsUsed > 0) {
+            setHintsVisible(prev => ({ ...prev, [currentBlock.id]: telemetryData.hintsUsed }));
+        }
+
         processResult(passed);
     };
 
@@ -692,12 +733,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 const isCurrent = idx === currentIndex;
                                 const result = stepResults[block.id];
 
-                                let Icon = IconBook;
-                                if (block.type === 'video') Icon = IconVideo;
-                                if (block.type === 'podcast' || block.type === 'audio-response') Icon = IconHeadphones;
-                                if (['memory_game', 'ordering', 'categorization', 'fill_in_blanks'].includes(block.type)) Icon = IconJoystick;
-                                if (['multiple-choice', 'true_false_speed', 'open-question'].includes(block.type)) Icon = IconTarget;
-                                if (block.type === 'gem-link') Icon = IconSparkles;
+                                // Use centralized icon mapping for consistency with Teacher Cockpit
+                                const Icon = getIconForBlockType(block.type);
 
                                 // Styling
                                 let iconColor = "text-white/30";

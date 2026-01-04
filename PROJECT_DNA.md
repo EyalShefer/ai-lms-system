@@ -282,6 +282,123 @@ The system behaves differently based on the user's explicit intent. We distingui
 - **Brain (Stage 1):** Switches strategy from "Divorce to Teach" to "Scan to Test".
 - **Hands (Stage 2):** Switches system prompt to enforce "No Hints" and "No Teach Content".
 
+# 13.5 🎯 SCORING & GRADING SYSTEM (The "Honest Mirror")
+## 13.5.1 Philosophy
+The scoring system reflects student performance with **mathematical precision** and **pedagogical honesty**. Points are not arbitrary rewards but meaningful signals of mastery, effort, and independence.
+
+## 13.5.2 Core Scoring Constants
+**Location:** `src/utils/scoring.ts`
+
+```typescript
+SCORING_CONFIG = {
+    CORRECT_FIRST_TRY: 100,    // Perfect mastery
+    HINT_PENALTY: 2,            // Cost per hint used (-2 points each)
+    RETRY_PARTIAL: 50,          // Partial credit for retry success
+}
+```
+
+## 13.5.3 Scoring Logic Matrix
+| Scenario | Attempts | Hints Used | Score Calculation | Example |
+|----------|----------|------------|-------------------|---------|
+| **Perfect Mastery** | 1 | 0 | `100` | First try, no help → 100 points |
+| **Scaffolded Success** | 1 | 2 | `100 - (hints × 2)` | First try with 2 hints → 96 points |
+| **Persistent Learning** | 2+ | 0 | `50` | Retry after failure → 50 points |
+| **Scaffolded Retry** | 2+ | 1 | `50` (no additional penalty) | Retry already penalized → 50 points |
+| **Incorrect** | Any | Any | `0` | Failed answer → 0 points |
+
+## 13.5.4 Implementation Architecture
+### The Central Function
+**Location:** `src/utils/scoring.ts:calculateQuestionScore()`
+
+This function is the **SINGLE SOURCE OF TRUTH** for all scoring. All question types must use it.
+
+**✅ MANDATORY Usage Pattern:**
+```typescript
+const score = calculateQuestionScore({
+    isCorrect: boolean,
+    attempts: number,      // 1 for first try, 2+ for retries
+    hintsUsed: number,     // Count of hints revealed
+    responseTimeSec: number // For telemetry (not used in scoring yet)
+});
+```
+
+### Integration Points
+1. **SequentialCoursePlayer** (Main flow): Uses scoring to calculate XP and Gems
+2. **ClozeQuestion**: Applies partial credit for partially correct answers
+3. **OrderingQuestion**: Binary correct/incorrect with attempt tracking
+4. **MemoryGameQuestion**: Caps attempts at 3 to avoid excessive penalty
+
+## 13.5.5 Gamification Integration
+**XP Rewards:** Directly tied to score (0-100 points = 0-100 XP)
+
+**Gem Rewards:**
+- Perfect score (100): 2 gems
+- Partial/Retry (50-99): 1 gem
+- Incorrect (0): 0 gems
+
+**Combo System:** REMOVED in favor of honest scoring. Previous combo bonuses created artificial inflation.
+
+## 13.5.6 Exam Mode Scoring
+- **Hints:** Forbidden (empty array enforced)
+- **Feedback:** Delayed until submission
+- **Score Recording:** Same logic but no XP/Gems (assessment focus)
+
+## 13.5.7 Critical Rules (MUST FOLLOW)
+1. **Never bypass `calculateQuestionScore()`** - All scoring MUST go through the central function
+2. **Track hints accurately** - Use `hintsVisible` state to count revealed hints
+3. **Count attempts correctly** - First submission = attempt 1, retry = attempt 2+
+4. **No artificial bonuses** - Score reflects mastery, not gameplay mechanics
+
+## 13.5.8 Quality Assurance
+- **Unit Tests:** `src/utils/scoring.test.ts` validates all scenarios
+- **Console Logging:** Scoring decisions logged in development mode
+- **Teacher Visibility:** Scores visible in TeacherCockpit with attempt/hint breakdown
+
+## 13.5.9 Progressive Hints System (Scaffolding Implementation)
+### Philosophy
+Hints are pedagogical scaffolding tools that guide students to answers without giving them away. They are **mandatory in Learning Mode** and **forbidden in Exam Mode**.
+
+### Implementation
+All interactive question components now support progressive hints:
+
+**Supported Components:**
+- ✅ `OrderingQuestion` - Hints about sequence logic
+- ✅ `ClozeQuestion` - Hints about context clues
+- ✅ `CategorizationQuestion` - Hints about category criteria
+- ✅ `MultipleChoiceQuestion` (already supported)
+- ✅ `OpenQuestion` (already supported)
+
+**Interface Pattern:**
+```typescript
+interface QuestionProps {
+    block: ActivityBlock;
+    onComplete?: (score: number, telemetry?: TelemetryData) => void;
+    isExamMode?: boolean;        // If true, hints UI is hidden
+    hints?: string[];             // Array of progressive hints
+    onHintUsed?: () => void;      // Callback when hint revealed
+}
+```
+
+### UX Behavior
+1. **Hint Lock:** Hints are disabled until the student makes first attempt (prevents hint dependency)
+2. **Progressive Reveal:** Hints appear one at a time, not all at once
+3. **Visual Design:** Yellow theme (`bg-yellow-50`, `border-yellow-300`) for hint cards
+4. **Counter Display:** Shows "רמז נוסף (2/3)" to indicate progress
+5. **Exam Mode:** Entire hints section hidden when `isExamMode={true}`
+
+### Scoring Integration
+- Each hint revealed increments `hintsUsedRef`
+- Final score calculation: `100 - (hintsUsed × HINT_PENALTY)`
+- Telemetry includes `hintsUsed` count for teacher analytics
+
+### AI Generation Requirements
+When generating content, AI must provide 2-3 progressive hints per question:
+- **Level 1 (Location):** "שימו לב למשפט שמתחיל ב..." (Point to text location)
+- **Level 2 (Simplification):** "המילה הנכונה קשורה ל..." (Rephrase concept)
+- **Level 3 (Strong Nudge):** "הפריט הראשון מתחיל במילה..." (Almost give answer)
+
+**Prompt Integration:** Ensure `progressive_hints` array populated in AI output for all question types.
+
 # 14. 🕵️ STUDENT PROFILING ENGINE ("The Silent Observer")
 ## 14.1 Philosophy
 The system tracks more than just "Correct/Incorrect". It builds a granular behavioral profile to understand *how* the student learns.

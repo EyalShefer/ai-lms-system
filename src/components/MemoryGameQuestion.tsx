@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck } from '../icons';
+import { calculateQuestionScore } from '../utils/scoring';
 
 interface MemoryGameQuestionProps {
     block: ActivityBlock;
@@ -108,17 +109,24 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
             // Check completion
             if (newCards.every(c => c.isMatched)) {
                 setIsComplete(true);
-                // Simple scoring: max 100, minus penalty for extra attempts? 
-                // Or just 100 for completion. Let's do 100 for completion for now.
+
+                // ✅ FIXED: Use central scoring with attempt tracking
+                // Memory game is always "correct" when completed, but score varies by efficiency
+                const score = calculateQuestionScore({
+                    isCorrect: true,
+                    attempts: Math.min(attempts, 3), // Cap at 3 to avoid excessive penalty
+                    hintsUsed: 0, // Memory game doesn't have hints
+                    responseTimeSec: (Date.now() - startTimeRef.current) / 1000
+                });
 
                 const timeSpent = (Date.now() - startTimeRef.current) / 1000;
 
                 if (onComplete) {
-                    onComplete(100, {
+                    onComplete(score, {
                         timeSeconds: Math.round(timeSpent),
-                        attempts: attempts, // 'attempts' state tracks moves
+                        attempts: attempts,
                         hintsUsed: 0,
-                        lastAnswer: attempts // or pairs
+                        lastAnswer: attempts
                     });
                 }
             }

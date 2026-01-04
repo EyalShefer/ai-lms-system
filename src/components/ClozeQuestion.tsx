@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
+import { calculateQuestionScore } from '../utils/scoring';
 
 interface ClozeQuestionProps {
     block: ActivityBlock;
     onComplete?: (score: number, telemetry?: TelemetryData) => void;
+    isExamMode?: boolean; // ✨ NEW
+    hints?: string[]; // ✨ NEW
+    onHintUsed?: () => void; // ✨ NEW
 }
 
-const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
+const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
+    block,
+    onComplete,
+    isExamMode = false,
+    hints = [],
+    onHintUsed
+}) => {
     // Telemetry Refs
     const startTimeRef = React.useRef<number>(Date.now());
     const attemptsRef = React.useRef<number>(0);
+    const hintsUsedRef = React.useRef<number>(0); // ✨ NEW
 
     // Safe parsing of content with memoization to prevent infinite loops
     // Safe parsing of content with robust fallback for different formats
@@ -101,6 +112,10 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
     const [wordBank, setWordBank] = useState<string[]>([]);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
+    // ✨ NEW: Hint state
+    const [currentHintLevel, setCurrentHintLevel] = useState(0);
+    const [hasAttempted, setHasAttempted] = useState(false);
+
     // Initialize
     useEffect(() => {
         startTimeRef.current = Date.now(); // Reset timer on new question
@@ -148,23 +163,49 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
 
     const checkAnswers = () => {
         setIsSubmitted(true);
-        attemptsRef.current += 1; // Increment attempt
+        setHasAttempted(true); // ✨ Unlock hints
+        attemptsRef.current += 1;
 
         let correctCount = 0;
         userAnswers.forEach((ans, i) => {
             if (ans === hidden_words[i]) correctCount++;
         });
-        const score = Math.round((correctCount / hidden_words.length) * 100);
 
-        const timeSpent = (Date.now() - startTimeRef.current) / 1000; // In seconds
+        // Calculate raw accuracy
+        const accuracy = correctCount / hidden_words.length;
+        const isFullyCorrect = accuracy === 1;
+
+        // ✅ FIXED: Use central scoring function with hints
+        const finalScore = calculateQuestionScore({
+            isCorrect: isFullyCorrect,
+            attempts: attemptsRef.current,
+            hintsUsed: hintsUsedRef.current, // ✨ Now tracking!
+            responseTimeSec: (Date.now() - startTimeRef.current) / 1000
+        });
+
+        // Apply partial credit for partially correct answers
+        const scoreWithPartialCredit = isFullyCorrect
+            ? finalScore
+            : Math.round(finalScore * accuracy);
+
+        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
 
         if (onComplete) {
-            onComplete(score, {
+            onComplete(scoreWithPartialCredit, {
                 timeSeconds: Math.round(timeSpent),
                 attempts: attemptsRef.current,
-                hintsUsed: 0, // Placeholder for now
+                hintsUsed: hintsUsedRef.current, // ✨ Pass actual hints
                 lastAnswer: userAnswers
             });
+        }
+    };
+
+    // ✨ NEW: Handle hint reveal
+    const handleShowHint = () => {
+        if (currentHintLevel < hints.length) {
+            setCurrentHintLevel(prev => prev + 1);
+            hintsUsedRef.current += 1;
+            onHintUsed?.();
         }
     };
 
@@ -235,6 +276,55 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({ block, onComplete }) => {
                     );
                 })}
             </div>
+
+            {/* ✨ NEW: Progressive Hints Section */}
+            {!isExamMode && hints.length > 0 && !isSubmitted && (
+                <div className="mb-6">
+                    {currentHintLevel === 0 ? (
+                        <div className="text-center">
+                            <button
+                                onClick={handleShowHint}
+                                disabled={!hasAttempted}
+                                className={`px-6 py-2 rounded-full font-medium transition-all ${
+                                    hasAttempted
+                                        ? 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                            >
+                                💡 {hasAttempted ? 'רמז' : 'רמז (זמין אחרי ניסיון ראשון)'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {hints.slice(0, currentHintLevel).map((hint, idx) => (
+                                <div
+                                    key={idx}
+                                    className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-2xl">💡</span>
+                                        <div className="flex-1">
+                                            <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
+                                            <div className="text-gray-700">{hint}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {currentHintLevel < hints.length && (
+                                <div className="text-center">
+                                    <button
+                                        onClick={handleShowHint}
+                                        className="px-6 py-2 rounded-full font-medium bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg transition-all"
+                                    >
+                                        💡 רמז נוסף ({currentHintLevel}/{hints.length})
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {!isSubmitted && (
                 <div className="text-center">
