@@ -6,6 +6,7 @@ import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT, EXAM_MODE_SYSTEM_P
 import type { ValidationResult } from './shared/types/courseTypes';
 import { getFunctions } from "firebase/functions";
 import { cleanJsonString, mapSystemItemToBlock } from './shared/utils/geminiParsers';
+import { auth } from './firebase';
 
 export const functions = getFunctions(getApp());
 // if (window.location.hostname === "localhost") {
@@ -19,12 +20,33 @@ if (!OPENAI_API_KEY) {
   console.error("Missing VITE_OPENAI_API_KEY in .env file");
 }
 
+// Helper to get Firebase Auth token
+async function getAuthToken(): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  return await user.getIdToken();
+}
+
+// Create OpenAI client with custom fetch that adds auth token
 export const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
   baseURL: `${window.location.origin}/api/openai`,
-  timeout: 60000, // Default timeout: 1 minute
-  maxRetries: 2
+  timeout: 60000,
+  maxRetries: 2,
+  fetch: async (url: RequestInfo | URL, init?: RequestInit) => {
+    // Get auth token and add to headers
+    const token = await getAuthToken();
+    const headers = new Headers(init?.headers || {});
+    headers.set('Authorization', `Bearer ${token}`);
+
+    return fetch(url, {
+      ...init,
+      headers
+    });
+  }
 });
 
 export const BOT_PERSONAS = {
@@ -501,8 +523,18 @@ export const generateTeacherStepContent = async (
   const contentToInject = sourceType === 'TOPIC_ONLY' ? topic : sourceText.substring(0, 20000);
 
   const prompt = `
-    System Prompt: The Adaptive Lesson Architect (Multi-Source)
-    IDENTITY: You are an expert Instructional Designer, Pedagogical Consultant, and Multimedia Director. Your client is the TEACHER. Your goal: Create a precise, professional "Teacher's Guide" (Lesson Plan) ready for classroom display.
+    System Prompt: Master Teacher Lesson Architect V3 (Enhanced)
+
+    🎭 IDENTITY:
+    You are Michal Rosen, a veteran Israeli master teacher with 15 years of classroom experience.
+    You create lesson plans that are:
+    - Ultra-practical (every sentence is actionable)
+    - Visually rich (auto-generated images, infographics, diagrams)
+    - Interactive (embedded practice activities)
+    - Field-tested (includes classroom management tips)
+
+    YOUR CLIENT: A busy teacher preparing tomorrow's lesson.
+    YOUR GOAL: Create a complete, ready-to-use lesson plan they can pick up 5 minutes before class.
 
     INPUT CONTEXT:
     SOURCE_TYPE: "${sourceType}"
@@ -510,89 +542,172 @@ export const generateTeacherStepContent = async (
     GRADE_LEVEL: "${gradeLevel}"
     DURATION: "45 Minutes"
 
-    ⚙️ DYNAMIC MEDIA LOGIC (How to handle visuals):
+    ⚙️ VISUAL GENERATION STRATEGY:
 
     CASE A: If SOURCE_TYPE == "YOUTUBE":
-    Source of Truth: Use the transcript provided.
-    Visual Strategy: You must use specific Timestamps from the video.
-    Instruction: In the "Direct Instruction" phase, tell the teacher: "Play video from 02:30 to 03:45 to show [Concept]."
+    - Use specific video timestamps
+    - Example: "Play video 02:30-03:45 to show photosynthesis process"
 
-    CASE B: If SOURCE_TYPE == "TEXT_FILE":
-    Source of Truth: Use the provided text.
-    Visual Strategy: You must Hallucinate Visuals. Since there is no video, you must describe an image that should be on the slide.
-    Instruction: "Show an image/diagram of [Description of content in text]."
+    CASE B: If SOURCE_TYPE == "TEXT_FILE" or "TOPIC_ONLY":
+    - Generate AI image prompts for DALL-E 3
+    - Be SPECIFIC and VISUAL
+    - Good: "A colorful diagram showing the water cycle with labeled arrows: evaporation from ocean, condensation in clouds, precipitation as rain, collection in rivers"
+    - Bad: "An image about water cycle"
 
-    CASE C: If SOURCE_TYPE == "TOPIC_ONLY":
-    Source of Truth: Use your internal LLM knowledge base to create the best standard curriculum for this topic.
-    Visual Strategy: Suggest classic historical/scientific images or generic diagrams relevant to the topic.
+    🎯 IMAGE PROMPT GUIDELINES:
+    - Start with art style: "Educational diagram", "Photorealistic", "Colorful illustration for grade ${gradeLevel}"
+    - Include specific visual elements: colors, labels, arrows, comparisons
+    - Keep culturally neutral and age-appropriate
+    - Hebrew text in images should be minimal (use English labels)
 
-    🚫 CRITICAL NEGATIVE CONSTRAINTS (Safety Guard):
-    NO QUIZZES IN INSTRUCTION: Do not put multiple-choice or true/false questions in the "Hook" or "Direct Instruction" phases.
-    NO STUDENT ADDRESSING: Never say "Open your books". Say "Ask students to open books".
-    NO GAMIFICATION: Do not mention points/coins/XP in this document.
+    🎨 TONE & LANGUAGE REQUIREMENTS:
+    - Use second person: "תגיד לתלמידים..." (not "המורה יגיד...")
+    - Conversational Hebrew: "עכשיו זה הזמן ל..." (not "בשלב זה יש לבצע...")
+    - Specific instructions: "כתוב על הלוח בגודל 5 ס\"מ" (not just "כתוב על הלוח")
 
-    STRUCTURE (The 5-Step Model):
+    📊 GRADE-SPECIFIC ADAPTATION:
+    ${gradeLevel.includes('א') || gradeLevel.includes('ב') || gradeLevel.includes('ג') ? `
+    - Primary grades (א-ג): Use concrete examples from playground/family/pets
+    - Max sentence length: 10 words
+    - Add gestures: "(עשה תנועה של...)"
+    - Repeat key concepts twice
+    ` : gradeLevel.includes('ד') || gradeLevel.includes('ה') || gradeLevel.includes('ו') ? `
+    - Upper elementary (ד-ו): Mix concrete and abstract
+    - Encourage "turn and talk" moments
+    - Max sentence length: 15 words
+    ` : `
+    - Secondary: Academic tone OK
+    - Encourage debate and critical thinking
+    - Reference current events
+    `}
+
+    🎯 CLASSROOM MANAGEMENT EMBEDS:
+    Sprinkle these throughout the script:
+    - In Hook: "⏱️ [TIP: אם הכיתה רועשת, המתן 10 שניות בשקט]"
+    - In Instruction: "👀 [CHECK: סרוק את הכיתה - האם כולם מבינים?]"
+    - In Practice: "🔄 [IF STUCK: חזור על הדוגמה ב-slow motion]"
+
+    🚫 CRITICAL CONSTRAINTS:
+    - NO student-facing language (say "תבקש מהתלמידים" not "פתחו את הספר")
+    - NO quizzes in Hook/Instruction (save for Guided Practice)
+    - NO gamification mentions
+    - Script must be readable aloud naturally
+
+    ═══════════════════════════════════════════════════════════════
+
+    STRUCTURE (Enhanced 5-Step Model):
 
     1. THE HOOK (5 min)
-    Goal: Engagement.
-    Format: A short story, a provocative question, or a visual hook.
-    Output: Script for the teacher + Media Asset.
+    Goal: Engagement + Set learning objectives
+    Output:
+    - Engaging script (story/question/demonstration)
+    - AI image prompt for visual hook
+    - Classroom management tip
+    - Learning objectives (2-3 bullet points)
 
-    2. DIRECT INSTRUCTION (The "Meat") (15 min)
-    Goal: Frontal Teaching.
-    Format: Break down the content into 3-4 distinct "Teaching Points" (Slides).
-    Output: For each point, provide the script to say and the visual aid to show.
+    2. DIRECT INSTRUCTION (15 min)
+    Goal: Frontal Teaching with Visual Support
+    Output: 3-4 Teaching Slides, each with:
+    - Slide title
+    - Bullet points for board (3-5 items)
+    - Script to say (conversational, 80-120 words)
+    - AI image prompt for diagram/illustration
+    - Timing estimate (e.g., "3-5 minutes")
+    - Differentiation note (tips for struggling/advanced students)
 
-    3. GUIDED PRACTICE (15 min) - THE BRIDGE
-    Goal: Active Learning.
-    Action: Direct the teacher to launch the external Wizdi Activity.
-    Format: "Transition Phrase: 'Now let's practice [Skill]. Launch the Wizdi Interactive Activity for this unit.'"
+    3. GUIDED PRACTICE (15 min) - INTERACTIVE ACTIVITIES
+    Goal: Hands-on practice with immediate feedback
+    Output:
+    - Teacher transition script
+    - Suggested interactive activity types (choose 2-3 from list):
+      * multiple-choice (for concept checking)
+      * memory_game (for vocabulary/definitions)
+      * fill_in_blanks (for completing key sentences)
+      * ordering (for sequencing events/steps)
+      * categorization (for sorting concepts)
+      * drag_and_drop (for matching items to zones)
+      * hotspot (for exploring labeled diagrams)
+      * open-question (for deeper thinking)
+    - Brief description of what each activity should assess
 
     4. DISCUSSION (5 min)
-    Goal: Oral Assessment.
-    Output: 2 Open-Ended Thinking Questions.
+    Goal: Oral Assessment + Critical Thinking
+    Output:
+    - 2-3 open-ended questions (increasing difficulty)
+    - Facilitation tips (e.g., "Ask follow-up: 'Why do you think that?'")
 
     5. SUMMARY (5 min)
-    Goal: Closure.
-    Output: ONE "Takeaway Sentence" for notebooks.
+    Goal: Closure + Retention
+    Output:
+    - ONE memorable takeaway sentence (for notebooks)
+    - AI image prompt for visual summary/infographic
+    - Optional homework suggestion
 
     OUTPUT FORMAT (JSON Schema): Generate valid JSON in Hebrew (except for field keys).
 
     {
       "lesson_metadata": {
-        "title": "String",
-        "target_audience": "String",
-        "duration": "45 min"
+        "title": "String (Hebrew - catchy lesson title)",
+        "target_audience": "${gradeLevel}",
+        "duration": "45 min",
+        "subject": "String (e.g., מדעים, היסטוריה)",
+        "learning_objectives": [
+          "מטרת למידה 1",
+          "מטרת למידה 2"
+        ]
       },
       "hook": {
-        "script_for_teacher": "String (Hebrew)",
+        "script_for_teacher": "String (Hebrew - engaging opening script, 80-120 words)",
         "media_asset": {
-          "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'image_description'}",
-          "content": "Description OR 'Start: 00:00, End: 02:00'"
-        }
+          "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'ai_generated_image'}",
+          "content": "${sourceType === 'YOUTUBE' ? 'Start: 00:00, End: 02:00' : 'DETAILED DALL-E 3 prompt for educational image'}",
+          "prompt": "Same as content (for AI images)"
+        },
+        "classroom_management_tip": "⏱️ [TIP: specific tip in Hebrew]"
       },
       "direct_instruction": {
         "slides": [
           {
-            "slide_title": "String",
-            "bullet_points_for_board": ["Point 1", "Point 2"],
-            "script_to_say": "String (Hebrew explanation)",
+            "slide_title": "String (Hebrew)",
+            "bullet_points_for_board": ["Point 1", "Point 2", "Point 3"],
+            "script_to_say": "String (Hebrew - conversational, 80-120 words)",
             "media_asset": {
-              "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'image_description'}",
-              "content": "String"
-            }
+              "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'ai_generated_image'}",
+              "content": "DETAILED image prompt or timestamp",
+              "prompt": "Same as content"
+            },
+            "timing_estimate": "3-5 דקות",
+            "differentiation_note": "💡 לתלמידים מתקשים: [tip]. לתלמידים מתקדמים: [challenge]"
           }
         ]
       },
       "guided_practice": {
-        "teacher_instruction": "String",
-        "wizdi_tool_reference": "Interactive Activity Generator"
+        "teacher_instruction": "String (Hebrew - transition script)",
+        "wizdi_tool_reference": "Interactive Activity Generator",
+        "suggested_block_types": [
+          "multiple-choice",
+          "memory_game"
+        ]
       },
       "discussion": {
-        "questions": ["Question 1", "Question 2"]
+        "questions": [
+          "שאלה 1 (קלה)",
+          "שאלה 2 (בינונית)",
+          "שאלה 3 (מאתגרת)"
+        ],
+        "facilitation_tips": [
+          "שאל המשך: 'למה אתה חושב ככה?'",
+          "אם אין תשובות, תן דוגמה"
+        ]
       },
       "summary": {
-        "takeaway_sentence": "String"
+        "takeaway_sentence": "String (Hebrew - one memorable sentence for notebooks)",
+        "visual_summary": {
+          "type": "infographic",
+          "content": "DETAILED prompt for visual summary with key concepts",
+          "prompt": "Same as content"
+        },
+        "homework_suggestion": "String (optional, Hebrew)"
       }
     }
   `;
@@ -619,6 +734,399 @@ export const generateTeacherStepContent = async (
 
   } catch (e) {
     console.error("Teacher Lesson Gen Error:", e);
+    return null;
+  }
+};
+
+/**
+ * Generates visual assets (images/infographics) for lesson plan using DALL-E 3
+ *
+ * @param lessonPlan - The generated TeacherLessonPlan with image prompts
+ * @returns Updated lesson plan with generated image URLs
+ */
+export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Promise<TeacherLessonPlan> => {
+  console.log("🎨 Starting AI image generation for lesson plan...");
+
+  const updatedPlan = { ...lessonPlan };
+  const imagePromises: Promise<void>[] = [];
+
+  // Helper function to generate a single image
+  const generateImage = async (prompt: string): Promise<string | null> => {
+    try {
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: prompt,
+        size: "1024x1024",
+        quality: "standard",
+        n: 1,
+        response_format: "b64_json"
+      });
+
+      if (response.data[0].b64_json) {
+        // Convert base64 to data URL
+        return `data:image/png;base64,${response.data[0].b64_json}`;
+      }
+      return null;
+    } catch (error) {
+      console.error("Image generation failed for prompt:", prompt, error);
+      return null;
+    }
+  };
+
+  // 1. Generate Hook Image
+  if (updatedPlan.hook.media_asset?.type === 'ai_generated_image' && updatedPlan.hook.media_asset.prompt) {
+    imagePromises.push(
+      generateImage(updatedPlan.hook.media_asset.prompt).then(url => {
+        if (url && updatedPlan.hook.media_asset) {
+          updatedPlan.hook.media_asset.url = url;
+          updatedPlan.hook.media_asset.status = 'generated';
+        } else if (updatedPlan.hook.media_asset) {
+          updatedPlan.hook.media_asset.status = 'failed';
+        }
+      })
+    );
+  }
+
+  // 2. Generate Direct Instruction Slide Images
+  updatedPlan.direct_instruction.slides.forEach((slide, index) => {
+    if (slide.media_asset?.type === 'ai_generated_image' && slide.media_asset.prompt) {
+      imagePromises.push(
+        generateImage(slide.media_asset.prompt).then(url => {
+          if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
+            updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
+            updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
+          } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
+            updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
+          }
+        })
+      );
+    }
+  });
+
+  // 3. Generate Summary Visual
+  if (updatedPlan.summary.visual_summary?.type === 'infographic' && updatedPlan.summary.visual_summary.prompt) {
+    imagePromises.push(
+      generateImage(updatedPlan.summary.visual_summary.prompt).then(url => {
+        if (url && updatedPlan.summary.visual_summary) {
+          updatedPlan.summary.visual_summary.url = url;
+          updatedPlan.summary.visual_summary.status = 'generated';
+        } else if (updatedPlan.summary.visual_summary) {
+          updatedPlan.summary.visual_summary.status = 'failed';
+        }
+      })
+    );
+  }
+
+  // Wait for all images to generate (in parallel)
+  await Promise.all(imagePromises);
+
+  const successCount = imagePromises.length - imagePromises.filter((_, i) =>
+    updatedPlan.hook.media_asset?.status === 'failed'
+  ).length;
+
+  console.log(`✅ Generated ${successCount}/${imagePromises.length} images successfully`);
+
+  return updatedPlan;
+};
+
+/**
+ * Automatically generates interactive activity blocks based on AI suggestions
+ *
+ * @param suggestedTypes - Array of block types suggested by AI (e.g., ['multiple-choice', 'memory_game'])
+ * @param sourceText - The lesson content to base activities on
+ * @param topic - The lesson topic
+ * @param gradeLevel - Target grade level
+ * @returns Array of generated ActivityBlocks
+ */
+export const generateInteractiveBlocks = async (
+  suggestedTypes: string[],
+  sourceText: string,
+  topic: string,
+  gradeLevel: string
+): Promise<any[]> => {
+  console.log(`🎮 Auto-generating ${suggestedTypes.length} interactive blocks...`);
+
+  const promises = suggestedTypes.map(async (blockType) => {
+    try {
+      // Build specific prompt based on block type
+      let prompt = '';
+
+      switch (blockType) {
+        case 'multiple-choice':
+          prompt = `
+            Create a multiple-choice question based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - Question must test understanding (not just memory)
+            - 4 options with only 1 correct answer
+            - Distractors should be plausible but clearly wrong
+            - Include brief explanation for correct answer
+
+            Output JSON:
+            {
+              "question": "השאלה בעברית",
+              "options": ["אופציה 1", "אופציה 2", "אופציה 3", "אופציה 4"],
+              "correct_answer": "אופציה נכונה",
+              "feedback_correct": "הסבר למה זו התשובה הנכונה",
+              "feedback_incorrect": "הסבר מה לא נכון"
+            }
+          `;
+          break;
+
+        case 'memory_game':
+          prompt = `
+            Create a memory matching game with 6 pairs based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - 6 pairs of related terms (term-definition, concept-example, etc.)
+            - Pairs must be clearly related but not identical
+            - Use vocabulary appropriate for ${gradeLevel}
+
+            Output JSON:
+            {
+              "pairs": [
+                {"card_a": "מושג", "card_b": "הגדרה"},
+                {"card_a": "מושג 2", "card_b": "הגדרה 2"}
+              ]
+            }
+          `;
+          break;
+
+        case 'fill_in_blanks':
+          prompt = `
+            Create a fill-in-the-blanks exercise based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - Create a paragraph (40-60 words) summarizing key concepts
+            - Hide 3-5 key terms using [brackets]
+            - Context should make hidden words guessable
+
+            Output JSON:
+            {
+              "text": "טקסט עם [מילה1] חסרה ו[מילה2] נוספת."
+            }
+          `;
+          break;
+
+        case 'ordering':
+          prompt = `
+            Create a sequencing/ordering activity based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - 4-6 items in a logical sequence (chronological, process steps, etc.)
+            - Each item should be a short phrase (5-10 words)
+            - Sequence must be objectively correct (not opinion-based)
+
+            Output JSON:
+            {
+              "instruction": "סדרו את השלבים לפי הסדר הנכון:",
+              "correct_order": ["שלב 1", "שלב 2", "שלב 3", "שלב 4"]
+            }
+          `;
+          break;
+
+        case 'categorization':
+          prompt = `
+            Create a categorization activity based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - 2-3 clear, mutually exclusive categories
+            - 6-8 items to categorize
+            - Categories must be clearly defined
+
+            Output JSON:
+            {
+              "question": "מיינו את הפריטים הבאים לקטגוריות:",
+              "categories": ["קטגוריה 1", "קטגוריה 2"],
+              "items": [
+                {"text": "פריט 1", "category": "קטגוריה 1"},
+                {"text": "פריט 2", "category": "קטגוריה 2"}
+              ]
+            }
+          `;
+          break;
+
+        case 'open-question':
+          prompt = `
+            Create an open-ended question based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - Question should encourage critical thinking or application
+            - Provide a model answer (3-4 sentences)
+            - Include teacher guidelines for assessment
+
+            Output JSON:
+            {
+              "question": "שאלה פתוחה בעברית",
+              "model_answer": "תשובה לדוגמה עם 3-4 משפטים",
+              "teacher_guidelines": "🎯 מה לחפש: [מושגי מפתח]\\n❌ טעויות נפוצות: [דוגמאות]\\n❓ שאלות המשך: 1) ... 2) ..."
+            }
+          `;
+          break;
+
+        case 'drag_and_drop':
+          prompt = `
+            Create a drag-and-drop activity based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - 3-4 drop zones (target areas)
+            - 6-8 draggable items
+            - Each item belongs to exactly one zone
+            - Clear visual/conceptual distinction between zones
+
+            Output JSON:
+            {
+              "instruction": "גררו כל פריט לאזור הנכון:",
+              "zones": [
+                {"id": "zone1", "label": "אזור 1", "color": "#E0F2FE"},
+                {"id": "zone2", "label": "אזור 2", "color": "#FEF3C7"}
+              ],
+              "items": [
+                {"id": "item1", "text": "פריט 1", "correctZone": "zone1"},
+                {"id": "item2", "text": "פריט 2", "correctZone": "zone2"}
+              ],
+              "feedback_correct": "כל הפריטים במקום הנכון!",
+              "feedback_incorrect": "בדקו שוב את הפריטים המסומנים באדום"
+            }
+          `;
+          break;
+
+        case 'hotspot':
+          prompt = `
+            Create a hotspot (clickable image areas) activity based on this content.
+            Topic: ${topic}
+            Content: """${sourceText.substring(0, 2000)}"""
+            Grade Level: ${gradeLevel}
+
+            Requirements:
+            - Suggest an image URL or description for the base image
+            - 3-5 clickable areas with coordinates (x, y, width, height as percentages)
+            - Each hotspot reveals educational information
+            - Clear instructions for students
+
+            Output JSON:
+            {
+              "instruction": "לחצו על החלקים השונים בתמונה כדי ללמוד עליהם:",
+              "image_description": "תיאור התמונה הנדרשת (לדוגמה: דיאגרמה של מחזור המים)",
+              "image_prompt": "Educational diagram of [topic] with labeled parts, clean illustration style, suitable for grade ${gradeLevel}",
+              "hotspots": [
+                {
+                  "id": "spot1",
+                  "label": "חלק 1",
+                  "x": 20,
+                  "y": 30,
+                  "width": 15,
+                  "height": 15,
+                  "feedback": "הסבר על חלק זה בתמונה (2-3 משפטים)"
+                },
+                {
+                  "id": "spot2",
+                  "label": "חלק 2",
+                  "x": 60,
+                  "y": 40,
+                  "width": 15,
+                  "height": 15,
+                  "feedback": "הסבר על חלק זה"
+                }
+              ]
+            }
+          `;
+          break;
+
+        default:
+          console.warn(`Unknown block type: ${blockType}, skipping`);
+          return null;
+      }
+
+      // Call OpenAI to generate the block content
+      const response = await openai.chat.completions.create({
+        model: MODEL_NAME,
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      });
+
+      const rawContent = JSON.parse(cleanJsonString(response.choices[0].message.content || "{}"));
+
+      // Map to ActivityBlock structure
+      const block = {
+        id: uuidv4(),
+        type: blockType,
+        content: rawContent,
+        metadata: {
+          bloomLevel: blockType === 'open-question' ? 'evaluate' : 'apply',
+          score: blockType === 'open-question' ? 10 : 5,
+          autoGenerated: true
+        }
+      };
+
+      return block;
+
+    } catch (error) {
+      console.error(`Failed to generate ${blockType}:`, error);
+      return null;
+    }
+  });
+
+  const results = await Promise.all(promises);
+  const validBlocks = results.filter(b => b !== null);
+
+  console.log(`✅ Generated ${validBlocks.length}/${suggestedTypes.length} interactive blocks`);
+
+  return validBlocks;
+};
+
+/**
+ * Regenerates a single image based on a new or edited prompt
+ *
+ * @param prompt - The DALL-E 3 prompt for the image
+ * @returns Base64 data URL of the generated image, or null on failure
+ */
+export const regenerateImage = async (prompt: string): Promise<string | null> => {
+  console.log(`🎨 Regenerating image with prompt: "${prompt.substring(0, 50)}..."`);
+
+  try {
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      size: "1024x1024",
+      quality: "standard",
+      n: 1,
+      response_format: "b64_json"
+    });
+
+    if (response.data && response.data[0]?.b64_json) {
+      const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
+      console.log("✅ Image regenerated successfully");
+      return imageUrl;
+    }
+
+    console.error("❌ Image generation returned no data");
+    return null;
+
+  } catch (error) {
+    console.error("❌ Image regeneration failed:", error);
     return null;
   }
 };
@@ -909,7 +1417,10 @@ export const generateCoursePlan = async (
   fileData?: { base64: string; mimeType: string },
   subject: string = "כללי",
   sourceText?: string, // טקסט שחולץ (PDF/Doc)
-  includeBot: boolean = true // האם לכלול בוט
+  includeBot: boolean = true, // האם לכלול בוט
+  productType?: string, // 🆕 Product Type (lesson/exam/game/podcast)
+  activityLength?: string, // 🆕 Activity Length
+  taxonomy?: any // 🆕 Taxonomy settings
 ) => {
   // console.log("Starting cloud generation for:", topic);
 
@@ -917,13 +1428,23 @@ export const generateCoursePlan = async (
   const db = getFirestore(getApp());
 
   try {
+    // 🆕 CRITICAL: Route to correct queue based on product type
+    const queuePath = productType === 'exam'
+      ? "exam_generation_queue"       // ✨ NEW: Dedicated exam queue
+      : "course_generation_queue";     // Existing learning/game queue
+
+    console.log(`📤 Routing to queue: ${queuePath} (productType: ${productType})`);
+
     // 1. יצירת מסמך בקשה בתור
-    const docRef = await addDoc(collection(db, "course_generation_queue"), {
+    const docRef = await addDoc(collection(db, queuePath), {
       topic,
       gradeLevel,
       subject,
       fileData: fileData || null,
       sourceText: sourceText || null,
+      activityLength: activityLength || 'medium', // 🆕
+      taxonomy: taxonomy || null, // 🆕
+      productType: productType || null, // 🆕
       status: "pending",
       createdAt: new Date(),
     });
@@ -932,7 +1453,7 @@ export const generateCoursePlan = async (
 
     // 2. האזנה לשינויים במסמך
     return new Promise<any[]>((resolve, reject) => {
-      const unsubscribe = onSnapshot(doc(db, "course_generation_queue", docRef.id), (snapshot) => {
+      const unsubscribe = onSnapshot(doc(db, queuePath, docRef.id), (snapshot) => {
         const data = snapshot.data();
 
         if (!data) return;

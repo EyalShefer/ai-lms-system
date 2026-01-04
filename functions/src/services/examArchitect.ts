@@ -1,0 +1,124 @@
+/**
+ * EXAM ARCHITECT SERVICE
+ *
+ * Stage 1 of the Exam Generation Pipeline: The Brain
+ *
+ * Responsibilities:
+ * - Analyze source material holistically
+ * - Create a strategic test plan (skeleton)
+ * - Ensure balanced coverage of topics
+ * - Assign Bloom levels and question types
+ *
+ * Output: ExamSkeleton with question specifications
+ */
+
+import OpenAI from "openai";
+import * as logger from "firebase-functions/logger";
+import { cleanJsonString } from '../shared/utils/geminiParsers';
+import { getExamArchitectPrompt, getExamStructureGuide, getExamBloomSteps } from '../ai/examPrompts';
+
+export interface ExamSkeletonStep {
+    step_number: number;
+    title: string;
+    assessment_focus: string;
+    forbidden_topics: string[];
+    bloom_level: string;
+    suggested_interaction_type: string;
+    points: number;
+}
+
+export interface ExamSkeleton {
+    exam_title: string;
+    total_points: number;
+    steps: ExamSkeletonStep[];
+}
+
+export interface ExamArchitectContext {
+    topic: string;
+    gradeLevel: string;
+    subject: string;
+    fileData?: any;
+    activityLength: 'short' | 'medium' | 'long';
+    sourceText?: string;
+    taxonomy?: { knowledge: number; application: number; evaluation: number };
+}
+
+/**
+ * Run the Exam Architect stage
+ *
+ * This function uses GPT-4o with low temperature (0.3) to ensure
+ * deterministic, consistent exam structure generation.
+ */
+export async function runExamArchitect(
+    openai: OpenAI,
+    context: ExamArchitectContext
+): Promise<ExamSkeleton | null> {
+    // Determine question count based on length
+    let stepCount = 5;
+    if (context.activityLength === 'short') stepCount = 3;
+    else if (context.activityLength === 'long') stepCount = 7;
+
+    // Get structure guide and Bloom steps
+    const structureGuide = getExamStructureGuide(stepCount);
+    const bloomSteps = getExamBloomSteps(stepCount, context.taxonomy);
+
+    // Prepare context part (source material or topic)
+    const contextPart = context.sourceText
+        ? `BASE EXAM ON THIS TEXT ONLY:\n"""${context.sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
+        : `Topic: "${context.topic}"`;
+
+    // Generate the prompt
+    const systemPrompt = getExamArchitectPrompt(
+        contextPart,
+        context.gradeLevel,
+        stepCount,
+        bloomSteps,
+        structureGuide
+    );
+
+    // Prepare user content (text + optional image)
+    const userContent: any[] = [{ type: "text", text: `Create exam skeleton for: ${context.topic}` }];
+
+    if (context.fileData) {
+        userContent.push({
+            type: "image_url",
+            image_url: { url: `data:${context.fileData.mimeType};base64,${context.fileData.base64}` }
+        });
+    }
+
+    try {
+        logger.info(`🧠 Exam Architect: Planning ${stepCount} questions for "${context.topic}"`);
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o", // Strong model for strategic planning
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userContent as any }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.3 // LOW temperature for deterministic exam planning
+        });
+
+        const text = response.choices[0].message.content || "{}";
+        const result = JSON.parse(cleanJsonString(text)) as ExamSkeleton;
+
+        // Validate structure
+        if (!result.steps || !Array.isArray(result.steps) || result.steps.length === 0) {
+            logger.error("❌ Exam Architect: Invalid skeleton format", result);
+            return null;
+        }
+
+        // Calculate total points if not provided
+        if (!result.total_points) {
+            result.total_points = result.steps.reduce((sum, step) => sum + (step.points || 10), 0);
+        }
+
+        logger.info(`✅ Exam Architect: Created skeleton with ${result.steps.length} questions (${result.total_points} points)`);
+
+        return result;
+
+    } catch (error) {
+        logger.error("❌ Exam Architect Error:", error);
+        return null;
+    }
+}

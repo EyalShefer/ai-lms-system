@@ -7,7 +7,7 @@ import UnitEditor from './UnitEditor';
 import TeacherCockpit from './TeacherCockpit';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks } from '../gemini';
 // import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -302,7 +302,7 @@ const CourseEditor: React.FC = () => {
                     }
 
                     // 2. Generate Full Lesson Plan (No Skeleton)
-                    const lessonPlan = await generateTeacherStepContent(
+                    let lessonPlan = await generateTeacherStepContent(
                         unit.title,
                         sourceText,
                         grade,
@@ -311,6 +311,24 @@ const CourseEditor: React.FC = () => {
                     );
 
                     if (lessonPlan) {
+                        // 2.5 Generate AI Images for Visual Assets (NEW!)
+                        console.log("🎨 Generating visual assets for lesson plan...");
+                        lessonPlan = await generateLessonVisuals(lessonPlan);
+                        console.log("✅ Visual assets generation completed");
+
+                        // 2.6 Auto-Generate Interactive Blocks (NEW!)
+                        let interactiveBlocks: any[] = [];
+                        if (lessonPlan.guided_practice.suggested_block_types && lessonPlan.guided_practice.suggested_block_types.length > 0) {
+                            console.log("🎮 Auto-generating interactive activities...");
+                            interactiveBlocks = await generateInteractiveBlocks(
+                                lessonPlan.guided_practice.suggested_block_types,
+                                sourceText,
+                                unit.title,
+                                grade
+                            );
+                            console.log(`✅ Generated ${interactiveBlocks.length} interactive blocks`);
+                        }
+
                         // 3. Map to Blocks (Visual Guide)
                         const newBlocks = [
                             {
@@ -318,9 +336,20 @@ const CourseEditor: React.FC = () => {
                                 type: 'text',
                                 content: `
                                     <div class="lesson-section hook">
-                                        <h3>🪝 פתיחה (The Hook) - ${lessonPlan.hook.media_asset?.type === 'youtube_timestamp' ? '🎬 וידאו' : '🖼️ תמונה'}</h3>
+                                        <h3>🪝 פתיחה (The Hook)</h3>
+                                        ${lessonPlan.lesson_metadata.learning_objectives ? `
+                                            <div class="learning-objectives">
+                                                <strong>🎯 מטרות הלמידה:</strong>
+                                                <ul>${lessonPlan.lesson_metadata.learning_objectives.map(obj => `<li>${obj}</li>`).join('')}</ul>
+                                            </div>
+                                        ` : ''}
                                         <p class="teacher-script">${lessonPlan.hook.script_for_teacher}</p>
-                                        ${lessonPlan.hook.media_asset ? `<div class="media-badge">${lessonPlan.hook.media_asset.content}</div>` : ''}
+                                        ${lessonPlan.hook.classroom_management_tip ? `<div class="management-tip">💡 ${lessonPlan.hook.classroom_management_tip}</div>` : ''}
+                                        ${lessonPlan.hook.media_asset?.url ? `
+                                            <div class="generated-visual">
+                                                <img src="${lessonPlan.hook.media_asset.url}" alt="Hook Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
+                                            </div>
+                                        ` : lessonPlan.hook.media_asset ? `<div class="media-badge">📺 ${lessonPlan.hook.media_asset.content}</div>` : ''}
                                     </div>
                                 `,
                                 metadata: { time: '5 min', bloomLevel: 'remember' }
@@ -334,12 +363,18 @@ const CourseEditor: React.FC = () => {
                                         ${lessonPlan.direct_instruction.slides.map((slide, idx) => `
                                             <div class="slide-card">
                                                 <h4>שקף ${idx + 1}: ${slide.slide_title}</h4>
+                                                ${slide.timing_estimate ? `<div class="timing-badge">⏱️ ${slide.timing_estimate}</div>` : ''}
                                                 <div class="board-points">
                                                     <strong>📝 על הלוח:</strong>
                                                     <ul>${slide.bullet_points_for_board.map(p => `<li>${p}</li>`).join('')}</ul>
                                                 </div>
                                                 <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
-                                                ${slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
+                                                ${slide.differentiation_note ? `<div class="diff-note">💡 ${slide.differentiation_note}</div>` : ''}
+                                                ${slide.media_asset?.url ? `
+                                                    <div class="generated-visual">
+                                                        <img src="${slide.media_asset.url}" alt="Slide ${idx + 1} Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
+                                                    </div>
+                                                ` : slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
                                             </div>
                                         `).join('')}
                                     </div>
@@ -352,7 +387,24 @@ const CourseEditor: React.FC = () => {
                                 content: `
                                     <div class="lesson-section practice">
                                         <h3>🛠️ תרגול מודרך (Guided Practice)</h3>
-                                        <p>${lessonPlan.guided_practice.teacher_instruction}</p>
+                                        <p><strong>🎯 הנחיה למורה:</strong> ${lessonPlan.guided_practice.teacher_instruction}</p>
+                                        ${lessonPlan.guided_practice.suggested_block_types ? `
+                                            <div class="suggested-activities">
+                                                <strong>💡 פעילויות מומלצות להוספה:</strong>
+                                                <ul>${lessonPlan.guided_practice.suggested_block_types.map(type => {
+                                                    const typeNames: Record<string, string> = {
+                                                        'multiple-choice': 'שאלה אמריקאית',
+                                                        'memory_game': 'משחק זיכרון',
+                                                        'fill_in_blanks': 'השלמת משפטים',
+                                                        'ordering': 'סידור רצף',
+                                                        'categorization': 'מיון לקטגוריות',
+                                                        'open-question': 'שאלה פתוחה'
+                                                    };
+                                                    return `<li>✨ ${typeNames[type] || type}</li>`;
+                                                }).join('')}</ul>
+                                                <p style="margin-top: 0.5rem; font-size: 0.9em; color: #666;">💡 לחץ על "הוסף רכיב" למטה כדי להוסיף פעילויות אינטראקטיביות</p>
+                                            </div>
+                                        ` : ''}
                                         <div class="wizdi-tool">
                                             <strong>🚀 כלי דיגיטלי:</strong> ${lessonPlan.guided_practice.wizdi_tool_reference}
                                         </div>
@@ -360,18 +412,48 @@ const CourseEditor: React.FC = () => {
                                 `,
                                 metadata: { time: '15 min', bloomLevel: 'apply' }
                             },
+                            // AUTO-GENERATED INTERACTIVE BLOCKS (NEW!)
+                            ...interactiveBlocks,
+                            {
+                                id: crypto.randomUUID(),
+                                type: 'text',
+                                content: `
+                                    <div class="lesson-section discussion">
+                                        <h3>💬 דיון כיתתי (Discussion)</h3>
+                                        <div class="discussion-questions">
+                                            <ul>${lessonPlan.discussion.questions.map(q => `<li>❓ ${q}</li>`).join('')}</ul>
+                                        </div>
+                                        ${lessonPlan.discussion.facilitation_tips ? `
+                                            <div class="facilitation-tips">
+                                                <strong>🎯 טיפים להנחיה:</strong>
+                                                <ul>${lessonPlan.discussion.facilitation_tips.map(tip => `<li>${tip}</li>`).join('')}</ul>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `,
+                                metadata: { time: '5 min', bloomLevel: 'evaluate' }
+                            },
                             {
                                 id: crypto.randomUUID(),
                                 type: 'text',
                                 content: `
                                     <div class="lesson-section summary">
-                                        <h3>💬 סיכום ודיון</h3>
-                                        <ul>${lessonPlan.discussion.questions.map(q => `<li>❓ ${q}</li>`).join('')}</ul>
-                                        <hr/>
-                                        <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> ${lessonPlan.summary.takeaway_sentence}</p>
+                                        <h3>📝 סיכום (Summary)</h3>
+                                        <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> "${lessonPlan.summary.takeaway_sentence}"</p>
+                                        ${lessonPlan.summary.visual_summary?.url ? `
+                                            <div class="generated-visual">
+                                                <strong>📊 אינפוגרפיקה לסיכום:</strong>
+                                                <img src="${lessonPlan.summary.visual_summary.url}" alt="Summary Infographic" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
+                                            </div>
+                                        ` : ''}
+                                        ${lessonPlan.summary.homework_suggestion ? `
+                                            <div class="homework">
+                                                <strong>📚 הצעה לשיעורי בית:</strong> ${lessonPlan.summary.homework_suggestion}
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 `,
-                                metadata: { time: '10 min', bloomLevel: 'evaluate' }
+                                metadata: { time: '5 min', bloomLevel: 'remember' }
                             }
                         ];
 
@@ -607,7 +689,11 @@ const CourseEditor: React.FC = () => {
                     extractedGrade,
                     processedFileData,
                     userSubject,
-                    processedSourceText
+                    processedSourceText,
+                    data.settings?.includeBot !== false, // includeBot
+                    data.settings?.productType, // 🆕 Product Type (will route to exam_generation_queue if 'exam')
+                    data.settings?.activityLength, // 🆕 Activity Length
+                    data.settings?.taxonomy // 🆕 Taxonomy
                 );
             }
 

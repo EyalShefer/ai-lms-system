@@ -3,6 +3,7 @@ import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https"; // 
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import OpenAI from "openai";
 import { defineSecret } from "firebase-functions/params";
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 // 1. אתחול
 initializeApp();
 const db = getFirestore();
+const auth = getAuth();
 const openAiApiKey = defineSecret("OPENAI_API_KEY");
 const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
 
@@ -18,9 +20,12 @@ import { checkRateLimit } from "./middleware/rateLimiter";
 
 // --- CONTROLLERS ---
 import { createAiController } from "./controllers/aiController";
+import { createExamController } from "./controllers/examController";
 
-const { generateUnitSkeleton, generateStepContent, generatePodcastScript } = createAiController(openAiApiKey);
-export { generateUnitSkeleton, generateStepContent, generatePodcastScript };
+const { generateTeacherLessonPlan, generateStepContent, generatePodcastScript } = createAiController(openAiApiKey);
+export { generateTeacherLessonPlan, generateStepContent, generatePodcastScript };
+
+const examController = createExamController(openAiApiKey);
 
 // --- SHARED IMPORTS ---
 import { mapSystemItemToBlock, cleanJsonString } from './shared/utils/geminiParsers';
@@ -41,7 +46,27 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
         return;
     }
 
-    // 2. Apply Rate Limiting
+    // 2. Authenticate user via Firebase Auth token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        logger.warn('Missing or invalid Authorization header');
+        res.status(401).json({ error: 'נדרשת הזדהות' });
+        return;
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+        // Verify the Firebase ID token
+        const decodedToken = await auth.verifyIdToken(idToken);
+        // Attach user info to request for rate limiter
+        (req as any).auth = { uid: decodedToken.uid };
+    } catch (error) {
+        logger.error('Invalid Firebase token:', error);
+        res.status(401).json({ error: 'נדרשת הזדהות', code: 'UNAUTHORIZED' });
+        return;
+    }
+
+    // 3. Apply Rate Limiting
     // Determine rate limit type based on endpoint
     let rateLimitType: 'ai-generation' | 'chat' | 'general' = 'general';
     if (req.path.includes('/chat/completions')) {
@@ -637,6 +662,92 @@ export const generateLessonPlan = onDocumentCreated(
 
         } catch (error: any) {
             logger.error("Error generating lesson:", error);
+            await event.data.ref.update({
+                status: "error",
+                error: error.message || "Unknown error occurred",
+            });
+        }
+    }
+);
+
+// --- EXAM GENERATION CLOUD FUNCTION ---
+/**
+ * generateExam - Dedicated Cloud Function for Exam Generation
+ *
+ * Listens to: exam_generation_queue/{docId}
+ * Pipeline: Exam Architect → Exam Generator → Exam Guardian
+ * Output: Pure exam with no hints, no teaching content
+ *
+ * This function is completely isolated from learning content generation
+ * to ensure exam integrity and maintainability.
+ */
+export const generateExam = onDocumentCreated(
+    {
+        document: "exam_generation_queue/{docId}",
+        secrets: [openAiApiKey],
+        timeoutSeconds: 540,
+        memory: "512MiB",
+    },
+    async (event) => {
+        if (!event.data) return;
+
+        const docId = event.params.docId;
+        const data = event.data.data() as any;
+
+        if (!data || data.status !== "pending") return;
+
+        try {
+            logger.info(`🎓 Starting EXAM generation for document ${docId}`);
+            await event.data.ref.update({ status: "processing" });
+
+            const {
+                topic,
+                gradeLevel,
+                subject = "כללי",
+                fileData,
+                activityLength = "medium",
+                sourceText,
+                taxonomy,
+                title
+            } = data;
+
+            // Execute Exam Generation Pipeline
+            const result = await examController.generateExam({
+                topic,
+                gradeLevel,
+                subject,
+                fileData,
+                activityLength,
+                sourceText,
+                taxonomy,
+                customTitle: title
+            });
+
+            if (!result.success) {
+                throw new Error(result.error || "Exam generation failed");
+            }
+
+            // Sanitize and save
+            const sanitizeData = (data: any): any => {
+                return JSON.parse(JSON.stringify(data, (key, value) => {
+                    return value === undefined ? null : value;
+                }));
+            };
+
+            const cleanExam = sanitizeData(result.exam);
+
+            await event.data.ref.update({
+                status: "completed",
+                result: cleanExam,
+                metadata: result.metadata,
+                guardianResult: result.guardianResult,
+                updatedAt: new Date(),
+            });
+
+            logger.info(`🎉 Successfully generated exam for ${docId} (Quality: ${result.metadata.qualityScore}/100)`);
+
+        } catch (error: any) {
+            logger.error("❌ Error generating exam:", error);
             await event.data.ref.update({
                 status: "error",
                 error: error.message || "Unknown error occurred",
