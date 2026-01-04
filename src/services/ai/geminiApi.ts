@@ -299,16 +299,27 @@ export const generateInfographicFromText = async (
     // Import cache utilities dynamically
     const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
 
+    // Import analytics utilities
+    const { trackGenerationStart, trackCacheHit, trackCacheMiss, trackGenerationComplete, trackGenerationFailed } =
+        await import('../infographicAnalytics');
+
     // Truncate text if too long (DALL-E prompt limit ~4000 chars)
     const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;
+
+    // Track generation start
+    trackGenerationStart(visualType, text.length);
 
     // Check cache first (unless explicitly skipped)
     if (!skipCache) {
         const cacheHash = await generateInfographicHash(truncatedText, visualType);
-        const cachedDataUrl = getCachedInfographic(cacheHash);
 
+        // 1. Check memory cache (fastest)
+        const cachedDataUrl = getCachedInfographic(cacheHash);
         if (cachedDataUrl) {
-            console.log(`🎯 Cache HIT for ${visualType} infographic (hash: ${cacheHash.substring(0, 8)}...)`);
+            console.log(`🎯 Memory Cache HIT for ${visualType} infographic (hash: ${cacheHash.substring(0, 8)}...)`);
+
+            // Track cache hit
+            trackCacheHit(visualType, 'memory');
 
             // Convert data URL back to Blob
             const base64Data = cachedDataUrl.split(',')[1];
@@ -321,7 +332,33 @@ export const generateInfographicFromText = async (
             return new Blob([byteArray], { type: "image/png" });
         }
 
+        // 2. Check Firebase Storage (persistent)
+        const { getFromFirebaseCache } = await import('../../utils/infographicCache');
+        const firebaseUrl = await getFromFirebaseCache(cacheHash);
+        if (firebaseUrl) {
+            console.log(`☁️ Firebase Storage Cache HIT for ${visualType} infographic`);
+
+            // Track cache hit
+            trackCacheHit(visualType, 'firebase-storage');
+
+            // Download and convert to Blob
+            const response = await fetch(firebaseUrl);
+            const blob = await response.blob();
+
+            // Also save to memory cache for next time
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCachedInfographic(cacheHash, reader.result as string);
+            };
+            reader.readAsDataURL(blob);
+
+            return blob;
+        }
+
         console.log(`🔍 Cache MISS for ${visualType} infographic - generating new image...`);
+
+        // Track cache miss
+        trackCacheMiss(visualType);
     }
 
     // Type-specific prompt templates optimized for educational clarity
@@ -388,29 +425,57 @@ export const generateInfographicFromText = async (
 
     try {
         console.log(`🎨 Generating ${visualType} infographic...`);
+        const startTime = Date.now();
         const imageBlob = await generateAiImage(enhancedPrompt);
+        const generationTime = Date.now() - startTime;
 
         if (imageBlob) {
             console.log(`✅ ${visualType} infographic generated successfully`);
 
-            // Cache the result for future use
+            // Track successful generation
+            // Note: Actual provider detection would require checking generateAiImage internals
+            // For now, assume DALL-E (default), will enhance when Imagen is fully configured
+            const provider: 'dall-e' | 'imagen' = 'dall-e';
+            const cost = provider === 'dall-e' ? 0.040 : 0.020;
+            trackGenerationComplete(visualType, provider, generationTime, cost);
+
+            // Cache the result for future use (two-tier: memory + Firebase Storage)
             if (!skipCache) {
                 const cacheHash = await generateInfographicHash(truncatedText, visualType);
+
+                // 1. Save to memory cache (fast, session-only)
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     const dataUrl = reader.result as string;
                     setCachedInfographic(cacheHash, dataUrl);
-                    console.log(`💾 Cached infographic (hash: ${cacheHash.substring(0, 8)}...)`);
+                    console.log(`💾 Memory cache saved (hash: ${cacheHash.substring(0, 8)}...)`);
                 };
                 reader.readAsDataURL(imageBlob);
+
+                // 2. Save to Firebase Storage (persistent, cross-session)
+                try {
+                    const { saveToFirebaseCache } = await import('../../utils/infographicCache');
+                    await saveToFirebaseCache(cacheHash, imageBlob);
+                    console.log(`☁️ Firebase Storage cache saved (persistent)`);
+                } catch (error) {
+                    console.warn('⚠️ Firebase Storage save failed (memory cache still active):', error);
+                    // Continue anyway - memory cache still works
+                }
             }
         } else {
             console.warn(`⚠️ ${visualType} infographic generation returned null`);
+
+            // Track failed generation
+            trackGenerationFailed(visualType, 'dall-e');
         }
 
         return imageBlob;
     } catch (e) {
         console.error(`Error generating ${visualType} infographic:`, e);
+
+        // Track failed generation
+        trackGenerationFailed(visualType, 'dall-e');
+
         return null;
     }
 };

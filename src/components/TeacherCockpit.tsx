@@ -291,7 +291,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
             if (imageBlob) {
                 // Convert blob to base64 for preview
                 const reader = new FileReader();
-                reader.onloadend = () => {
+                reader.onloadend = async () => {
                     const base64data = reader.result as string;
 
                     // Show preview modal instead of directly inserting
@@ -300,6 +300,10 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         block: block,
                         visualType: visualType
                     });
+
+                    // Track preview opened
+                    const { trackPreviewOpened } = await import('../services/infographicAnalytics');
+                    trackPreviewOpened(visualType);
                 };
                 reader.readAsDataURL(imageBlob);
             } else {
@@ -313,8 +317,12 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
         }
     };
 
-    const handleConfirmInfographic = () => {
+    const handleConfirmInfographic = async () => {
         if (!infographicPreview) return;
+
+        // Track preview confirmed
+        const { trackPreviewConfirmed } = await import('../services/infographicAnalytics');
+        trackPreviewConfirmed(infographicPreview.visualType);
 
         // Create new image block after current block
         const newBlock = createBlock('image', 'socratic');
@@ -1100,6 +1108,86 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                     </div>
                 </div>
             </div>
+
+            {/* Infographic Preview Modal */}
+            {infographicPreview && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto animate-scale-in">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 rounded-t-2xl">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-2xl font-bold">תצוגה מקדימה - אינפוגרפיקה</h3>
+                                    <p className="text-sm opacity-90 mt-1">
+                                        סוג: {infographicPreview.visualType === 'flowchart' ? 'תרשים זרימה' :
+                                              infographicPreview.visualType === 'timeline' ? 'ציר זמן' :
+                                              infographicPreview.visualType === 'comparison' ? 'השוואה' : 'מחזור'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setInfographicPreview(null)}
+                                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                    title="סגור"
+                                >
+                                    <IconX className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Image Preview */}
+                        <div className="p-6">
+                            <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
+                                <img
+                                    src={infographicPreview.imageUrl}
+                                    alt="תצוגה מקדימה של אינפוגרפיקה"
+                                    className="w-full h-auto rounded-lg shadow-lg"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="p-6 bg-slate-50 rounded-b-2xl flex gap-3 justify-end border-t">
+                            <button
+                                onClick={async () => {
+                                    // Track preview rejection
+                                    const { trackPreviewRejected } = await import('../services/infographicAnalytics');
+                                    trackPreviewRejected(infographicPreview.visualType);
+                                    setInfographicPreview(null);
+                                }}
+                                className="px-6 py-3 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors font-semibold border border-slate-300"
+                            >
+                                ביטול
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    // Track type change intent
+                                    const { trackTypeChanged } = await import('../services/infographicAnalytics');
+                                    const oldType = infographicPreview.visualType;
+
+                                    // Regenerate with different type
+                                    setInfographicPreview(null);
+                                    setShowInfographicMenu(infographicPreview.block.id);
+
+                                    // Note: We'll track the actual new type when user selects it
+                                    // For now just log that user wants to try another type
+                                    console.log(`User wants to try different type from ${oldType}`);
+                                }}
+                                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold flex items-center gap-2"
+                            >
+                                <IconWand className="w-5 h-5" />
+                                נסה סוג אחר
+                            </button>
+                            <button
+                                onClick={handleConfirmInfographic}
+                                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-colors font-semibold flex items-center gap-2 shadow-lg"
+                            >
+                                <IconCheck className="w-5 h-5" />
+                                הוסף לשיעור
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

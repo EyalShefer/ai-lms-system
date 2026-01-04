@@ -5,6 +5,8 @@
  */
 
 import type { InfographicType } from '../services/ai/geminiApi';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 
 // Simple in-memory cache for current session
 const memoryCache = new Map<string, string>();
@@ -74,30 +76,51 @@ export const getCacheStats = () => ({
 });
 
 /**
- * Firebase Storage Integration (optional - for persistent cache)
- * Uncomment and configure when ready for production
+ * Firebase Storage Integration - Persistent Cache
+ * ENABLED: Caches infographics permanently across sessions
  */
-/*
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
 
+/**
+ * Save infographic to Firebase Storage for persistent caching
+ * @param hash - Unique hash identifier
+ * @param blob - Image blob to save
+ * @returns Download URL of the saved image
+ */
 export const saveToFirebaseCache = async (
     hash: string,
     blob: Blob
 ): Promise<string> => {
-    const storageRef = ref(storage, `infographic_cache/${hash}.png`);
-    await uploadBytes(storageRef, blob);
-    const url = await getDownloadURL(storageRef);
-    return url;
+    try {
+        const storageRef = ref(storage, `infographic_cache/${hash}.png`);
+        await uploadBytes(storageRef, blob, {
+            contentType: 'image/png',
+            cacheControl: 'public, max-age=31536000' // 1 year cache
+        });
+        const url = await getDownloadURL(storageRef);
+        console.log(`☁️ Saved to Firebase Storage: ${hash.substring(0, 8)}...`);
+        return url;
+    } catch (error) {
+        console.error('Failed to save to Firebase Storage:', error);
+        throw error;
+    }
 };
 
+/**
+ * Retrieve infographic from Firebase Storage
+ * @param hash - Unique hash identifier
+ * @returns Download URL if exists, null otherwise
+ */
 export const getFromFirebaseCache = async (hash: string): Promise<string | null> => {
     try {
         const storageRef = ref(storage, `infographic_cache/${hash}.png`);
         const url = await getDownloadURL(storageRef);
+        console.log(`☁️ Retrieved from Firebase Storage: ${hash.substring(0, 8)}...`);
         return url;
-    } catch (error) {
-        return null; // Not found
+    } catch (error: any) {
+        if (error.code === 'storage/object-not-found') {
+            return null; // Not found - this is expected
+        }
+        console.error('Error retrieving from Firebase Storage:', error);
+        return null;
     }
 };
-*/
