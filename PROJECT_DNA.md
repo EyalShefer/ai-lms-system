@@ -559,7 +559,257 @@ Executed between steps (Wizard Mode):
         - `exam`: Forces `mode: assessment`. No teaching blocks.
         - `lesson`: Standard narrative flow.
 
-# 19. 🛡️ AGENTIC SAFETY PROTOCOL (The Shield)
+# 19. 🤖 AI AGENTS REGISTRY (Complete System Map)
+*Last Updated: 2026-01-04*
+
+## 19.1 Overview
+This section documents ALL AI agents in the system, their locations, purposes, and configurations. The system uses a multi-agent architecture with specialized agents for different tasks.
+
+## 19.2 Core AI Services
+
+### 19.2.1 Teacher Persona Bots (4 Personalities)
+- **File:** `src/services/ai/prompts.ts`
+- **Agent Names:**
+  | Persona | Hebrew Name | Behavior | Use Case |
+  |---------|-------------|----------|----------|
+  | **Teacher** | המורה המלווה | Gently corrects, encouraging | Default tutoring |
+  | **Socratic** | המנחה הסוקרטי | Questions with questions | Critical thinking |
+  | **Concise** | התמציתי | 2-3 sentence answers | Quick help |
+  | **Coach** | המאמן המאתגר | Pushes students further | Advanced learners |
+- **Integration:** `AiTutor.tsx` component, uses OpenAI GPT-4o-mini via proxy
+
+### 19.2.2 AI Tutor Chat Component
+- **File:** `src/components/AiTutor.tsx`
+- **Purpose:** Interactive AI tutoring chatbot
+- **Features:**
+  - Safety checks (distress detection)
+  - Input validation & security filtering
+  - Selectable personas from 19.2.1
+- **Model:** GPT-4o-mini via `openaiProxy`
+
+## 19.3 Exam Generation Pipeline (3-Stage Architecture)
+
+### 19.3.1 Stage 1: Exam Architect
+- **File:** `functions/src/services/examArchitect.ts`
+- **Prompts:** `functions/src/ai/examPrompts.ts`
+- **Role:** Strategic test planner
+- **Responsibilities:**
+  - Analyzes source material holistically
+  - Creates test structure and question specifications
+  - Assigns Bloom taxonomy levels
+  - Ensures balanced topic coverage
+- **Temperature:** 0.3 (deterministic)
+- **Output:** `ExamSkeleton` with estimated time, difficulty levels, point allocation
+
+### 19.3.2 Stage 2: Exam Generator
+- **File:** `functions/src/services/examGenerator.ts`
+- **Role:** Question creator
+- **Responsibilities:**
+  - Generates individual exam questions
+  - Creates rigorous, assessment-focused content
+  - No hints or teaching (exam-only mode)
+  - Supports: MCQ, True/False, Fill-in, Ordering, Open questions
+- **Temperature:** 0.3 (deterministic)
+- **Output:** Generated questions with distractor analysis and rubrics
+
+### 19.3.3 Stage 3: Exam Guardian
+- **File:** `functions/src/services/examGuardian.ts`
+- **Role:** Integrity validator (QA)
+- **Responsibilities:**
+  - Checks for hint/teaching content leaks
+  - Validates formal, objective tone
+  - Detects answer reveals in feedback
+  - Checks for bias (cultural, gender, socioeconomic)
+  - Evaluates accessibility
+- **Temperature:** 0.1 (very strict)
+- **Output:** Quality score (0-100) + validation report
+
+## 19.4 Content Generation Agents
+
+### 19.4.1 Unit Skeleton Generator (Brain)
+- **File:** `functions/src/controllers/aiController.ts`
+- **Functions:**
+  - `generateTeacherLessonPlan()` - 5E Model lesson plans
+  - `generateStudentUnitSkeleton()` - Interactive learning units
+- **Role:** Holistic commander - plans structure without writing content
+- **Output:** Roadmap with logical boundaries
+
+### 19.4.2 Step Content Generator (Hands)
+- **File:** `functions/src/controllers/aiController.ts`
+- **Function:** `generateStepContent()`
+- **Role:** Focused executor - writes within boundaries set by Brain
+- **Features:** Multi-modal content (text + images)
+
+### 19.4.3 Question Generator Suite
+- **File:** `src/services/ai/geminiApi.ts`
+- **Functions:**
+  | Function | Output Type |
+  |----------|-------------|
+  | `generateSingleMultipleChoiceQuestion()` | MCQ |
+  | `generateSingleOpenQuestion()` | Open-ended |
+  | `generateCategorizationQuestion()` | Sorting/categorization |
+  | `generateOrderingQuestion()` | Sequencing |
+  | `generateFillInBlanksQuestion()` | Cloze text |
+  | `generateMemoryGame()` | Matching pairs |
+
+### 19.4.4 Content Validation Agent
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `validateContent()`
+- **Purpose:** Pedagogical validation
+- **Checks:** Readability, cognitive load, CEFR level, structural integrity
+
+### 19.4.5 Content Refinement Agent
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `refineContentWithPedagogy()`
+- **Purpose:** Improves content based on pedagogical instructions
+
+### 19.4.6 AI Auto-Fix Agent
+- **File:** `functions/src/controllers/aiController.ts`
+- **Function:** `attemptAutoFix()`
+- **Purpose:** Automatically fixes validation issues
+- **Temperature:** 0.3
+
+## 19.5 Assessment & Grading Agents
+
+### 19.5.1 Automated Grading Service
+- **File:** `src/services/gradingService.ts`
+- **Function:** `gradeBatch()`
+- **Purpose:** Auto-grades open-ended questions using AI
+- **Features:** Batch processing, rubric-based, student feedback
+
+### 19.5.2 Student Answer Evaluator
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `checkOpenQuestionAnswer()`
+- **Modes:**
+  - Learning: Guiding feedback
+  - Exam: Strict evaluation
+- **Output:** Status (correct/partial/incorrect) + feedback
+
+### 19.5.3 Grading Agent
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateGrading()`
+- **Output:** JSON with grades (0-100) + constructive feedback in Hebrew
+
+## 19.6 Analytics & Profiling Agents
+
+### 19.6.1 Student Analysis Agent
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateStudentAnalysis()`
+- **Output:** Strengths, weaknesses, psychological profile, engagement score
+
+### 19.6.2 Class Analysis Agent
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateClassAnalysis()`
+- **Output:** Class strengths, weak skills, teaching strategies, class vibe
+
+### 19.6.3 Student Report Generator
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateStudentReport()`
+- **Output:** JSON report with summary, knowledge assessment, recommendations
+
+## 19.7 Adaptive Content Service
+- **File:** `src/services/adaptiveContentService.ts`
+- **Function:** `enrichActivityBlock()`
+- **Purpose:** Enriches learning blocks with pedagogical metadata
+- **Features:**
+  - Difficulty level estimation (IRT Beta)
+  - Bloom taxonomy classification
+  - Error tagging for distractors
+  - Misconception analysis
+
+## 19.8 Media Generation Agents
+
+### 19.8.1 Podcast Script Generator
+- **File:** `src/services/audioGenerator.ts`
+- **Function:** `generateScript()`
+- **Format:** Two-host dialogue (Dan - analytical, Noa - curious)
+- **Language:** Hebrew (configurable)
+- **Temperature:** 0.7 (creative)
+
+### 19.8.2 Detailed Script Generator
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generatePodcastScript()`
+- **Output:** `DialogueScript` with speaker roles and emotional cues
+
+### 19.8.3 Image Generation (DALL-E 3)
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateAiImage()`
+- **Cost:** $0.040 per image
+- **Features:** Fallback mechanism, cost-effective provider selection
+
+### 19.8.4 Image Generation (Imagen 3)
+- **File:** `src/services/ai/imagenService.ts`
+- **Function:** `generateImagenImage()`
+- **Cost:** $0.020 per image (50% cheaper)
+- **Status:** Optional, requires Cloud Function deployment
+
+### 19.8.5 Infographic Generator
+- **File:** `src/services/ai/geminiApi.ts`
+- **Function:** `generateInfographicFromText()`
+- **Types:** Flowchart, Timeline, Comparison, Cycle
+- **Features:**
+  - Dual-tier caching (memory + Firebase Storage)
+  - Analytics tracking
+  - Hebrew-optimized prompts
+
+### 19.8.6 Text-to-Speech (ElevenLabs)
+- **File:** `src/services/elevenLabs.ts`
+- **Features:**
+  - Multi-language voice support
+  - Automatic language detection (Hebrew/English)
+  - Gendered voice options
+
+## 19.9 Infrastructure & Proxy Agents
+
+### 19.9.1 OpenAI Proxy Function
+- **File:** `functions/src/index.ts`
+- **Function:** `openaiProxy`
+- **Purpose:** Proxies OpenAI requests with:
+  - Firebase Auth validation
+  - Rate limiting by request type
+  - Cost control and monitoring
+
+### 19.9.2 YouTube Transcription
+- **File:** `functions/src/index.ts`
+- **Function:** `transcribeYoutube()`
+- **Features:** Multi-language support, fallback strategy
+
+### 19.9.3 Imagen Proxy
+- **File:** `functions/src/imagenProxy.ts`
+- **Functions:** `generateImagenImage()`, `imagenHealthCheck()`, `imagenStats()`
+- **Purpose:** Proxies Vertex AI with monitoring
+
+## 19.10 QA & Testing Agents
+
+### 19.10.1 IDO QA Agent
+- **File:** `scripts/ido_qa_agent.ts`
+- **Purpose:** QA testing bot simulating 14-year-old tester
+- **Features:**
+  - Static analysis (Readiness Check)
+  - Dynamic user interaction simulation
+  - Bug report generation
+- **Output:** JSON test reports with pass/fail status
+
+## 19.11 Model & Cost Configuration
+| Use Case | Model | Temperature | Cost |
+|----------|-------|-------------|------|
+| Primary Generation | GPT-4o-mini | 0.3-0.5 | Low |
+| Quality Validation | GPT-4o | 0.1 | Medium |
+| Creative Content | GPT-4o-mini | 0.7 | Low |
+| Strict Validation | GPT-4o | 0.1 | Medium |
+| Image (Standard) | DALL-E 3 | - | $0.040 |
+| Image (Economy) | Imagen 3 | - | $0.020 |
+
+## 19.12 Prompt Files Registry
+| File | Purpose |
+|------|---------|
+| `src/services/ai/prompts.ts` | Bot personas, validation prompts |
+| `src/prompts/pedagogicalPrompts.ts` | Linguistic validation, structural integrity |
+| `src/prompts/audioPrompts.ts` | Podcast script generation |
+| `functions/src/ai/prompts.ts` | Backend skeleton & step prompts |
+| `functions/src/ai/examPrompts.ts` | Exam 3-stage pipeline prompts |
+
+# 20. 🛡️ AGENTIC SAFETY PROTOCOL (The Shield)
 ## 19.1 Regression Prevention
 - **Rule:** "Do No Harm."
 - **Mandate:** Before upgrading a UI component (e.g., Player), ensure the *existing* flow works. New features (Overlays) must be additive, not destructive.
