@@ -19,7 +19,7 @@ import { getExamGuardianPrompt } from '../ai/examPrompts';
 import type { ExamQuestionResponse } from './examGenerator';
 
 export interface GuardianCheckResult {
-    status: 'PASS' | 'FAIL';
+    status: 'PASS' | 'FAIL' | 'WARN';
     details: string;
 }
 
@@ -32,11 +32,18 @@ export interface ExamGuardianResult {
         tone_check: GuardianCheckResult;
         answer_reveal: GuardianCheckResult;
     };
-    phase2_scores: {
+    phase2_fairness: { // ✨ NEW
+        cultural_bias: GuardianCheckResult;
+        gender_bias: GuardianCheckResult;
+        socioeconomic_bias: GuardianCheckResult;
+        accessibility: GuardianCheckResult;
+    };
+    phase3_scores: { // ✨ RENAMED from phase2_scores
         coverage: number;
         bloom_accuracy: number;
         question_clarity: number;
         distractor_quality: number;
+        rubric_quality: number; // ✨ NEW
     };
     overall_quality_score: number;
     feedback_hebrew: string;
@@ -107,11 +114,18 @@ export async function validateExamIntegrity(
                 tone_check: { status: 'PASS', details: 'Guardian error - could not validate' },
                 answer_reveal: { status: 'PASS', details: 'Guardian error - could not validate' }
             },
-            phase2_scores: {
+            phase2_fairness: {
+                cultural_bias: { status: 'WARN', details: 'Guardian error - could not validate' },
+                gender_bias: { status: 'WARN', details: 'Guardian error - could not validate' },
+                socioeconomic_bias: { status: 'WARN', details: 'Guardian error - could not validate' },
+                accessibility: { status: 'WARN', details: 'Guardian error - could not validate' }
+            },
+            phase3_scores: {
                 coverage: 0,
                 bloom_accuracy: 0,
                 question_clarity: 0,
-                distractor_quality: 0
+                distractor_quality: 0,
+                rubric_quality: 0
             },
             overall_quality_score: 0,
             feedback_hebrew: 'שגיאה בבדיקת האיכות - המערכת לא הצליחה לאמת את המבחן',

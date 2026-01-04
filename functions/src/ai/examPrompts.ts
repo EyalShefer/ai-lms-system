@@ -176,7 +176,22 @@ MANDATORY REQUIREMENTS:
      * Question must be clear and unambiguous.
      * Exactly 4 options (A, B, C, D).
      * One correct answer, three plausible distractors.
-     * Distractors should target common misconceptions.
+     * **Distractors MUST target specific misconceptions** (CRITICAL for quality).
+     * Each distractor must have a pedagogical purpose documented in metadata.
+
+     **Distractor Analysis Format:**
+     \`\`\`json
+     {
+       "question": "...",
+       "options": ["correct", "distractor1", "distractor2", "distractor3"],
+       "correct_answer": "correct",
+       "distractor_analysis": {
+         "distractor1": "מטרה: תלמיד שמערבב בין X ל-Y",
+         "distractor2": "מטרה: תלמיד ששכח את שלב Z",
+         "distractor3": "מטרה: חישוב שגוי (הפוך את הנוסחה)"
+       }
+     }
+     \`\`\`
 
    - **True/False:**
      * Statement must be clearly true or clearly false (no ambiguity).
@@ -198,23 +213,62 @@ MANDATORY REQUIREMENTS:
      * Provide detailed \`model_answer\` with 3-4 key points.
      * Include \`teacher_guidelines\` with grading rubric (see below).
 
-6. **TEACHER GUIDELINES (for Open Questions):**
-   Provide detailed grading guidance:
-   \`\`\`
-   🎯 מה לחפש בתשובה:
-   • [נקודת מפתח 1]
-   • [נקודת מפתח 2]
-   • [נקודת מפתח 3]
+6. **ANALYTIC RUBRIC (for Open Questions) - CRITICAL:**
+   Open questions MUST include a detailed analytic rubric with multiple criteria.
 
-   ❌ טעויות נפוצות:
-   • [טעות 1]
-   • [טעות 2]
-
-   📊 חלוקת ציון:
-   • מלא (${stepInfo.points || 10} נקודות): כל הנקודות נכללו
-   • חלקי (${Math.floor((stepInfo.points || 10) * 0.6)} נקודות): חסרה נקודה אחת
-   • לא מספק (0 נקודות): תשובה שגויה או לא רלוונטית
+   **Structure:**
+   \`\`\`json
+   {
+     "question": "השאלה...",
+     "total_points": ${stepInfo.points || 10},
+     "rubric_type": "analytic",
+     "criteria": [
+       {
+         "criterion_name": "זיהוי מושג מרכזי",
+         "weight_points": ${Math.floor((stepInfo.points || 10) * 0.3)},
+         "levels": {
+           "excellent": {
+             "points": ${Math.floor((stepInfo.points || 10) * 0.3)},
+             "description": "מזהה ומסביר במדויק + מביא דוגמה"
+           },
+           "good": {
+             "points": ${Math.floor((stepInfo.points || 10) * 0.3 * 0.7)},
+             "description": "מזהה ומסביר במדויק, אך ללא דוגמה"
+           },
+           "partial": {
+             "points": ${Math.floor((stepInfo.points || 10) * 0.3 * 0.4)},
+             "description": "מזהה את המושג אך ההסבר חלקי"
+           },
+           "missing": {
+             "points": 0,
+             "description": "לא מזהה או מזהה באופן שגוי"
+           }
+         }
+       },
+       {
+         "criterion_name": "הסבר תהליך",
+         "weight_points": ${Math.floor((stepInfo.points || 10) * 0.4)},
+         "levels": { ... }
+       },
+       {
+         "criterion_name": "קשר לחיי היומיום",
+         "weight_points": ${Math.floor((stepInfo.points || 10) * 0.3)},
+         "levels": { ... }
+       }
+     ],
+     "model_answer": "דוגמה לתשובה מצוינת (לא להעתיק!)",
+     "common_mistakes": [
+       "טעות 1: מערבב בין X ל-Y",
+       "טעות 2: חושב ש-Z קורה לפני W"
+     ]
+   }
    \`\`\`
+
+   **Guidelines:**
+   - Divide total points into 2-4 criteria
+   - Each criterion has 4 levels: excellent (100%), good (70%), partial (40%), missing (0%)
+   - Criteria should be independent and measurable
+   - Total of all criteria weights = total question points
 
 7. **PEDAGOGICAL SAFETY VALVE (Fallback):**
    - IF the Source Text lacks data for requested type (e.g., no sequence for "Ordering"):
@@ -247,7 +301,14 @@ Output FORMAT (JSON ONLY):
       //   "options": ["אופציה א'", "אופציה ב'", "אופציה ג'", "אופציה ד'"],
       //   "correct_answer": "אופציה א'",
       //   "feedback_correct": "נכון! הסבר קצר למה זו התשובה.",
-      //   "feedback_incorrect": "לא נכון. רמז כללי מבלי לחשוף את התשובה."
+      //   "feedback_incorrect": "לא נכון. רמז כללי מבלי לחשוף את התשובה.",
+      //   "distractor_analysis": {
+      //     "אופציה ב'": "טעות נפוצה: חושבים ש-X גורם ל-Y",
+      //     "אופציה ג'": "טעות תפיסתית: מערבבים בין A ל-B",
+      //     "אופציה ד'": "הנחה שגויה: מניחים ש-Z קורה תמיד"
+      //   },
+      //   "estimated_time_minutes": ${stepInfo.estimated_time_minutes || 2},
+      //   "difficulty_level": "${stepInfo.difficulty_level || 'medium'}"
       // }
 
       // 2. TRUE_FALSE:
@@ -334,8 +395,30 @@ Check for exam-breaking violations. If ANY are TRUE, report CRITICAL_FAIL immedi
    - Rule: Feedback can only explain AFTER submission, not guide TO the answer.
    - Status: PASS | FAIL
 
-**Phase 2: QUALITY ASSESSMENT**
-Only if Phase 1 passed, evaluate quality:
+**Phase 2: FAIRNESS & ACCESSIBILITY CHECK**
+Before quality assessment, check for bias:
+
+1. **Cultural Bias:**
+   - Do questions assume Western culture knowledge?
+   - Examples to avoid: Christmas, Thanksgiving, baseball, American history
+   - Status: PASS | WARN | FAIL
+
+2. **Gender Bias:**
+   - Does text use inclusive language?
+   - Avoid stereotypes (nurse=female, engineer=male)
+   - Status: PASS | WARN | FAIL
+
+3. **Socioeconomic Bias:**
+   - Do questions assume resources (computer, travel, private tutor)?
+   - Status: PASS | WARN | FAIL
+
+4. **Accessibility:**
+   - Are there images without alt-text descriptions?
+   - Is language overly complex for age group?
+   - Status: PASS | WARN | FAIL
+
+**Phase 3: QUALITY ASSESSMENT**
+Only if Phase 1 & 2 passed, evaluate quality:
 
 1. **Coverage Verification:**
    - Are all major topics from source material represented?
@@ -351,6 +434,12 @@ Only if Phase 1 passed, evaluate quality:
 
 4. **Distractor Quality (for Multiple Choice):**
    - Are wrong answers plausible but clearly incorrect?
+   - Do distractors target specific misconceptions?
+   - Score: 0-100
+
+5. **Rubric Quality (for Open Questions):**
+   - Is there an analytic rubric with multiple criteria?
+   - Are criteria measurable and independent?
    - Score: 0-100
 
 ### OUTPUT FORMAT (Strict JSON):
@@ -363,11 +452,18 @@ Only if Phase 1 passed, evaluate quality:
     "tone_check": { "status": "PASS" | "FAIL", "details": "..." },
     "answer_reveal": { "status": "PASS" | "FAIL", "details": "..." }
   },
-  "phase2_scores": {
+  "phase2_fairness": {
+    "cultural_bias": { "status": "PASS" | "WARN" | "FAIL", "details": "..." },
+    "gender_bias": { "status": "PASS" | "WARN" | "FAIL", "details": "..." },
+    "socioeconomic_bias": { "status": "PASS" | "WARN" | "FAIL", "details": "..." },
+    "accessibility": { "status": "PASS" | "WARN" | "FAIL", "details": "..." }
+  },
+  "phase3_scores": {
     "coverage": 0-100,
     "bloom_accuracy": 0-100,
     "question_clarity": 0-100,
-    "distractor_quality": 0-100
+    "distractor_quality": 0-100,
+    "rubric_quality": 0-100
   },
   "overall_quality_score": 0-100,
   "feedback_hebrew": "סיכום קצר בעברית של הממצאים",

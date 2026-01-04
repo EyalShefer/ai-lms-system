@@ -34,6 +34,27 @@ export interface ExamQuestionResponse {
         feedback_incorrect?: string;
         model_answer?: string;
         teacher_guidelines?: string;
+        // ✨ NEW: Pedagogical enhancements
+        distractor_analysis?: { [distractor: string]: string }; // For multiple choice
+        rubric?: { // For open questions
+            rubric_type: 'analytic';
+            total_points: number;
+            criteria: Array<{
+                criterion_name: string;
+                weight_points: number;
+                levels: {
+                    excellent: { points: number; description: string };
+                    good: { points: number; description: string };
+                    partial: { points: number; description: string };
+                    missing: { points: number; description: string };
+                };
+            }>;
+            model_answer: string;
+            common_mistakes: string[];
+        };
+        criteria?: any; // Legacy format fallback
+        estimated_time_minutes?: number;
+        difficulty_level?: 'easy' | 'medium' | 'hard';
         [key: string]: any;
     };
 }

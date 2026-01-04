@@ -202,9 +202,16 @@ async function buildExamStructure(
     blocks.push({
         id: uuidv4(),
         type: 'text',
-        content: `# ${request.customTitle || skeleton.exam_title}\n\n**מקצוע:** ${request.subject || 'כללי'}\n**קהל יעד:** ${request.gradeLevel}\n**סה"כ נקודות:** ${skeleton.total_points}\n\n---\n\n### הוראות למבחן\n\n1. קרא כל שאלה בעיון\n2. ענה על כל השאלות\n3. ניתן לחזור ולשנות תשובות לפני ההגשה\n4. לחץ "הגש מבחן" בסיום\n\n**בהצלחה!** 🎓`,
+        content: `# ${request.customTitle || skeleton.exam_title}\n\n**מקצוע:** ${request.subject || 'כללי'}\n**קהל יעד:** ${request.gradeLevel}\n**סה"כ נקודות:** ${skeleton.total_points}\n**זמן משוער:** ${skeleton.estimated_duration_minutes} דקות\n**מספר שאלות:** ${skeleton.steps.length}\n\n---\n\n### הוראות למבחן\n\n1. קרא כל שאלה בעיון\n2. ענה על כל השאלות\n3. ניתן לחזור ולשנות תשובות לפני ההגשה\n4. לחץ "הגש מבחן" בסיום\n5. **שים לב:** זמן מומלץ למבחן זה הוא ${skeleton.estimated_duration_minutes} דקות\n\n**בהצלחה!** 🎓`,
         metadata: {
-            isExamHeader: true
+            isExamHeader: true,
+            totalPoints: skeleton.total_points,
+            estimatedDuration: skeleton.estimated_duration_minutes,
+            questionCount: skeleton.steps.length,
+            accessibility: {
+                screen_reader_friendly: true,
+                tts_enabled: true
+            }
         }
     });
 
@@ -217,11 +224,54 @@ async function buildExamStructure(
                 ...block.metadata,
                 isExamQuestion: true,
                 points: question.points || 10,
-                bloomLevel: question.bloom_level
+                bloomLevel: question.bloom_level,
+                estimatedTimeMinutes: question.data?.estimated_time_minutes || 5, // ✨ NEW
+                difficultyLevel: question.data?.difficulty_level || 'medium', // ✨ NEW
+                // ✨ NEW: Accessibility metadata
+                accessibility: {
+                    screen_reader_friendly: true,
+                    tts_enabled: true,
+                    dyslexia_friendly: true,
+                    high_contrast_compatible: true,
+                    alt_text: generateAltText(question), // Helper function
+                    tts_text: generateTTSText(question) // Helper function
+                },
+                // ✨ NEW: Distractor analysis (if multiple choice)
+                distractor_analysis: question.data?.distractor_analysis || null,
+                // ✨ NEW: Rubric (if open question)
+                rubric: question.data?.rubric || question.data?.criteria || null
             };
             blocks.push(block);
         }
     });
+
+    // ✨ Helper functions for accessibility
+    function generateAltText(question: any): string {
+        if (question.selected_interaction === 'multiple_choice') {
+            return `שאלת רב-בררה: ${question.data.question || 'שאלה'}. ${question.data.options?.length || 4} אפשרויות.`;
+        } else if (question.selected_interaction === 'open_question') {
+            return `שאלה פתוחה: ${question.data.question || 'שאלה'}. נדרשת תשובה מפורטת.`;
+        }
+        return `שאלה מסוג ${question.selected_interaction}`;
+    }
+
+    function generateTTSText(question: any): string {
+        // Format for Text-to-Speech engines
+        let tts = `שאלה מספר ${question.step_number}. `;
+
+        if (question.data.question) {
+            tts += `${question.data.question}. `;
+        }
+
+        if (question.selected_interaction === 'multiple_choice' && question.data.options) {
+            tts += 'אפשרויות: ';
+            question.data.options.forEach((opt: string, idx: number) => {
+                tts += `אופציה ${String.fromCharCode(65 + idx)}: ${opt}. `;
+            });
+        }
+
+        return tts;
+    }
 
     // Wrap in standard course structure
     const examCourse = [

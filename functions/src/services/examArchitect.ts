@@ -15,7 +15,13 @@
 import OpenAI from "openai";
 import * as logger from "firebase-functions/logger";
 import { cleanJsonString } from '../shared/utils/geminiParsers';
-import { getExamArchitectPrompt, getExamStructureGuide, getExamBloomSteps } from '../ai/examPrompts';
+import {
+    getExamArchitectPrompt,
+    getExamStructureGuide,
+    getExamBloomSteps,
+    calculateQuestionPoints,
+    estimateQuestionTime
+} from '../ai/examPrompts';
 
 export interface ExamSkeletonStep {
     step_number: number;
@@ -25,11 +31,21 @@ export interface ExamSkeletonStep {
     bloom_level: string;
     suggested_interaction_type: string;
     points: number;
+    estimated_time_minutes: number; // ✨ NEW
+    difficulty_level: 'easy' | 'medium' | 'hard'; // ✨ NEW
+}
+
+export interface CoverageMatrixEntry {
+    question_numbers: number[];
+    bloom_levels: string[];
+    total_points: number;
 }
 
 export interface ExamSkeleton {
     exam_title: string;
     total_points: number;
+    estimated_duration_minutes: number; // ✨ NEW
+    coverage_matrix?: { [topic: string]: CoverageMatrixEntry }; // ✨ NEW
     steps: ExamSkeletonStep[];
 }
 
@@ -108,12 +124,42 @@ export async function runExamArchitect(
             return null;
         }
 
-        // Calculate total points if not provided
-        if (!result.total_points) {
-            result.total_points = result.steps.reduce((sum, step) => sum + (step.points || 10), 0);
-        }
+        // ✨ POST-PROCESSING: Calculate smart points and time if AI didn't provide them
+        result.steps = result.steps.map((step) => {
+            // If AI didn't calculate points correctly, use our formula
+            if (!step.points || step.points === 10) {
+                step.points = calculateQuestionPoints(step.bloom_level, step.suggested_interaction_type);
+            }
 
-        logger.info(`✅ Exam Architect: Created skeleton with ${result.steps.length} questions (${result.total_points} points)`);
+            // If AI didn't estimate time, calculate it
+            if (!step.estimated_time_minutes) {
+                step.estimated_time_minutes = estimateQuestionTime(step.bloom_level, step.suggested_interaction_type);
+            }
+
+            // If AI didn't set difficulty, infer from Bloom level
+            if (!step.difficulty_level) {
+                if (step.bloom_level === 'Remember' || step.bloom_level === 'Understand') {
+                    step.difficulty_level = 'easy';
+                } else if (step.bloom_level === 'Apply' || step.bloom_level === 'Analyze') {
+                    step.difficulty_level = 'medium';
+                } else {
+                    step.difficulty_level = 'hard';
+                }
+            }
+
+            return step;
+        });
+
+        // Calculate totals
+        result.total_points = result.steps.reduce((sum, step) => sum + step.points, 0);
+        result.estimated_duration_minutes = result.steps.reduce((sum, step) => sum + step.estimated_time_minutes, 0);
+
+        // Add 25% buffer for reading time and transitions
+        result.estimated_duration_minutes = Math.round(result.estimated_duration_minutes * 1.25);
+
+        logger.info(`✅ Exam Architect: Created skeleton with ${result.steps.length} questions`);
+        logger.info(`   📊 Total Points: ${result.total_points}`);
+        logger.info(`   ⏱️ Estimated Duration: ${result.estimated_duration_minutes} minutes`);
 
         return result;
 
