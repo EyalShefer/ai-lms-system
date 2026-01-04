@@ -70,10 +70,46 @@ MISSION:
 7. **Structure Guide:**
    ${structureGuide}
 
+8. **POINTS ALLOCATION (Critical for Fairness):**
+   Points MUST reflect cognitive demand:
+
+   **Bloom Level Multipliers:**
+   - Remember/Understand: 1.0x - 1.2x base points
+   - Apply/Analyze: 1.5x - 1.7x base points
+   - Evaluate/Create: 2.0x - 2.2x base points
+
+   **Base Points by Type:**
+   - Multiple Choice / True-False: 5 points
+   - Fill in Blanks: 7 points
+   - Ordering / Categorization: 10 points
+   - Open Question: 15 points
+
+   **Examples:**
+   - Remember + Multiple Choice = 5 × 1.0 = 5 points
+   - Apply + Categorization = 10 × 1.5 = 15 points
+   - Evaluate + Open Question = 15 × 2.0 = 30 points
+
+9. **TIME ESTIMATION (for Teacher Planning):**
+   Each question must have estimated time:
+   - Multiple Choice: 2 min (× Bloom modifier)
+   - True-False: 1 min
+   - Fill in Blanks: 3 min
+   - Ordering: 4 min
+   - Categorization: 5 min
+   - Open Question: 8-16 min (depending on Bloom)
+
 Output JSON Structure (STRICT):
 {
   "exam_title": "String (concise exam title)",
   "total_points": number,
+  "estimated_duration_minutes": number,
+  "coverage_matrix": {
+    "topic_name": {
+      "question_numbers": [1, 2],
+      "bloom_levels": ["Remember", "Apply"],
+      "total_points": number
+    }
+  },
   "steps": [
     {
       "step_number": 1,
@@ -82,7 +118,9 @@ Output JSON Structure (STRICT):
       "forbidden_topics": ["Concept B", "Concept C"],
       "bloom_level": "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create",
       "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question",
-      "points": number
+      "points": number,
+      "estimated_time_minutes": number,
+      "difficulty_level": "easy" | "medium" | "hard"
     }
   ]
 }
@@ -376,14 +414,34 @@ MEDIUM EXAM STRUCTURE (${stepCount} questions):
 
 /**
  * HELPER: Get Bloom Steps for Exam based on taxonomy
+ *
+ * FIXED: Math.round() bug - now uses floor + smart remainder distribution
  */
 export const getExamBloomSteps = (stepCount: number, taxonomy?: { knowledge: number; application: number; evaluation: number }): string[] => {
     const defaultTaxonomy = taxonomy || { knowledge: 20, application: 40, evaluation: 40 };
 
+    // Use floor for all to avoid over-allocation
+    let knowledgeCount = Math.floor(stepCount * (defaultTaxonomy.knowledge / 100));
+    let applicationCount = Math.floor(stepCount * (defaultTaxonomy.application / 100));
+    let evaluationCount = Math.floor(stepCount * (defaultTaxonomy.evaluation / 100));
+
+    // Distribute remainder to highest priority levels (evaluation > application > knowledge)
+    let remainder = stepCount - (knowledgeCount + applicationCount + evaluationCount);
+
+    while (remainder > 0) {
+        // Prioritize higher-order thinking
+        if (defaultTaxonomy.evaluation >= defaultTaxonomy.application &&
+            defaultTaxonomy.evaluation >= defaultTaxonomy.knowledge) {
+            evaluationCount++;
+        } else if (defaultTaxonomy.application >= defaultTaxonomy.knowledge) {
+            applicationCount++;
+        } else {
+            knowledgeCount++;
+        }
+        remainder--;
+    }
+
     const bloomLevels: string[] = [];
-    const knowledgeCount = Math.round(stepCount * (defaultTaxonomy.knowledge / 100));
-    const applicationCount = Math.round(stepCount * (defaultTaxonomy.application / 100));
-    const evaluationCount = stepCount - knowledgeCount - applicationCount;
 
     // Fill array with appropriate Bloom levels
     for (let i = 0; i < knowledgeCount; i++) {
@@ -397,4 +455,66 @@ export const getExamBloomSteps = (stepCount: number, taxonomy?: { knowledge: num
     }
 
     return bloomLevels;
+};
+
+/**
+ * HELPER: Calculate points for a question based on Bloom level and question type
+ *
+ * Formula: basePoints[questionType] × bloomMultiplier[bloomLevel]
+ *
+ * Ensures higher-order thinking gets more points
+ */
+export const calculateQuestionPoints = (bloomLevel: string, questionType: string): number => {
+    const bloomMultipliers: { [key: string]: number } = {
+        'Remember': 1.0,
+        'Understand': 1.2,
+        'Apply': 1.5,
+        'Analyze': 1.7,
+        'Evaluate': 2.0,
+        'Create': 2.2
+    };
+
+    const basePoints: { [key: string]: number } = {
+        'multiple_choice': 5,
+        'true_false': 5,
+        'fill_in_blanks': 7,
+        'ordering': 10,
+        'categorization': 10,
+        'open_question': 15
+    };
+
+    const multiplier = bloomMultipliers[bloomLevel] || 1.0;
+    const base = basePoints[questionType] || 10;
+
+    return Math.round(base * multiplier);
+};
+
+/**
+ * HELPER: Get time estimation for a question
+ *
+ * Returns estimated time in minutes based on question type and Bloom level
+ */
+export const estimateQuestionTime = (bloomLevel: string, questionType: string): number => {
+    const baseTime: { [key: string]: number } = {
+        'multiple_choice': 2,
+        'true_false': 1,
+        'fill_in_blanks': 3,
+        'ordering': 4,
+        'categorization': 5,
+        'open_question': 8
+    };
+
+    const bloomModifiers: { [key: string]: number } = {
+        'Remember': 1.0,
+        'Understand': 1.1,
+        'Apply': 1.3,
+        'Analyze': 1.5,
+        'Evaluate': 1.7,
+        'Create': 2.0
+    };
+
+    const base = baseTime[questionType] || 5;
+    const modifier = bloomModifiers[bloomLevel] || 1.0;
+
+    return Math.round(base * modifier);
 };

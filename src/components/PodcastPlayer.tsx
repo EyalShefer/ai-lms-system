@@ -154,7 +154,7 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAud
             </div>
 
             <p className="text-center text-[10px] text-gray-500 mt-4">
-                Powered by ElevenLabs & Gemini 1.5 Pro
+                Powered by ElevenLabs & Gemini 1.5 Pro • Auto-detects Hebrew/English
             </p>
 
             {/* Hidden Audio Element */}

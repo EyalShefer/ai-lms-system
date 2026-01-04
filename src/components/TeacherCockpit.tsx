@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconJoystick, IconTarget, IconPrinter, IconEdit, IconX, IconCheck, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconBack, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink } from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic } from '../icons';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
-import { refineBlockContent, openai } from '../services/ai/geminiApi';
-import { v4 as uuidv4 } from 'uuid';
+import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
+import { detectInfographicType, analyzeInfographicSuitability } from '../utils/infographicDetector';
+import { PEDAGOGICAL_PHASES, getPedagogicalPhase } from '../utils/pedagogicalIcons';
+import { createBlock } from '../shared/config/blockDefinitions';
+import { downloadLessonPlanPDF } from '../services/pdfExportService';
+import type { TeacherLessonPlan } from '../shared/types/gemini.types';
+import { TextToSpeechButton } from './TextToSpeechButton';
+
 
 interface TeacherCockpitProps {
     unit: LearningUnit;
@@ -25,21 +31,11 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'categorization': 'מיון לקטגוריות',
     'memory_game': 'משחק זיכרון',
     'true_false_speed': 'אמת או שקר',
+    'drag_and_drop': 'גרור ושחרר',
+    'hotspot': 'נקודות חמות',
     'matching': 'התאמה',
     'audio-response': 'תשובה קולית',
     'podcast': 'פודקאסט AI'
-};
-
-const createBlock = (type: string, personaId: string = 'socratic'): ActivityBlock => {
-    return {
-        id: uuidv4(),
-        type: type as any,
-        content: type === 'text' ? '' : type === 'multiple-choice' ? { question: '', options: ['', ''], correctAnswer: '' } : type === 'open-question' ? { question: '' } : type === 'image' ? '' : type === 'video' ? '' : {},
-        metadata: {
-            botPersona: personaId,
-            createdAt: new Date().toISOString()
-        }
-    };
 };
 
 const getBlockTitle = (block: ActivityBlock): string | null => {
@@ -47,20 +43,45 @@ const getBlockTitle = (block: ActivityBlock): string | null => {
         const text = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
         if (!text) return null;
 
+        let title = null;
+
         // 1. Try extracting text from <h3> tag (HTML content)
         const h3Match = text.match(/<h3[^>]*>(.*?)<\/h3>/i);
         if (h3Match && h3Match[1]) {
-            return h3Match[1].replace(/<[^>]+>/g, '').trim();
+            title = h3Match[1].replace(/<[^>]+>/g, '').trim();
         }
 
         // 2. Try extracting from Markdown # (Text content)
-        const lines = text.split('\n');
-        const titleLine = lines.find((line: string) => line.trim().startsWith('#'));
-        if (titleLine) {
-            return titleLine.replace(/^#+\s*/, '').trim();
+        if (!title) {
+            const lines = text.split('\n');
+            const titleLine = lines.find((line: string) => line.trim().startsWith('#'));
+            if (titleLine) {
+                title = titleLine.replace(/^#+\s*/, '').trim();
+            }
         }
+
+        // 3. Remove emojis from title
+        if (title) {
+            // Remove all emojis (including variations and combining characters)
+            title = title.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F910}-\u{1F96B}]|[\u{1F980}-\u{1F9E0}]|[\u{FE00}-\u{FE0F}]|[\u{20D0}-\u{20FF}]/gu, '').trim();
+        }
+
+        return title;
     }
     return null;
+};
+
+// Helper component to render pedagogical phase icons based on position and type
+const BlockIconRenderer: React.FC<{ blockType: string; blockIndex: number; totalBlocks: number; className?: string }> = ({
+    blockType,
+    blockIndex,
+    totalBlocks,
+    className = 'w-5 h-5'
+}) => {
+    // Use the pedagogical phase logic from pedagogicalIcons.ts
+    const phase = getPedagogicalPhase(blockIndex, totalBlocks, blockType);
+    const Icon = PEDAGOGICAL_PHASES[phase].icon;
+    return <Icon className={className} />;
 };
 
 const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
@@ -74,6 +95,15 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
     const [mediaInputMode, setMediaInputMode] = useState<Record<string, string | null>>({});
     const [mediaInputValue, setMediaInputValue] = useState<Record<string, string>>({});
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
+
+    // Infographic State
+    const [showInfographicMenu, setShowInfographicMenu] = useState<string | null>(null);
+    const [isGeneratingInfographic, setIsGeneratingInfographic] = useState(false);
+    const [infographicPreview, setInfographicPreview] = useState<{
+        imageUrl: string;
+        block: ActivityBlock;
+        visualType: InfographicType;
+    } | null>(null);
 
     // --- CRUD Helpers ---
     const updateUnitBlocks = (newBlocks: ActivityBlock[]) => {
@@ -137,6 +167,60 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
         window.print();
     };
 
+    const handleExportPDF = () => {
+        // Use the stored lesson plan from metadata, or create a basic one from available data
+        const lessonPlan: TeacherLessonPlan = unit.metadata?.lessonPlan || {
+            lesson_metadata: {
+                title: unit.title,
+                target_audience: unit.metadata?.gradeLevel || 'לא צוין',
+                duration: '45 דקות',
+                subject: unit.metadata?.subject,
+                learning_objectives: unit.goals || []
+            },
+            hook: {
+                script_for_teacher: unit.baseContent || 'תוכן מערך השיעור',
+            },
+            direct_instruction: {
+                slides: []
+            },
+            guided_practice: {
+                teacher_instruction: 'השתמשו בפעילויות האינטראקטיביות המצורפות',
+                wizdi_tool_reference: 'Interactive Activity Generator',
+                suggested_block_types: unit.activityBlocks
+                    .filter(b => ['multiple-choice', 'memory_game', 'fill_in_blanks', 'ordering', 'categorization', 'drag_and_drop', 'hotspot', 'open-question'].includes(b.type))
+                    .map(b => b.type)
+            },
+            discussion: {
+                questions: []
+            },
+            summary: {
+                takeaway_sentence: `סיכום: ${unit.title}`
+            }
+        };
+
+        downloadLessonPlanPDF(lessonPlan, `${unit.title} - מערך שיעור.pdf`);
+    };
+
+    const handleShare = async () => {
+        const shareUrl = window.location.href;
+        try {
+            if (navigator.share) {
+                // Mobile share
+                await navigator.share({
+                    title: unit.title,
+                    text: `מערך שיעור: ${unit.title}`,
+                    url: shareUrl
+                });
+            } else {
+                // Desktop - copy to clipboard
+                await navigator.clipboard.writeText(shareUrl);
+                alert('הקישור הועתק ללוח! 📋');
+            }
+        } catch (error) {
+            console.error('Share failed:', error);
+        }
+    };
+
     // --- Media Handlers ---
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, blockId: string) => {
         const file = event.target.files?.[0];
@@ -177,14 +261,86 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
         }
     };
 
+    const handleGenerateInfographic = async (block: ActivityBlock, visualType: InfographicType) => {
+        setIsGeneratingInfographic(true);
+        setShowInfographicMenu(null);
 
-    const timelineItems = [
-        { id: 'goals', label: 'יעדים', icon: IconTarget },
-        { id: 'opening', label: 'פתיחה', icon: IconBook },
-        { id: 'instruction', label: 'הוראה', icon: IconVideo },
-        { id: 'practice', label: 'תרגול', icon: IconJoystick },
-        { id: 'summary', label: 'סיכום', icon: IconCheck },
-    ];
+        try {
+            // Extract text content from block
+            let textContent = '';
+            if (block.type === 'text') {
+                textContent = typeof block.content === 'string'
+                    ? block.content
+                    : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
+            } else if (block.content && typeof block.content === 'object') {
+                textContent = JSON.stringify(block.content);
+            }
+
+            if (!textContent) {
+                alert("לא נמצא תוכן להמרה לאינפוגרפיקה");
+                return;
+            }
+
+            // Generate infographic
+            const imageBlob = await generateInfographicFromText(
+                textContent,
+                visualType,
+                unit.title
+            );
+
+            if (imageBlob) {
+                // Convert blob to base64 for preview
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+
+                    // Show preview modal instead of directly inserting
+                    setInfographicPreview({
+                        imageUrl: base64data,
+                        block: block,
+                        visualType: visualType
+                    });
+                };
+                reader.readAsDataURL(imageBlob);
+            } else {
+                alert("שגיאה ביצירת אינפוגרפיקה. נסה שנית.");
+            }
+        } catch (error) {
+            console.error("Infographic Generation Error:", error);
+            alert("שגיאה ביצירת אינפוגרפיקה");
+        } finally {
+            setIsGeneratingInfographic(false);
+        }
+    };
+
+    const handleConfirmInfographic = () => {
+        if (!infographicPreview) return;
+
+        // Create new image block after current block
+        const newBlock = createBlock('image', 'socratic');
+        newBlock.content = infographicPreview.imageUrl;
+        newBlock.metadata = {
+            ...newBlock.metadata,
+            infographicType: infographicPreview.visualType,
+            generatedFrom: infographicPreview.block.id
+        };
+
+        const currentIndex = unit.activityBlocks?.findIndex(b => b.id === infographicPreview.block.id) || 0;
+        const newBlocks = [...(unit.activityBlocks || [])];
+        newBlocks.splice(currentIndex + 1, 0, newBlock);
+        updateUnitBlocks(newBlocks);
+
+        // Close preview
+        setInfographicPreview(null);
+    };
+
+
+    // Use centralized pedagogical phases for consistency
+    const timelineItems = Object.values(PEDAGOGICAL_PHASES).map(phase => ({
+        id: phase.id,
+        label: phase.label,
+        icon: phase.icon
+    }));
 
     const handleRefineBlock = async (block: ActivityBlock, instruction: string) => {
         if (!onUpdateBlock && !onUnitUpdate) return;
@@ -198,7 +354,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
             }
 
             // Preserve tip if exists in old content
-            if (block.type === 'text' && typeof block.content === 'object' && block.content.teacher_tip) {
+            if (block.type === 'text' && typeof block.content === 'object' && (block.content as any).teacher_tip) {
                 if (typeof finalContent === 'string') {
                     // If we converted to string, we lose the tip unless we re-wrap.
                     // For now, keep as string if that's what the UI expects, OR upgrade to object.
@@ -243,18 +399,21 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
             <div className="relative bg-[#f0f4f8] px-4">
                 {activeInsertIndex === index ? (
                     <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto">
-                        {['text', 'image', 'video', 'multiple-choice', 'open-question'].map(type => (
-                            <button key={type} onClick={() => addBlockAtIndex(type, index)} className="flex flex-col items-center gap-1 p-2 hover:bg-blue-50 rounded-lg text-slate-600 hover:text-blue-600 transition-colors">
-                                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100">
-                                    {type === 'text' && <IconText className="w-4 h-4" />}
-                                    {type === 'image' && <IconImage className="w-4 h-4" />}
-                                    {type === 'video' && <IconVideo className="w-4 h-4" />}
-                                    {type === 'multiple-choice' && <IconList className="w-4 h-4" />}
-                                    {type === 'open-question' && <IconEdit className="w-4 h-4" />}
-                                </div>
-                                <span className="text-[10px] font-bold">{BLOCK_TYPE_MAPPING[type]}</span>
-                            </button>
-                        ))}
+                        <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
+                        <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
+                        <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
+                        <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
+                        <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
+                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
+
+                        <button onClick={() => addBlockAtIndex('fill_in_blanks', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
+                        <button onClick={() => addBlockAtIndex('ordering', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
+                        <button onClick={() => addBlockAtIndex('categorization', index)} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
+                        <button onClick={() => addBlockAtIndex('memory_game', index)} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
+                        <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconClock className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
+                        <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
+                        <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+
                         <div className="w-px bg-slate-200 mx-2"></div>
                         <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
                     </div>
@@ -268,6 +427,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                     </button>
                 )}
             </div>
+            <style>{`
+                .insert-btn { @apply px-3 py-2 bg-white/50 border border-white/60 rounded-lg text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm flex-col md:flex-row; }
+            `}</style>
         </div>
     );
 
@@ -455,27 +617,40 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
             const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
             if (!textContent) return <div className="text-slate-400 italic p-4 text-center border-2 border-dashed border-slate-200 rounded-xl cursor-text" onClick={() => setEditingBlockId(block.id)}>לחצו כאן להוספת טקסט</div>;
 
+            // Extract plain text for TTS (remove HTML tags if present)
+            const plainText = textContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
             if (textContent.trim().startsWith('<div class="lesson-section')) {
                 // Remove h3 title as it is now shown in the block header
                 const contentWithoutTitle = textContent.replace(/<h3[^>]*>.*?<\/h3>/gi, '');
                 return (
-                    <div
-                        onClick={() => setEditingBlockId(block.id)}
-                        className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative group p-2 -m-2"
-                        title="לחץ לעריכה"
-                    >
-                        <div dangerouslySetInnerHTML={{ __html: contentWithoutTitle }} />
+                    <div className="relative group">
+                        <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <TextToSpeechButton text={plainText} compact={true} />
+                        </div>
+                        <div
+                            onClick={() => setEditingBlockId(block.id)}
+                            className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative p-2 -m-2"
+                            title="לחץ לעריכה"
+                        >
+                            <div dangerouslySetInnerHTML={{ __html: contentWithoutTitle }} />
+                        </div>
                     </div>
                 );
             }
 
             return (
-                <div onClick={() => setEditingBlockId(block.id)} className="cursor-text hover:ring-2 hover:ring-slate-100 rounded-lg p-2 transition-all -m-2">
-                    {textContent.split('\n').map((line: string, i: number) => {
-                        // Skip title lines (starting with #) as they are shown in block header
-                        if (line.startsWith('#')) return null;
-                        return <p key={i} className="mb-2">{line}</p>;
-                    })}
+                <div className="relative group">
+                    <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <TextToSpeechButton text={plainText} compact={true} />
+                    </div>
+                    <div onClick={() => setEditingBlockId(block.id)} className="cursor-text hover:ring-2 hover:ring-slate-100 rounded-lg p-2 transition-all -m-2">
+                        {textContent.split('\n').map((line: string, i: number) => {
+                            // Skip title lines (starting with #) as they are shown in block header
+                            if (line.startsWith('#')) return null;
+                            return <p key={i} className="mb-2">{line}</p>;
+                        })}
+                    </div>
                 </div>
             )
         }
@@ -569,29 +744,21 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                     {/* Content Loop Reuse */}
                     <div className="space-y-8">
                         {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
-                            const BlockIcon =
-                                block.type === 'text' ? IconText :
-                                    block.type === 'image' ? IconImage :
-                                        block.type === 'video' ? IconVideo :
-                                            block.type === 'multiple-choice' ? IconList :
-                                                block.type === 'open-question' ? IconChat :
-                                                    IconJoystick;
                             return (
                                 <div key={block.id} className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
                                     {/* Step Header */}
                                     <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
                                         <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
-                                            {idx + 1}
+                                            <BlockIconRenderer
+                                                blockType={block.type}
+                                                blockIndex={idx}
+                                                totalBlocks={unit.activityBlocks?.length || 1}
+                                                className="w-5 h-5"
+                                            />
                                         </span>
 
-                                        {/* Block Type Icon & Label (Hebrew Only) */}
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            {getBlockTitle(block) ? (
-                                                <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
-                                            ) : (
-                                                <BlockIcon className="w-4 h-4" />
-                                            )}
-                                        </div>
+                                        {/* Block Title */}
+                                        <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
 
                                         <button
                                             onClick={() => setEditingBlockId(block.id)}
@@ -640,16 +807,19 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                 </div>
 
                 <div className="flex-1 w-full space-y-4 px-2">
-                    {timelineItems.map(item => (
-                        <button
-                            key={item.id}
-                            onClick={() => handleScrollTo(item.id)}
-                            className={`w-full flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${activeSection === item.id ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-400'}`}
-                        >
-                            <item.icon className="w-6 h-6" />
-                            <span className="text-[10px] font-bold">{item.label}</span>
-                        </button>
-                    ))}
+                    {timelineItems.map(item => {
+                        const Icon = item.icon; // Store icon component with capital letter
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => handleScrollTo(item.id)}
+                                className={`w-full flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${activeSection === item.id ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-400'}`}
+                            >
+                                <Icon className="w-6 h-6" />
+                                <span className="text-[10px] font-bold">{item.label}</span>
+                            </button>
+                        );
+                    })}
 
                     {/* Time Tracker Visualization (Mock) */}
                     <div className="hidden md:block absolute bottom-8 right-1/2 translate-x-1/2 w-1 h-32 bg-slate-100 rounded-full overflow-hidden">
@@ -664,12 +834,10 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                 {/* Header */}
                 <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm print:hidden shrink-0 z-20">
                     <div className="flex items-center gap-4">
-                        {onExit && (
-                            <button onClick={onExit} className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors" title="חזרה לבית">
-                                <IconBack className="w-5 h-5" />
-                                <span className="font-bold text-sm hidden md:inline ml-2">חזרה</span>
-                            </button>
-                        )}
+                        <button onClick={onExit || (() => window.history.back())} className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors" title="חזרה לבית">
+                            <IconChevronRight className="w-5 h-5" />
+                            <span className="font-bold text-sm hidden md:inline ml-2">חזרה</span>
+                        </button>
                         <div className="flex flex-col">
                             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">
                                 {(unit.metadata?.status === 'generating') ? "בונה מערך שיעור..." : "מערך שיעור למורה"}
@@ -679,24 +847,29 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Share Button (New) */}
-                        <button className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl font-bold transition shadow-sm border border-transparent hover:border-slate-200">
+                        {/* Share Button */}
+                        <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl font-bold transition shadow-sm border border-transparent hover:border-slate-200">
                             <IconShare className="w-5 h-5" />
                             <span className="hidden md:inline">שתף</span>
                         </button>
 
-                        <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full font-bold transition shadow-sm">
+                        {/* Export PDF Button */}
+                        <button onClick={handleExportPDF} className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition shadow-sm" title="יצוא ל-PDF">
                             <IconPrinter className="w-5 h-5" />
-                            <span className="hidden md:inline">PDF</span>
+                            <span className="hidden md:inline">יצוא PDF</span>
+                        </button>
+
+                        {/* Print Button */}
+                        <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition" title="הדפס">
+                            <IconPrinter className="w-4 h-4" />
+                            <span className="hidden md:inline text-sm">הדפס</span>
                         </button>
 
                         <div className="h-8 w-px bg-slate-200 mx-2"></div>
 
-                        {onExit && (
-                            <button onClick={onExit} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
-                                <IconX className="w-6 h-6" />
-                            </button>
-                        )}
+                        <button onClick={onExit || (() => window.history.back())} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
+                            <IconX className="w-6 h-6" />
+                        </button>
                     </div>
                 </div>
 
@@ -744,14 +917,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         {/* Blocks Loop */}
                         <div id="instruction" className="space-y-8">
                             {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
-                                const BlockIcon =
-                                    block.type === 'text' ? IconText :
-                                        block.type === 'image' ? IconImage :
-                                            block.type === 'video' ? IconVideo :
-                                                block.type === 'multiple-choice' ? IconList :
-                                                    block.type === 'open-question' ? IconChat :
-                                                        IconJoystick;
-
                                 return (
                                     <React.Fragment key={block.id}>
                                         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:shadow-none print:break-inside-avoid relative overflow-hidden group hover:shadow-md transition-shadow">
@@ -761,28 +926,131 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                                                 <button onClick={() => moveBlock(idx, 'up')} disabled={idx === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למעלה"><IconArrowUp className="w-4 h-4" /></button>
                                                 <button onClick={() => moveBlock(idx, 'down')} disabled={idx === (unit.activityBlocks?.length || 0) - 1} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למטה"><IconArrowDown className="w-4 h-4" /></button>
                                                 <div className="w-px bg-slate-200 my-1 mx-1"></div>
+
+                                                {/* Infographic Generator Button */}
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={() => setShowInfographicMenu(showInfographicMenu === block.id ? null : block.id)}
+                                                        className="p-1 hover:text-purple-600 rounded hover:bg-purple-50 transition-colors"
+                                                        title="צור אינפוגרפיקה"
+                                                        disabled={isGeneratingInfographic}
+                                                    >
+                                                        <IconInfographic className="w-4 h-4" />
+                                                    </button>
+
+                                                    {/* Infographic Type Selector Menu */}
+                                                    {showInfographicMenu === block.id && (() => {
+                                                        // Auto-detect infographic type
+                                                        let textContent = '';
+                                                        if (block.type === 'text') {
+                                                            textContent = typeof block.content === 'string'
+                                                                ? block.content
+                                                                : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
+                                                        }
+                                                        const detection = textContent ? detectInfographicType(textContent) : null;
+                                                        const suitability = textContent ? analyzeInfographicSuitability(textContent) : null;
+
+                                                        return (
+                                                            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[250px] z-30">
+                                                                {/* Auto-detection header */}
+                                                                {detection && suitability?.isSuitable && (
+                                                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-2">
+                                                                        <div className="text-xs font-semibold text-blue-700 mb-1">💡 הצעה חכמה:</div>
+                                                                        <button
+                                                                            onClick={() => handleGenerateInfographic(block, detection.suggestedType)}
+                                                                            className="w-full text-right px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-2 font-semibold"
+                                                                            disabled={isGeneratingInfographic}
+                                                                        >
+                                                                            <IconSparkles className="w-4 h-4" />
+                                                                            <div className="flex-1">
+                                                                                <div>{detection.suggestedType === 'flowchart' ? 'תרשים זרימה' : detection.suggestedType === 'timeline' ? 'ציר זמן' : detection.suggestedType === 'comparison' ? 'השוואה' : 'מחזור'}</div>
+                                                                                <div className="text-xs opacity-90">{detection.reason}</div>
+                                                                            </div>
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Warning if not suitable */}
+                                                                {suitability && !suitability.isSuitable && (
+                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-2">
+                                                                        <div className="text-xs font-semibold text-amber-700 mb-1">⚠️ שים לב:</div>
+                                                                        <div className="text-xs text-amber-600">
+                                                                            {suitability.recommendations[0]}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="text-xs font-semibold text-slate-600 mb-2 px-2">או בחר ידנית:</div>
+                                                                <button
+                                                                    onClick={() => handleGenerateInfographic(block, 'flowchart')}
+                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-purple-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'flowchart' ? 'bg-purple-50' : ''}`}
+                                                                    disabled={isGeneratingInfographic}
+                                                                >
+                                                                    <IconList className="w-4 h-4 text-purple-600" />
+                                                                    <span>תרשים זרימה</span>
+                                                                    {detection?.suggestedType === 'flowchart' && <span className="mr-auto text-xs text-purple-600">מומלץ</span>}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleGenerateInfographic(block, 'timeline')}
+                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'timeline' ? 'bg-blue-50' : ''}`}
+                                                                    disabled={isGeneratingInfographic}
+                                                                >
+                                                                    <IconClock className="w-4 h-4 text-blue-600" />
+                                                                    <span>ציר זמן</span>
+                                                                    {detection?.suggestedType === 'timeline' && <span className="mr-auto text-xs text-blue-600">מומלץ</span>}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleGenerateInfographic(block, 'comparison')}
+                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-green-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'comparison' ? 'bg-green-50' : ''}`}
+                                                                    disabled={isGeneratingInfographic}
+                                                                >
+                                                                    <IconLayer className="w-4 h-4 text-green-600" />
+                                                                    <span>השוואה</span>
+                                                                    {detection?.suggestedType === 'comparison' && <span className="mr-auto text-xs text-green-600">מומלץ</span>}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleGenerateInfographic(block, 'cycle')}
+                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-orange-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'cycle' ? 'bg-orange-50' : ''}`}
+                                                                    disabled={isGeneratingInfographic}
+                                                                >
+                                                                    <IconTarget className="w-4 h-4 text-orange-600" />
+                                                                    <span>מחזור</span>
+                                                                    {detection?.suggestedType === 'cycle' && <span className="mr-auto text-xs text-orange-600">מומלץ</span>}
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+
+                                                <div className="w-px bg-slate-200 my-1 mx-1"></div>
                                                 <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-500 rounded hover:bg-red-50 transition-colors" title="מחק רכיב"><IconTrash className="w-4 h-4" /></button>
                                             </div>
 
-                                            {/* Time Estimate Badge (Absolute) */}
-                                            <div className="absolute top-6 left-6 bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full print:hidden">
-                                                ⏱️ 5 דק'
-                                            </div>
+                                            {/* Time Estimate Badge or Loading Indicator (Absolute) */}
+                                            {isGeneratingInfographic ? (
+                                                <div className="absolute top-6 left-6 bg-purple-100 text-purple-700 text-xs font-bold px-3 py-1 rounded-full print:hidden animate-pulse flex items-center gap-2">
+                                                    <IconInfographic className="w-4 h-4 animate-spin" />
+                                                    <span>יוצר אינפוגרפיקה...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="absolute top-6 left-6 bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full print:hidden">
+                                                    ⏱️ 5 דק'
+                                                </div>
+                                            )}
 
                                             {/* Step Header */}
                                             <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
                                                 <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
-                                                    {idx + 1}
+                                                    <BlockIconRenderer
+                                                        blockType={block.type}
+                                                        blockIndex={idx}
+                                                        totalBlocks={unit.activityBlocks?.length || 1}
+                                                        className="w-5 h-5"
+                                                    />
                                                 </span>
 
-                                                {/* Block Type Icon & Label (Hebrew Only) */}
-                                                <div className="flex items-center gap-2 text-slate-400">
-                                                    {getBlockTitle(block) ? (
-                                                        <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
-                                                    ) : (
-                                                        <BlockIcon className="w-4 h-4" />
-                                                    )}
-                                                </div>
+                                                {/* Block Title */}
+                                                <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
                                             </div>
 
                                             {/* Content */}

@@ -327,6 +327,64 @@
     @apply bg-white p-5 rounded-2xl border border-slate-200 shadow-sm my-4;
 }
 
+/* AI Generated Images Styles */
+.generated-visual {
+    @apply relative group mt-4;
+}
+
+.generated-visual img {
+    @apply w-full rounded-xl shadow-lg border-2 border-slate-100 transition-all;
+}
+
+.generated-visual:hover img {
+    @apply shadow-2xl border-blue-200;
+}
+
+/* Image regeneration overlay */
+.image-regen-overlay {
+    @apply absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-3;
+}
+
+.learning-objectives {
+    @apply bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4;
+}
+
+.learning-objectives ul {
+    @apply list-disc pr-5 space-y-1 text-blue-800;
+}
+
+.management-tip {
+    @apply bg-amber-50 border-l-4 border-amber-400 rounded-lg p-3 text-sm text-amber-900 font-medium mt-3;
+}
+
+.timing-badge {
+    @apply inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2;
+}
+
+.diff-note {
+    @apply bg-purple-50 border-l-4 border-purple-400 rounded-lg p-3 text-sm text-purple-900 mt-3;
+}
+
+.suggested-activities {
+    @apply bg-green-50 border border-green-200 rounded-xl p-4 mt-3;
+}
+
+.suggested-activities ul {
+    @apply list-none space-y-2 pr-0;
+}
+
+.facilitation-tips {
+    @apply bg-blue-50 border border-blue-200 rounded-xl p-4 mt-3;
+}
+
+.facilitation-tips ul {
+    @apply list-disc pr-5 space-y-1 text-blue-800;
+}
+
+.homework {
+    @apply bg-purple-50 border border-purple-200 rounded-xl p-4 mt-3 text-purple-900;
+}
+
 .slide-card h4 {
     @apply font-bold text-lg text-slate-800 mb-3 border-b pb-2;
 }

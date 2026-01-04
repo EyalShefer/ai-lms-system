@@ -40,6 +40,29 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
         case 'audio-response':
             content = { question: 'הקליטו את תשובתכם:', description: 'לחצו על ההקלטה כדי לענות', maxDuration: 60 };
             break;
+        case 'drag_and_drop':
+            content = {
+                instruction: 'גררו כל פריט לאזור הנכון:',
+                zones: [
+                    { id: 'zone1', label: 'אזור 1', color: '#E0F2FE' },
+                    { id: 'zone2', label: 'אזור 2', color: '#FEF3C7' }
+                ],
+                items: [
+                    { id: 'item1', text: 'פריט 1', correctZone: 'zone1' },
+                    { id: 'item2', text: 'פריט 2', correctZone: 'zone2' }
+                ]
+            };
+            break;
+        case 'hotspot':
+            content = {
+                instruction: 'לחצו על החלקים השונים בתמונה:',
+                image_description: 'דיאגרמה חינוכית',
+                hotspots: [
+                    { id: 'spot1', label: 'נקודה 1', x: 25, y: 25, width: 20, height: 20, feedback: 'הסבר על נקודה זו' },
+                    { id: 'spot2', label: 'נקודה 2', x: 60, y: 40, width: 20, height: 20, feedback: 'הסבר על נקודה זו' }
+                ]
+            };
+            break;
         default:
             content = '';
     }

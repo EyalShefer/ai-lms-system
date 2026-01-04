@@ -141,6 +141,11 @@ export const getStepContentPrompt = (
        - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
        - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
        - ** OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
+       - ** TEACHER GUIDELINES (CRITICAL):** For EVERY question, provide \`teacher_guidelines\` with:
+         * **What to look for:** Key concepts the student must mention
+         * **Common mistakes:** What students typically get wrong
+         * **Follow-up questions:** 2-3 probing questions if the answer is incomplete
+         * **Differentiation:** How to scaffold for struggling students or challenge advanced ones
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        
@@ -198,7 +203,12 @@ export const getStepContentPrompt = (
           // { "question": "Match the pairs...", "pairs": [{ "card_a": "Term", "card_b": "Def" }] }
           
           // 6. OPEN QUESTION:
-          // { "question": "...", "model_answer": "...", "points": 10 }
+          // {
+          //   "question": "...",
+          //   "model_answer": "...",
+          //   "teacher_guidelines": "🎯 מה לחפש: [מושגי מפתח]\n❌ טעויות נפוצות: [דוגמאות]\n❓ שאלות המשך: 1) ... 2) ...\n🎓 התאמה: [הצעות לדיפרנציאציה]",
+          //   "points": 10
+          // }
           
           // 7. AUDIO RESPONSE (Simulated Oral Exam):
           // { "question": "Explain in your own words...", "max_duration": 60 }
@@ -427,11 +437,14 @@ export const getSingleOpenQuestionPrompt = (sourceText: string, gradeLevel: stri
 Language: Hebrew.
 
   Goal: Encourage deep thinking or opinion.
-    
+
+    CRITICAL: You MUST provide pedagogical guidelines for the teacher.
+
     OUTPUT JSON:
 {
   "question": "The open question text",
-    "model_answer": "A model answer or key points to look for."
+  "model_answer": "A model answer or key points to look for.",
+  "teacher_guidelines": "🎯 מה לחפש בתשובה: [רשימת מושגי מפתח שהתלמיד חייב להזכיר]\n❌ טעויות נפוצות: [דוגמאות לאמירות שגויות שתלמידים עושים]\n❓ שאלות המשך אם התשובה חלקית:\n   1. [שאלה מכוונת ראשונה]\n   2. [שאלה מכוונת שנייה]\n   3. [שאלה מאתגרת לתלמידים מתקדמים]\n🎓 דיפרנציאציה:\n   • תלמידים מתקשים: [הצעה לפישוט או רמז]\n   • תלמידים מתקדמים: [הצעה להרחבה או אתגר]"
 }
 `;
 

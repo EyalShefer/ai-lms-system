@@ -1,6 +1,13 @@
 import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { Request, Response } from 'firebase-functions/v2/https';
+import type { Request } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions/v2';
+
+// Define Response type locally since it's not exported from firebase-functions/v2
+interface Response {
+  status: (code: number) => Response;
+  json: (data: any) => void;
+  setHeader: (name: string, value: string) => void;
+}
 
 // Rate limiters for different operations
 // AI Generation: 10 requests per minute per user

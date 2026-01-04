@@ -150,24 +150,30 @@ export interface SourceGuideData {
     faq: { question: string; answer: string }[];
 }
 
-// === TEACHER LESSON PLAN ARCHITECTURE (Master Teacher V2) ===
+// === TEACHER LESSON PLAN ARCHITECTURE (Master Teacher V3 - Enhanced) ===
 
-export type MediaAssetType = 'image_description' | 'youtube_timestamp' | 'none';
+export type MediaAssetType = 'image_description' | 'youtube_timestamp' | 'ai_generated_image' | 'infographic' | 'none';
 
 export interface MediaAsset {
     type: MediaAssetType;
-    content: string; // "Start: 02:10, End: 04:00" OR "Description of image..."
+    content: string; // "Start: 02:10, End: 04:00" OR "Description of image..." OR Image URL
+    prompt?: string; // AI prompt used to generate the image (if ai_generated_image)
+    url?: string; // Generated image URL (populated after AI generation)
+    status?: 'pending' | 'generated' | 'failed'; // Generation status
 }
 
 export interface LessonMetadata {
     title: string;
     target_audience: string;
     duration: string;
+    subject?: string;
+    learning_objectives?: string[]; // Added: Clear learning goals
 }
 
 export interface HookSection {
     script_for_teacher: string;
     media_asset?: MediaAsset;
+    classroom_management_tip?: string; // Added: Tips for teacher (e.g., "If students are noisy, wait 10 seconds")
 }
 
 export interface DirectInstructionSlide {
@@ -175,6 +181,8 @@ export interface DirectInstructionSlide {
     bullet_points_for_board: string[];
     script_to_say: string;
     media_asset?: MediaAsset;
+    timing_estimate?: string; // Added: e.g., "3-5 minutes"
+    differentiation_note?: string; // Added: Tips for advanced/struggling students
 }
 
 export interface DirectInstructionSection {
@@ -184,18 +192,31 @@ export interface DirectInstructionSection {
 export interface GuidedPracticeSection {
     teacher_instruction: string;
     wizdi_tool_reference: string;
+    interactive_blocks?: any[]; // Added: Array of ActivityBlock (multiple-choice, memory_game, etc.)
+    suggested_block_types?: string[]; // Added: AI suggestions for which interaction types fit best
 }
 
 export interface DiscussionSection {
     questions: string[];
+    facilitation_tips?: string[]; // Added: How to guide discussion
 }
 
 export interface SummarySection {
     takeaway_sentence: string;
+    visual_summary?: MediaAsset; // Added: Optional visual summary/infographic
+    homework_suggestion?: string; // Added: Optional follow-up activity
 }
 
 /**
- * The Master Teacher Lesson Plan Structure
+ * The Master Teacher Lesson Plan Structure V3 (Enhanced)
+ *
+ * KEY IMPROVEMENTS:
+ * - Auto-generated visuals (AI images, infographics)
+ * - Interactive blocks integrated in Guided Practice
+ * - Classroom management tips embedded
+ * - Differentiation strategies included
+ * - Rich metadata and learning objectives
+ *
  * (Distinct from Student Activity / Quiz)
  */
 export interface TeacherLessonPlan {

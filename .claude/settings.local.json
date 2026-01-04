@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsx:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Complete exam generation system refactoring with dedicated architecture\n\nImplements full separation of exam and learning pipelines for scalability and maintainability.\n\nBackend Changes:\n- ✨ NEW: examPrompts.ts - Dedicated exam prompts \\(Temperature 0.3, no hints\\)\n- ✨ NEW: examArchitect.ts - Strategic test planning \\(The Brain\\)\n- ✨ NEW: examGenerator.ts - Parallel question generation \\(The Hands\\)\n- ✨ NEW: examGuardian.ts - Exam integrity validation with auto-repair\n- ✨ NEW: examController.ts - Complete exam pipeline orchestration\n- ✨ NEW: generateExam Cloud Function - Listens to exam_generation_queue\n\nFrontend Changes:\n- 🔧 UPDATED: gemini.ts - Smart routing to exam_generation_queue for productType=''exam''\n- 🔧 UPDATED: CourseEditor.tsx - Pass productType, activityLength, taxonomy to queue\n\nKey Features:\n- ✅ Zero conditionals - Complete code separation \\(removed 50+ if statements\\)\n- ✅ Temperature Fix - 0.3 for deterministic exam generation\n- ✅ ExamGuardian - Prevents hints/teaching content leakage\n- ✅ Auto-Repair - Automatically removes hints before validation\n- ✅ Dedicated Queue - exam_generation_queue isolated from learning\n- ✅ Quality Scoring - Guardian provides 0-100 quality assessment\n\nArchitecture:\n- 3-Stage Pipeline: Architect \\(Plan\\) → Generator \\(Create\\) → Guardian \\(Validate\\)\n- Parallel question generation for speed\n- Local + AI validation for reliability\n- Comprehensive error handling and logging\n\nBreaking Changes: None \\(backward compatible\\)\nMigration: Deploy with: firebase deploy --only functions:generateExam\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout 5 head:*)"
+    ]
+  }
+}

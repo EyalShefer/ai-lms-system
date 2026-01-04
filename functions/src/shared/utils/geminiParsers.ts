@@ -146,9 +146,11 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 content: { question: questionText },
                 metadata: {
                     ...commonMetadata,
-                    modelAnswer: Array.isArray(rawData.model_answer)
-                        ? rawData.model_answer.join('\n- ')
-                        : (rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key || "התשובה נמצאת בחומר הלימוד."),
+                    // Teacher guidelines - rich pedagogical instructions
+                    modelAnswer: rawData.teacher_guidelines ||
+                                 (Array.isArray(rawData.model_answer)
+                                    ? rawData.model_answer.join('\n- ')
+                                    : (rawData.model_answer || rawData.answer_key || "🎯 מה לחפש: תשובה המבוססת על החומר הנלמד")),
                     score: 20
                 }
             };

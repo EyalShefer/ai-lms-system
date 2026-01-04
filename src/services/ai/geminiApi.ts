@@ -221,8 +221,33 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
 };
 
 
-export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
+export const generateAiImage = async (
+    prompt: string,
+    preferredProvider: 'dall-e' | 'imagen' | 'auto' = 'auto'
+): Promise<Blob | null> => {
+    // Dynamic import of Imagen service
+    const { isImagenAvailable, generateImagenImage } = await import('./imagenService');
+
+    // Auto-select provider based on availability and cost
+    let provider: 'dall-e' | 'imagen' = 'dall-e';
+    if (preferredProvider === 'imagen' || (preferredProvider === 'auto' && isImagenAvailable())) {
+        provider = 'imagen';
+    }
+
+    // Try Imagen first if selected/available
+    if (provider === 'imagen') {
+        console.log('🎨 Attempting Imagen 3 generation (cost-effective)...');
+        const imagenResult = await generateImagenImage(prompt);
+        if (imagenResult) {
+            console.log('✅ Imagen 3 generation successful');
+            return imagenResult;
+        }
+        console.warn('⚠️ Imagen 3 failed, falling back to DALL-E 3');
+    }
+
+    // DALL-E 3 (primary or fallback)
     try {
+        console.log('🎨 Generating with DALL-E 3...');
         const response = await openai.images.generate({
             model: "dall-e-3",
             prompt: prompt,
@@ -239,11 +264,153 @@ export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
                 byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
             const byteArray = new Uint8Array(byteNumbers);
+            console.log('✅ DALL-E 3 generation successful');
             return new Blob([byteArray], { type: "image/png" });
         }
         return null;
     } catch (e) {
-        console.error("Error generating image (DALL-E 3 Proxy):", e);
+        console.error("❌ DALL-E 3 generation failed:", e);
+        return null;
+    }
+};
+
+/**
+ * Infographic visual types
+ */
+export type InfographicType = 'flowchart' | 'timeline' | 'comparison' | 'cycle';
+
+/**
+ * Generates an educational infographic from text content using DALL-E 3
+ * Optimized prompts for Hebrew educational content
+ * Includes smart caching to prevent duplicate generation
+ *
+ * @param text - The educational content to visualize
+ * @param visualType - Type of infographic (flowchart, timeline, comparison, cycle)
+ * @param topic - Optional topic name for context
+ * @param skipCache - Optional flag to bypass cache
+ * @returns Promise<Blob | null> - PNG image blob or null on failure
+ */
+export const generateInfographicFromText = async (
+    text: string,
+    visualType: InfographicType,
+    topic?: string,
+    skipCache: boolean = false
+): Promise<Blob | null> => {
+    // Import cache utilities dynamically
+    const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
+
+    // Truncate text if too long (DALL-E prompt limit ~4000 chars)
+    const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;
+
+    // Check cache first (unless explicitly skipped)
+    if (!skipCache) {
+        const cacheHash = await generateInfographicHash(truncatedText, visualType);
+        const cachedDataUrl = getCachedInfographic(cacheHash);
+
+        if (cachedDataUrl) {
+            console.log(`🎯 Cache HIT for ${visualType} infographic (hash: ${cacheHash.substring(0, 8)}...)`);
+
+            // Convert data URL back to Blob
+            const base64Data = cachedDataUrl.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: "image/png" });
+        }
+
+        console.log(`🔍 Cache MISS for ${visualType} infographic - generating new image...`);
+    }
+
+    // Type-specific prompt templates optimized for educational clarity
+    const promptTemplates: Record<InfographicType, string> = {
+        flowchart: `Create a clean educational flowchart infographic showing the process described below.
+        Style: Minimalist, clear arrows, colorful boxes, suitable for classroom presentation.
+        Include Hebrew text labels extracted from the content.
+        Layout: Top-to-bottom or left-to-right flow with decision diamonds where applicable.
+        ${topic ? `Topic: ${topic}` : ''}
+
+        Content to visualize:
+        ${truncatedText}
+
+        Requirements:
+        - Clear, large Hebrew text (RTL support)
+        - High contrast colors (educational palette)
+        - Numbered steps if sequential
+        - Professional diagram style`,
+
+        timeline: `Create a horizontal timeline infographic showing the chronological sequence or historical progression described below.
+        Style: Clean, modern, colorful milestone markers, suitable for educational use.
+        Include Hebrew text labels for each event/stage.
+        ${topic ? `Topic: ${topic}` : ''}
+
+        Content to visualize:
+        ${truncatedText}
+
+        Requirements:
+        - Clear timeline axis with date/stage markers
+        - Large, readable Hebrew text (RTL)
+        - Distinct visual markers for each milestone
+        - Educational color scheme`,
+
+        comparison: `Create a side-by-side comparison table or Venn diagram infographic showing the contrasts/similarities described below.
+        Style: Clean, balanced layout, color-coded categories, suitable for classroom teaching.
+        Include Hebrew text labels for compared items.
+        ${topic ? `Topic: ${topic}` : ''}
+
+        Content to visualize:
+        ${truncatedText}
+
+        Requirements:
+        - Clear visual separation between compared items
+        - Large Hebrew text (RTL support)
+        - Color coding for different categories
+        - Balanced, symmetrical layout`,
+
+        cycle: `Create a circular cycle/loop diagram infographic showing the cyclical process described below.
+        Style: Circular flow with arrows, colorful segments, suitable for educational presentation.
+        Include Hebrew text labels for each stage of the cycle.
+        ${topic ? `Topic: ${topic}` : ''}
+
+        Content to visualize:
+        ${truncatedText}
+
+        Requirements:
+        - Circular arrangement with directional arrows
+        - Large, clear Hebrew text (RTL)
+        - Distinct colors for each cycle stage
+        - Professional educational style`
+    };
+
+    const enhancedPrompt = promptTemplates[visualType];
+
+    try {
+        console.log(`🎨 Generating ${visualType} infographic...`);
+        const imageBlob = await generateAiImage(enhancedPrompt);
+
+        if (imageBlob) {
+            console.log(`✅ ${visualType} infographic generated successfully`);
+
+            // Cache the result for future use
+            if (!skipCache) {
+                const cacheHash = await generateInfographicHash(truncatedText, visualType);
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = reader.result as string;
+                    setCachedInfographic(cacheHash, dataUrl);
+                    console.log(`💾 Cached infographic (hash: ${cacheHash.substring(0, 8)}...)`);
+                };
+                reader.readAsDataURL(imageBlob);
+            }
+        } else {
+            console.warn(`⚠️ ${visualType} infographic generation returned null`);
+        }
+
+        return imageBlob;
+    } catch (e) {
+        console.error(`Error generating ${visualType} infographic:`, e);
         return null;
     }
 };

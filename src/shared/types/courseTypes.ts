@@ -16,9 +16,10 @@ export type ActivityBlockType =
     | 'categorization'
     | 'memory_game'
     | 'true_false_speed'
-    | 'true_false_speed'
     | 'podcast'
-    | 'audio-response';
+    | 'audio-response'
+    | 'drag_and_drop'
+    | 'hotspot';
 
 export interface MultipleChoiceContent {
     question: string;
@@ -41,12 +42,38 @@ export interface CategorizationContent {
     items: { text: string; category: string }[];
 }
 
+export interface DragAndDropContent {
+    instruction: string;
+    zones: { id: string; label: string; color?: string }[];
+    items: { id: string; text: string; correctZone: string }[];
+    feedback_correct?: string;
+    feedback_incorrect?: string;
+}
+
+export interface HotspotContent {
+    instruction: string;
+    image_description?: string;
+    image_prompt?: string;
+    image_url?: string; // Populated after AI generation
+    hotspots: {
+        id: string;
+        label: string;
+        x: number; // Percentage
+        y: number; // Percentage
+        width: number;
+        height: number;
+        feedback: string;
+    }[];
+}
+
 // Union of all strict content types
 export type StrictBlockContent =
     | MultipleChoiceContent
     | OpenQuestionContent
     | OrderingContent
     | CategorizationContent
+    | DragAndDropContent
+    | HotspotContent
     | any; // Temporary fallback for legacy blocks
 
 export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
