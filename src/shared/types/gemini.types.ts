@@ -189,11 +189,33 @@ export interface DirectInstructionSection {
     slides: DirectInstructionSlide[];
 }
 
+/**
+ * Guided Practice - Pedagogical guidance for in-class practice
+ * (המורה מנחה את התלמידים בכיתה)
+ */
 export interface GuidedPracticeSection {
-    teacher_instruction: string;
-    wizdi_tool_reference: string;
-    interactive_blocks?: any[]; // Added: Array of ActivityBlock (multiple-choice, memory_game, etc.)
-    suggested_block_types?: string[]; // Added: AI suggestions for which interaction types fit best
+    teacher_facilitation_script: string; // How to introduce and guide the practice
+    suggested_activities: {
+        activity_type: string; // e.g., "multiple-choice", "memory_game"
+        description: string; // What this activity should assess
+        facilitation_tip?: string; // How to guide students through it
+    }[];
+    differentiation_strategies?: {
+        for_struggling_students: string;
+        for_advanced_students: string;
+    };
+    assessment_tips?: string[]; // What to look for while students practice
+}
+
+/**
+ * Independent Practice - Ready-to-use digital activities
+ * (פעילויות דיגיטליות מוכנות לשליחה לתלמידים)
+ */
+export interface IndependentPracticeSection {
+    introduction_text: string; // Brief instructions for students
+    interactive_blocks: any[]; // Array of ActivityBlock (ready-to-use activities)
+    estimated_duration?: string; // e.g., "10-15 דקות"
+    shareable_link?: string; // Generated link to share with students
 }
 
 export interface DiscussionSection {
@@ -208,11 +230,13 @@ export interface SummarySection {
 }
 
 /**
- * The Master Teacher Lesson Plan Structure V3 (Enhanced)
+ * The Master Teacher Lesson Plan Structure V4 (Enhanced)
  *
  * KEY IMPROVEMENTS:
  * - Auto-generated visuals (AI images, infographics)
- * - Interactive blocks integrated in Guided Practice
+ * - TWO types of practice sections:
+ *   1. Guided Practice: Pedagogical guidance for in-class facilitation
+ *   2. Independent Practice: Ready-to-use digital activities (shareable with students)
  * - Classroom management tips embedded
  * - Differentiation strategies included
  * - Rich metadata and learning objectives
@@ -224,6 +248,7 @@ export interface TeacherLessonPlan {
     hook: HookSection;
     direct_instruction: DirectInstructionSection;
     guided_practice: GuidedPracticeSection;
+    independent_practice: IndependentPracticeSection;
     discussion: DiscussionSection;
     summary: SummarySection;
 }

@@ -329,7 +329,11 @@
 
 /* AI Generated Images Styles */
 .generated-visual {
-    @apply relative group mt-4;
+    @apply relative mt-4;
+}
+
+.generated-visual:hover {
+    @apply opacity-100;
 }
 
 .generated-visual img {
