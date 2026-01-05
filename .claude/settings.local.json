@@ -30,7 +30,10 @@
       "Bash(npx tsc --noEmit --skipLibCheck)",
       "Bash(cat:*)",
       "Bash(npx tsc --noEmit)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Task assignments, enhanced student home, infographics & various improvements\n\n- Add task assignment system: AssignToStudentsModal, taskAssignmentService\n- Enhance StudentHome with assignments view and improved UI\n- Add infographic HTML templates and htmlToImage utilities\n- Update SequentialCoursePlayer with enhanced navigation and UX\n- Improve ShareModal with better sharing options\n- Add Gemini 3 image service for cloud functions\n- Update useMyAssignments hook with better assignment tracking\n- Various UI improvements across TeacherCockpit, TeacherDashboard\n- Add deployment documentation\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm install:*)",
+      "Bash(npx firebase deploy --only hosting)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { generateMindMapFromContent } from '../services/ai/geminiApi';
+import { generateMindMapFromContent } from '../services/ai/mindMapGenerator';
 import type { MindMapContent } from '../shared/types/courseTypes';
 import MindMapViewer from './MindMapViewer';
 import { IconLoader2, IconSparkles, IconX, IconCheck, IconBrain, IconRefresh } from '@tabler/icons-react';
