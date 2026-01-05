@@ -15,9 +15,18 @@
       "Bash(node:*)",
       "Bash(git ls-tree:*)",
       "Bash(firebase deploy:*)",
-      "Bash(find:*)",
-      "Bash(git push)",
-      "Bash(git checkout:*)"
+      "Bash(git fetch:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash pop:*)",
+      "Bash(npm install:*)",
+      "Bash(dir /s \"c:\\\\Users\\\\eyal\\\\Desktop\\\\ai-lms-system\\\\ai-lms-system\")",
+      "Bash(findstr:*)",
+      "Bash(grep:*)",
+      "Bash(gcloud services list:*)",
+      "Bash(gcloud services enable:*)",
+      "Bash(firebase functions:delete:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Enhance podcast generation and improve UI components\n\n- Enhanced podcast generation with grade-level language adaptation\n- Added character count display and limit warning in IngestionWizard\n- Improved Imagen service with better error handling\n- Updated pedagogical settings UI for podcast product type\n- Minor fixes in CourseEditor and LessonPlanOverview\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

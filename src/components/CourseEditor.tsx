@@ -746,8 +746,10 @@ const CourseEditor: React.FC = () => {
                 if (data.settings?.productType === 'podcast') {
                     // console.log("🎙️ Generating Podcast Product...");
                     const script = await generatePodcastScript(
-                        processedSourceText || course.title,
-                        topicToUse
+                        processedSourceText || '',  // Empty string triggers auto-generation in backend
+                        topicToUse,
+                        extractedGrade,  // Pass grade level for language adaptation
+                        data.settings?.activityLength || 'medium'  // Pass podcast length
                     );
 
                     if (script) {

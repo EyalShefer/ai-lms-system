@@ -18,6 +18,9 @@ const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
 // --- MIDDLEWARE ---
 import { checkRateLimit } from "./middleware/rateLimiter";
 
+// --- GEMINI IMAGE GENERATION ---
+export { generateGeminiImage } from "./geminiImageService";
+
 // --- CONTROLLERS ---
 import { createAiController } from "./controllers/aiController";
 import { createExamController } from "./controllers/examController";

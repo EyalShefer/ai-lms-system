@@ -160,13 +160,20 @@ export const generateStepContent = async (
     }
 };
 
-export const generatePodcastScript = async (sourceText: string, topic?: string): Promise<DialogueScript | null> => {
+export const generatePodcastScript = async (
+    sourceText: string,
+    topic?: string,
+    gradeLevel?: string,
+    activityLength?: 'short' | 'medium' | 'long'
+): Promise<DialogueScript | null> => {
     // VAULT MIGRATION: Logic moved to Backend
     try {
         const generatePodcastScriptFn = httpsCallable(functions, 'generatePodcastScript');
         const response = await generatePodcastScriptFn({
             sourceText,
-            topic
+            topic,
+            gradeLevel: gradeLevel || 'כיתה ז׳',
+            activityLength: activityLength || 'medium'
         });
 
         return response.data as DialogueScript;
@@ -223,26 +230,26 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
 
 export const generateAiImage = async (
     prompt: string,
-    preferredProvider: 'dall-e' | 'imagen' | 'auto' = 'auto'
+    preferredProvider: 'dall-e' | 'gemini' | 'auto' = 'auto'
 ): Promise<Blob | null> => {
-    // Dynamic import of Imagen service
-    const { isImagenAvailable, generateImagenImage } = await import('./imagenService');
+    // Dynamic import of Gemini Image service
+    const { isGeminiImageAvailable, generateGeminiImage } = await import('./imagenService');
 
-    // Auto-select provider based on availability and cost
-    let provider: 'dall-e' | 'imagen' = 'dall-e';
-    if (preferredProvider === 'imagen' || (preferredProvider === 'auto' && isImagenAvailable())) {
-        provider = 'imagen';
+    // Auto-select provider: Prefer Gemini for Hebrew support
+    let provider: 'dall-e' | 'gemini' = 'dall-e';
+    if (preferredProvider === 'gemini' || (preferredProvider === 'auto' && isGeminiImageAvailable())) {
+        provider = 'gemini';
     }
 
-    // Try Imagen first if selected/available
-    if (provider === 'imagen') {
-        console.log('🎨 Attempting Imagen 3 generation (cost-effective)...');
-        const imagenResult = await generateImagenImage(prompt);
-        if (imagenResult) {
-            console.log('✅ Imagen 3 generation successful');
-            return imagenResult;
+    // Try Gemini first if selected/available (best for Hebrew)
+    if (provider === 'gemini') {
+        console.log('🎨 Attempting Gemini 3 Pro Image generation (best for Hebrew)...');
+        const geminiResult = await generateGeminiImage(prompt, 'pro');
+        if (geminiResult) {
+            console.log('✅ Gemini Image generation successful');
+            return geminiResult;
         }
-        console.warn('⚠️ Imagen 3 failed, falling back to DALL-E 3');
+        console.warn('⚠️ Gemini Image failed, falling back to DALL-E 3');
     }
 
     // DALL-E 3 (primary or fallback)

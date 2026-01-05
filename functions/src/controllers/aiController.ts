@@ -382,31 +382,132 @@ Generate a JSON object with the following structure. Strict JSON.
     // --- 3. Generate Podcast ---
     const generatePodcastScript = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
         const openai = new OpenAI({ apiKey: openaiApiKey.value() });
-        const { sourceText, topic } = request.data;
-        // Logic to construct prompt
-        // We need getPodcastPrompt imported. (Assuming it is in prompts.ts)
-        // Oops, I need to check if getPodcastPrompt is imported. Yes it is in my previous `view_file` of controller? No, I need to add it to imports.
+        const { sourceText, topic, gradeLevel, activityLength } = request.data;
 
-        // Re-construct logic here if import fails, but best to import.
-        // For now, let's assume I will fix imports in next step if missing.
+        logger.info(`Podcast Generation: topic="${topic}", grade="${gradeLevel}", length="${activityLength}", hasSourceText=${!!sourceText}`);
+
+        // Determine exchange count based on length
+        const exchangeCountMap: Record<string, { min: number; max: number }> = {
+            short: { min: 8, max: 10 },
+            medium: { min: 12, max: 15 },
+            long: { min: 18, max: 22 }
+        };
+        const exchanges = exchangeCountMap[activityLength || 'medium'] || exchangeCountMap.medium;
+
+        // Grade-level language adaptation
+        const gradeLanguageMap: Record<string, string> = {
+            "כיתה א׳": "שפה פשוטה מאוד, משפטים קצרים, מילים בסיסיות, הסברים עם דוגמאות מהחיים היומיומיים של ילדים קטנים",
+            "כיתה ב׳": "שפה פשוטה מאוד, משפטים קצרים, מילים בסיסיות, הסברים עם דוגמאות מהחיים היומיומיים של ילדים קטנים",
+            "כיתה ג׳": "שפה פשוטה, משפטים ברורים, הסברים עם דוגמאות קונקרטיות",
+            "כיתה ד׳": "שפה פשוטה, משפטים ברורים, הסברים עם דוגמאות קונקרטיות",
+            "כיתה ה׳": "שפה ברורה, אפשר להשתמש במושגים בסיסיים עם הסבר",
+            "כיתה ו׳": "שפה ברורה, אפשר להשתמש במושגים בסיסיים עם הסבר",
+            "כיתה ז׳": "שפה מורכבת יותר, מושגים מקצועיים עם הסברים",
+            "כיתה ח׳": "שפה מורכבת יותר, מושגים מקצועיים עם הסברים",
+            "כיתה ט׳": "שפה אקדמית בגובה העיניים, מושגים מקצועיים",
+            "כיתה י׳": "שפה אקדמית, מושגים מקצועיים, ניתוח מעמיק",
+            "כיתה י״א": "שפה אקדמית, מושגים מקצועיים, ניתוח מעמיק",
+            "כיתה י״ב": "שפה אקדמית מלאה, מושגים מתקדמים, דיון ברמה גבוהה",
+            "סטודנטים": "שפה אקדמית מלאה, מושגים מתקדמים, דיון ברמה גבוהה",
+            "מכינה": "שפה אקדמית מלאה, מושגים מתקדמים",
+            "הכשרה מקצועית": "שפה מקצועית וטכנית, מונחים מהתחום"
+        };
+        const languageStyle = gradeLanguageMap[gradeLevel || "כיתה ז׳"] || "שפה ברורה ומותאמת לגיל";
+
+        // If no sourceText provided (topic mode), generate educational content first
+        let contentForPodcast = sourceText;
+        if (!sourceText || sourceText.trim().length < 100) {
+            logger.info(`Generating educational content for topic: ${topic}`);
+
+            const contentPrompt = `
+אתה מורה מומחה. כתוב תוכן חינוכי מקיף על הנושא: "${topic}"
+קהל היעד: ${gradeLevel || "כיתה ז׳"}
+סגנון שפה: ${languageStyle}
+
+הנחיות:
+1. כתוב תוכן חינוכי עשיר ומפורט (800-1500 מילים)
+2. כלול מושגי מפתח, הסברים, דוגמאות ועובדות מעניינות
+3. התאם את השפה לרמת הגיל
+4. הוסף "טיפים" או "האם ידעת?" לעניין
+5. כתוב בעברית שוטפת
+
+פלט: טקסט חינוכי בלבד (ללא JSON, ללא כותרות מיוחדות).
+`;
+
+            try {
+                const contentCompletion = await openai.chat.completions.create({
+                    model: MODEL_NAME,
+                    messages: [{ role: "user", content: contentPrompt }],
+                    temperature: 0.7,
+                    max_tokens: 2000
+                });
+                contentForPodcast = contentCompletion.choices[0].message.content || "";
+                logger.info(`Generated ${contentForPodcast.length} characters of educational content`);
+            } catch (contentError: any) {
+                logger.error("Failed to generate educational content:", contentError);
+                throw new HttpsError('internal', 'לא הצלחנו לייצר תוכן לפודקאסט. נסה להעלות מסמך או להדביק טקסט.');
+            }
+        }
+
+        // Character limit validation
+        const MAX_CHARS = 15000;
+        const truncatedContent = contentForPodcast.substring(0, MAX_CHARS);
+        if (contentForPodcast.length > MAX_CHARS) {
+            logger.warn(`Content truncated from ${contentForPodcast.length} to ${MAX_CHARS} characters`);
+        }
 
         const prompt = `
-          generate a "Deep Dive" podcast script between two hosts, Dan and Noa.
-          Topic: ${topic || "The provided text"}
-          Source Material: """${(sourceText || "").substring(0, 15000)}"""
-          Characters: Dan (Curious), Noa (Expert).
-          Format: JSON { "title": "...", "lines": [{ "speaker": "Dan", "text": "..." }] }.
-          Language: Hebrew.
-        `;
+אתה מפיק פודקאסטים חינוכיים מוביל. צור תסריט פודקאסט "Deep Dive" בין שני מגישים.
+
+הדמויות:
+1. **דן (Dan)** - המומחה: אנליטי, מדויק, אוהב אנלוגיות. מסביר את המושגים העמוקים.
+2. **נועה (Noa)** - הסקרנית: נלהבת, שואלת שאלות שכולם חושבים עליהן, מסכמת בפשטות.
+
+הנחיות סגנון:
+- ${languageStyle}
+- שיחה טבעית ולא הרצאה
+- התחל עם "Cold Open" - עובדה מפתיעה או שאלה מסקרנת
+- הוסף הפסקות ("רגע, מה?"), הסכמות ("בדיוק!"), הומור קל
+- ${exchanges.min}-${exchanges.max} החלפות דיבור בסה"כ
+
+מקור התוכן (בסס את התסריט רק על זה):
+"""
+${truncatedContent}
+"""
+
+נושא: ${topic || "התוכן שלמעלה"}
+
+פורמט פלט (JSON בלבד):
+{
+  "title": "כותרת קליטה לפרק",
+  "lines": [
+    { "speaker": "Noa", "text": "...", "emotion": "Curious" },
+    { "speaker": "Dan", "text": "...", "emotion": "Neutral" }
+  ]
+}
+
+אפשרויות emotion: "Curious", "Skeptical", "Excited", "Neutral"
+שפה: עברית שוטפת ומדוברת.
+`;
 
         try {
             const completion = await openai.chat.completions.create({
                 model: MODEL_NAME,
                 messages: [{ role: "user", content: prompt }],
-                response_format: { type: "json_object" }
+                response_format: { type: "json_object" },
+                temperature: 0.8
             });
             const text = completion.choices[0].message.content || "{}";
-            return JSON.parse(cleanJsonString(text));
+            const result = JSON.parse(cleanJsonString(text));
+
+            // Validate result structure
+            if (!result.title || !result.lines || !Array.isArray(result.lines) || result.lines.length < 4) {
+                logger.error("Invalid podcast script structure:", result);
+                throw new HttpsError('internal', 'התסריט שנוצר אינו תקין. נסה שוב.');
+            }
+
+            logger.info(`Podcast generated: "${result.title}" with ${result.lines.length} lines`);
+            return result;
         } catch (error: any) {
             logger.error("Vault Podcast Error:", error);
             throw new HttpsError('internal', error.message);

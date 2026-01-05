@@ -170,17 +170,17 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     return (
         <div className="p-4 md:p-8 max-w-5xl mx-auto h-full overflow-y-auto custom-scrollbar print:p-0 print:overflow-visible" dir="rtl">
             {/* Header */}
-            <header className="mb-8 print:mb-4">
+            <header className="sticky top-4 z-40 card-glass p-6 mb-8 print:mb-4 print:static print:shadow-none print:bg-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 print:text-black">
                             {course.title || "מערך שיעור ללא שם"}
                         </h1>
                         <div className="flex gap-4 mt-2 text-gray-500 font-medium print:text-sm">
-                            <span className="px-3 py-1 bg-gray-100 rounded-full text-sm print:border print:border-gray-300">
+                            <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
                                 {course.gradeLevel || "גיל לא הוגדר"}
                             </span>
-                            <span className="px-3 py-1 bg-gray-100 rounded-full text-sm print:border print:border-gray-300">
+                            <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
                                 {course.subject || "כללי"}
                             </span>
                             {(course.mode === 'lesson' || course.wizardData?.settings?.productType === 'lesson') && <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm print:hidden">מערך שיעור</span>}
@@ -191,14 +191,14 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                     <div className="flex items-center gap-3 print:hidden">
                         <button
                             onClick={handlePreview}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors tooltip"
+                            className="p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
                             title="תצוגת תלמיד דמו"
                         >
                             <IconEye className="w-[22px] h-[22px]" />
                         </button>
                         <button
                             onClick={() => handleShare(undefined, undefined, 'collab')}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors tooltip"
+                            className="p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
                             title="שתף עם עמית"
                         >
                             <IconShare className="w-[22px] h-[22px]" />
@@ -209,7 +209,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                         {/* Course Level AI Actions */}
                         <button
                             onClick={() => onGenerateWithAI?.('module', 'course', 'Expand entire syllabus')}
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-100 to-purple-100 text-purple-700 rounded-xl hover:from-violet-200 hover:to-purple-200 border border-purple-200 shadow-sm transition-colors"
                         >
                             <IconRobot className="w-5 h-5" />
                             <span>סייע AI</span>
@@ -226,11 +226,11 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                 {course.syllabus.map((module, mIndex) => (
                     <div key={module.id} className="relative pr-4 md:pr-14 group print:pr-0">
                         {/* Timeline Icon (Replaces Dot) */}
-                        <div className="absolute right-3 top-6 w-10 h-10 rounded-full bg-white border-2 border-indigo-100 z-10 shadow-sm flex items-center justify-center print:hidden">
+                        <div className="absolute right-3 top-6 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm border-2 border-blue-200 z-10 shadow-md flex items-center justify-center print:hidden">
                             {getPhaseIcon(mIndex, course.syllabus.length)}
                         </div>
 
-                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-6 relative overflow-hidden print:shadow-none print:border-gray-300 print:break-inside-avoid">
+                        <div className="card-glass hover:shadow-lg transition-all p-6 relative overflow-hidden print:shadow-none print:border-gray-300 print:break-inside-avoid print:bg-white">
                             {/* Glassmorphism Background Accent (Hidden in Print) */}
                             <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-blue-50 to-transparent opacity-50 rounded-br-full -z-0 pointer-events-none print:hidden" />
 
@@ -240,7 +240,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                     <h2 className="text-xl font-bold text-gray-800">
                                         {module.title}
                                     </h2>
-                                    <button className="text-gray-400 hover:text-blue-600 transition-colors print:hidden">
+                                    <button className="text-gray-400 hover:text-blue-600 transition-colors print:hidden p-1 hover:bg-blue-50 rounded shadow-sm border border-white/60 bg-white/50">
                                         <IconEdit className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -249,20 +249,20 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                     {onGenerateWithAI && (
                                         <button
                                             onClick={() => onGenerateWithAI('module', module.id)}
-                                            className="flex items-center gap-1 px-2 py-1 text-xs text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100"
+                                            className="flex items-center gap-1 px-2 py-1 text-xs text-purple-600 bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg hover:from-violet-100 hover:to-purple-100 border border-purple-100 shadow-sm"
                                             title="ערוך שלב עם AI"
                                         >
                                             <IconRobot className="w-3.5 h-3.5" /> AI עריכה
                                         </button>
                                     )}
                                     <div className="h-4 w-px bg-gray-300 mx-1" />
-                                    <button onClick={() => handleMoveModule(mIndex, 'up')} disabled={mIndex === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30">
+                                    <button onClick={() => handleMoveModule(mIndex, 'up')} disabled={mIndex === 0} className="p-1 hover:bg-blue-50 hover:text-blue-600 rounded disabled:opacity-30 bg-white/50 border border-white/60 shadow-sm">
                                         <IconArrowUp className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => handleMoveModule(mIndex, 'down')} disabled={mIndex === course.syllabus.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30">
+                                    <button onClick={() => handleMoveModule(mIndex, 'down')} disabled={mIndex === course.syllabus.length - 1} className="p-1 hover:bg-blue-50 hover:text-blue-600 rounded disabled:opacity-30 bg-white/50 border border-white/60 shadow-sm">
                                         <IconArrowDown className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => handleDeleteModule(module.id)} className="p-1 text-red-500 hover:bg-red-50 rounded ml-2">
+                                    <button onClick={() => handleDeleteModule(module.id)} className="p-1 text-red-500 hover:bg-red-50 rounded ml-2 bg-white/50 border border-white/60 shadow-sm">
                                         <IconTrash className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -271,7 +271,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                             {/* Units List */}
                             <div className="space-y-3 relative z-10">
                                 {module.learningUnits.length === 0 ? (
-                                    <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-xl print:hidden">
+                                    <div className="text-center py-6 border-2 border-dashed border-blue-100 rounded-xl bg-blue-50/30 backdrop-blur-sm print:hidden">
                                         <p className="text-gray-400 text-sm mb-2">אין פעילויות בשלב זה עדיין.</p>
                                         <button
                                             onClick={() => handleAddUnit(module.id)}
@@ -312,8 +312,8 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                         return (
                                             <div
                                                 key={unit.id}
-                                                className={`flex flex-col bg-gray-50 rounded-xl border transition-all group/unit
-                                                    ${isExpanded ? 'bg-white border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-gray-100 hover:border-indigo-200 hover:bg-white'}
+                                                className={`flex flex-col rounded-xl border transition-all group/unit
+                                                    ${isExpanded ? 'card-glass border-blue-200 shadow-lg ring-2 ring-blue-50/50' : 'bg-white/60 border-white/60 backdrop-blur-sm hover:bg-white/80 hover:border-blue-200 shadow-sm'}
                                                 `}
                                             >
                                                 {/* Unit Header (Click to Expand) */}
@@ -344,7 +344,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                         {onGenerateWithAI && (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); onGenerateWithAI('unit', unit.id); }}
-                                                                className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors tooltip"
+                                                                className="p-2 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
                                                                 title="שפר עם AI"
                                                             >
                                                                 <IconRobot className="w-[18px] h-[18px]" />
@@ -355,14 +355,14 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleMoveUnit(module.id, uIndex, 'up'); }}
                                                                 disabled={uIndex === 0}
-                                                                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-30"
+                                                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 bg-white/50 border border-white/60 shadow-sm"
                                                             >
                                                                 <IconArrowUp className="w-4 h-4" />
                                                             </button>
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleMoveUnit(module.id, uIndex, 'down'); }}
                                                                 disabled={uIndex === module.learningUnits.length - 1}
-                                                                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-30"
+                                                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30 bg-white/50 border border-white/60 shadow-sm"
                                                             >
                                                                 <IconArrowDown className="w-4 h-4" />
                                                             </button>
@@ -370,7 +370,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
 
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteUnit(module.id, unit.id); }}
-                                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors bg-white/50 border border-white/60 shadow-sm"
                                                             title="מחק יחידה"
                                                         >
                                                             <IconTrash className="w-[18px] h-[18px]" />
@@ -384,7 +384,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
 
                                                 {/* Inline Editor (Accordion Body) */}
                                                 {isExpanded && (
-                                                    <div className="border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="border-t border-blue-100" onClick={(e) => e.stopPropagation()}>
                                                         <TeacherCockpit
                                                             unit={unit}
                                                             embedded={true}
@@ -401,10 +401,10 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                             </div>
 
                             {/* Add Unit Bottom Action */}
-                            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-center print:hidden">
+                            <div className="mt-4 pt-4 border-t border-blue-50 flex justify-center print:hidden">
                                 <button
                                     onClick={() => handleAddUnit(module.id)}
-                                    className="flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 transition-colors px-4 py-1 rounded-full hover:bg-indigo-50"
+                                    className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-600 transition-colors px-4 py-1.5 rounded-full hover:bg-blue-50 bg-white/50 border border-white/60 shadow-sm"
                                 >
                                     <IconPlus className="w-3.5 h-3.5" /> הוסף פעילות לשלב
                                 </button>
@@ -417,9 +417,9 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                 <div className="pr-4 md:pr-14 print:hidden">
                     <button
                         onClick={handleAddModule}
-                        className="w-full py-4 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2 group"
+                        className="w-full py-4 border-2 border-dashed border-blue-200 rounded-2xl text-blue-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 backdrop-blur-sm bg-white/40 transition-all flex items-center justify-center gap-2 group"
                     >
-                        <div className="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center transition-colors shadow-sm">
                             <IconPlus className="w-[18px] h-[18px]" />
                         </div>
                         <span className="font-semibold">הוסף שלב חדש</span>

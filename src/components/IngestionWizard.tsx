@@ -570,6 +570,18 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             placeholder="הדביקו כאן את הטקסט..."
                                             autoFocus
                                         />
+                                        {/* Character count and limit warning */}
+                                        <div className="flex justify-between items-center mt-2 text-sm">
+                                            <span className={`font-medium ${pastedText.length > 15000 ? 'text-orange-600' : 'text-slate-400'}`}>
+                                                {pastedText.length.toLocaleString()} תווים
+                                                {pastedText.length > 15000 && (
+                                                    <span className="text-orange-500 mr-2">
+                                                        ⚠️ יחתך ל-15,000 תווים
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="text-slate-400">מקסימום: 15,000 תווים</span>
+                                        </div>
                                     </div>
                                 )}
 
@@ -728,106 +740,120 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             </div>
 
                             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm transition-all duration-300">
-                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                    <IconBrain className="w-5 h-5 text-wizdi-royal" />
-                                    התאמה פדגוגית
-                                </h3>
-
-                                {selectedProduct === 'game' && (
+                                {/* Hide pedagogical settings for podcast - not relevant */}
+                                {selectedProduct === 'podcast' ? (
+                                    <div className="text-center py-8">
+                                        <IconHeadphones className="w-16 h-16 text-orange-400 mx-auto mb-4" />
+                                        <h3 className="font-bold text-lg text-slate-700 mb-2">פודקאסט AI</h3>
+                                        <p className="text-slate-500 text-sm leading-relaxed max-w-sm mx-auto">
+                                            הפודקאסט ייווצר עם שני מגישים - דן ונועה - בשיחה מעניינת ומותאמת לקהל היעד שבחרת.
+                                            <br /><br />
+                                            <span className="text-orange-600 font-medium">משך הפרק:</span> {activityLength === 'short' ? '~3 דקות' : activityLength === 'long' ? '~8 דקות' : '~5 דקות'}
+                                        </p>
+                                    </div>
+                                ) : (
                                     <>
-                                        {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
-                                        <div
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                console.log("DEBUG: Toggle clicked!");
-                                                setIsDifferentiated(!isDifferentiated);
-                                            }}
-                                            className={`
-                                        mb-6 p-4 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden group
-                                        ${isDifferentiated
-                                                    ? 'border-wizdi-royal bg-blue-50/50 shadow-md'
-                                                    : 'border-slate-100 bg-slate-50 hover:border-blue-200'}
-                                    `}
-                                        >
-                                            <div className="flex justify-between items-start relative z-10">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`
-                                                p-2 rounded-xl transition-colors
-                                                ${isDifferentiated ? 'bg-wizdi-royal text-white' : 'bg-slate-200 text-slate-500'}
-                                            `}>
-                                                        <IconWand className="w-6 h-6" />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className={`font-bold text-lg ${isDifferentiated ? 'text-wizdi-royal' : 'text-slate-700'}`}>
-                                                            הוראה דיפרנציאלית (3 רמות)
-                                                        </h4>
-                                                        <p className="text-sm text-slate-500 max-w-[250px] leading-tight mt-1">
-                                                            יצירת 3 גרסאות פעילות הדרגתיות (תמיכה, ליבה, העשרה) באופן אוטומטי מהמקור.
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                            <IconBrain className="w-5 h-5 text-wizdi-royal" />
+                                            התאמה פדגוגית
+                                        </h3>
 
-                                                {/* iOS Toggle Switch */}
-                                                <div className={`
-                                            w-12 h-7 rounded-full transition-colors flex items-center px-1
-                                            ${isDifferentiated ? 'bg-wizdi-royal' : 'bg-slate-300'}
-                                        `}>
-                                                    <div className={`
-                                                w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300
-                                                ${isDifferentiated ? 'translate-x-[20px]' : 'translate-x-0'}
-                                            `} />
-                                                </div>
-                                            </div>
+                                        {selectedProduct === 'game' && (
+                                            <>
+                                                {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        console.log("DEBUG: Toggle clicked!");
+                                                        setIsDifferentiated(!isDifferentiated);
+                                                    }}
+                                                    className={`
+                                                        mb-6 p-4 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden group
+                                                        ${isDifferentiated
+                                                            ? 'border-wizdi-royal bg-blue-50/50 shadow-md'
+                                                            : 'border-slate-100 bg-slate-50 hover:border-blue-200'}
+                                                    `}
+                                                >
+                                                    <div className="flex justify-between items-start relative z-10">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`
+                                                                p-2 rounded-xl transition-colors
+                                                                ${isDifferentiated ? 'bg-wizdi-royal text-white' : 'bg-slate-200 text-slate-500'}
+                                                            `}>
+                                                                <IconWand className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className={`font-bold text-lg ${isDifferentiated ? 'text-wizdi-royal' : 'text-slate-700'}`}>
+                                                                    הוראה דיפרנציאלית (3 רמות)
+                                                                </h4>
+                                                                <p className="text-sm text-slate-500 max-w-[250px] leading-tight mt-1">
+                                                                    יצירת 3 גרסאות פעילות הדרגתיות (תמיכה, ליבה, העשרה) באופן אוטומטי מהמקור.
+                                                                </p>
+                                                            </div>
+                                                        </div>
 
-                                            {/* 3 VISUAL BADGES (Only visible when active) */}
-                                            <div className={`
-                                        grid grid-cols-3 gap-2 mt-4 transition-all duration-500 origin-top
-                                        ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
-                                    `}>
-                                                <div className="bg-green-50 border border-green-100 p-2 rounded-xl text-center">
-                                                    <span className="block text-xs font-bold text-green-600 mb-1">רמה 1: תמיכה</span>
-                                                    <div className="h-1 w-8 bg-green-400 rounded-full mx-auto" />
+                                                        {/* iOS Toggle Switch */}
+                                                        <div className={`
+                                                            w-12 h-7 rounded-full transition-colors flex items-center px-1
+                                                            ${isDifferentiated ? 'bg-wizdi-royal' : 'bg-slate-300'}
+                                                        `}>
+                                                            <div className={`
+                                                                w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300
+                                                                ${isDifferentiated ? 'translate-x-[20px]' : 'translate-x-0'}
+                                                            `} />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 3 VISUAL BADGES (Only visible when active) */}
+                                                    <div className={`
+                                                        grid grid-cols-3 gap-2 mt-4 transition-all duration-500 origin-top
+                                                        ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
+                                                    `}>
+                                                        <div className="bg-green-50 border border-green-100 p-2 rounded-xl text-center">
+                                                            <span className="block text-xs font-bold text-green-600 mb-1">רמה 1: תמיכה</span>
+                                                            <div className="h-1 w-8 bg-green-400 rounded-full mx-auto" />
+                                                        </div>
+                                                        <div className="bg-blue-50 border border-blue-100 p-2 rounded-xl text-center">
+                                                            <span className="block text-xs font-bold text-blue-600 mb-1">רמה 2: ליבה</span>
+                                                            <div className="h-1 w-12 bg-blue-500 rounded-full mx-auto" />
+                                                        </div>
+                                                        <div className="bg-purple-50 border border-purple-100 p-2 rounded-xl text-center">
+                                                            <span className="block text-xs font-bold text-purple-600 mb-1">רמה 3: העשרה</span>
+                                                            <div className="h-1 w-16 bg-purple-500 rounded-full mx-auto" />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="bg-blue-50 border border-blue-100 p-2 rounded-xl text-center">
-                                                    <span className="block text-xs font-bold text-blue-600 mb-1">רמה 2: ליבה</span>
-                                                    <div className="h-1 w-12 bg-blue-500 rounded-full mx-auto" />
-                                                </div>
-                                                <div className="bg-purple-50 border border-purple-100 p-2 rounded-xl text-center">
-                                                    <span className="block text-xs font-bold text-purple-600 mb-1">רמה 3: העשרה</span>
-                                                    <div className="h-1 w-16 bg-purple-500 rounded-full mx-auto" />
-                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* SLIDERS (Hidden if Differentiated is ON) */}
+                                        <div className={`transition-all duration-300 ${isDifferentiated ? 'opacity-30 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-sm font-bold text-slate-500">או התאמה ידנית (אקולייזר):</span>
                                             </div>
+                                            {[
+                                                { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
+                                                { k: 'application', l: 'יישום וניתוח', c: 'blue' },
+                                                { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
+                                            ].map((t: any) => (
+                                                <div key={t.k} className="mb-4">
+                                                    <div className="flex justify-between text-sm mb-1 px-1">
+                                                        <span className="font-medium text-slate-600">{t.l}</span>
+                                                        <span className="font-bold text-wizdi-royal">{(taxonomy as any)[t.k]}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        value={(taxonomy as any)[t.k]}
+                                                        onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
+                                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
+                                                        disabled={isDifferentiated}
+                                                    />
+                                                </div>
+                                            ))}
                                         </div>
-
                                     </>
                                 )}
-
-                                {/* SLIDERS (Hidden if Differentiated is ON) */}
-                                <div className={`transition-all duration-300 ${isDifferentiated ? 'opacity-30 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <span className="text-sm font-bold text-slate-500">או התאמה ידנית (אקולייזר):</span>
-                                    </div>
-                                    {[
-                                        { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
-                                        { k: 'application', l: 'יישום וניתוח', c: 'blue' },
-                                        { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
-                                    ].map((t: any) => (
-                                        <div key={t.k} className="mb-4">
-                                            <div className="flex justify-between text-sm mb-1 px-1">
-                                                <span className="font-medium text-slate-600">{t.l}</span>
-                                                <span className="font-bold text-wizdi-royal">{(taxonomy as any)[t.k]}%</span>
-                                            </div>
-                                            <input
-                                                type="range"
-                                                value={(taxonomy as any)[t.k]}
-                                                onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
-                                                className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
-                                                disabled={isDifferentiated}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
                         </div>
                     )}

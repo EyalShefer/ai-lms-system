@@ -1,75 +1,99 @@
 /**
- * Google Imagen 3 Integration
- * Cost-effective alternative to DALL-E 3 ($0.020 vs $0.040 per image)
+ * Gemini Image Generation Service
+ * Uses Gemini 3 Pro Image for high-quality Hebrew infographics
+ * Falls back to DALL-E 3 if Gemini fails
  *
  * Setup Instructions:
  * 1. Enable Vertex AI in Google Cloud Console
- * 2. Add GOOGLE_CLOUD_PROJECT to Firebase environment
- * 3. Deploy Cloud Function with Imagen proxy
- * 4. Update firebase.json with Imagen endpoint
+ * 2. Deploy Cloud Function: firebase deploy --only functions:generateGeminiImage
+ * 3. Set VITE_ENABLE_GEMINI_IMAGE=true in .env
  */
 
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { functions } from '../../firebase';
+import { auth } from '../../firebase';
 
 /**
- * Imagen 3 configuration
+ * Gemini Image configuration
  */
-export const IMAGEN_CONFIG = {
-    model: 'imagen-3.0-generate-001',
-    endpoint: 'generateImagenImage', // Cloud Function name
-    imageSize: '1024x1024',
-    outputFormat: 'PNG',
-    aspectRatio: '1:1',
-    sampleCount: 1
+export const GEMINI_IMAGE_CONFIG = {
+    models: {
+        flash: 'gemini-2.5-flash-image',      // Fast, cheaper
+        pro: 'gemini-3-pro-image-preview'     // Higher quality, better Hebrew
+    },
+    endpoint: 'generateGeminiImage',
+    defaultModel: 'pro' as const
 };
 
+// Legacy export for backwards compatibility
+export const IMAGEN_CONFIG = GEMINI_IMAGE_CONFIG;
+
 /**
- * Check if Imagen is available and configured
- * Set to true to enable Imagen 3 (requires Cloud Function deployment)
+ * Check if Gemini Image is available and configured
  */
 export const isImagenAvailable = (): boolean => {
-    // Enable Imagen after deploying Cloud Functions
-    // Run: firebase deploy --only functions:generateImagenImage
-    return import.meta.env.VITE_ENABLE_IMAGEN === 'true' || false;
+    return import.meta.env.VITE_ENABLE_GEMINI_IMAGE === 'true' ||
+           import.meta.env.VITE_ENABLE_IMAGEN === 'true' ||
+           false;
 };
 
+// Alias for clarity
+export const isGeminiImageAvailable = isImagenAvailable;
+
 /**
- * Generate image using Google Imagen 3
+ * Generate image using Gemini 3 Pro Image
+ * Best for Hebrew text and educational infographics
+ *
  * @param prompt - Image generation prompt
+ * @param model - 'flash' for speed, 'pro' for quality (default: 'pro')
  * @returns Promise<Blob | null> - PNG image blob or null on failure
  */
-export const generateImagenImage = async (prompt: string): Promise<Blob | null> => {
-    if (!isImagenAvailable()) {
-        console.warn('⚠️ Imagen 3 is not configured. Falling back to DALL-E.');
+export const generateGeminiImage = async (
+    prompt: string,
+    model: 'flash' | 'pro' = 'pro'
+): Promise<Blob | null> => {
+    if (!isGeminiImageAvailable()) {
+        console.warn('⚠️ Gemini Image is not configured. Set VITE_ENABLE_GEMINI_IMAGE=true');
         return null;
     }
 
     try {
-        console.log('🎨 Generating image with Imagen 3 via Cloud Function...');
+        console.log(`🎨 Generating image with Gemini ${model === 'pro' ? '3 Pro' : '2.5 Flash'} Image...`);
 
-        // Get user ID for rate limiting
-        const { auth } = await import('../../firebase');
-        const userId = auth.currentUser?.uid;
+        // Get Firebase auth token for authentication
+        const user = auth.currentUser;
+        if (!user) {
+            console.error('❌ User not authenticated');
+            return null;
+        }
 
-        // Call Cloud Function directly (HTTP endpoint for better CORS handling)
-        const functionUrl = import.meta.env.VITE_IMAGEN_FUNCTION_URL ||
-            `https://us-central1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net/generateImagenImage`;
+        const idToken = await user.getIdToken();
+
+        // Build Cloud Function URL
+        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+        const functionUrl = import.meta.env.VITE_GEMINI_IMAGE_FUNCTION_URL ||
+            `https://us-central1-${projectId}.cloudfunctions.net/generateGeminiImage`;
 
         const response = await fetch(functionUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
             },
             body: JSON.stringify({
                 prompt,
-                userId
+                model
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: response.statusText }));
-            throw new Error(`Imagen API error: ${errorData.error || response.statusText}`);
+
+            // Handle specific error codes
+            if (response.status === 429) {
+                console.warn('⚠️ Rate limited, will fall back to DALL-E');
+                return null;
+            }
+
+            throw new Error(`Gemini Image API error: ${errorData.error || response.statusText}`);
         }
 
         const data = await response.json();
@@ -84,98 +108,69 @@ export const generateImagenImage = async (prompt: string): Promise<Blob | null> 
             }
             const byteArray = new Uint8Array(byteNumbers);
 
-            console.log(`✅ Imagen 3 generation successful (${data.metadata?.generationTime}ms, cost: $${data.metadata?.cost})`);
+            console.log(`✅ Gemini Image generation successful (${data.metadata?.generationTime}ms, model: ${data.metadata?.model})`);
 
             return new Blob([byteArray], { type: data.image.mimeType || 'image/png' });
         }
 
+        console.warn('⚠️ Gemini returned success but no image data');
         return null;
+
     } catch (error) {
-        console.error('❌ Imagen 3 generation failed:', error);
+        console.error('❌ Gemini Image generation failed:', error);
         return null;
     }
 };
 
+// Legacy alias for backwards compatibility
+export const generateImagenImage = generateGeminiImage;
+
 /**
  * Cost comparison helper
  */
-export const getImageGenerationCost = (provider: 'dall-e' | 'imagen'): {
+export const getImageGenerationCost = (provider: 'dall-e' | 'gemini-flash' | 'gemini-pro'): {
     perImage: number;
     per1000: number;
     currency: string;
 } => {
     const costs = {
         'dall-e': { perImage: 0.040, per1000: 40, currency: 'USD' },
-        'imagen': { perImage: 0.020, per1000: 20, currency: 'USD' }
+        'gemini-flash': { perImage: 0.020, per1000: 20, currency: 'USD' },
+        'gemini-pro': { perImage: 0.040, per1000: 40, currency: 'USD' }
     };
     return costs[provider];
 };
 
 /**
- * FUTURE: Firebase Cloud Function for Imagen Proxy
- * Deploy this to functions/src/imagenProxy.ts
- *
- * ```typescript
- * import { onRequest } from 'firebase-functions/v2/https';
- * import { VertexAI } from '@google-cloud/aiplatform';
- *
- * export const imagenGenerate = onRequest(async (req, res) => {
- *     const { prompt, model, aspectRatio } = req.body;
- *
- *     const vertexAI = new VertexAI({
- *         project: process.env.GOOGLE_CLOUD_PROJECT,
- *         location: 'us-central1'
- *     });
- *
- *     const generativeModel = vertexAI.preview.getGenerativeModel({
- *         model: model || 'imagen-3.0-generate-001'
- *     });
- *
- *     const result = await generativeModel.generateImages({
- *         prompt,
- *         number_of_images: 1,
- *         aspect_ratio: aspectRatio || '1:1'
- *     });
- *
- *     res.json(result);
- * });
- * ```
- */
-
-/**
  * Setup guide for educators
  */
-export const IMAGEN_SETUP_GUIDE = `
-# הגדרת Imagen 3 (חיסכון של 50% בעלויות!)
+export const GEMINI_IMAGE_SETUP_GUIDE = `
+# הגדרת Gemini Image (איכות עברית מעולה!)
 
 ## שלב 1: Google Cloud Console
 1. גש ל-https://console.cloud.google.com
 2. הפעל Vertex AI API
-3. צור Service Account עם הרשאות Vertex AI User
+3. וודא שה-Firebase project מחובר
 
-## שלב 2: Firebase Configuration
-\`\`\`bash
-firebase functions:config:set imagen.enabled=true
-firebase functions:config:set google.project_id=YOUR_PROJECT_ID
-\`\`\`
-
-## שלב 3: Deploy Cloud Function
+## שלב 2: Deploy Cloud Function
 \`\`\`bash
 cd functions
-npm install @google-cloud/aiplatform
-firebase deploy --only functions:imagenGenerate
+npm install
+firebase deploy --only functions:generateGeminiImage
 \`\`\`
 
-## שלב 4: Update Code
-בקובץ src/services/ai/imagenService.ts:
-\`\`\`typescript
-export const isImagenAvailable = (): boolean => {
-    return true; // שנה ל-true
-};
+## שלב 3: הגדרת משתני סביבה
+בקובץ .env:
+\`\`\`
+VITE_ENABLE_GEMINI_IMAGE=true
 \`\`\`
 
-## עלויות משוערות:
-- DALL-E 3: $40 ל-1000 תמונות
-- Imagen 3: $20 ל-1000 תמונות
-- **חיסכון: $20/חודש** (על 1000 תמונות)
+## יתרונות Gemini 3 Pro Image:
+- תמיכה מעולה בעברית ו-RTL
+- איכות תמונה גבוהה
+- טקסט קריא וברור
+- אידיאלי לאינפוגרפיקות חינוכיות
 `;
+
+// Legacy export
+export const IMAGEN_SETUP_GUIDE = GEMINI_IMAGE_SETUP_GUIDE;
