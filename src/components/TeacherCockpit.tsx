@@ -841,8 +841,32 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             )
         }
 
+        // Editable Mode (Fill in Blanks)
+        if (editingBlockId === block.id && block.type === 'fill_in_blanks') {
+            const clozeText = block.content?.text || "";
+            return (
+                <div className="relative">
+                    <div className="mb-2 text-sm text-slate-500">
+                        הקיפו מילים בסוגריים מרובעים [כך] כדי ליצור חללים למילוי
+                    </div>
+                    <RichTextEditor
+                        value={clozeText}
+                        onChange={(html) => updateBlockContent(block.id, { ...block.content, text: html })}
+                        placeholder="כתבו את הטקסט והקיפו מילים ב-[סוגריים מרובעים] ליצירת חללים..."
+                        minHeight="200px"
+                        autoFocus
+                    />
+                    <div className="mt-3 flex gap-2 justify-end">
+                        <button onClick={() => setEditingBlockId(null)} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-md transition-all">
+                            סיום עריכה
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
         return (
-            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200" onClick={() => setEditingBlockId(block.id)}>
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
                 <h3 className="font-bold text-slate-700 mb-2">{block.type.toUpperCase().replace('_', ' ')}</h3>
                 {block.type === 'fill_in_blanks' && (
                     <p className="text-lg leading-relaxed dir-rtl text-slate-800">

@@ -5,7 +5,8 @@ import {
     IconSparkles,
     IconChevronLeft, IconChevronRight,
     IconCheck, IconX, IconStar, IconLink,
-    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell
+    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell,
+    IconSend
 } from '../icons';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import { getIconForBlockType } from '../utils/pedagogicalIcons';
@@ -13,6 +14,7 @@ import { useSound } from '../hooks/useSound';
 import { FeedbackWidget } from './FeedbackWidget'; // NEW: Feedback Loop
 import { useAuth } from '../context/AuthContext';
 import { generateRemedialBlock } from '../services/adaptiveContentService';
+import { checkOpenQuestionAnswer } from '../services/ai/geminiApi';
 import ThinkingOverlay from './ThinkingOverlay';
 import { syncProgress, checkDailyStreak, DEFAULT_GAMIFICATION_PROFILE } from '../services/gamificationService';
 import ShopModal from './ShopModal';
@@ -20,6 +22,7 @@ import SuccessModal from './SuccessModal';
 import type { GamificationProfile } from '../shared/types/courseTypes';
 import TeacherCockpit from './TeacherCockpit'; // NEW: Teacher View
 import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring'; // CRITICAL FIX: Import scoring system
+import { submitAssignment, type SubmissionData } from '../services/submissionService'; // Student submission
 
 
 // --- Specialized Sub-Components ---
@@ -122,6 +125,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [stepStatus, setStepStatus] = useState<'idle' | 'ready_to_check' | 'success' | 'failure'>('idle');
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
     const [isRemediating, setIsRemediating] = useState(false); // NEW: Remediation Loading State
+    const [isCheckingOpenQuestion, setIsCheckingOpenQuestion] = useState(false); // NEW: Open Question AI Check
+    const [openQuestionAttempts, setOpenQuestionAttempts] = useState<Record<string, number>>({}); // Track attempts per block
 
     // --- State: Results Tracking (for Timeline Colors & Persistence) ---
     const [stepResults, setStepResults] = useState<Record<string, 'success' | 'failure' | 'viewed'>>({});
@@ -131,6 +136,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     // --- State: Gamification ---
     // Persistent Profile (synced with Firestore)
     const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile>(DEFAULT_GAMIFICATION_PROFILE);
+
+    // --- State: Submission ---
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [hasSubmitted, setHasSubmitted] = useState(false);
 
     // UI Helpers
     const [combo, setCombo] = useState(0); // Multiplier
@@ -155,8 +164,28 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
 
     // Reset or Restore status when moving to new block
+    // Also: Auto-skip redundant text blocks if they will be shown in split-view with the next question
     useEffect(() => {
         if (!currentBlock) return;
+
+        // --- AUTO-SKIP LOGIC ---
+        // If current block is passive text/pdf AND next block is interactive (question),
+        // skip this block because the text will be displayed in split-view anyway
+        const passiveContextTypes = ['text', 'pdf'];
+        const interactiveTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed'];
+        const nextBlock = playbackQueue[currentIndex + 1];
+
+        if (passiveContextTypes.includes(currentBlock.type) &&
+            nextBlock &&
+            interactiveTypes.includes(nextBlock.type)) {
+            // Auto-skip: mark as viewed and move to next
+            setStepResults(prev => ({ ...prev, [currentBlock.id]: 'viewed' }));
+            setHistoryStack(prev => [...prev, currentIndex]);
+            setCurrentIndex(prev => prev + 1);
+            return;
+        }
+        // --- END AUTO-SKIP ---
+
         const prevResult = stepResults[currentBlock.id];
 
         // Reset local block interaction states
@@ -179,7 +208,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             // Hint Reset for new un-attempted blocks (just in case of ID collision or zombie state)
             setHintsVisible(prev => ({ ...prev, [currentBlock.id]: 0 }));
         }
-    }, [currentIndex, currentBlock?.id]); // Only when ID changes, not necessarily stepResults deep change
+    }, [currentIndex, currentBlock?.id, playbackQueue]); // Only when ID changes, not necessarily stepResults deep change
     // Note: Removed stepResults dependency to avoid loop, we only check on mount of new index.
 
 
@@ -201,7 +230,74 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         setStepStatus('ready_to_check');
     };
 
-    // 2. Check Action (The "Lime Button")
+    // 2a. Check Open Question with AI (Scaffolded Feedback)
+    const handleCheckOpenQuestion = useCallback(async () => {
+        const answer = userAnswers[currentBlock.id];
+        if (!answer || answer.trim().length < 3) return;
+
+        setIsCheckingOpenQuestion(true);
+        const currentAttempts = (openQuestionAttempts[currentBlock.id] || 0) + 1;
+        setOpenQuestionAttempts(prev => ({ ...prev, [currentBlock.id]: currentAttempts }));
+
+        try {
+            // Get context from course
+            const sourceText = course?.syllabus?.[0]?.learningUnits?.[0]?.activityBlocks
+                ?.filter((b: any) => b.type === 'text')
+                ?.map((b: any) => b.content)
+                ?.join('\n') || '';
+
+            const question = currentBlock.content?.question || '';
+            const modelAnswer = currentBlock.metadata?.modelAnswer || currentBlock.content?.modelAnswer || '';
+
+            const result = await checkOpenQuestionAnswer(
+                question,
+                answer,
+                modelAnswer,
+                sourceText,
+                isExamMode ? 'exam' : 'learning'
+            );
+
+            if (result.status === 'correct') {
+                setStepStatus('success');
+                playSound('success');
+                setFeedbackMsg(result.feedback || 'מצוין! תשובה נכונה.');
+                setStepResults(prev => ({ ...prev, [currentBlock.id]: 'success' }));
+
+                // Gamification for correct open answer
+                const xpGain = Math.max(100 - (currentAttempts - 1) * 20, 40);
+                setGamificationProfile(prev => ({
+                    ...prev,
+                    xp: prev.xp + xpGain,
+                    gems: prev.gems + (currentAttempts === 1 ? 2 : 1),
+                }));
+                setShowFloater({ id: Date.now(), amount: xpGain });
+
+            } else if (result.status === 'partial') {
+                // Keep in ready_to_check state - allow retry with guidance
+                setStepStatus('ready_to_check');
+                setFeedbackMsg(result.feedback || 'כמעט! נסה להרחיב את התשובה.');
+                playSound('failure');
+
+            } else {
+                // Incorrect - give scaffolded hint
+                setStepStatus('ready_to_check'); // Allow retry
+                setFeedbackMsg(result.feedback || 'נסה שוב. קרא שוב את הטקסט ושים לב לפרטים.');
+                playSound('failure');
+
+                // After 3 attempts, show more help
+                if (currentAttempts >= 3) {
+                    setFeedbackMsg(prev => (prev || '') + '\n💡 רמז: ' + (currentBlock.metadata?.progressiveHints?.[0] || 'חפש את המילים המרכזיות בטקסט.'));
+                }
+            }
+        } catch (error) {
+            console.error('Error checking open question:', error);
+            setFeedbackMsg('שגיאה בבדיקה. נסה שוב.');
+        } finally {
+            setIsCheckingOpenQuestion(false);
+        }
+    }, [currentBlock, userAnswers, course, isExamMode, openQuestionAttempts, playSound]);
+
+    // 2b. Check Action (The "Lime Button")
     const handleCheck = useCallback(() => {
         // 1. Check if PASSIVE block (Text, Media) -> Always simple continue
         const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'];
@@ -225,13 +321,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         if (currentBlock.type === 'multiple-choice') {
             if (!answer) return; // Should be disabled
             isCorrect = answer === currentBlock.content.correctAnswer;
+        } else if (currentBlock.type === 'open-question') {
+            // Delegate to AI-based scaffolded checking
+            handleCheckOpenQuestion();
+            return;
         } else {
             // Complex blocks usually drive themselves, but if we fall through:
             return;
         }
 
         processResult(isCorrect);
-    }, [currentBlock, userAnswers, stepStatus]);
+    }, [currentBlock, userAnswers, stepStatus, handleCheckOpenQuestion]);
 
     // 3. Process Result (Gamification + ADAPTIVE BKT Logic)
     // ✅ FIXED: Now uses central scoring system according to PROJECT_DNA.md
@@ -374,19 +474,138 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
     };
 
-    // Callback for "Self-Checking" components (Cloze, Ordering)
-    // ✅ FIXED: Now properly processes score from complex components
+    // Callback for "Self-Checking" components (Cloze, Ordering, Categorization)
+    // ✅ FIXED: Now properly handles partial scores from complex components
     const handleComplexBlockComplete = (score: number, telemetryData?: { attempts?: number, hintsUsed?: number }) => {
         // Complex blocks pass their own score (0-100)
-        // We map this to isCorrect for processResult
-        const passed = score > 60;
+        // We need to handle partial scores properly, not just pass/fail
 
         // Update hints if provided by the component
         if (telemetryData?.hintsUsed && telemetryData.hintsUsed > 0) {
-            setHintsVisible(prev => ({ ...prev, [currentBlock.id]: telemetryData.hintsUsed }));
+            setHintsVisible(prev => ({ ...prev, [currentBlock.id]: telemetryData.hintsUsed ?? 0 }));
         }
 
-        processResult(passed);
+        // Process with actual score for proper feedback
+        processComplexResult(score, telemetryData);
+    };
+
+    // NEW: Process results from complex questions with partial scoring
+    const processComplexResult = async (score: number, _telemetryData?: { attempts?: number, hintsUsed?: number }) => {
+        const isPerfect = score === 100;
+        const passed = score > 60;
+
+        // Save Result for Timeline
+        setStepResults(prev => ({ ...prev, [currentBlock.id]: passed ? 'success' : 'failure' }));
+
+        if (passed) {
+            setStepStatus('success');
+            playSound('success');
+
+            // XP based on actual score (not 100 for partial)
+            const totalXpGain = score;
+
+            // Gems: 2 for perfect, 1 for passed, 0 for failed
+            let totalGemGain = 0;
+            if (isPerfect) {
+                totalGemGain = 2;
+            } else if (passed) {
+                totalGemGain = 1;
+            }
+
+            // Optimistic UI Update
+            setGamificationProfile(prev => ({
+                ...prev,
+                xp: prev.xp + totalXpGain,
+                gems: prev.gems + totalGemGain,
+                currentStreak: prev.currentStreak + 1,
+            }));
+
+            setCombo(prev => prev + 1);
+            setShowFloater({ id: Date.now(), amount: totalXpGain });
+
+            // Contextual feedback based on actual score
+            let feedback: string;
+            if (isPerfect) {
+                feedback = ["מעולה!", "כל הכבוד!", "יפה מאוד!", "מושלם!"][Math.floor(Math.random() * 4)];
+            } else if (score >= 80) {
+                feedback = `כמעט מושלם! קיבלת ${score} נקודות.`;
+            } else if (score >= 60) {
+                feedback = `עברת! קיבלת ${score} נקודות. נסה לשפר בפעם הבאה.`;
+            } else {
+                feedback = "כמעט!";
+            }
+            setFeedbackMsg(feedback);
+
+            // Background Sync
+            if (currentUser?.uid) {
+                syncProgress(currentUser.uid, totalXpGain, totalGemGain).then(updatedProfile => {
+                    if (updatedProfile) {
+                        setGamificationProfile(updatedProfile);
+                    }
+                });
+            }
+        } else {
+            setStepStatus('failure');
+            playSound('failure');
+            setCombo(0);
+
+            // Show score even on failure for complex questions
+            setFeedbackMsg(`קיבלת ${score} נקודות. צריך לפחות 61 כדי לעבור. נסו שוב!`);
+        }
+
+        // --- ADAPTIVE BRAIN SYNC (Cloud) ---
+        try {
+            const { getFunctions, httpsCallable } = await import('firebase/functions');
+            const { getAuth } = await import('firebase/auth');
+            const functions = getFunctions();
+            const auth = getAuth();
+            const user = auth.currentUser;
+
+            if (user && course?.id) {
+                const submitAdaptiveAnswer = httpsCallable(functions, 'submitAdaptiveAnswer');
+                submitAdaptiveAnswer({
+                    userId: user.uid,
+                    unitId: course.syllabus[0]?.learningUnits[0]?.id || 'unknown_unit',
+                    blockId: currentBlock.id,
+                    score: score,
+                    isCorrect: passed,
+                    metadata: currentBlock.metadata
+                }).then(async (result: any) => {
+                    const data = result.data;
+                    if (data) {
+                        console.log("🧠 BKT Update:", data);
+
+                        if (data.action === 'remediate') {
+                            setIsRemediating(true);
+                            setFeedbackMsg(prev => (prev || "") + "\n🤖 המערכת מזהה קושי. מנתח פערים...");
+
+                            try {
+                                const remedialBlock = await generateRemedialBlock(
+                                    currentBlock,
+                                    course.title || "General",
+                                    userAnswers[currentBlock.id]
+                                );
+
+                                if (remedialBlock) {
+                                    setPlaybackQueue(prev => {
+                                        const newQ = [...prev];
+                                        newQ.splice(currentIndex + 1, 0, remedialBlock);
+                                        return newQ;
+                                    });
+                                    setFeedbackMsg("יצרתי עבורכם הסבר ממוקד לחזרה. לחצו על המשך.");
+                                }
+                            } catch (genErr) {
+                                console.error("Factory Error:", genErr);
+                            } finally {
+                                setIsRemediating(false);
+                            }
+                        }
+                    }
+                }).catch(err => console.error("BKT Sync Failed", err));
+            }
+        } catch (e) {
+            console.error("Adaptive connection error", e);
+        }
     };
 
     // --- 4. Navigation ---
@@ -555,19 +774,52 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 );
 
             case 'open-question':
+                const openQuestionAttemptCount = openQuestionAttempts[currentBlock.id] || 0;
                 return (
                     <div className="space-y-6 w-full max-w-4xl mx-auto">
                         <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center" dir="auto">
                             {currentBlock.content.question}
                         </h2>
                         <textarea
-                            className="w-full p-4 rounded-2xl border-2 border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[200px] text-lg resize-none transition-all"
+                            className={`w-full p-4 rounded-2xl border-2 focus:ring-4 min-h-[200px] text-lg resize-none transition-all ${
+                                stepStatus === 'success'
+                                    ? 'border-green-400 bg-green-50 focus:border-green-500 focus:ring-green-500/10'
+                                    : feedbackMsg && stepStatus === 'ready_to_check'
+                                        ? 'border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/10'
+                                        : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'
+                            }`}
                             placeholder="הקלד את תשובתך כאן..."
                             dir="auto"
-                            disabled={stepStatus === 'success' || stepStatus === 'failure'}
+                            disabled={stepStatus === 'success'}
                             onChange={(e) => handleAnswerSelect(e.target.value)}
                             value={userAnswers[currentBlock.id] || ''}
                         />
+
+                        {/* Scaffolded Feedback Display */}
+                        {feedbackMsg && stepStatus !== 'success' && stepStatus !== 'failure' && (
+                            <div className="animate-in slide-in-from-top-2 bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-amber-900">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-2xl">💭</span>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-lg mb-1">משוב מהמורה:</p>
+                                        <p className="whitespace-pre-line">{feedbackMsg}</p>
+                                        {openQuestionAttemptCount > 0 && (
+                                            <p className="text-sm mt-2 text-amber-700">
+                                                ניסיון {openQuestionAttemptCount} • נסה לשפר את התשובה ולחץ שוב על "בדיקה"
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Loading State */}
+                        {isCheckingOpenQuestion && (
+                            <div className="flex items-center justify-center gap-3 text-blue-600">
+                                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="font-bold">בודק את התשובה...</span>
+                            </div>
+                        )}
                     </div>
                 );
 
@@ -695,10 +947,92 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         const courseId = (course as any).id;
         if (courseId) {
             window.location.hash = `/editor/${courseId}`;
-            // Or if using a router callback passed from props, use that.
-            // Assuming basic hash routing or that reload handles it.
-            // If this component is used inside a router, we might need useNavigate.
-            // But for now, window.location.assign is safest for a "hard" jump if router isn't exposed.
+        }
+    };
+
+    // --- Submission Handler ---
+    const handleSubmitActivity = async () => {
+        if (isSubmitting || hasSubmitted) return;
+
+        const courseId = course?.id;
+        if (!courseId) {
+            alert('שגיאה: לא נמצא מזהה קורס');
+            return;
+        }
+
+        // Calculate total score from stepResults
+        const totalBlocks = playbackQueue.length;
+        const completedBlocks = Object.keys(stepResults).length;
+        const successBlocks = Object.values(stepResults).filter(r => r === 'success').length;
+        const failureBlocks = Object.values(stepResults).filter(r => r === 'failure').length;
+
+        // Calculate score: success = 100pts, viewed = 50pts, failure = 0pts
+        let totalScore = 0;
+        let maxPossibleScore = 0;
+
+        playbackQueue.forEach(block => {
+            const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'];
+            const isPassive = passiveTypes.includes(block.type);
+
+            if (isPassive) {
+                // Passive blocks worth 50 points if viewed
+                maxPossibleScore += 50;
+                if (stepResults[block.id] === 'viewed') {
+                    totalScore += 50;
+                }
+            } else {
+                // Interactive blocks worth 100 points
+                maxPossibleScore += 100;
+                if (stepResults[block.id] === 'success') {
+                    totalScore += 100;
+                } else if (stepResults[block.id] === 'failure') {
+                    totalScore += 0;
+                }
+            }
+        });
+
+        // Normalize to percentage
+        const finalScore = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0;
+
+        setIsSubmitting(true);
+
+        try {
+            const submissionData: SubmissionData = {
+                assignmentId: courseId, // Using courseId as assignmentId for direct submissions
+                courseId: courseId,
+                studentName: currentUser?.displayName || currentUser?.email || 'אורח',
+                answers: userAnswers,
+                score: finalScore,
+                maxScore: 100,
+                courseTopic: course?.title || 'נושא כללי',
+                telemetry: {
+                    stepResults,
+                    hintsUsed: hintsVisible,
+                    totalBlocks,
+                    completedBlocks,
+                    successBlocks,
+                    failureBlocks,
+                    gamificationProfile: {
+                        xp: gamificationProfile.xp,
+                        gems: gamificationProfile.gems,
+                        streak: gamificationProfile.currentStreak
+                    },
+                    completedAt: new Date().toISOString()
+                }
+            };
+
+            const result = await submitAssignment(submissionData);
+
+            if (result.success) {
+                setHasSubmitted(true);
+                playSound('success');
+                alert(`הפעילות הוגשה בהצלחה! ציון: ${finalScore}%`);
+            }
+        } catch (error) {
+            console.error('Submission error:', error);
+            alert('שגיאה בהגשת הפעילות. נסה שוב.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -740,8 +1074,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 <div className="max-w-6xl mx-auto flex items-center justify-between text-white bg-[#3565e3] pb-4 border-b border-white/10">
                     {/* Exit/Back & Progress Text */}
                     <div className="flex items-center gap-4">
-                        <button onClick={onExit} className="p-2 hover:bg-white/10 rounded-xl transition text-white/80 hover:text-white">
-                            <IconX className="w-6 h-6" />
+                        <button
+                            onClick={() => {
+                                if (onExit) {
+                                    onExit();
+                                } else if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.hash = '#/';
+                                }
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white border border-white/20"
+                            title="חזרה לדשבורד"
+                        >
+                            <IconChevronRight className="w-5 h-5" />
+                            <span className="font-bold text-sm hidden sm:inline">יציאה</span>
                         </button>
                         <div className="flex flex-col text-right">
                             <div className="flex items-center gap-2">
@@ -752,18 +1099,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         </div>
                     </div>
 
-                    {/* Simplified Progress Bar with Current Step Icon */}
+                    {/* Simplified Progress Bar */}
                     <div className="flex-1 mx-4 max-w-lg hidden md:flex items-center gap-4">
-                        {/* Current Step Icon (Large) */}
-                        {currentBlock && (() => {
-                            const CurrentIcon = getIconForBlockType(currentBlock.type);
-                            return (
-                                <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shadow-lg backdrop-blur-sm">
-                                    <CurrentIcon className="w-6 h-6 text-yellow-300 drop-shadow-md" />
-                                </div>
-                            );
-                        })()}
-
                         {/* Progress Dots & Bar Container */}
                         <div className="flex-1 flex flex-col gap-2">
                             {/* Simple Colored Dots */}
@@ -801,6 +1138,36 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
                     {/* Stats: Streak & XP & Gems */}
                     <div className="flex items-center gap-4">
+                        {/* Submit Button - Left side */}
+                        <button
+                            onClick={handleSubmitActivity}
+                            disabled={isSubmitting || hasSubmitted}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${
+                                hasSubmitted
+                                    ? 'bg-green-500 text-white cursor-default'
+                                    : isSubmitting
+                                        ? 'bg-white/30 text-white/70 cursor-wait'
+                                        : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 border border-green-300/30'
+                            }`}
+                        >
+                            {hasSubmitted ? (
+                                <>
+                                    <IconCheck className="w-5 h-5" />
+                                    <span className="hidden md:inline">הוגש</span>
+                                </>
+                            ) : isSubmitting ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                                    <span className="hidden md:inline">שולח...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <IconSend className="w-5 h-5" />
+                                    <span className="hidden md:inline">הגש פעילות</span>
+                                </>
+                            )}
+                        </button>
+
                         {/* Streak Widget */}
                         <div className="flex items-center gap-2 bg-black/20 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all">
                             <StreakFlame count={gamificationProfile.currentStreak} />
@@ -901,14 +1268,16 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 }`}>
                 <div className="max-w-4xl mx-auto flex flex-row items-end justify-between gap-4">
 
+                    {/* Back Arrow - Hidden on first slide */}
                     <div className="flex items-center gap-2 order-1">
-                        <button
-                            onClick={handleBack}
-                            disabled={currentIndex === 0}
-                            className="p-4 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-all active:scale-95 shadow-lg border border-white/5"
-                        >
-                            <IconChevronRight className="w-8 h-8" />
-                        </button>
+                        {currentIndex > 0 && (
+                            <button
+                                onClick={handleBack}
+                                className="p-4 rounded-full bg-white/95 hover:bg-white text-blue-600 transition-all active:scale-95 shadow-lg border-2 border-white/50"
+                            >
+                                <IconChevronRight className="w-8 h-8" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Feedback OR Action Button */}
@@ -945,15 +1314,16 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         </div>
                     </div>
 
-                    {/* Next Arrow (Free Move) */}
+                    {/* Next Arrow - Hidden on last slide */}
                     <div className="flex items-center gap-2 order-3">
-                        <button
-                            onClick={handleNext} // Allow skipping
-                            disabled={isLast}
-                            className="p-4 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-all active:scale-95 shadow-lg border border-white/5"
-                        >
-                            <IconChevronLeft className="w-8 h-8" />
-                        </button>
+                        {!isLast && (
+                            <button
+                                onClick={handleNext}
+                                className="p-4 rounded-full bg-white/95 hover:bg-white text-blue-600 transition-all active:scale-95 shadow-lg border-2 border-white/50"
+                            >
+                                <IconChevronLeft className="w-8 h-8" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

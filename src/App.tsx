@@ -130,6 +130,7 @@ import TicTacToeLoader from './components/TicTacToeLoader'; // Import new Loader
 const AuthenticatedApp = () => {
   const [mode, setMode] = useState('list');
   const [isStudentLink, setIsStudentLink] = useState(false);
+  const [cameFromStudentDashboard, setCameFromStudentDashboard] = useState(false); // Track if student came from dashboard
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false); // NEW: Simulate Guest
@@ -194,17 +195,18 @@ const AuthenticatedApp = () => {
     // console.log("Selected assignment from dashboard:", assignmentId);
     try {
       const assignSnap = await getDoc(doc(db, "assignments", assignmentId)); // Or assume it's valid if coming from the hook
-      // Ideally we should just verify it exists or pass the full object if we want to avoid a read, 
+      // Ideally we should just verify it exists or pass the full object if we want to avoid a read,
       // but 'student' mode usually expects 'currentAssignment' to be set.
 
-      // Let's just set the ID and let the Player load it? 
-      // Actually, existing code for 'student' mode checks 'currentAssignment'. 
+      // Let's just set the ID and let the Player load it?
+      // Actually, existing code for 'student' mode checks 'currentAssignment'.
       // Let's reuse the loading logic or just set it if we have it.
 
       if (assignSnap.exists()) {
         const assignData = { id: assignSnap.id, ...assignSnap.data() } as Assignment;
         setCurrentAssignment(assignData);
         loadCourse(assignData.courseId);
+        setCameFromStudentDashboard(true); // Mark that student came from dashboard
         setMode('student');
       }
     } catch (e) {
@@ -584,7 +586,14 @@ const AuthenticatedApp = () => {
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
                   simulateGuest={isGuestMode}
-                  onExit={() => setMode('editor')}
+                  onExit={() => {
+                    if (cameFromStudentDashboard) {
+                      setCameFromStudentDashboard(false);
+                      setMode('student-dashboard');
+                    } else {
+                      setMode('editor');
+                    }
+                  }}
                   onEdit={() => setMode('editor')}
                 />}
                 {mode === 'dashboard' && (

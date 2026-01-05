@@ -20,7 +20,8 @@ const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 import { SmartGroupingPanel } from './SmartGroupingPanel';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
-import { IconBrandGoogle } from '@tabler/icons-react';
+import { ShareModal } from './ShareModal';
+import { IconBrandGoogle, IconShare } from '@tabler/icons-react';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -1459,6 +1460,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     document.body
                 )
             }
+
+            {/* Share Modal */}
+            {shareModalCourse && (
+                <ShareModal
+                    isOpen={!!shareModalCourse}
+                    onClose={() => setShareModalCourse(null)}
+                    courseId={shareModalCourse.id}
+                    courseTitle={shareModalCourse.title}
+                    initialTab="assign"
+                />
+            )}
 
         </div >
     );

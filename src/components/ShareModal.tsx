@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { IconCopy, IconSchool, IconLink, IconX, IconCheck, IconShare, IconUsers } from '@tabler/icons-react';
+import { IconCopy, IconSchool, IconLink, IconX, IconCheck, IconShare, IconUsers, IconSend } from '@tabler/icons-react';
+import { AssignToStudentsModal } from './teacher/AssignToStudentsModal';
 
 interface ShareModalProps {
     isOpen: boolean;
@@ -9,9 +10,10 @@ interface ShareModalProps {
     unitTitle?: string; // If sharing a specific unit
     unitId?: string;    // If sharing a specific unit
     initialTab?: ShareTab;
+    taskType?: 'activity' | 'exam' | 'practice';
 }
 
-type ShareTab = 'link' | 'classroom' | 'collab';
+type ShareTab = 'link' | 'assign' | 'classroom' | 'collab';
 
 export const ShareModal: React.FC<ShareModalProps> = ({
     isOpen,
@@ -20,10 +22,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     courseTitle,
     unitTitle,
     unitId,
-    initialTab = 'link'
+    initialTab = 'link',
+    taskType = 'activity'
 }) => {
     const [activeTab, setActiveTab] = useState<ShareTab>(initialTab);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const [showAssignModal, setShowAssignModal] = useState(false);
 
     if (!isOpen) return null;
 
@@ -94,19 +98,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-100 px-6 gap-6">
+                <div className="flex border-b border-gray-100 px-6 gap-4 overflow-x-auto">
+                    <button
+                        onClick={() => setActiveTab('assign')}
+                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'assign'
+                            ? 'border-purple-600 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <IconSend size={18} /> שלח משימה
+                    </button>
                     <button
                         onClick={() => setActiveTab('link')}
-                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'link'
+                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'link'
                             ? 'border-indigo-600 text-indigo-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
-                        <IconLink size={18} /> Student Links
+                        <IconLink size={18} /> קישור ישיר
                     </button>
                     <button
                         onClick={() => setActiveTab('classroom')}
-                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'classroom'
+                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'classroom'
                             ? 'border-green-600 text-green-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
@@ -115,17 +128,41 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     </button>
                     <button
                         onClick={() => setActiveTab('collab')}
-                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'collab'
+                        className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'collab'
                             ? 'border-orange-500 text-orange-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
-                        <IconUsers size={18} /> Collaborators
+                        <IconUsers size={18} /> שיתוף מורים
                     </button>
                 </div>
 
                 {/* Content */}
                 <div className="p-6 overflow-y-auto custom-scrollbar bg-gray-50/30 flex-1">
+                    {activeTab === 'assign' && (
+                        <div className="flex flex-col items-center justify-center h-64 text-center space-y-6" dir="rtl">
+                            <div className="p-5 bg-gradient-to-br from-purple-100 to-indigo-100 text-purple-600 rounded-2xl">
+                                <IconSend size={56} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">שליחת משימה לתלמידים</h3>
+                                <p className="text-gray-500 max-w-sm mx-auto">
+                                    שלח את הפעילות כמשימה לדשבורד של התלמידים, עם תאריך הגשה והוראות
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowAssignModal(true)}
+                                className="px-8 py-3 bg-gradient-to-l from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg shadow-purple-200 flex items-center gap-2"
+                            >
+                                <IconSend size={20} />
+                                צור משימה חדשה
+                            </button>
+                            <p className="text-xs text-gray-400 max-w-xs">
+                                המשימה תופיע אוטומטית בדשבורד של התלמידים עם התראה על משימה חדשה
+                            </p>
+                        </div>
+                    )}
+
                     {activeTab === 'link' && (
                         <div className="space-y-6">
                             {/* Universal Link */}
@@ -247,10 +284,24 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                         onClick={onClose}
                         className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
                     >
-                        Done
+                        סגור
                     </button>
                 </div>
             </div>
+
+            {/* Assignment Modal */}
+            <AssignToStudentsModal
+                isOpen={showAssignModal}
+                onClose={() => {
+                    setShowAssignModal(false);
+                    onClose(); // Also close the share modal after successful assignment
+                }}
+                courseId={courseId}
+                courseTitle={courseTitle}
+                unitId={unitId}
+                unitTitle={unitTitle}
+                taskType={taskType}
+            />
         </div>
     );
 };

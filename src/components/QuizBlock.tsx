@@ -139,7 +139,7 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
                         if (optText === correctAnswer) {
                             // Correct Answer: Green
                             btnClass += !isExamMode
-                                ? "btn-lip-action border-green-600 bg-green-500 text-white animate-pulse-green " // Lip style in learning
+                                ? "btn-lip-action border-green-600 bg-green-500 text-white " // Lip style in learning
                                 : "bg-green-50 border-green-400 text-green-900 font-bold focus:ring-green-400 "; // Flat in exam
                         } else if (isSelected) {
                             // Incorrect Selection: Red

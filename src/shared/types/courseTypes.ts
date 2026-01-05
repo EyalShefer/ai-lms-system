@@ -377,3 +377,92 @@ export interface GamificationEventPayload {
     newLevel?: number;
     timestamp: number;
 }
+
+// --- Student Task/Assignment System ---
+export type TaskStatus = 'new' | 'in_progress' | 'submitted' | 'graded' | 'late';
+export type TaskAssignmentTarget = 'all' | 'group' | 'individual';
+export type StudentGroupType = 'support' | 'core' | 'enrichment';
+
+export interface StudentTask {
+    id: string;
+
+    // Teacher info
+    teacherId: string;
+    teacherName: string;
+
+    // What is the task
+    courseId: string;
+    courseTitle: string;
+    unitId?: string;
+    unitTitle?: string;
+    title: string;
+    instructions?: string;
+
+    // Assignment target
+    assignedTo: TaskAssignmentTarget;
+    classId?: string;
+    className?: string;
+    studentIds?: string[]; // For individual assignments
+    groupType?: StudentGroupType; // For group-based assignments
+
+    // Timing
+    assignedAt: any; // Firestore Timestamp
+    dueDate?: any; // Firestore Timestamp
+
+    // Scoring
+    maxPoints: number;
+
+    // Task type
+    taskType: 'activity' | 'exam' | 'practice';
+}
+
+export interface StudentTaskSubmission {
+    id: string;
+    taskId: string;
+    studentId: string;
+    studentName: string;
+    studentEmail?: string;
+
+    // Status tracking
+    status: TaskStatus;
+    startedAt?: any;
+    submittedAt?: any;
+    gradedAt?: any;
+
+    // Progress (before submission)
+    progress: number; // 0-100
+    lastBlockIndex?: number;
+
+    // Results (after submission)
+    score?: number;
+    maxScore?: number;
+    percentage?: number;
+
+    // Detailed answers
+    answers?: Record<string, any>;
+    telemetry?: {
+        stepResults: Record<string, 'success' | 'failure' | 'viewed'>;
+        hintsUsed: Record<string, number>;
+        totalBlocks: number;
+        completedBlocks: number;
+        successBlocks: number;
+        failureBlocks: number;
+        timeSpentSeconds?: number;
+    };
+
+    // Teacher feedback
+    teacherFeedback?: string;
+    gradedBy?: string;
+}
+
+export interface ClassInfo {
+    id: string;
+    name: string;
+    teacherId: string;
+    studentCount?: number;
+    students?: {
+        id: string;
+        name: string;
+        email?: string;
+    }[];
+}

@@ -39,6 +39,13 @@ import type { RawAiItem } from './shared/types/gemini.types';
 import type { MappedLearningBlock } from './shared/types/gemini.types';
 import type { UnitSkeleton, SkeletonStep, StepContentResponse } from './shared/types/gemini.types';
 
+// --- GEMINI 3 PRO IMAGE SERVICE ---
+import {
+    generateInfographicWithGemini3,
+    isGemini3ImageAvailable,
+    estimateGemini3ImageCost
+} from './services/gemini3ImageService';
+
 // --- TYPES ---
 // --- TYPES REMOVED (Imported from Shared) ---
 // interface StepInfo ...
@@ -1221,4 +1228,132 @@ export const processEventsScheduled = onSchedule('every 5 minutes', async () => 
 export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
     const deleted = await cleanupOldEvents(30); // Delete events older than 30 days
     logger.info(`Cleaned up ${deleted} old events`);
+});
+
+/**
+ * Generate Infographic with Gemini 3 Pro Image
+ * Preview API - Advanced text rendering with Hebrew RTL support
+ *
+ * @param data.content - Educational content in Hebrew
+ * @param data.visualType - Type of infographic (flowchart, timeline, comparison, cycle)
+ * @param data.topic - Optional topic name
+ * @returns Base64 PNG image or error
+ */
+export const generateGemini3Infographic = onCall({
+    cors: true,
+    memory: "512MiB",
+    timeoutSeconds: 120
+}, async (request) => {
+    const startTime = Date.now();
+
+    try {
+        // 1. Validate request
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+
+        const { content, visualType, topic } = request.data;
+
+        if (!content || typeof content !== 'string') {
+            throw new HttpsError('invalid-argument', 'Content is required');
+        }
+
+        if (!['flowchart', 'timeline', 'comparison', 'cycle'].includes(visualType)) {
+            throw new HttpsError('invalid-argument', 'Invalid visual type');
+        }
+
+        // 2. Check availability
+        if (!isGemini3ImageAvailable()) {
+            throw new HttpsError(
+                'unavailable',
+                'Gemini 3 Pro Image is not available. Check project configuration.'
+            );
+        }
+
+        // 3. Get user ID (rate limiting is handled by Cloud Functions quotas)
+        const userId = request.auth.uid;
+
+        // 4. Generate infographic
+        logger.info('🎨 Generating Gemini 3 Pro Image infographic', {
+            userId,
+            visualType,
+            contentLength: content.length
+        });
+
+        const result = await generateInfographicWithGemini3(content, visualType, topic);
+
+        if (!result) {
+            throw new HttpsError(
+                'internal',
+                'Failed to generate infographic with Gemini 3 Pro Image'
+            );
+        }
+
+        const generationTime = Date.now() - startTime;
+
+        // 5. Log analytics
+        await db.collection('analytics').add({
+            type: 'gemini3_infographic_generation',
+            userId,
+            visualType,
+            contentLength: content.length,
+            generationTime,
+            success: true,
+            timestamp: FieldValue.serverTimestamp()
+        });
+
+        logger.info('✅ Gemini 3 Pro Image infographic generated successfully', {
+            userId,
+            visualType,
+            generationTime: `${generationTime}ms`,
+            imageSize: `${Math.round(result.base64.length * 0.75 / 1024)}KB`
+        });
+
+        // 6. Return result
+        return {
+            success: true,
+            image: {
+                base64: result.base64,
+                mimeType: result.mimeType
+            },
+            metadata: {
+                generationTime,
+                model: 'gemini-3-pro-image-preview',
+                visualType,
+                estimatedCost: estimateGemini3ImageCost('1K').estimatedCost
+            }
+        };
+
+    } catch (error: any) {
+        const generationTime = Date.now() - startTime;
+
+        // Log failure
+        if (request.auth) {
+            await db.collection('analytics').add({
+                type: 'gemini3_infographic_generation',
+                userId: request.auth.uid,
+                visualType: request.data?.visualType,
+                generationTime,
+                success: false,
+                error: error.message,
+                timestamp: FieldValue.serverTimestamp()
+            });
+        }
+
+        logger.error('❌ Gemini 3 Pro Image infographic generation failed', {
+            error: error.message,
+            code: error.code,
+            generationTime: `${generationTime}ms`
+        });
+
+        // Re-throw HttpsError, wrap others
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+
+        throw new HttpsError(
+            'internal',
+            `Infographic generation failed: ${error.message}`
+        );
+    }
 });

@@ -112,8 +112,7 @@ export const generateTeacherLessonPlan = async (
     activityLength: 'short' | 'medium' | 'long',
     sourceText?: string,
     mode: 'learning' | 'exam' = 'learning',
-    productType: 'lesson' | 'game' | 'exam' = 'lesson',
-    options?: { generateMedia?: boolean }
+    productType: 'lesson' | 'game' | 'exam' = 'lesson'
 ): Promise<any | null> => {
     // New Teacher Flow
     try {
@@ -126,42 +125,7 @@ export const generateTeacherLessonPlan = async (
             mode,
             productType
         });
-
-        const lessonPlan = response.data as any;
-
-        // Generate media if requested and media_plan exists
-        if (options?.generateMedia && lessonPlan?.media_plan) {
-            console.log('🎨 Generating lesson media from media_plan...');
-
-            try {
-                const { generateLessonMedia, insertMediaIntoLesson } = await import('../lessonMediaService');
-
-                const mediaResult = await generateLessonMedia(
-                    lessonPlan.media_plan,
-                    sourceText || topic,
-                    lessonPlan.title
-                );
-
-                if (mediaResult.success && mediaResult.blocks.length > 0) {
-                    // Insert media into steps
-                    lessonPlan.steps = insertMediaIntoLesson(lessonPlan.steps, mediaResult.blocks);
-                    lessonPlan.media_generated = true;
-                    lessonPlan.media_stats = mediaResult.stats;
-
-                    console.log(`✅ Media generated: YouTube=${mediaResult.stats.youtubeGenerated}, Infographic=${mediaResult.stats.infographicGenerated}`);
-                } else {
-                    console.log('⚠️ Media generation returned no blocks');
-                    lessonPlan.media_generated = false;
-                    lessonPlan.media_errors = mediaResult.errors;
-                }
-            } catch (mediaError) {
-                console.error('❌ Media generation failed:', mediaError);
-                lessonPlan.media_generated = false;
-                lessonPlan.media_errors = [(mediaError as Error).message];
-            }
-        }
-
-        return lessonPlan;
+        return response.data;
     } catch (error) {
         console.error("Vault Error (Backend Teacher Plan Failed):", error);
         return null;
@@ -196,64 +160,18 @@ export const generateStepContent = async (
     }
 };
 
-export const generatePodcastScript = async (
-    sourceText: string,
-    topic?: string,
-    gradeLevel?: string,
-    activityLength?: 'short' | 'medium' | 'long'
-): Promise<DialogueScript | null> => {
+export const generatePodcastScript = async (sourceText: string, topic?: string): Promise<DialogueScript | null> => {
     // VAULT MIGRATION: Logic moved to Backend
     try {
         const generatePodcastScriptFn = httpsCallable(functions, 'generatePodcastScript');
         const response = await generatePodcastScriptFn({
             sourceText,
-            topic,
-            gradeLevel: gradeLevel || 'כיתה ז׳',
-            activityLength: activityLength || 'medium'
+            topic
         });
 
         return response.data as DialogueScript;
     } catch (e) {
         console.error("Vault Podcast Error:", e);
-        return null;
-    }
-};
-
-// --- Mind Map Generation ---
-export interface MindMapGenerationResponse {
-    title: string;
-    nodes: Array<{
-        id: string;
-        type: 'topic' | 'subtopic' | 'detail' | 'example';
-        data: { label: string; color?: string; description?: string };
-        position: { x: number; y: number };
-    }>;
-    edges: Array<{
-        id: string;
-        source: string;
-        target: string;
-    }>;
-    suggestedLayout: 'TB' | 'LR' | 'RL';
-}
-
-export const generateMindMapFromContent = async (
-    sourceText: string,
-    topic?: string,
-    gradeLevel?: string,
-    maxNodes: number = 12
-): Promise<MindMapGenerationResponse | null> => {
-    try {
-        const generateMindMapFn = httpsCallable(functions, 'generateMindMapFromContent');
-        const response = await generateMindMapFn({
-            sourceText,
-            topic,
-            gradeLevel: gradeLevel || 'כיתה ז׳',
-            maxNodes
-        });
-
-        return response.data as MindMapGenerationResponse;
-    } catch (e) {
-        console.error("Mind Map Generation Error:", e);
         return null;
     }
 };
@@ -305,26 +223,36 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
 
 export const generateAiImage = async (
     prompt: string,
-    preferredProvider: 'dall-e' | 'gemini' | 'auto' = 'auto'
+    preferredProvider: 'dall-e' | 'imagen' | 'gemini3' | 'auto' = 'auto'
 ): Promise<Blob | null> => {
-    // Dynamic import of Gemini Image service
-    const { isGeminiImageAvailable, generateGeminiImage } = await import('./imagenService');
+    // Dynamic import of Imagen service
+    const { isImagenAvailable, generateImagenImage } = await import('./imagenService');
 
-    // Auto-select provider: Prefer Gemini for Hebrew support
-    let provider: 'dall-e' | 'gemini' = 'dall-e';
-    if (preferredProvider === 'gemini' || (preferredProvider === 'auto' && isGeminiImageAvailable())) {
-        provider = 'gemini';
+    // Auto-select provider based on availability and cost
+    let provider: 'dall-e' | 'imagen' | 'gemini3' = 'dall-e';
+    if (preferredProvider === 'gemini3') {
+        provider = 'gemini3';
+    } else if (preferredProvider === 'imagen' || (preferredProvider === 'auto' && isImagenAvailable())) {
+        provider = 'imagen';
     }
 
-    // Try Gemini first if selected/available (best for Hebrew)
-    if (provider === 'gemini') {
-        console.log('🎨 Attempting Gemini 3 Pro Image generation (best for Hebrew)...');
-        const geminiResult = await generateGeminiImage(prompt, 'pro');
-        if (geminiResult) {
-            console.log('✅ Gemini Image generation successful');
-            return geminiResult;
+    // Try Gemini 3 Pro Image first if selected (NOT in auto mode - Preview only!)
+    if (provider === 'gemini3') {
+        console.log('🎨 Attempting Gemini 3 Pro Image generation (Preview)...');
+        // Note: Gemini 3 is called separately via generateGemini3InfographicFromText
+        // This is just a placeholder for future direct calls
+        console.warn('⚠️ Gemini 3 should be called via specific infographic function');
+    }
+
+    // Try Imagen if selected/available
+    if (provider === 'imagen') {
+        console.log('🎨 Attempting Imagen 3 generation (cost-effective)...');
+        const imagenResult = await generateImagenImage(prompt);
+        if (imagenResult) {
+            console.log('✅ Imagen 3 generation successful');
+            return imagenResult;
         }
-        console.warn('⚠️ Gemini Image failed, falling back to DALL-E 3');
+        console.warn('⚠️ Imagen 3 failed, falling back to DALL-E 3');
     }
 
     // DALL-E 3 (primary or fallback)
@@ -362,6 +290,67 @@ export const generateAiImage = async (
 export type InfographicType = 'flowchart' | 'timeline' | 'comparison' | 'cycle';
 
 /**
+ * Generate infographic using Gemini 3 Pro Image (Preview)
+ * Calls Cloud Function for server-side generation
+ *
+ * @param text - Educational content in Hebrew
+ * @param visualType - Type of infographic
+ * @param topic - Optional topic name
+ * @returns Promise<Blob | null> - PNG image blob or null on failure
+ */
+export const generateGemini3InfographicFromText = async (
+    text: string,
+    visualType: InfographicType,
+    topic?: string
+): Promise<Blob | null> => {
+    try {
+        console.log('🎨 Calling Gemini 3 Pro Image Cloud Function...');
+        const startTime = Date.now();
+
+        // Call Cloud Function
+        const generateGemini3InfographicFn = httpsCallable(functions, 'generateGemini3Infographic');
+        const response = await generateGemini3InfographicFn({
+            content: text,
+            visualType,
+            topic
+        });
+
+        const result = response.data as any;
+
+        if (!result.success || !result.image?.base64) {
+            console.error('❌ Gemini 3 Pro Image: No image in response');
+            return null;
+        }
+
+        const generationTime = Date.now() - startTime;
+
+        // Convert base64 to Blob
+        const base64Data = result.image.base64;
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: result.image.mimeType || 'image/png' });
+
+        console.log(`✅ Gemini 3 Pro Image generation successful (${generationTime}ms, cost: ~$${result.metadata?.estimatedCost})`);
+
+        return blob;
+
+    } catch (error: any) {
+        console.error('❌ Gemini 3 Pro Image generation failed:', error);
+
+        // Check if it's an availability error (not configured)
+        if (error.code === 'functions/unavailable') {
+            console.warn('⚠️ Gemini 3 Pro Image is not configured. Make sure Vertex AI is enabled.');
+        }
+
+        return null;
+    }
+};
+
+/**
  * Generates an educational infographic from text content using DALL-E 3
  * Optimized prompts for Hebrew educational content
  * Includes smart caching to prevent duplicate generation
@@ -376,28 +365,15 @@ export const generateInfographicFromText = async (
     text: string,
     visualType: InfographicType,
     topic?: string,
-    skipCache: boolean = false
+    skipCache: boolean = false,
+    preferredMethod: 'gemini3' | 'code-to-image' | 'dall-e' | 'auto' = 'gemini3'
 ): Promise<Blob | null> => {
     // Import cache utilities dynamically
     const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
 
-    // Import analytics utilities with fallback (to handle dynamic import errors gracefully)
-    let trackGenerationStart: any = () => {};
-    let trackCacheHit: any = () => {};
-    let trackCacheMiss: any = () => {};
-    let trackGenerationComplete: any = () => {};
-    let trackGenerationFailed: any = () => {};
-
-    try {
-        const analytics = await import('../infographicAnalytics');
-        trackGenerationStart = analytics.trackGenerationStart;
-        trackCacheHit = analytics.trackCacheHit;
-        trackCacheMiss = analytics.trackCacheMiss;
-        trackGenerationComplete = analytics.trackGenerationComplete;
-        trackGenerationFailed = analytics.trackGenerationFailed;
-    } catch (e) {
-        console.warn('Infographic analytics not available (non-critical):', e);
-    }
+    // Import analytics utilities
+    const { trackGenerationStart, trackCacheHit, trackCacheMiss, trackGenerationComplete, trackGenerationFailed } =
+        await import('../infographicAnalytics');
 
     // Truncate text if too long (DALL-E prompt limit ~4000 chars)
     const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;
@@ -520,20 +496,79 @@ export const generateInfographicFromText = async (
     const enhancedPrompt = promptTemplates[visualType];
 
     try {
-        console.log(`🎨 Generating ${visualType} infographic...`);
+        console.log(`🎨 Generating ${visualType} infographic with method: ${preferredMethod}...`);
         const startTime = Date.now();
-        const imageBlob = await generateAiImage(enhancedPrompt);
+        let imageBlob: Blob | null = null;
+        let usedProvider: 'gemini3' | 'code-to-image' | 'dall-e' | 'imagen' = 'dall-e';
+        let actualCost = 0.040;
+
+        // STRATEGY: Gemini 3 → Code-to-Image → DALL-E fallback chain
+        if (preferredMethod === 'gemini3' || preferredMethod === 'auto') {
+            console.log('🎯 Trying Gemini 3 Pro Image (Preview)...');
+            imageBlob = await generateGemini3InfographicFromText(truncatedText, visualType, topic);
+
+            if (imageBlob) {
+                usedProvider = 'gemini3';
+                actualCost = 0.015; // Estimated
+                console.log('✅ Gemini 3 Pro Image successful!');
+            } else {
+                console.warn('⚠️ Gemini 3 Pro Image failed, trying Code-to-Image fallback...');
+            }
+        }
+
+        // Fallback 1: Code-to-Image (if Gemini 3 failed or code-to-image was requested)
+        if (!imageBlob && (preferredMethod === 'code-to-image' || preferredMethod === 'auto' || preferredMethod === 'gemini3')) {
+            try {
+                console.log('🎯 Trying Code-to-Image (HTML/CSS)...');
+                const { getInfographicHTMLPrompt } = await import('../../utils/infographicHTMLTemplates');
+                const { convertHTMLToImage } = await import('../../utils/htmlToImage');
+
+                // Generate HTML with LLM
+                const htmlPrompt = getInfographicHTMLPrompt(truncatedText, visualType, topic);
+                const response = await openaiClient.chat.completions.create({
+                    model: MODEL_NAME,
+                    messages: [
+                        { role: "system", content: "You are an expert HTML/CSS developer. Output ONLY valid HTML code." },
+                        { role: "user", content: htmlPrompt }
+                    ],
+                    temperature: 0.7
+                });
+
+                const htmlCode = response.choices[0].message.content
+                    ?.replace(/```html\n?/g, '')
+                    ?.replace(/```\n?/g, '')
+                    ?.trim();
+
+                if (htmlCode) {
+                    imageBlob = await convertHTMLToImage(htmlCode);
+                    if (imageBlob) {
+                        usedProvider = 'code-to-image';
+                        actualCost = 0.001; // LLM only
+                        console.log('✅ Code-to-Image successful!');
+                    }
+                }
+            } catch (codeToImageError) {
+                console.warn('⚠️ Code-to-Image failed:', codeToImageError);
+            }
+        }
+
+        // Fallback 2: DALL-E (if everything else failed)
+        if (!imageBlob) {
+            console.log('🎯 Falling back to DALL-E 3...');
+            imageBlob = await generateAiImage(enhancedPrompt);
+            if (imageBlob) {
+                usedProvider = 'dall-e';
+                actualCost = 0.040;
+            }
+        }
+
         const generationTime = Date.now() - startTime;
 
         if (imageBlob) {
-            console.log(`✅ ${visualType} infographic generated successfully`);
+            console.log(`✅ ${visualType} infographic generated successfully with ${usedProvider}`);
 
             // Track successful generation
-            // Note: Actual provider detection would require checking generateAiImage internals
-            // For now, assume DALL-E (default), will enhance when Imagen is fully configured
-            const provider: 'dall-e' | 'imagen' = 'dall-e';
-            const cost = provider === 'dall-e' ? 0.040 : 0.020;
-            trackGenerationComplete(visualType, provider, generationTime, cost);
+            trackGenerationComplete(visualType, usedProvider as any, generationTime, actualCost);
 
             // Cache the result for future use (two-tier: memory + Firebase Storage)
             if (!skipCache) {

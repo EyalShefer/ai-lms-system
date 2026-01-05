@@ -1267,7 +1267,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <div className="text-blue-300 text-xs">ה-AI עובד על זה...</div>
                                                     </div>
                                                 ) : (
-                                                    <textarea className="w-full p-4 border border-gray-200/60 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-gray-700 leading-relaxed resize-y min-h-[200px]" value={block.content || ''} onChange={(e) => updateBlock(block.id, e.target.value)} placeholder={`כתבו כאן את תוכן ${productTypeHebrew}...`} />
+                                                    <RichTextEditor
+                                                        value={block.content || ''}
+                                                        onChange={(html) => updateBlock(block.id, html)}
+                                                        placeholder={`כתבו כאן את תוכן ${productTypeHebrew}...`}
+                                                        minHeight="200px"
+                                                    />
                                                 )}
                                                 {renderEmbeddedMedia(block.id, block.metadata)}
                                                 <div className="flex flex-wrap items-center gap-2 mt-3 bg-blue-50/40 p-2 rounded-xl border border-blue-100/50 backdrop-blur-sm justify-between">

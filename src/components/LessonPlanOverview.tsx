@@ -128,11 +128,11 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
         courseId: string;
         unitId?: string;
         unitTitle?: string;
-        initialTab?: 'link' | 'classroom' | 'collab';
+        initialTab?: 'link' | 'assign' | 'classroom' | 'collab';
     } | null>(null);
 
     // --- Toolbar Actions ---
-    const handleShare = (unitId?: string, unitTitle?: string, initialTab: 'link' | 'classroom' | 'collab' = 'link') => {
+    const handleShare = (unitId?: string, unitTitle?: string, initialTab: 'link' | 'assign' | 'classroom' | 'collab' = 'assign') => {
         setShareOptions({
             courseTitle: course.title,
             courseId: course.id,
@@ -341,16 +341,6 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                     </div>
 
                                                     <div className="flex items-center gap-2 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end print:hidden">
-                                                        {onGenerateWithAI && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); onGenerateWithAI('unit', unit.id); }}
-                                                                className="p-2 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
-                                                                title="שפר עם AI"
-                                                            >
-                                                                <IconRobot className="w-[18px] h-[18px]" />
-                                                            </button>
-                                                        )}
-
                                                         <div className="flex items-center gap-1 mx-2">
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleMoveUnit(module.id, uIndex, 'up'); }}
