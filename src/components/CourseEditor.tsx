@@ -1064,6 +1064,7 @@ const CourseEditor: React.FC = () => {
                 (course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson') ? (
                     <TeacherCockpit
                         unit={unitToRender}
+                        courseId={course.id}
                         onExit={() => navigate('/')} // EXIT TO HOME for Single Unit Mode
                         onUpdateBlock={async (blockId: string, content: any) => {
                             // Handle AI Refinement Updates from Cockpit
@@ -1081,7 +1082,7 @@ const CourseEditor: React.FC = () => {
                         subject={course.subject}
                         onSave={handleSaveUnit}
                         onCancel={() => {
-                            setShowWizard(true); // Open Settings
+                            navigate('/'); // חזרה לדף הבית
                         }}
                         onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
                         cancelLabel="הגדרות"

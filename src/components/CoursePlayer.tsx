@@ -11,6 +11,7 @@ import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generateP
 import type { DialogueScript } from '../shared/types/gemini.types';
 import { PodcastPlayer } from './PodcastPlayer';
 import MindMapViewer from './MindMapViewer';
+import { InfographicViewer } from './InfographicViewer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ClozeQuestion from './ClozeQuestion';
@@ -1136,6 +1137,38 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     </div>
                 );
 
+            case 'infographic':
+                // Support both content formats: { imageUrl, title, caption } or direct URL string
+                const infographicSrc = typeof block.content === 'string'
+                    ? block.content
+                    : (block.content?.imageUrl || block.metadata?.uploadedFileUrl || '');
+                const infographicTitle = typeof block.content === 'object' ? block.content?.title : undefined;
+                const infographicCaption = typeof block.content === 'object' ? block.content?.caption : block.metadata?.caption;
+                const infographicType = block.metadata?.infographicType || (typeof block.content === 'object' ? block.content?.visualType : undefined);
+
+                if (!infographicSrc) return null;
+                return (
+                    <div key={block.id} className="mb-8">
+                        <InfographicViewer
+                            src={infographicSrc}
+                            title={infographicTitle}
+                            caption={infographicCaption}
+                            infographicType={infographicType}
+                        />
+                        {!isExamMode && (
+                            <div className="flex justify-start mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
+                    </div>
+                );
+
             case 'multiple-choice':
                 const mcMedia = getMediaSrc();
                 const showFeedback = reviewMode || (feedbackVisible[block.id] && !isExamMode);
@@ -1483,6 +1516,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             return (
                 <TeacherCockpit
                     unit={unit}
+                    courseId={course?.id}
                     onExit={handleExit}
                     onEdit={() => {
                         // If we are in review mode (preview), we just close or signal edit
@@ -1615,8 +1649,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
-            {/* PODCAST PLAYER (Outside of flex container) */}
-            {showPodcast && (
+            {/* PODCAST PLAYER (Outside of flex container) - Hidden for game productType */}
+            {showPodcast && productType !== 'game' && (
                 <div className="fixed bottom-0 left-0 right-0 z-[90] p-4 bg-white shadow-2xl border-t border-gray-100 animate-slide-in-from-bottom">
                     {loadingPodcast ? (
                         <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">
@@ -1647,8 +1681,8 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             <div className={"flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 " + (showSplitView ? 'flex gap-6 items-start' : '')}>
 
                 <div className="flex-1">
-                    {/* PODCAST TRIGGER (Top of Content) */}
-                    {!isExamMode && (
+                    {/* PODCAST TRIGGER (Top of Content) - Hidden for game productType */}
+                    {!isExamMode && productType !== 'game' && (
                         <div className="flex justify-end mb-4">
                             <button
                                 onClick={handlePodcastClick}
@@ -1731,26 +1765,28 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                         )}
                                     </div>
 
-                                    {/* PODCAST TRIGGER & PLAYER */}
-                                    <div className="flex flex-col items-center mt-6">
-                                        {!isExamMode && (
-                                            <button
-                                                onClick={handlePodcastClick}
-                                                className={`group flex items-center gap-3 px-5 py-2 rounded-full shadow-sm transition-all border ${showPodcast
-                                                    ? 'bg-purple-100 text-purple-700 border-purple-200'
-                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:shadow-md'
-                                                    }`}
-                                            >
-                                                <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse' : 'text-purple-500'}`} />
-                                                <span className="font-bold text-sm">
-                                                    {showPodcast ? 'סגור נגן' : 'האזן לסיכום השיעור (AI)'}
-                                                </span>
-                                            </button>
-                                        )}
-                                    </div>
+                                    {/* PODCAST TRIGGER & PLAYER - Hidden for game/activity productType */}
+                                    {productType !== 'game' && (
+                                        <div className="flex flex-col items-center mt-6">
+                                            {!isExamMode && (
+                                                <button
+                                                    onClick={handlePodcastClick}
+                                                    className={`group flex items-center gap-3 px-5 py-2 rounded-full shadow-sm transition-all border ${showPodcast
+                                                        ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:shadow-md'
+                                                        }`}
+                                                >
+                                                    <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse' : 'text-purple-500'}`} />
+                                                    <span className="font-bold text-sm">
+                                                        {showPodcast ? 'סגור נגן' : 'האזן לסיכום השיעור (AI)'}
+                                                    </span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
 
-                                    {/* PLAYER CONTAINER */}
-                                    {showPodcast && (
+                                    {/* PLAYER CONTAINER - Also hidden for game productType */}
+                                    {showPodcast && productType !== 'game' && (
                                         <div className="mb-6 animate-in slide-in-from-top-4 duration-500">
                                             {loadingPodcast ? (
                                                 <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">

@@ -381,9 +381,23 @@ export const generateInfographicFromText = async (
     // Import cache utilities dynamically
     const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
 
-    // Import analytics utilities
-    const { trackGenerationStart, trackCacheHit, trackCacheMiss, trackGenerationComplete, trackGenerationFailed } =
-        await import('../infographicAnalytics');
+    // Import analytics utilities with fallback (to handle dynamic import errors gracefully)
+    let trackGenerationStart: any = () => {};
+    let trackCacheHit: any = () => {};
+    let trackCacheMiss: any = () => {};
+    let trackGenerationComplete: any = () => {};
+    let trackGenerationFailed: any = () => {};
+
+    try {
+        const analytics = await import('../infographicAnalytics');
+        trackGenerationStart = analytics.trackGenerationStart;
+        trackCacheHit = analytics.trackCacheHit;
+        trackCacheMiss = analytics.trackCacheMiss;
+        trackGenerationComplete = analytics.trackGenerationComplete;
+        trackGenerationFailed = analytics.trackGenerationFailed;
+    } catch (e) {
+        console.warn('Infographic analytics not available (non-critical):', e);
+    }
 
     // Truncate text if too long (DALL-E prompt limit ~4000 chars)
     const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;

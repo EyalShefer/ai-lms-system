@@ -222,84 +222,295 @@ IMPORTANT:
 import { YoutubeTranscript } from 'youtube-transcript';
 // onCall and HttpsError imported at top level
 
+// Error codes for better frontend handling
+const TRANSCRIPTION_ERRORS = {
+    NO_CAPTIONS: 'NO_CAPTIONS',
+    PRIVATE_VIDEO: 'PRIVATE_VIDEO',
+    VIDEO_NOT_FOUND: 'VIDEO_NOT_FOUND',
+    RATE_LIMITED: 'RATE_LIMITED',
+    NETWORK_ERROR: 'NETWORK_ERROR',
+    WHISPER_FAILED: 'WHISPER_FAILED',
+    TRANSLATION_FAILED: 'TRANSLATION_FAILED',
+    UNKNOWN: 'UNKNOWN'
+} as const;
+
+// Helper: Retry with exponential backoff
+async function withRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+): Promise<T> {
+    let lastError: any;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            lastError = error;
+            // Don't retry on non-retryable errors
+            if (error.message?.includes('private') ||
+                error.message?.includes('not found') ||
+                error.message?.includes('unavailable')) {
+                throw error;
+            }
+            if (attempt < maxRetries - 1) {
+                const delay = baseDelay * Math.pow(2, attempt);
+                logger.info(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    throw lastError;
+}
+
+// Helper: Download YouTube audio and transcribe with Whisper (fallback)
+async function transcribeWithWhisper(videoId: string, openai: OpenAI): Promise<string | null> {
+    logger.info(`🎙️ Attempting Whisper fallback for video: ${videoId}`);
+
+    try {
+        // Use a YouTube audio extraction service
+        // We'll use ytdl-core-compatible approach via a proxy service
+        const audioUrl = `https://yt-audio-api.vercel.app/api/audio/${videoId}`;
+
+        logger.info(`Fetching audio from: ${audioUrl}`);
+
+        const audioResponse = await fetch(audioUrl, {
+            headers: { 'Accept': 'audio/mpeg' },
+            signal: AbortSignal.timeout(60000) // 60 second timeout for audio download
+        });
+
+        if (!audioResponse.ok) {
+            logger.warn(`Audio fetch failed with status: ${audioResponse.status}`);
+            return null;
+        }
+
+        const audioBuffer = await audioResponse.arrayBuffer();
+        const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+
+        // Check file size (Whisper limit is 25MB)
+        if (audioBlob.size > 25 * 1024 * 1024) {
+            logger.warn(`Audio file too large for Whisper: ${(audioBlob.size / 1024 / 1024).toFixed(2)}MB`);
+            return null;
+        }
+
+        logger.info(`Audio downloaded: ${(audioBlob.size / 1024 / 1024).toFixed(2)}MB, sending to Whisper...`);
+
+        // Create a File-like object for OpenAI
+        const audioFile = new File([audioBlob], `${videoId}.mp3`, { type: 'audio/mpeg' });
+
+        const transcription = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model: "whisper-1",
+            language: "he", // Prefer Hebrew, but Whisper auto-detects
+            response_format: "text"
+        });
+
+        if (transcription && typeof transcription === 'string' && transcription.length > 50) {
+            logger.info(`✅ Whisper transcription successful: ${transcription.length} characters`);
+            return transcription;
+        }
+
+        return null;
+    } catch (error: any) {
+        logger.error("Whisper fallback failed:", error.message);
+        return null;
+    }
+}
+
 /**
  * Fetches transcript from a YouTube video URL.
- * Fails fast if no captions are available.
+ * Multi-strategy approach:
+ * 1. Try YouTube captions (Hebrew → English → Auto)
+ * 2. Fallback to Whisper speech-to-text
+ * 3. Auto-translate to Hebrew if needed
+ *
+ * Returns detailed error codes for better UX
  */
-export const transcribeYoutube = onCall({ cors: true, memory: "256MiB", secrets: [openAiApiKey] }, async (request) => {
+export const transcribeYoutube = onCall({
+    cors: true,
+    memory: "512MiB", // Increased for Whisper processing
+    timeoutSeconds: 300, // 5 minutes for long videos
+    secrets: [openAiApiKey]
+}, async (request) => {
     const { url, videoId } = request.data;
     const target = videoId || url;
 
     if (!target) {
-        throw new Error("Missing 'url' or 'videoId' parameter");
+        throw new HttpsError('invalid-argument', 'Missing url or videoId parameter', {
+            code: TRANSCRIPTION_ERRORS.UNKNOWN,
+            userMessage: 'לא התקבל קישור לסרטון'
+        });
     }
 
+    const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+    let transcriptSource: 'captions' | 'whisper' = 'captions';
+    let originalLanguage: string = 'unknown';
+
     try {
-        logger.info(`Fetching transcript for: ${target}`);
+        logger.info(`📺 Starting transcription for: ${target}`);
 
-        // Strategy: Try Hebrew ('he'), then Legacy Hebrew ('iw'), then English ('en'), then Default/Auto.
-        let transcriptItems = null;
-        const attempts = ['he', 'iw', 'en', undefined]; // undefined = default/auto
+        // === STRATEGY 1: YouTube Captions ===
+        let transcriptItems: any[] | null = null;
+        const languageAttempts = [
+            { lang: 'he', name: 'Hebrew' },
+            { lang: 'iw', name: 'Hebrew (legacy)' },
+            { lang: 'en', name: 'English' },
+            { lang: undefined, name: 'Auto-detect' }
+        ];
 
-        for (const lang of attempts) {
+        for (const { lang, name } of languageAttempts) {
             try {
-                if (lang) logger.info(`Attempting transcript fetch with lang: ${lang} for ${target}`);
-                else logger.info(`Attempting default (auto) transcript fetch for ${target}`);
+                logger.info(`Trying captions: ${name}`);
 
                 const config = lang ? { lang } : undefined;
-                transcriptItems = await YoutubeTranscript.fetchTranscript(target, config);
+
+                // Use retry wrapper for network issues
+                transcriptItems = await withRetry(
+                    () => YoutubeTranscript.fetchTranscript(target, config),
+                    2, // 2 retries
+                    500 // 500ms base delay
+                );
 
                 if (transcriptItems && transcriptItems.length > 0) {
-                    logger.info(`Success with lang: ${lang || 'auto'}`);
+                    logger.info(`✅ Captions found: ${name} (${transcriptItems.length} segments)`);
+                    originalLanguage = lang || 'auto';
                     break;
                 }
-            } catch (e) {
-                logger.warn(`Failed fetch with lang ${lang || 'auto'}:`, e);
-                // Continue to next attempt
+            } catch (e: any) {
+                const errorMsg = e.message?.toLowerCase() || '';
+
+                // Check for specific YouTube errors
+                if (errorMsg.includes('private')) {
+                    throw new HttpsError('permission-denied', 'Video is private', {
+                        code: TRANSCRIPTION_ERRORS.PRIVATE_VIDEO,
+                        userMessage: 'הסרטון פרטי ולא ניתן לגשת אליו'
+                    });
+                }
+                if (errorMsg.includes('not found') || errorMsg.includes('unavailable')) {
+                    throw new HttpsError('not-found', 'Video not found', {
+                        code: TRANSCRIPTION_ERRORS.VIDEO_NOT_FOUND,
+                        userMessage: 'הסרטון לא נמצא או שהוסר'
+                    });
+                }
+
+                logger.warn(`Caption fetch failed (${name}):`, e.message);
             }
         }
+
+        // === STRATEGY 2: Whisper Fallback ===
+        let cleanText = '';
 
         if (!transcriptItems || transcriptItems.length === 0) {
-            throw new Error("Could not find any captions (Hebrew or English) for this video.");
+            logger.info(`⚠️ No captions found, trying Whisper fallback...`);
+
+            // Extract video ID if we have a URL
+            const vid = videoId || target.match(/(?:v=|\/)([\w-]{11})(?:\?|&|$)/)?.[1];
+
+            if (vid) {
+                const whisperText = await transcribeWithWhisper(vid, openai);
+
+                if (whisperText) {
+                    cleanText = whisperText;
+                    transcriptSource = 'whisper';
+                    originalLanguage = 'he'; // Whisper was set to Hebrew
+                    logger.info(`✅ Whisper transcription successful`);
+                } else {
+                    // Both strategies failed
+                    throw new HttpsError('failed-precondition', 'No captions and Whisper failed', {
+                        code: TRANSCRIPTION_ERRORS.NO_CAPTIONS,
+                        userMessage: 'לסרטון אין כתוביות ולא הצלחנו לתמלל את האודיו. נסו להעתיק את התמליל ידנית מיוטיוב (לחצו על "..." ואז "הצג תמליל").'
+                    });
+                }
+            } else {
+                throw new HttpsError('failed-precondition', 'No captions available', {
+                    code: TRANSCRIPTION_ERRORS.NO_CAPTIONS,
+                    userMessage: 'לסרטון אין כתוביות זמינות. נסו להעתיק את התמליל ידנית מיוטיוב.'
+                });
+            }
+        } else {
+            // Process caption items
+            const fullText = transcriptItems.map(item => item.text).join(' ');
+            cleanText = fullText
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/\n/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
         }
 
-        // Combine text
-        const fullText = transcriptItems.map(item => item.text).join(' ');
-
-        // Basic cleanup
-        let cleanText = fullText.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-
-        // 2. Auto-Translation if not in Hebrew
+        // === STRATEGY 3: Auto-Translation to Hebrew ===
         const hasHebrew = /[\u0590-\u05FF]/.test(cleanText);
-        if (!hasHebrew) {
-            logger.info("Transcript detected as non-Hebrew. Translating to Hebrew via GPT-4o-mini...");
+        let wasTranslated = false;
+
+        if (!hasHebrew && cleanText.length > 0) {
+            logger.info(`🌐 Content is not in Hebrew, translating...`);
+
             try {
-                const openai = new OpenAI({ apiKey: openAiApiKey.value() });
-                const response = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [
-                        { role: "system", content: "You are a professional translator. Translate the following video transcript into clear, natural Hebrew. Keep formatting intact." },
-                        { role: "user", content: cleanText.substring(0, 15000) } // Safety cap for context window
-                    ],
-                    temperature: 0.3
-                });
+                const response = await withRetry(
+                    () => openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        messages: [
+                            {
+                                role: "system",
+                                content: "אתה מתרגם מקצועי. תרגם את התמליל הבא לעברית טבעית וקריאה. שמור על המשמעות המקורית."
+                            },
+                            {
+                                role: "user",
+                                content: cleanText.substring(0, 14000) // Leave room for response
+                            }
+                        ],
+                        temperature: 0.3,
+                        max_tokens: 4000
+                    }),
+                    2 // 2 retries
+                );
 
                 const translated = response.choices[0].message.content;
-                if (translated) {
+                if (translated && translated.length > 50) {
                     cleanText = translated;
-                    logger.info("Translation complete.");
+                    wasTranslated = true;
+                    logger.info(`✅ Translation complete: ${cleanText.length} characters`);
                 }
-            } catch (transError) {
-                logger.error("Translation failed, returning original text:", transError);
-                // Fallback to original text if translation fails
+            } catch (transError: any) {
+                logger.warn("Translation failed, returning original:", transError.message);
+                // Don't fail - return original text with a note
             }
         }
 
-        return { text: cleanText };
+        // === SUCCESS RESPONSE ===
+        logger.info(`📄 Transcription complete. Source: ${transcriptSource}, Length: ${cleanText.length}, Translated: ${wasTranslated}`);
+
+        return {
+            text: cleanText,
+            metadata: {
+                source: transcriptSource,
+                originalLanguage,
+                wasTranslated,
+                characterCount: cleanText.length
+            }
+        };
 
     } catch (error: any) {
-        logger.error("Youtube Transcript Error:", error);
-        throw new Error(`Failed to fetch transcript: ${error.message}`);
+        // If it's already an HttpsError, re-throw
+        if (error.code && error.details) {
+            throw error;
+        }
+
+        // Handle rate limiting
+        if (error.message?.includes('429') || error.message?.includes('rate')) {
+            logger.error("Rate limited:", error);
+            throw new HttpsError('resource-exhausted', 'Rate limited', {
+                code: TRANSCRIPTION_ERRORS.RATE_LIMITED,
+                userMessage: 'יותר מדי בקשות. נסו שוב בעוד דקה.'
+            });
+        }
+
+        // Generic error
+        logger.error("Transcription error:", error);
+        throw new HttpsError('internal', error.message || 'Unknown error', {
+            code: TRANSCRIPTION_ERRORS.UNKNOWN,
+            userMessage: 'שגיאה לא צפויה בתמלול הסרטון. נסו שוב.'
+        });
     }
 });
 
@@ -308,7 +519,10 @@ export const transcribeYoutube = onCall({ cors: true, memory: "256MiB", secrets:
 
 const sanitizeData = (data: any): any => {
     return JSON.parse(JSON.stringify(data, (key, value) => {
-        return value === undefined ? null : value;
+        if (value === undefined) return null;
+        if (value instanceof Date) return value.toISOString();
+        if (typeof value === 'function') return undefined;
+        return value;
     }));
 };
 
@@ -825,13 +1039,7 @@ export const generateExam = onDocumentCreated(
                 throw new Error(result.error || "Exam generation failed");
             }
 
-            // Sanitize and save
-            const sanitizeData = (data: any): any => {
-                return JSON.parse(JSON.stringify(data, (key, value) => {
-                    return value === undefined ? null : value;
-                }));
-            };
-
+            // Sanitize and save (uses global sanitizeData)
             const cleanExam = sanitizeData(result.exam);
 
             await event.data.ref.update({

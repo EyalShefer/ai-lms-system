@@ -5,7 +5,7 @@ import {
     IconCheck, IconX, IconBook, IconWand, IconCloudUpload, IconVideo,
     IconHeadphones, IconTarget, IconJoystick
 } from '../icons';
-import { MultimodalService } from '../services/multimodalService';
+import { MultimodalService, TRANSCRIPTION_ERROR_CODES } from '../services/multimodalService';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -617,15 +617,22 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                 className="flex-1 p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-left"
                                                 placeholder="https://www.youtube.com/..."
                                                 id="youtube-input"
-                                                onKeyDown={(e) => {
+                                                onKeyDown={async (e) => {
                                                     if (e.key === 'Enter') {
-                                                        const url = e.currentTarget.value;
-                                                        if (MultimodalService.validateYouTubeUrl(url)) {
+                                                        const url = e.currentTarget.value?.trim();
+                                                        if (url && MultimodalService.validateYouTubeUrl(url)) {
                                                             setIsProcessing(true);
-                                                            MultimodalService.processYoutubeUrl(url).then(text => {
-                                                                if (text) { setPastedText(text); setTopic("YouTube Video"); }
+                                                            try {
+                                                                const result = await MultimodalService.processYoutubeUrl(url);
+                                                                if (result?.text) {
+                                                                    setPastedText(result.text);
+                                                                    setTopic("YouTube Video");
+                                                                }
+                                                            } catch (error: any) {
+                                                                alert(MultimodalService.getErrorMessage(error));
+                                                            } finally {
                                                                 setIsProcessing(false);
-                                                            });
+                                                            }
                                                         }
                                                     }
                                                 }}
@@ -633,26 +640,55 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             <button
                                                 onClick={async () => {
                                                     const input = document.getElementById('youtube-input') as HTMLInputElement;
-                                                    const url = input?.value;
-                                                    if (url && MultimodalService.validateYouTubeUrl(url)) {
-                                                        setIsProcessing(true);
-                                                        try {
-                                                            const text = await MultimodalService.processYoutubeUrl(url);
-                                                            if (text) {
-                                                                setPastedText(text);
-                                                                setTopic("YouTube Video");
-                                                            } else {
-                                                                // This case might be covered by catch, but just in case
-                                                                alert("לא הצלחנו למשוך את הכתוביות מהסרטון. נסו להעתיק ידנית.");
+                                                    const url = input?.value?.trim();
+
+                                                    if (!url) {
+                                                        alert("אנא הזינו קישור ליוטיוב");
+                                                        return;
+                                                    }
+
+                                                    if (!MultimodalService.validateYouTubeUrl(url)) {
+                                                        alert("הקישור לא תקין. וודאו שזה קישור ליוטיוב (למשל: youtube.com/watch?v=... או youtu.be/...)");
+                                                        return;
+                                                    }
+
+                                                    setIsProcessing(true);
+                                                    try {
+                                                        const result = await MultimodalService.processYoutubeUrl(url);
+                                                        if (result?.text) {
+                                                            setPastedText(result.text);
+                                                            setTopic("YouTube Video");
+
+                                                            // Show success message with metadata
+                                                            if (result.metadata?.source === 'whisper') {
+                                                                console.log("📢 Video was transcribed using speech-to-text (no captions found)");
                                                             }
-                                                        } catch (error) {
-                                                            console.error("YouTube Error:", error);
-                                                            alert("לא הצלחנו למשוך את הכתוביות מהסרטון (שגיאת שרת או חסימה).\n\nטיפ: העתקו את התמליל ידנית (בחר 'הצג תמליל' ביוטיוב) והדביקו אותו בלשונית 'הדבקת טקסט'.");
-                                                        } finally {
-                                                            setIsProcessing(false);
+                                                            if (result.metadata?.wasTranslated) {
+                                                                console.log("📢 Content was automatically translated to Hebrew");
+                                                            }
                                                         }
-                                                    } else {
-                                                        alert("אנא הזינו קישור תקין ליוטיוב");
+                                                    } catch (error: any) {
+                                                        console.error("YouTube Error:", error);
+
+                                                        // Get user-friendly error message
+                                                        const userMessage = MultimodalService.getErrorMessage(error);
+                                                        const errorCode = error?.code;
+
+                                                        // Build helpful message based on error type
+                                                        let helpTip = "";
+                                                        if (errorCode === TRANSCRIPTION_ERROR_CODES.NO_CAPTIONS) {
+                                                            helpTip = "\n\n💡 טיפ: לחצו על שלוש הנקודות (...) מתחת לסרטון ביוטיוב, בחרו 'הצג תמליל', העתיקו והדביקו בלשונית 'הדבקת טקסט'.";
+                                                        } else if (errorCode === TRANSCRIPTION_ERROR_CODES.PRIVATE_VIDEO) {
+                                                            helpTip = "\n\n💡 טיפ: נסו סרטון ציבורי אחר, או העתיקו את התמליל ידנית.";
+                                                        } else if (errorCode === TRANSCRIPTION_ERROR_CODES.RATE_LIMITED) {
+                                                            helpTip = "\n\n⏳ המתינו דקה ונסו שוב.";
+                                                        } else if (MultimodalService.isRetryableError(error)) {
+                                                            helpTip = "\n\n🔄 ניתן לנסות שוב.";
+                                                        }
+
+                                                        alert(userMessage + helpTip);
+                                                    } finally {
+                                                        setIsProcessing(false);
                                                     }
                                                 }}
                                                 disabled={isProcessing}

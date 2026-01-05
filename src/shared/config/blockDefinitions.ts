@@ -93,6 +93,14 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
                 layoutDirection: 'RL'
             };
             break;
+        case 'infographic':
+            content = {
+                imageUrl: '',
+                title: 'אינפוגרפיקה',
+                caption: '',
+                visualType: 'flowchart' // 'flowchart' | 'timeline' | 'comparison' | 'cycle'
+            };
+            break;
         default:
             content = '';
     }

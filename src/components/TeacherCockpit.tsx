@@ -12,6 +12,7 @@ import { TextToSpeechButton } from './TextToSpeechButton';
 
 interface TeacherCockpitProps {
     unit: LearningUnit;
+    courseId?: string; // For generating proper share links
     onExit?: () => void;
     onEdit?: () => void; // Legacy
     onUpdateBlock?: (blockId: string, newContent: any) => void; // Legacy
@@ -23,6 +24,7 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
     'image': 'תמונה',
     'video': 'וידאו',
+    'infographic': 'אינפוגרפיקה',
     'multiple-choice': 'שאלה אמריקאית',
     'open-question': 'שאלה פתוחה',
     'interactive-chat': 'צ׳אט אינטראקטיבי',
@@ -84,7 +86,7 @@ const BlockIconRenderer: React.FC<{ blockType: string; blockIndex: number; total
     return <Icon className={className} />;
 };
 
-const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
+const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
     const [activeSection, setActiveSection] = useState<string>('all');
     const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
     const [isRefining, setIsRefining] = useState(false);
@@ -216,7 +218,13 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
     };
 
     const handleShare = async () => {
-        const shareUrl = window.location.href;
+        // Build proper student share URL with courseId and unitId
+        let shareUrl = window.location.href;
+        if (courseId) {
+            const baseUrl = `${window.location.origin}/?studentCourseId=${courseId}`;
+            shareUrl = unit.id ? `${baseUrl}&unit=${unit.id}` : baseUrl;
+        }
+
         try {
             if (navigator.share) {
                 // Mobile share
@@ -315,9 +323,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         visualType: visualType
                     });
 
-                    // Track preview opened
-                    const { trackPreviewOpened } = await import('../services/infographicAnalytics');
-                    trackPreviewOpened(visualType);
+                    // Track preview opened (with fallback for dynamic import errors)
+                    try {
+                        const { trackPreviewOpened } = await import('../services/infographicAnalytics');
+                        trackPreviewOpened(visualType);
+                    } catch (e) { console.warn('Analytics not available'); }
                 };
                 reader.readAsDataURL(imageBlob);
             } else {
@@ -334,9 +344,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
     const handleConfirmInfographic = async () => {
         if (!infographicPreview) return;
 
-        // Track preview confirmed
-        const { trackPreviewConfirmed } = await import('../services/infographicAnalytics');
-        trackPreviewConfirmed(infographicPreview.visualType);
+        // Track preview confirmed (with fallback for dynamic import errors)
+        try {
+            const { trackPreviewConfirmed } = await import('../services/infographicAnalytics');
+            trackPreviewConfirmed(infographicPreview.visualType);
+        } catch (e) { console.warn('Analytics not available'); }
 
         // Create new image block after current block
         const newBlock = createBlock('image', 'socratic');
@@ -435,6 +447,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconClock className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
                         <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+                        <button onClick={() => addBlockAtIndex('infographic', index)} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
 
                         <div className="w-px bg-slate-200 mx-2"></div>
                         <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
@@ -538,13 +551,99 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
             return (
                 <div className="relative group">
                     <img src={block.content} className="w-full h-80 object-cover rounded-2xl shadow-md" alt="Lesson Visual" />
-                    <button
-                        onClick={() => updateBlockContent(block.id, '')}
-                        className="absolute top-2 right-2 bg-white/80 p-2 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
-                        title="החלף תמונה"
-                    >
-                        <IconTrash className="w-4 h-4" />
-                    </button>
+                    {/* Control buttons - always visible */}
+                    <div className="absolute top-2 right-2 flex gap-2">
+                        <button
+                            onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })}
+                            className="bg-white/90 p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-all"
+                            title="יצירת תמונה חדשה עם AI"
+                        >
+                            <IconWand className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => updateBlockContent(block.id, '')}
+                            className="bg-white/90 p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-all"
+                            title="מחק תמונה"
+                        >
+                            <IconTrash className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {/* AI regenerate overlay */}
+                    {mediaInputMode[block.id] === 'ai' && (
+                        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center z-20">
+                            <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה החדשה:</h4>
+                            <textarea
+                                className="w-full p-3 border border-blue-200 rounded-lg mb-3 text-sm focus:border-blue-400 outline-none"
+                                rows={3}
+                                placeholder="למשל: מפה עתיקה של ירושלים..."
+                                onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                autoFocus
+                            />
+                            <div className="flex gap-2 justify-end">
+                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-sm px-3 py-2 hover:bg-gray-100 rounded-lg">ביטול</button>
+                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                                    {loadingBlockId === block.id ? <><IconSparkles className="w-4 h-4 animate-spin" /> יוצר...</> : <><IconPalette className="w-4 h-4" /> צור תמונה</>}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Infographic block
+        if (block.type === 'infographic') {
+            const infographicSrc = typeof block.content === 'string'
+                ? block.content
+                : (block.content?.imageUrl || block.metadata?.uploadedFileUrl || '');
+            const infographicType = block.metadata?.infographicType || (typeof block.content === 'object' ? block.content?.visualType : undefined);
+            const sourceBlockId = block.metadata?.generatedFrom;
+
+            if (!infographicSrc) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50">
+                        <IconInfographic className="w-8 h-8 text-purple-400 mb-2" />
+                        <span className="text-purple-600 font-bold">אינפוגרפיקה ריקה</span>
+                        <span className="text-sm text-purple-500">צור אינפוגרפיקה מבלוק טקסט</span>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="relative group">
+                    <img src={infographicSrc} className="w-full rounded-2xl shadow-md" alt="אינפוגרפיקה" />
+                    {/* Type badge */}
+                    {infographicType && (
+                        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-purple-700 shadow-sm">
+                            {infographicType === 'flowchart' ? '🔄 תרשים זרימה' :
+                             infographicType === 'timeline' ? '📅 ציר זמן' :
+                             infographicType === 'comparison' ? '⚖️ השוואה' : '🔁 מחזור'}
+                        </div>
+                    )}
+                    {/* Control buttons */}
+                    <div className="absolute top-2 right-2 flex gap-2">
+                        {sourceBlockId && (
+                            <button
+                                onClick={() => {
+                                    const sourceBlock = unit.activityBlocks?.find(b => b.id === sourceBlockId);
+                                    if (sourceBlock) {
+                                        setShowInfographicMenu(sourceBlock.id);
+                                    }
+                                }}
+                                className="bg-white/90 p-2 rounded-full text-purple-500 hover:bg-purple-50 hover:text-purple-600 shadow-sm transition-all"
+                                title="יצירת אינפוגרפיקה חדשה"
+                            >
+                                <IconWand className="w-4 h-4" />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => deleteBlock(block.id)}
+                            className="bg-white/90 p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-all"
+                            title="מחק אינפוגרפיקה"
+                        >
+                            <IconTrash className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             );
         }
@@ -1185,9 +1284,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         <div className="p-6 bg-slate-50 rounded-b-2xl flex gap-3 justify-end border-t">
                             <button
                                 onClick={async () => {
-                                    // Track preview rejection
-                                    const { trackPreviewRejected } = await import('../services/infographicAnalytics');
-                                    trackPreviewRejected(infographicPreview.visualType);
+                                    // Track preview rejection (with fallback for dynamic import errors)
+                                    try {
+                                        const { trackPreviewRejected } = await import('../services/infographicAnalytics');
+                                        trackPreviewRejected(infographicPreview.visualType);
+                                    } catch (e) { console.warn('Analytics not available'); }
                                     setInfographicPreview(null);
                                 }}
                                 className="px-6 py-3 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors font-semibold border border-slate-300"
@@ -1196,9 +1297,12 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                             </button>
                             <button
                                 onClick={async () => {
-                                    // Track type change intent
-                                    const { trackTypeChanged } = await import('../services/infographicAnalytics');
+                                    // Track type change intent (with fallback for dynamic import errors)
                                     const oldType = infographicPreview.visualType;
+                                    try {
+                                        const { trackTypeChanged } = await import('../services/infographicAnalytics');
+                                        // trackTypeChanged not used directly here
+                                    } catch (e) { console.warn('Analytics not available'); }
 
                                     // Regenerate with different type
                                     setInfographicPreview(null);

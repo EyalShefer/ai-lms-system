@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, collection, getDocs } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
 import * as GamificationService from '../services/gamificationService';
@@ -140,9 +140,35 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!currentCourseId) return;
 
         // האזנה לשינויים במסמך
-        const unsubscribe = onSnapshot(doc(db, "courses", currentCourseId), (docSnap) => {
+        const unsubscribe = onSnapshot(doc(db, "courses", currentCourseId), async (docSnap) => {
             if (docSnap.exists()) {
-                const data = docSnap.data();
+                const data = docSnap.data() as Course;
+
+                // בדיקה אם הקורס בפורמט החדש (Lazy) - צריך לטעון יחידות מתת-אוסף
+                const hasLazyUnits = data.syllabus?.some(m => m.learningUnits?.some(u => (u as any).isLazy));
+
+                if (hasLazyUnits) {
+                    // שליפת כל היחידות מתת-האוסף
+                    const unitsRef = collection(db, "courses", currentCourseId, "units");
+                    const unitsSnap = await getDocs(unitsRef);
+
+                    const unitsMap = new Map();
+                    unitsSnap.forEach(doc => {
+                        unitsMap.set(doc.id, doc.data());
+                    });
+
+                    // מיזוג היחידות המלאות לתוך הסילבוס
+                    data.syllabus = data.syllabus.map(module => ({
+                        ...module,
+                        learningUnits: module.learningUnits.map(unit => {
+                            if ((unit as any).isLazy && unitsMap.has(unit.id)) {
+                                return unitsMap.get(unit.id) as any;
+                            }
+                            return unit;
+                        })
+                    }));
+                }
+
                 setCourseState(sanitizeCourseData(data, docSnap.id));
                 setFullBookContentState(data.fullBookContent || "");
                 setPdfSourceState(data.pdfSource || null);

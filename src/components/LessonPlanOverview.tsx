@@ -387,6 +387,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                     <div className="border-t border-blue-100" onClick={(e) => e.stopPropagation()}>
                                                         <TeacherCockpit
                                                             unit={unit}
+                                                            courseId={course.id}
                                                             embedded={true}
                                                             onUnitUpdate={onUnitUpdate}
                                                             onUpdateBlock={(blockId, content) => handleBlockUpdateInUnit(unit, blockId, content)}

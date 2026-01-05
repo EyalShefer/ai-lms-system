@@ -9,18 +9,36 @@ let saveTimeout: NodeJS.Timeout | null = null;
 let pendingCourse: Course | null = null;
 
 // פונקציית עזר לניקוי נתונים לפני שמירה (מונעת קריסות של undefined ב-Firestore)
+// Handles: undefined, Date objects, functions, circular references, custom classes
 const cleanDataForFirestore = (data: any): any => {
-    if (Array.isArray(data)) {
-        return data.map(cleanDataForFirestore);
-    } else if (data !== null && typeof data === 'object') {
-        return Object.entries(data).reduce((acc, [key, value]) => {
-            if (value !== undefined) {
-                acc[key] = cleanDataForFirestore(value);
-            }
-            return acc;
-        }, {} as any);
+    // Use JSON.parse/stringify to handle most edge cases (undefined, functions, circular refs, Date->string)
+    // Then do a second pass to convert Date strings back if needed or handle remaining issues
+    try {
+        return JSON.parse(JSON.stringify(data, (key, value) => {
+            // Convert undefined to null (JSON.stringify would remove it)
+            if (value === undefined) return null;
+            // Convert Date objects to ISO strings
+            if (value instanceof Date) return value.toISOString();
+            // Skip functions
+            if (typeof value === 'function') return undefined;
+            return value;
+        }));
+    } catch (e) {
+        // Fallback for circular references or other issues
+        console.warn("cleanDataForFirestore fallback used:", e);
+        if (Array.isArray(data)) {
+            return data.map(cleanDataForFirestore);
+        } else if (data !== null && typeof data === 'object') {
+            if (data instanceof Date) return data.toISOString();
+            return Object.entries(data).reduce((acc, [key, value]) => {
+                if (value !== undefined && typeof value !== 'function') {
+                    acc[key] = cleanDataForFirestore(value);
+                }
+                return acc;
+            }, {} as any);
+        }
+        return data;
     }
-    return data;
 };
 
 // Internal function that actually performs the save

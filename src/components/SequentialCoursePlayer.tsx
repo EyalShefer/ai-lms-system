@@ -30,6 +30,7 @@ import MemoryGameQuestion from './MemoryGameQuestion';
 import TrueFalseQuestion from './TrueFalseQuestion';
 import { PodcastPlayer } from './PodcastPlayer';
 import { AudioRecorderBlock } from './AudioRecorderBlock';
+import { InfographicViewer } from './InfographicViewer';
 
 
 interface SequentialPlayerProps {
@@ -665,6 +666,24 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     />
                 );
 
+            case 'infographic':
+                const infographicSrc = typeof currentBlock.content === 'string'
+                    ? currentBlock.content
+                    : (currentBlock.content?.imageUrl || currentBlock.metadata?.uploadedFileUrl || '');
+                const infographicTitle = typeof currentBlock.content === 'object' ? currentBlock.content?.title : undefined;
+                const infographicCaption = typeof currentBlock.content === 'object' ? currentBlock.content?.caption : currentBlock.metadata?.caption;
+                const infographicType = currentBlock.metadata?.infographicType || (typeof currentBlock.content === 'object' ? currentBlock.content?.visualType : undefined);
+
+                if (!infographicSrc) return <div className="p-10 text-center text-gray-500">אינפוגרפיקה לא נמצאה</div>;
+                return (
+                    <InfographicViewer
+                        src={infographicSrc}
+                        title={infographicTitle}
+                        caption={infographicCaption}
+                        infographicType={infographicType}
+                    />
+                );
+
             case 'audio-response':
                 // @ts-ignore
                 return <AudioRecorderBlock block={currentBlock} onAnswer={(url) => handleComplexBlockComplete(100)} />;
@@ -711,7 +730,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 }
             };
 
-            return <TeacherCockpit unit={unit as any} onExit={handleExit} onEdit={onEdit} />;
+            return <TeacherCockpit unit={unit as any} courseId={course?.id} onExit={handleExit} onEdit={onEdit} />;
         }
     }
 
