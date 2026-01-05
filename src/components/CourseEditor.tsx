@@ -12,7 +12,7 @@ import { generateCoursePlan, generateFullUnitContent, generateDifferentiatedCont
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Keep db for direct doc updates if needed
-import { saveCourseToFirestore, saveUnitToFirestore } from '../firebaseUtils';
+import { saveCourseToFirestore, saveCourseToFirestoreImmediate, saveUnitToFirestore } from '../firebaseUtils';
 import type { LearningUnit, ActivityBlock, Module } from '../shared/types/courseTypes';
 
 // הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
@@ -735,8 +735,8 @@ const CourseEditor: React.FC = () => {
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
 
-            // ARCHITECT FIX: Use granular save
-            await saveCourseToFirestore(courseWithSyllabus);
+            // ARCHITECT FIX: Use immediate save for wizard completion (critical checkpoint)
+            await saveCourseToFirestoreImmediate(courseWithSyllabus);
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
@@ -779,8 +779,8 @@ const CourseEditor: React.FC = () => {
 
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithPodcast };
                         setCourse(finalCourse);
-                        // ARCHITECT FIX: Use safe save (splits metadata and content)
-                        await saveCourseToFirestore(finalCourse);
+                        // ARCHITECT FIX: Use immediate save for podcast completion
+                        await saveCourseToFirestoreImmediate(finalCourse);
                         setSelectedUnitId(firstUnit.id);
                     } else {
                         alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
@@ -826,7 +826,8 @@ const CourseEditor: React.FC = () => {
 
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithDiff };
                         setCourse(finalCourse);
-                        await saveCourseToFirestore(finalCourse);
+                        // ARCHITECT FIX: Use immediate save for differentiated completion
+                        await saveCourseToFirestoreImmediate(finalCourse);
 
                         // Select the Core unit by default
                         setSelectedUnitId(unitCore.id);
@@ -909,8 +910,8 @@ const CourseEditor: React.FC = () => {
 
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithContent };
                         setCourse(finalCourse);
-                        // ARCHITECT FIX: Use safe save
-                        await saveCourseToFirestore(finalCourse);
+                        // ARCHITECT FIX: Use immediate save for final content
+                        await saveCourseToFirestoreImmediate(finalCourse);
 
                         setSelectedUnitId(firstUnit.id);
                     } else {

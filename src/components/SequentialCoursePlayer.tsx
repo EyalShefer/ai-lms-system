@@ -699,7 +699,19 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         // Use the first unit found (Standard for current generation flow)
         const unit = course?.syllabus?.[0]?.learningUnits?.[0];
         if (unit) {
-            return <TeacherCockpit unit={unit as any} onExit={onExit || (() => { })} onEdit={onEdit} />;
+            // Smart fallback for onExit
+            const handleExit = () => {
+                console.log('🔙 SequentialCoursePlayer TeacherCockpit onExit called');
+                if (onExit) {
+                    onExit();
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = '/';
+                }
+            };
+
+            return <TeacherCockpit unit={unit as any} onExit={handleExit} onEdit={onEdit} />;
         }
     }
 

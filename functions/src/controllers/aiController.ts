@@ -54,7 +54,18 @@ The Bridge to System Tools (Crucial):
 - When the lesson reaches the Practice phase, you must explicitly prompt the teacher to launch the "Interactive Activity".
 - When the lesson reaches the Assessment phase, prompt the teacher to launch the "Test Generator".
 
-Part 3: Output Generation (Hebrew JSON)
+Part 3: Media Guidelines
+- Hook (Opening): Suggest a YouTube video search query if relevant to engage students.
+- Direct Instruction: No media needed (teacher-led).
+- Practice: No media needed (activity-focused).
+- Summary/Closure: ONE infographic to visually summarize the lesson.
+  * Choose infographic type based on content:
+    - "flowchart" - for processes, steps, algorithms
+    - "timeline" - for historical events, chronological sequences
+    - "comparison" - for comparing concepts, pros/cons
+    - "cycle" - for recurring processes, loops
+
+Part 4: Output Generation (Hebrew JSON)
 Generate a JSON object with the following structure. Strict JSON.
 {
   "title": "Lesson Title",
@@ -63,6 +74,11 @@ Generate a JSON object with the following structure. Strict JSON.
       "duration": "${durationMap[activityLength || 'medium']}",
       "objectives": ["obj1", "obj2"],
       "keywords": ["key1", "key2"]
+  },
+  "media_plan": {
+      "hook_video_query": "search query for YouTube (or null if not needed)",
+      "summary_infographic_type": "flowchart | timeline | comparison | cycle",
+      "summary_infographic_description": "Brief description of what the infographic should show"
   },
   "steps": [
       {
@@ -125,10 +141,18 @@ Generate a JSON object with the following structure. Strict JSON.
                 system_tool: s.system_tool
             }));
 
+            // Extract media plan (new feature)
+            const mediaPlan = architectJson.media_plan || {
+                hook_video_query: null,
+                summary_infographic_type: 'flowchart',
+                summary_infographic_description: `סיכום ויזואלי של ${architectJson.title}`
+            };
+
             return {
                 title: architectJson.title,
                 steps: mappedSteps,
-                metadata: architectJson.metadata
+                metadata: architectJson.metadata,
+                media_plan: mediaPlan // Include media plan for frontend to use
             };
 
         } catch (error: any) {
@@ -514,5 +538,127 @@ ${truncatedContent}
         }
     });
 
-    return { generateTeacherLessonPlan, generateStudentUnitSkeleton, generateStepContent, generatePodcastScript };
+    // --- 4. Generate Mind Map ---
+    const generateMindMapFromContent = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
+        const openai = new OpenAI({ apiKey: openaiApiKey.value() });
+        const { sourceText, topic, gradeLevel, maxNodes = 12 } = request.data;
+
+        logger.info(`Mind Map Generation: topic="${topic}", grade="${gradeLevel}", maxNodes=${maxNodes}`);
+
+        // Grade-level complexity adaptation
+        const gradeComplexityMap: Record<string, { maxDepth: number; termLevel: string }> = {
+            "כיתה א׳": { maxDepth: 2, termLevel: "מושגים בסיסיים מאוד, מילים פשוטות" },
+            "כיתה ב׳": { maxDepth: 2, termLevel: "מושגים בסיסיים מאוד, מילים פשוטות" },
+            "כיתה ג׳": { maxDepth: 2, termLevel: "מושגים פשוטים, משפטים קצרים" },
+            "כיתה ד׳": { maxDepth: 3, termLevel: "מושגים פשוטים עם הסברים" },
+            "כיתה ה׳": { maxDepth: 3, termLevel: "מושגים ברורים" },
+            "כיתה ו׳": { maxDepth: 3, termLevel: "מושגים ברורים עם קשרים" },
+            "כיתה ז׳": { maxDepth: 4, termLevel: "מושגים מקצועיים בסיסיים" },
+            "כיתה ח׳": { maxDepth: 4, termLevel: "מושגים מקצועיים בסיסיים" },
+            "כיתה ט׳": { maxDepth: 4, termLevel: "מושגים מקצועיים" },
+            "כיתה י׳": { maxDepth: 5, termLevel: "מושגים מקצועיים מתקדמים" },
+            "כיתה י״א": { maxDepth: 5, termLevel: "מושגים מקצועיים מתקדמים" },
+            "כיתה י״ב": { maxDepth: 5, termLevel: "מושגים אקדמיים" },
+            "סטודנטים": { maxDepth: 6, termLevel: "מושגים אקדמיים מתקדמים" },
+        };
+        const complexity = gradeComplexityMap[gradeLevel] || { maxDepth: 3, termLevel: "מושגים ברורים" };
+
+        const MAX_CHARS = 10000;
+        const truncatedContent = (sourceText || "").substring(0, MAX_CHARS);
+
+        // Calculate base position for RTL layout (root on right)
+        const baseX = 600;
+        const baseY = 250;
+
+        const prompt = `
+אתה מומחה ליצירת מפות חשיבה (Mind Maps) חינוכיות.
+צור מפת חשיבה מהתוכן הבא:
+
+תוכן מקור:
+"""
+${truncatedContent}
+"""
+
+נושא מרכזי: ${topic || "התוכן שלמעלה"}
+קהל יעד: ${gradeLevel || "כיתה ז׳"}
+רמת מורכבות מושגים: ${complexity.termLevel}
+
+הנחיות:
+1. הנושא המרכזי יהיה בצומת הראשי (root) - במרכז המפה
+2. מקסימום ${maxNodes} צמתים בסך הכל
+3. עומק מקסימלי: ${complexity.maxDepth} רמות
+4. כל צומת צריך להכיל טקסט קצר וברור (מקסימום 5 מילים)
+5. הקשרים (edges) צריכים להיות הגיוניים - מהכללי לפרטי
+6. השתמש בצבעים שונים לפי רמת עומק:
+   - ראשי (topic): #3B82F6 (כחול)
+   - משני (subtopic): #10B981 (ירוק)
+   - שלישי (detail): #F59E0B (כתום)
+   - דוגמאות (example): #8B5CF6 (סגול)
+7. הפריסה צריכה להיות מרכזית עם ענפים לכל הכיוונים
+8. מרחק אופקי בין רמות: 200 פיקסלים
+9. מרחק אנכי בין צמתים באותה רמה: 80 פיקסלים
+
+פורמט פלט (JSON בלבד):
+{
+  "title": "כותרת המפה",
+  "nodes": [
+    {
+      "id": "1",
+      "type": "topic",
+      "data": { "label": "הנושא המרכזי", "color": "#3B82F6" },
+      "position": { "x": ${baseX}, "y": ${baseY} }
+    },
+    {
+      "id": "2",
+      "type": "subtopic",
+      "data": { "label": "תת-נושא 1", "color": "#10B981" },
+      "position": { "x": ${baseX - 200}, "y": ${baseY - 100} }
+    }
+  ],
+  "edges": [
+    { "id": "e1-2", "source": "1", "target": "2" }
+  ],
+  "suggestedLayout": "RL"
+}
+
+חשוב:
+- ודא שכל הצמתים מחוברים למפה (אין צמתים "יתומים")
+- הצומת הראשי (id: "1") הוא תמיד ה-root
+- כל צומת אחר מחובר דרך edge לצומת הורה
+- שפה: עברית בלבד
+`;
+
+        try {
+            const completion = await openai.chat.completions.create({
+                model: MODEL_NAME,
+                messages: [{ role: "user", content: prompt }],
+                response_format: { type: "json_object" },
+                temperature: 0.7
+            });
+
+            const result = JSON.parse(cleanJsonString(completion.choices[0].message.content || "{}"));
+
+            // Validate structure
+            if (!result.title || !result.nodes || !Array.isArray(result.nodes) || result.nodes.length < 2) {
+                logger.error("Invalid mind map structure:", result);
+                throw new HttpsError('internal', 'מבנה מפת החשיבה אינו תקין. נסה שוב.');
+            }
+
+            // Validate all nodes have required fields
+            for (const node of result.nodes) {
+                if (!node.id || !node.data?.label || !node.position) {
+                    logger.error("Invalid node structure:", node);
+                    throw new HttpsError('internal', 'צומת לא תקין במפה. נסה שוב.');
+                }
+            }
+
+            logger.info(`Mind Map generated: "${result.title}" with ${result.nodes.length} nodes`);
+            return result;
+        } catch (error: any) {
+            logger.error("Mind Map Generation Error:", error);
+            throw new HttpsError('internal', error.message);
+        }
+    });
+
+    return { generateTeacherLessonPlan, generateStudentUnitSkeleton, generateStepContent, generatePodcastScript, generateMindMapFromContent };
 };

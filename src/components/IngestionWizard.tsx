@@ -329,7 +329,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             'text/plain': ['.txt'],
             'audio/mpeg': ['.mp3', '.mpga'],
             'audio/wav': ['.wav'],
-            'audio/m4a': ['.m4a']
+            'audio/m4a': ['.m4a'],
+            'image/jpeg': ['.jpg', '.jpeg'],
+            'image/png': ['.png'],
+            'image/webp': ['.webp'],
+            'image/gif': ['.gif']
         },
         maxFiles: 1,
         maxSize: 10485760,
@@ -364,8 +368,14 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         alert("תמלול הקובץ נכשל.");
                         // Reset to upload mode if failed? Or keep multimodal?
                     }
+                } else if (f.type.startsWith('image/')) {
+                    // Image file - will be analyzed by Vision API
+                    setFile(f);
+                    setMode('upload');
+                    setTopic(f.name.replace(/\.[^/.]+$/, ""));
+                    setPastedText('');
                 } else {
-                    // Standard file
+                    // Standard file (PDF, TXT)
                     setFile(f);
                     setMode('upload');
                     // Explicitly clear other states if needed
@@ -520,7 +530,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             open();
                                         }}
                                     >
-                                        {file ? <span className="text-wizdi-royal font-bold">{file.name}</span> : "PDF, TXT, Audio"}
+                                        {file ? <span className="text-wizdi-royal font-bold">{file.name}</span> : "PDF, TXT, תמונות, Audio"}
                                         <input {...getInputProps()} />
                                     </SourceCard>
                                 );

@@ -112,7 +112,8 @@ export const generateTeacherLessonPlan = async (
     activityLength: 'short' | 'medium' | 'long',
     sourceText?: string,
     mode: 'learning' | 'exam' = 'learning',
-    productType: 'lesson' | 'game' | 'exam' = 'lesson'
+    productType: 'lesson' | 'game' | 'exam' = 'lesson',
+    options?: { generateMedia?: boolean }
 ): Promise<any | null> => {
     // New Teacher Flow
     try {
@@ -125,7 +126,42 @@ export const generateTeacherLessonPlan = async (
             mode,
             productType
         });
-        return response.data;
+
+        const lessonPlan = response.data as any;
+
+        // Generate media if requested and media_plan exists
+        if (options?.generateMedia && lessonPlan?.media_plan) {
+            console.log('🎨 Generating lesson media from media_plan...');
+
+            try {
+                const { generateLessonMedia, insertMediaIntoLesson } = await import('../lessonMediaService');
+
+                const mediaResult = await generateLessonMedia(
+                    lessonPlan.media_plan,
+                    sourceText || topic,
+                    lessonPlan.title
+                );
+
+                if (mediaResult.success && mediaResult.blocks.length > 0) {
+                    // Insert media into steps
+                    lessonPlan.steps = insertMediaIntoLesson(lessonPlan.steps, mediaResult.blocks);
+                    lessonPlan.media_generated = true;
+                    lessonPlan.media_stats = mediaResult.stats;
+
+                    console.log(`✅ Media generated: YouTube=${mediaResult.stats.youtubeGenerated}, Infographic=${mediaResult.stats.infographicGenerated}`);
+                } else {
+                    console.log('⚠️ Media generation returned no blocks');
+                    lessonPlan.media_generated = false;
+                    lessonPlan.media_errors = mediaResult.errors;
+                }
+            } catch (mediaError) {
+                console.error('❌ Media generation failed:', mediaError);
+                lessonPlan.media_generated = false;
+                lessonPlan.media_errors = [(mediaError as Error).message];
+            }
+        }
+
+        return lessonPlan;
     } catch (error) {
         console.error("Vault Error (Backend Teacher Plan Failed):", error);
         return null;
@@ -179,6 +215,45 @@ export const generatePodcastScript = async (
         return response.data as DialogueScript;
     } catch (e) {
         console.error("Vault Podcast Error:", e);
+        return null;
+    }
+};
+
+// --- Mind Map Generation ---
+export interface MindMapGenerationResponse {
+    title: string;
+    nodes: Array<{
+        id: string;
+        type: 'topic' | 'subtopic' | 'detail' | 'example';
+        data: { label: string; color?: string; description?: string };
+        position: { x: number; y: number };
+    }>;
+    edges: Array<{
+        id: string;
+        source: string;
+        target: string;
+    }>;
+    suggestedLayout: 'TB' | 'LR' | 'RL';
+}
+
+export const generateMindMapFromContent = async (
+    sourceText: string,
+    topic?: string,
+    gradeLevel?: string,
+    maxNodes: number = 12
+): Promise<MindMapGenerationResponse | null> => {
+    try {
+        const generateMindMapFn = httpsCallable(functions, 'generateMindMapFromContent');
+        const response = await generateMindMapFn({
+            sourceText,
+            topic,
+            gradeLevel: gradeLevel || 'כיתה ז׳',
+            maxNodes
+        });
+
+        return response.data as MindMapGenerationResponse;
+    } catch (e) {
+        console.error("Mind Map Generation Error:", e);
         return null;
     }
 };

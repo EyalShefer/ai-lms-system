@@ -63,6 +63,36 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
                 ]
             };
             break;
+        case 'mindmap':
+            content = {
+                title: 'מפת חשיבה',
+                nodes: [
+                    {
+                        id: '1',
+                        type: 'topic',
+                        data: { label: 'נושא מרכזי', color: '#3B82F6' },
+                        position: { x: 400, y: 200 }
+                    },
+                    {
+                        id: '2',
+                        type: 'subtopic',
+                        data: { label: 'תת-נושא 1', color: '#10B981' },
+                        position: { x: 200, y: 100 }
+                    },
+                    {
+                        id: '3',
+                        type: 'subtopic',
+                        data: { label: 'תת-נושא 2', color: '#10B981' },
+                        position: { x: 200, y: 300 }
+                    }
+                ],
+                edges: [
+                    { id: 'e1-2', source: '1', target: '2' },
+                    { id: 'e1-3', source: '1', target: '3' }
+                ],
+                layoutDirection: 'RL'
+            };
+            break;
         default:
             content = '';
     }

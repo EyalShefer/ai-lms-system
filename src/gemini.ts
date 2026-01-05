@@ -9,6 +9,7 @@ import { cleanJsonString, mapSystemItemToBlock } from './shared/utils/geminiPars
 import { auth } from './firebase';
 import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
 import { detectInfographicType } from './utils/infographicDetector';
+import { generateInfographicHash, saveToFirebaseCache } from './utils/infographicCache';
 
 /**
  * Maps grade level to age-appropriate character description for image generation
@@ -649,9 +650,13 @@ export const generateTeacherStepContent = async (
     Goal: Engagement + Set learning objectives
     Output:
     - Engaging script (story/question/demonstration)
-    - AI image prompt for visual hook
+    - media_asset: ONLY if source is YouTube video, provide timestamp. Otherwise set type to "none"
     - Classroom management tip
     - Learning objectives (2-3 bullet points)
+
+    ⚠️ MEDIA BUDGET RULE FOR HOOK:
+    - If source is YouTube: Use youtube_timestamp (e.g., "Start: 00:30, End: 02:00")
+    - Otherwise: type = "none" (NO images in hook - engage through storytelling instead!)
 
     2. DIRECT INSTRUCTION (15 min)
     Goal: Frontal Teaching with Visual Support
@@ -659,15 +664,14 @@ export const generateTeacherStepContent = async (
     - Slide title
     - Bullet points for board (3-5 items)
     - Script to say (conversational, 80-120 words)
-    - AI image prompt for diagram/illustration
+    - media_asset: ALWAYS set type to "none" (NO images/infographics in slides!)
     - Timing estimate (e.g., "3-5 minutes")
     - Differentiation note (tips for struggling/advanced students)
 
-    🎨 SMART VISUAL SELECTION FOR SLIDES:
-    The system will automatically detect if your bullet points are suitable for:
-    - INFOGRAPHIC if: Contains numbered steps, timeline, comparison, or cycle
-    - GENERIC IMAGE if: Needs illustration, photo, or scene
-    So just provide detailed prompts - the system will choose the best format!
+    ⚠️ MEDIA BUDGET RULE FOR SLIDES:
+    - DO NOT generate images for slides - focus on clear verbal explanations
+    - The teacher will use the whiteboard for diagrams, not AI images
+    - This prevents visual overload and keeps students focused on the teacher
 
     3. GUIDED PRACTICE (10 min) - IN-CLASS FACILITATION
     Goal: Teacher-led practice with pedagogical guidance
@@ -704,17 +708,18 @@ export const generateTeacherStepContent = async (
     Goal: Closure + Retention
     Output:
     - ONE memorable takeaway sentence (for notebooks)
-    - AI-generated infographic for visual summary
+    - visual_summary: ONE infographic (this is the ONLY visual in the entire lesson!)
     - Optional homework suggestion
 
-    📊 INFOGRAPHIC GUIDELINES FOR SUMMARY:
-    Your takeaway sentence should be written in a way that naturally fits one of these structures:
-    - FLOWCHART: If the lesson covered a process with sequential steps (תהליך, שלבים)
-    - TIMELINE: If the lesson involved chronological events or historical development (אירועים, התפתחות)
-    - COMPARISON: If the lesson compared different concepts or showed contrasts (השוואה, הבדלים)
-    - CYCLE: If the lesson explained a repeating cycle or loop (מחזור, תהליך חוזר)
+    📊 INFOGRAPHIC GUIDELINES FOR SUMMARY (THE ONLY VISUAL!):
+    This is the ONE AND ONLY media item in the lesson (besides optional YouTube in Hook).
+    Make it count! Choose the best type based on content:
+    - FLOWCHART: Process with sequential steps (תהליך, שלבים)
+    - TIMELINE: Chronological events (אירועים, התפתחות היסטורית)
+    - COMPARISON: Contrasting concepts (השוואה, הבדלים)
+    - CYCLE: Repeating process (מחזור, תהליך חוזר)
 
-    The system will automatically detect the best infographic type based on your takeaway sentence!
+    Provide a DETAILED description for the infographic that captures the lesson's key concepts!
 
     OUTPUT FORMAT (JSON Schema): Generate valid JSON in Hebrew (except for field keys).
 
@@ -732,9 +737,8 @@ export const generateTeacherStepContent = async (
       "hook": {
         "script_for_teacher": "String (Hebrew - engaging opening script, 80-120 words)",
         "media_asset": {
-          "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'ai_generated_image'}",
-          "content": "${sourceType === 'YOUTUBE' ? 'Start: 00:00, End: 02:00' : 'DETAILED DALL-E 3 prompt for educational image'}",
-          "prompt": "Same as content (for AI images)"
+          "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'none'}",
+          "content": "${sourceType === 'YOUTUBE' ? 'Start: 00:00, End: 02:00' : ''}"
         },
         "classroom_management_tip": "⏱️ [TIP: specific tip in Hebrew]"
       },
@@ -745,9 +749,8 @@ export const generateTeacherStepContent = async (
             "bullet_points_for_board": ["Point 1", "Point 2", "Point 3"],
             "script_to_say": "String (Hebrew - conversational, 80-120 words)",
             "media_asset": {
-              "type": "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'ai_generated_image'}",
-              "content": "DETAILED image prompt or timestamp",
-              "prompt": "Same as content"
+              "type": "none",
+              "content": ""
             },
             "timing_estimate": "3-5 דקות",
             "differentiation_note": "💡 לתלמידים מתקשים: [tip]. לתלמידים מתקדמים: [challenge]"
@@ -844,147 +847,78 @@ export const generateTeacherStepContent = async (
 };
 
 /**
- * Generates visual assets (images/infographics) for lesson plan using DALL-E 3
+ * Generates visual assets for lesson plan
  *
- * @param lessonPlan - The generated TeacherLessonPlan with image prompts
- * @returns Updated lesson plan with generated image URLs
+ * MEDIA BUDGET (prevents visual overload):
+ * - Hook: YouTube timestamp only (no AI images)
+ * - Direct Instruction slides: NO media (teacher uses whiteboard)
+ * - Summary: ONE infographic (the only AI-generated visual!)
+ *
+ * @param lessonPlan - The generated TeacherLessonPlan
+ * @returns Updated lesson plan with generated infographic URL
  */
 export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Promise<TeacherLessonPlan> => {
-  console.log("🎨 Starting AI image generation for lesson plan...");
+  console.log("🎨 Starting visual generation (Media Budget: 1 infographic only)...");
 
   const updatedPlan = { ...lessonPlan };
-  const imagePromises: Promise<void>[] = [];
 
-  // Helper function to generate a single image using DALL-E
-  const generateImage = async (prompt: string): Promise<string | null> => {
-    try {
-      const response = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: prompt,
-        size: "1024x1024",
-        quality: "standard",
-        n: 1,
-        response_format: "b64_json"
-      });
-
-      if (response.data && response.data[0]?.b64_json) {
-        // Convert base64 to data URL
-        return `data:image/png;base64,${response.data[0].b64_json}`;
-      }
-      return null;
-    } catch (error) {
-      console.error("Image generation failed for prompt:", prompt, error);
-      return null;
-    }
-  };
-
-  // Helper function to generate infographic using specialized function
+  // Helper function to generate infographic and upload to Firebase Storage
+  // Returns a persistent Firebase Storage URL (not a temporary blob URL)
   const generateInfographic = async (
     text: string,
     infographicType: InfographicType,
     topic?: string
   ): Promise<string | null> => {
     try {
-      console.log(`🎨 Generating ${infographicType} infographic for: "${text.substring(0, 50)}..."`);
+      console.log(`📊 Generating ${infographicType} infographic for summary...`);
       const blob = await generateInfographicFromText(text, infographicType, topic);
       if (blob) {
-        return URL.createObjectURL(blob);
+        // Upload to Firebase Storage and get persistent URL
+        // This URL can be saved to Firestore (unlike blob: URLs)
+        const hash = await generateInfographicHash(text, infographicType);
+        const firebaseUrl = await saveToFirebaseCache(hash, blob);
+        console.log(`✅ Infographic uploaded to Firebase Storage`);
+        return firebaseUrl;
       }
       return null;
     } catch (error) {
-      console.error("Infographic generation failed:", error);
+      console.error("Infographic generation/upload failed:", error);
       return null;
     }
   };
 
-  // 1. Generate Hook Image
-  if (updatedPlan.hook.media_asset?.type === 'ai_generated_image' && updatedPlan.hook.media_asset.prompt) {
-    imagePromises.push(
-      generateImage(updatedPlan.hook.media_asset.prompt).then(url => {
-        if (url && updatedPlan.hook.media_asset) {
-          updatedPlan.hook.media_asset.url = url;
-          updatedPlan.hook.media_asset.status = 'generated';
-        } else if (updatedPlan.hook.media_asset) {
-          updatedPlan.hook.media_asset.status = 'failed';
-        }
-      })
-    );
-  }
-
-  // 2. Generate Direct Instruction Slide Images with Smart Infographic Detection
-  updatedPlan.direct_instruction.slides.forEach((slide, index) => {
-    if (slide.media_asset?.type === 'ai_generated_image' && slide.media_asset.prompt) {
-      // 🔍 SMART DETECTION: Check if slide content is suitable for infographic
-      const slideContent = slide.bullet_points_for_board.join('\n');
-      const detection = detectInfographicType(slideContent);
-
-      if (detection.confidence > 0.6) {
-        // High confidence - use structured infographic instead of generic image
-        console.log(`📊 Slide ${index + 1}: Detected ${detection.suggestedType} pattern (confidence: ${detection.confidence.toFixed(2)})`);
-        imagePromises.push(
-          generateInfographic(slideContent, detection.suggestedType, slide.slide_title).then(url => {
-            if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
-              updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
-              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
-              updatedPlan.direct_instruction.slides[index].media_asset!.type = 'infographic';
-            } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
-              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
-            }
-          })
-        );
-      } else {
-        // Low confidence - use regular DALL-E image
-        imagePromises.push(
-          generateImage(slide.media_asset.prompt).then(url => {
-            if (url && updatedPlan.direct_instruction.slides[index].media_asset) {
-              updatedPlan.direct_instruction.slides[index].media_asset!.url = url;
-              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'generated';
-            } else if (updatedPlan.direct_instruction.slides[index].media_asset) {
-              updatedPlan.direct_instruction.slides[index].media_asset!.status = 'failed';
-            }
-          })
-        );
-      }
-    }
-  });
-
-  // 3. Generate Summary Visual - USE SPECIALIZED INFOGRAPHIC FUNCTION
+  // ONLY generate Summary Infographic (the single visual in the lesson)
   if (updatedPlan.summary.visual_summary?.type === 'infographic') {
-    // Use the specialized infographic generator instead of generic DALL-E
     const summaryText = updatedPlan.summary.takeaway_sentence;
-    const detection = detectInfographicType(summaryText);
+    const summaryPrompt = updatedPlan.summary.visual_summary.content || summaryText;
+    const detection = detectInfographicType(summaryPrompt);
 
-    console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic (confidence: ${detection.confidence.toFixed(2)})`);
-    console.log(`   Reason: ${detection.reason}`);
+    console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic`);
+    console.log(`   Content: "${summaryPrompt.substring(0, 80)}..."`);
 
-    imagePromises.push(
-      generateInfographic(
-        summaryText,
-        detection.suggestedType,
-        updatedPlan.lesson_metadata.subject
-      ).then(url => {
-        if (url && updatedPlan.summary.visual_summary) {
-          updatedPlan.summary.visual_summary.url = url;
-          updatedPlan.summary.visual_summary.status = 'generated';
-        } else if (updatedPlan.summary.visual_summary) {
-          updatedPlan.summary.visual_summary.status = 'failed';
-        }
-      })
+    const url = await generateInfographic(
+      summaryPrompt,
+      detection.suggestedType,
+      updatedPlan.lesson_metadata.subject || updatedPlan.lesson_metadata.title
     );
+
+    if (url && updatedPlan.summary.visual_summary) {
+      updatedPlan.summary.visual_summary.url = url;
+      updatedPlan.summary.visual_summary.status = 'generated';
+      console.log("✅ Summary infographic generated successfully");
+    } else if (updatedPlan.summary.visual_summary) {
+      updatedPlan.summary.visual_summary.status = 'failed';
+      console.log("❌ Summary infographic generation failed");
+    }
+  } else {
+    console.log("ℹ️ No infographic requested in summary");
   }
 
-  // Wait for all images to generate (in parallel)
-  await Promise.all(imagePromises);
-
-  // Count successes
-  let successCount = 0;
-  if (updatedPlan.hook.media_asset?.status === 'generated') successCount++;
-  updatedPlan.direct_instruction.slides.forEach(slide => {
-    if (slide.media_asset?.status === 'generated') successCount++;
-  });
-  if (updatedPlan.summary.visual_summary?.status === 'generated') successCount++;
-
-  console.log(`✅ Generated ${successCount}/${imagePromises.length} images successfully`);
+  // Log media budget compliance
+  console.log("📋 Media Budget Summary:");
+  console.log(`   • Hook: ${updatedPlan.hook.media_asset?.type === 'youtube_timestamp' ? 'YouTube' : 'None'}`);
+  console.log(`   • Slides: None (as per budget)`);
+  console.log(`   • Summary: ${updatedPlan.summary.visual_summary?.status === 'generated' ? 'Infographic ✓' : 'None'}`);
 
   return updatedPlan;
 };

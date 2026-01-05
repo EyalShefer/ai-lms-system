@@ -21,12 +21,15 @@ import { checkRateLimit } from "./middleware/rateLimiter";
 // --- GEMINI IMAGE GENERATION ---
 export { generateGeminiImage } from "./geminiImageService";
 
+// --- YOUTUBE EDUCATIONAL SEARCH ---
+export { searchYouTubeEducational, getYouTubeVideoDetails } from "./youtubeSearchService";
+
 // --- CONTROLLERS ---
 import { createAiController } from "./controllers/aiController";
 import { createExamController } from "./controllers/examController";
 
-const { generateTeacherLessonPlan, generateStepContent, generatePodcastScript } = createAiController(openAiApiKey);
-export { generateTeacherLessonPlan, generateStepContent, generatePodcastScript };
+const { generateTeacherLessonPlan, generateStepContent, generatePodcastScript, generateMindMapFromContent } = createAiController(openAiApiKey);
+export { generateTeacherLessonPlan, generateStepContent, generatePodcastScript, generateMindMapFromContent };
 
 const examController = createExamController(openAiApiKey);
 
@@ -121,6 +124,98 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
             res.status(500).send({ error: error.message });
         }
     });
+});
+
+// --- IMAGE ANALYSIS WITH VISION API ---
+/**
+ * Analyzes an uploaded image using GPT-4o Vision API
+ * Extracts educational content, text (OCR), diagrams, and relevant information
+ * Returns structured content that can be used for lesson/activity generation
+ */
+export const analyzeImageWithVision = onCall({ cors: true, secrets: [openAiApiKey], memory: "512MiB" }, async (request) => {
+    const { imageBase64, mimeType, context } = request.data;
+
+    if (!imageBase64 || !mimeType) {
+        throw new HttpsError('invalid-argument', 'Missing imageBase64 or mimeType');
+    }
+
+    logger.info(`🖼️ Analyzing image with Vision API (type: ${mimeType})`);
+
+    try {
+        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+
+        const systemPrompt = `You are an expert educational content analyzer. Analyze the provided image and extract ALL relevant educational information.
+
+Your task:
+1. **Text Extraction (OCR)**: Extract ALL visible text from the image, maintaining structure and hierarchy.
+2. **Content Analysis**: Identify the main educational topic, concepts, and key information.
+3. **Visual Elements**: Describe any diagrams, charts, graphs, illustrations, or visual aids.
+4. **Structure Detection**: Identify if this is a worksheet, textbook page, diagram, infographic, etc.
+5. **Educational Value**: Determine what can be learned from this image.
+
+Output in Hebrew JSON format:
+{
+    "extracted_text": "Full text extracted from the image...",
+    "main_topic": "Main educational topic",
+    "key_concepts": ["concept1", "concept2"],
+    "content_type": "worksheet | textbook | diagram | infographic | photo | chart | other",
+    "visual_elements": [
+        { "type": "diagram|chart|illustration|table", "description": "..." }
+    ],
+    "educational_summary": "Brief summary of educational content in Hebrew",
+    "suggested_questions": ["Question 1?", "Question 2?"],
+    "grade_level_estimate": "Estimated grade level in Hebrew (e.g., 'כיתה ז׳')",
+    "subject_area": "Subject area in Hebrew"
+}
+
+IMPORTANT:
+- Output MUST be in Hebrew
+- Extract text exactly as it appears (preserve Hebrew/English as-is)
+- Be thorough - don't miss any visible text or important visual elements
+- If the image is unclear or low quality, still try to extract what you can`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o", // Use GPT-4o for best vision capabilities
+            messages: [
+                { role: "system", content: systemPrompt },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: context ? `Context: ${context}\n\nAnalyze this educational image:` : "Analyze this educational image:"
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: `data:${mimeType};base64,${imageBase64}`,
+                                detail: "high" // High detail for better text extraction
+                            }
+                        }
+                    ]
+                }
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 4000,
+            temperature: 0.3
+        });
+
+        const resultText = response.choices[0].message.content || "{}";
+        const analysis = JSON.parse(resultText);
+
+        logger.info(`✅ Image analysis complete. Topic: ${analysis.main_topic}, Content type: ${analysis.content_type}`);
+
+        return {
+            success: true,
+            analysis,
+            // Also return the extracted text as sourceText for lesson generation
+            sourceText: analysis.extracted_text || analysis.educational_summary || ""
+        };
+
+    } catch (error: any) {
+        logger.error("❌ Vision API Error:", error);
+        throw new HttpsError('internal', `Image analysis failed: ${error.message}`);
+    }
 });
 
 // --- YOUTUBE TRANSCRIPTION FUNCTION ---

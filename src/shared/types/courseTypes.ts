@@ -19,7 +19,8 @@ export type ActivityBlockType =
     | 'podcast'
     | 'audio-response'
     | 'drag_and_drop'
-    | 'hotspot';
+    | 'hotspot'
+    | 'mindmap';
 
 export interface MultipleChoiceContent {
     question: string;
@@ -64,6 +65,49 @@ export interface HotspotContent {
         height: number;
         feedback: string;
     }[];
+}
+
+// --- Mind Map Types ---
+export interface MindMapNode {
+    id: string;
+    type: 'topic' | 'subtopic' | 'detail' | 'example';
+    data: {
+        label: string;
+        description?: string;
+        color?: string; // Hex color
+        icon?: string; // Tabler icon name
+    };
+    position: { x: number; y: number };
+    style?: Record<string, any>;
+}
+
+export interface MindMapEdge {
+    id: string;
+    source: string;
+    target: string;
+    type?: 'default' | 'smoothstep' | 'straight';
+    animated?: boolean;
+    label?: string;
+    style?: Record<string, any>;
+}
+
+export interface MindMapContent {
+    title: string;
+    nodes: MindMapNode[];
+    edges: MindMapEdge[];
+    viewport?: {
+        x: number;
+        y: number;
+        zoom: number;
+    };
+    layoutDirection?: 'TB' | 'LR' | 'RL'; // Top-Bottom, Left-Right, Right-Left (RTL default)
+}
+
+export interface MindMapMetadata {
+    generatedAt?: number;
+    lastEditedAt?: number;
+    sourceContentHash?: string; // For cache invalidation
+    aiModel?: string;
 }
 
 // Union of all strict content types
@@ -191,6 +235,12 @@ export interface AudioResponseBlock extends ActivityBlockBase {
     content: AudioResponseContent;
 }
 
+export interface MindMapBlock extends ActivityBlockBase {
+    type: 'mindmap';
+    content: MindMapContent;
+    metadata?: ActivityBlockMetadata & MindMapMetadata;
+}
+
 export type ActivityBlock =
     | MultipleChoiceBlock
     | OpenQuestionBlock
@@ -198,9 +248,9 @@ export type ActivityBlock =
     | CategorizationBlock
     | MediaBlock
     | GenericBlock
-    | GenericBlock
     | PodcastBlock
-    | AudioResponseBlock;
+    | AudioResponseBlock
+    | MindMapBlock;
 
 export interface LearningUnit {
     id: string;

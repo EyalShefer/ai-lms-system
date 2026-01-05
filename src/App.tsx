@@ -8,6 +8,8 @@ import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'fireba
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { generateCoursePlan } from './gemini';
 import type { Assignment } from './courseTypes';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebase';
 
 // --- Lazy Loading ---
 const HomePage = React.lazy(() => import('./components/HomePage'));
@@ -30,19 +32,82 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
+// Result type for PDF extraction
+interface PDFExtractionResult {
+  text: string;
+  pageImages: Array<{ pageNum: number; base64: string; mimeType: string }>;
+  hasImages: boolean;
+}
+
 const extractTextFromPDF = async (file: File): Promise<string> => {
+  const result = await extractTextAndImagesFromPDF(file);
+  return result.text;
+};
+
+// Enhanced PDF extraction - extracts both text and renders pages as images
+const extractTextAndImagesFromPDF = async (file: File): Promise<PDFExtractionResult> => {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = "";
+  const pageImages: Array<{ pageNum: number; base64: string; mimeType: string }> = [];
+
   // Limit to 5 pages
   const maxPages = Math.min(pdf.numPages, 5);
+
   for (let i = 1; i <= maxPages; i++) {
     const page = await pdf.getPage(i);
+
+    // Extract text
     const textContent = await page.getTextContent();
     const pageText = textContent.items.map((item: any) => item.str).join(' ');
     fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+
+    // Check if page has minimal text (likely image-heavy or scanned)
+    const textLength = pageText.trim().length;
+
+    // Render page as image if it has little text (< 100 chars) or is the first page
+    // First page often has important diagrams/headers
+    if (textLength < 100 || i === 1) {
+      try {
+        const scale = 1.5; // Good balance between quality and size
+        const viewport = page.getViewport({ scale });
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        if (context) {
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          // Render page to canvas
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+
+          // Convert to base64 (JPEG for smaller size)
+          const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+          pageImages.push({
+            pageNum: i,
+            base64,
+            mimeType: 'image/jpeg'
+          });
+
+          console.log(`📸 Rendered page ${i} as image (text length: ${textLength})`);
+        }
+      } catch (renderError) {
+        console.warn(`Failed to render page ${i} as image:`, renderError);
+      }
+    }
   }
-  return fullText;
+
+  return {
+    text: fullText,
+    pageImages,
+    hasImages: pageImages.length > 0
+  };
 };
 
 // --- Icons ---
@@ -209,10 +274,92 @@ const AuthenticatedApp = () => {
         // 2. עיבוד עבור ה-AI
         try {
           if (file.type === 'application/pdf') {
-            aiSourceText = await extractTextFromPDF(file);
-            // console.log("PDF Text Extracted");
+            // Enhanced PDF extraction with images
+            console.log("📄 Processing PDF with enhanced extraction...");
+            const pdfResult = await extractTextAndImagesFromPDF(file);
+            aiSourceText = pdfResult.text;
+
+            // If PDF has pages rendered as images (scanned/image-heavy), analyze them
+            if (pdfResult.hasImages && pdfResult.pageImages.length > 0) {
+              console.log(`🖼️ PDF has ${pdfResult.pageImages.length} image pages - sending to Vision API...`);
+
+              try {
+                const analyzeImageFn = httpsCallable(functions, 'analyzeImageWithVision');
+
+                // Analyze each page image (limit to 3 to avoid timeout)
+                const imagesToAnalyze = pdfResult.pageImages.slice(0, 3);
+                const visionResults = await Promise.all(
+                  imagesToAnalyze.map(async (pageImg) => {
+                    try {
+                      const result = await analyzeImageFn({
+                        imageBase64: pageImg.base64,
+                        mimeType: pageImg.mimeType,
+                        context: `PDF Page ${pageImg.pageNum} - ${wizardData.topic || wizardData.title || fileName}`
+                      });
+                      return { pageNum: pageImg.pageNum, data: result.data as any };
+                    } catch (e) {
+                      console.warn(`Vision failed for page ${pageImg.pageNum}:`, e);
+                      return null;
+                    }
+                  })
+                );
+
+                // Combine Vision results with extracted text
+                const validResults = visionResults.filter(r => r && r.data?.success);
+                if (validResults.length > 0) {
+                  let visionText = "\n\n--- תוכן מתמונות (Vision AI) ---\n";
+                  const allAnalysis: any[] = [];
+
+                  validResults.forEach((result) => {
+                    if (result && result.data) {
+                      visionText += `\n[עמוד ${result.pageNum}]\n`;
+                      visionText += result.data.sourceText || result.data.analysis?.educational_summary || "";
+                      visionText += "\n";
+
+                      if (result.data.analysis) {
+                        allAnalysis.push({
+                          page: result.pageNum,
+                          ...result.data.analysis
+                        });
+                      }
+                    }
+                  });
+
+                  // Append Vision text to PDF text
+                  aiSourceText += visionText;
+                  (wizardData as any).pdfImageAnalysis = allAnalysis;
+
+                  console.log(`✅ Vision analysis added from ${validResults.length} pages. Total text: ${aiSourceText.length} chars`);
+                }
+              } catch (visionError) {
+                console.warn("⚠️ PDF Vision analysis failed, using text only:", visionError);
+              }
+            }
           } else if (file.type.startsWith('image/')) {
+            // NEW: Analyze image with Vision API
+            console.log("🖼️ Analyzing image with Vision API...");
             aiFileData = await fileToGenerativePart(file);
+
+            try {
+              const analyzeImageFn = httpsCallable(functions, 'analyzeImageWithVision');
+              const visionResult = await analyzeImageFn({
+                imageBase64: aiFileData.base64,
+                mimeType: aiFileData.mimeType,
+                context: wizardData.topic || wizardData.title
+              });
+
+              const visionData = visionResult.data as any;
+              if (visionData.success && visionData.sourceText) {
+                aiSourceText = visionData.sourceText;
+                console.log("✅ Image analyzed successfully. Extracted text length:", aiSourceText.length);
+
+                // Store analysis metadata for later use
+                (wizardData as any).imageAnalysis = visionData.analysis;
+              }
+            } catch (visionError) {
+              console.warn("⚠️ Vision API failed, falling back to basic image handling:", visionError);
+              // Keep aiFileData for fallback
+            }
           } else if (file.type === 'text/plain') {
             aiSourceText = await file.text();
           }

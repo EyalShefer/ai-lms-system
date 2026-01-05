@@ -87,6 +87,17 @@ export const getSkeletonPrompt = (
     6. **Structure Guide:**
     ${structureGuide}
 
+    9. **INTERACTION DIVERSITY RULE (CRITICAL - NO REPETITION):**
+       - You MUST vary the interaction types across steps. NEVER use the same type twice in a row.
+       - **Available Types by Bloom Level:**
+         * Remember: memory_game, multiple_choice, true_false, fill_in_blank
+         * Understand: multiple_choice, fill_in_blank, matching
+         * Apply: categorization, ordering, fill_in_blank
+         * Analyze: categorization, ordering, open_question
+         * Evaluate/Create: open_question
+       - **Diversity Algorithm:** If Step N uses "multiple_choice", Step N+1 MUST use a DIFFERENT type.
+       - **Distribution Target:** For ${stepCount} steps, aim for at least 3 different interaction types.
+
     Output JSON Structure:
     {
       "unit_title": "String",
@@ -97,10 +108,28 @@ export const getSkeletonPrompt = (
           "narrative_focus": "${mode === 'exam' ? 'Assessment Topic A' : 'Discuss ONLY [Specific Concept A]'} . Do not mention [Concept B].",
           "forbidden_topics": ["Concept B", "Concept C", "Future Events"],
           "bloom_level": "Remember",
-          "suggested_interaction_type": "${mode === 'exam' ? 'multiple_choice' : 'memory_game'}"
+          "suggested_interaction_type": "memory_game"
+        },
+        {
+          "step_number": 2,
+          "title": "Unique Title for Chunk B",
+          "narrative_focus": "...",
+          "forbidden_topics": ["..."],
+          "bloom_level": "Understand",
+          "suggested_interaction_type": "fill_in_blank"
+        },
+        {
+          "step_number": 3,
+          "title": "Unique Title for Chunk C",
+          "narrative_focus": "...",
+          "forbidden_topics": ["..."],
+          "bloom_level": "Apply",
+          "suggested_interaction_type": "categorization"
         }
       ]
     }
+
+    **IMPORTANT:** The example above shows DIFFERENT interaction types for each step. Follow this pattern!
   `;
 
 export const getStepContentPrompt = (

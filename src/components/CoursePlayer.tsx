@@ -10,6 +10,7 @@ import { submitAssignment } from '../services/submissionService';
 import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../services/ai/geminiApi';
 import type { DialogueScript } from '../shared/types/gemini.types';
 import { PodcastPlayer } from './PodcastPlayer';
+import MindMapViewer from './MindMapViewer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ClozeQuestion from './ClozeQuestion';
@@ -1112,6 +1113,29 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
             case 'interactive-chat': return <InteractiveChatBlock key={block.id} block={block} context={{ unitTitle: activeUnit?.title || "", unitContent: "" }} forcedHistory={reviewMode ? studentData?.chatHistory : undefined} readOnly={reviewMode} />;
 
+            case 'mindmap':
+                return (
+                    <div key={block.id} className="mb-8">
+                        <MindMapViewer
+                            content={block.content}
+                            title={block.content.title || 'מפת חשיבה'}
+                            className="shadow-lg"
+                        />
+                        {/* Feedback Loop Widget */}
+                        {!isExamMode && (
+                            <div className="flex justify-start mt-4">
+                                <FeedbackWidget
+                                    courseId={course.id}
+                                    unitId={activeUnit?.id || "unknown"}
+                                    blockId={block.id}
+                                    blockType={block.type}
+                                    userId={currentUser?.uid || "anonymous"}
+                                />
+                            </div>
+                        )}
+                    </div>
+                );
+
             case 'multiple-choice':
                 const mcMedia = getMediaSrc();
                 const showFeedback = reviewMode || (feedbackVisible[block.id] && !isExamMode);
@@ -1444,10 +1468,22 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         // Find the active unit to display in Cockpit
         const unit = activeUnit || course?.syllabus?.[0]?.learningUnits?.[0];
         if (unit) {
+            // Smart fallback for onExit
+            const handleExit = () => {
+                console.log('🔙 CoursePlayer TeacherCockpit onExit called');
+                if (onExitReview) {
+                    onExitReview();
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = '/';
+                }
+            };
+
             return (
                 <TeacherCockpit
                     unit={unit}
-                    onExit={onExitReview || (() => window.history.back())}
+                    onExit={handleExit}
                     onEdit={() => {
                         // If we are in review mode (preview), we just close or signal edit
                         if (onExitReview) onExitReview();

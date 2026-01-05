@@ -859,10 +859,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                 <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm print:hidden shrink-0 z-20">
                     <div className="flex items-center gap-4">
                         <button onClick={() => {
+                            console.log('🔙 Back button clicked, onExit:', typeof onExit);
                             if (onExit) {
                                 onExit();
                             } else {
-                                window.history.back();
+                                // Fallback: try history.back, then reload to root
+                                if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.href = '/';
+                                }
                             }
                         }} className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors" title="חזרה לבית">
                             <IconChevronRight className="w-5 h-5" />
@@ -892,10 +898,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, onExit, onEdit, o
                         <div className="h-8 w-px bg-slate-200 mx-2"></div>
 
                         <button onClick={() => {
+                            console.log('❌ Exit button clicked, onExit:', typeof onExit);
                             if (onExit) {
                                 onExit();
                             } else {
-                                window.history.back();
+                                // Fallback: try history.back, then reload to root
+                                if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.href = '/';
+                                }
                             }
                         }} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
                             <IconX className="w-6 h-6" />

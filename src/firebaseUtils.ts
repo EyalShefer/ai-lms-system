@@ -3,6 +3,11 @@ import { doc, getDoc, setDoc, writeBatch, collection, getDocs } from "firebase/f
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { Course } from "./shared/types/courseTypes";
 
+// Debounce state for saveCourseToFirestore
+const SAVE_DEBOUNCE_MS = 2500;
+let saveTimeout: NodeJS.Timeout | null = null;
+let pendingCourse: Course | null = null;
+
 // פונקציית עזר לניקוי נתונים לפני שמירה (מונעת קריסות של undefined ב-Firestore)
 const cleanDataForFirestore = (data: any): any => {
     if (Array.isArray(data)) {
@@ -18,10 +23,8 @@ const cleanDataForFirestore = (data: any): any => {
     return data;
 };
 
-// שמירת קורס/מערך שיעור (Split to Sub-collections)
-export const saveCourseToFirestore = async (course: Course) => {
-    if (!course.id) throw new Error("Course ID is missing");
-
+// Internal function that actually performs the save
+const executeSave = async (course: Course) => {
     const batch = writeBatch(db);
     const courseRef = doc(db, "courses", course.id);
 
@@ -59,9 +62,57 @@ export const saveCourseToFirestore = async (course: Course) => {
         });
     });
 
+    await batch.commit();
+    console.log("✅ Lesson plan (split) saved successfully:", course.id);
+};
+
+// שמירת קורס/מערך שיעור (Split to Sub-collections) - WITH DEBOUNCE
+export const saveCourseToFirestore = async (course: Course): Promise<void> => {
+    if (!course.id) throw new Error("Course ID is missing");
+
+    // Store the latest course to save
+    pendingCourse = course;
+
+    // Return a promise that resolves when the debounced save completes
+    return new Promise((resolve, reject) => {
+        // Clear existing timeout
+        if (saveTimeout) {
+            clearTimeout(saveTimeout);
+        }
+
+        // Set new debounced save
+        saveTimeout = setTimeout(async () => {
+            const courseToSave = pendingCourse;
+            if (!courseToSave) {
+                resolve();
+                return;
+            }
+
+            try {
+                await executeSave(courseToSave);
+                pendingCourse = null;
+                resolve();
+            } catch (error) {
+                console.error("Error saving lesson plan:", error);
+                reject(error);
+            }
+        }, SAVE_DEBOUNCE_MS);
+    });
+};
+
+// Force immediate save (use sparingly - for critical saves like wizard completion)
+export const saveCourseToFirestoreImmediate = async (course: Course): Promise<void> => {
+    if (!course.id) throw new Error("Course ID is missing");
+
+    // Clear any pending debounced save
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+    }
+    pendingCourse = null;
+
     try {
-        await batch.commit();
-        console.log("Lesson plan (split) saved successfully:", course.id);
+        await executeSave(course);
     } catch (error) {
         console.error("Error saving lesson plan:", error);
         throw error;

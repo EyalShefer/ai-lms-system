@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { Course, LearningUnit } from '../courseTypes';
 import { db } from '../firebase';
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
@@ -6,6 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
 import * as GamificationService from '../services/gamificationService';
 import type { GamificationProfile } from '../courseTypes';
+
+// Debounce delay for Firestore saves (prevents write stream exhaustion)
+const SAVE_DEBOUNCE_MS = 2000;
 
 const initialEmptyCourse: Course = {
     id: 'loading',
@@ -91,6 +94,10 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Gamification State
     const [gamificationProfile, setGamificationProfile] = useState<GamificationProfile | null>(null);
 
+    // Debounce refs for Firestore saves
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const pendingSaveRef = useRef<{ course: Course; bookContent: string; pdf: string | null } | null>(null);
+
     // Load Gamification Profile
     useEffect(() => {
         if (!currentUser) {
@@ -165,21 +172,50 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return () => unsubscribe();
     }, [currentCourseId]);
 
-    const saveToCloud = React.useCallback(async (newCourse: Course, newBookContent: string, newPdf: string | null) => {
+    // Debounced save to Firestore - prevents write stream exhaustion
+    const saveToCloud = React.useCallback((newCourse: Course, newBookContent: string, newPdf: string | null) => {
         if (!currentCourseId) return;
-        try {
-            const { id, ...courseFields } = newCourse;
-            // מנקים undefined כדי שפיירבייס לא יצעק
-            const cleanFields = JSON.parse(JSON.stringify(courseFields));
 
-            await setDoc(doc(db, "courses", currentCourseId), {
-                ...cleanFields,
-                fullBookContent: newBookContent,
-                pdfSource: newPdf,
-                lastUpdated: new Date()
-            }, { merge: true });
-        } catch (e) { console.error("Error saving:", e); }
+        // Store the latest data to save
+        pendingSaveRef.current = { course: newCourse, bookContent: newBookContent, pdf: newPdf };
+
+        // Clear existing timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Set new debounced save
+        saveTimeoutRef.current = setTimeout(async () => {
+            const pending = pendingSaveRef.current;
+            if (!pending) return;
+
+            try {
+                const { id, ...courseFields } = pending.course;
+                // מנקים undefined כדי שפיירבייס לא יצעק
+                const cleanFields = JSON.parse(JSON.stringify(courseFields));
+
+                await setDoc(doc(db, "courses", currentCourseId), {
+                    ...cleanFields,
+                    fullBookContent: pending.bookContent,
+                    pdfSource: pending.pdf,
+                    lastUpdated: new Date()
+                }, { merge: true });
+                console.log("✅ Course saved to Firestore (debounced)");
+            } catch (e) {
+                console.error("Error saving:", e);
+            }
+            pendingSaveRef.current = null;
+        }, SAVE_DEBOUNCE_MS);
     }, [currentCourseId]);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const setCourse = React.useCallback((newCourse: Course | ((prev: Course) => Course)) => {
         setCourseState((prevCourse) => {
