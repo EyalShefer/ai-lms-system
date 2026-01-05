@@ -205,6 +205,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     });
 
     const handleCopyLinkClick = () => {
+        // Warn if there are unsaved changes
+        if (isDirty) {
+            const proceed = confirm(
+                '⚠️ יש שינויים שלא נשמרו!\n\n' +
+                'אם תיצרו קישור עכשיו, הקישור יפנה לגרסה ללא השינויים האחרונים.\n\n' +
+                'מומלץ ללחוץ "שמירה" קודם, או לחצו "אישור" להמשיך בכל זאת.'
+            );
+            if (!proceed) return;
+        }
         setAssignmentData(prev => ({ ...prev, title: `הגשה: ${unit.title || editedUnit.title}` }));
         setAssignmentModalOpen(true);
     };
@@ -1178,8 +1187,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         </button>
                     )}
 
-                    <button onClick={handleCopyLinkClick} className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2">
-                        <IconLink className="w-4 h-4" /> קישור לתלמיד
+                    <button
+                        onClick={handleCopyLinkClick}
+                        className={`px-5 py-2 text-sm flex items-center gap-2 rounded-xl font-bold transition-all ${
+                            isDirty
+                                ? 'bg-amber-50 text-amber-600 border-2 border-amber-300 hover:bg-amber-100'
+                                : 'btn-lip-primary'
+                        }`}
+                        title={isDirty ? 'יש שינויים לא שמורים - מומלץ לשמור קודם' : 'צור קישור לתלמידים'}
+                    >
+                        <IconLink className={`w-4 h-4 ${isDirty ? 'animate-pulse' : ''}`} />
+                        {isDirty ? 'שמור לפני שיתוף!' : 'קישור לתלמיד'}
                     </button>
 
                     <button

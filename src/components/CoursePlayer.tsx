@@ -1707,11 +1707,11 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     {/* --- Split View Side Panel (Source Text) --- */}
                     {showSplitView && (
                         <div className="fixed inset-0 z-[100] md:z-auto md:static w-full md:w-1/2 h-full md:h-[85vh] md:sticky md:top-24 bg-white md:rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
-                            <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
+                            <div className="bg-gray-50 border-b p-2 md:p-4 flex justify-between items-center shrink-0">
                                 <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
-                                <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5" /></button>
+                                <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600 p-2"><IconX className="w-5 h-5" /></button>
                             </div>
-                            <div className="flex-1 overflow-y-auto bg-gray-50 h-full relative">
+                            <div className="flex-1 overflow-y-auto bg-gray-50 relative min-h-0">
                                 {course.pdfSource ? (
                                     <iframe
                                         src={course.pdfSource}
@@ -1747,7 +1747,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     )}
 
                     {/* --- Main Content Area --- */}
-                    <main className={"transition-all duration-500 " + (showSplitView ? "w-full md:w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "p-4 md:p-0" : "p-4 md:p-10") + " pb-48"}>
+                    <main className={"transition-all duration-500 " + (showSplitView ? "w-full md:w-1/2 hidden md:block" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "p-4 md:p-0" : "p-4 md:p-10") + " pb-48"}>
                         {activeUnit ? (
                             <>
                                 <header className="mb-8 text-center">

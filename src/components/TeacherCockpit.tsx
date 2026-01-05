@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic } from '../icons';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
@@ -86,12 +86,19 @@ const BlockIconRenderer: React.FC<{ blockType: string; blockIndex: number; total
     return <Icon className={className} />;
 };
 
+// Debounce delay - should match CourseContext SAVE_DEBOUNCE_MS
+const SAVE_DEBOUNCE_MS = 2000;
+
 const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
     const [activeSection, setActiveSection] = useState<string>('all');
     const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
     const [isRefining, setIsRefining] = useState(false);
     const [refinePrompt, setRefinePrompt] = useState("");
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
+
+    // Track unsaved changes (for share warning)
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const unsavedTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
     // Media State
     const [mediaInputMode, setMediaInputMode] = useState<Record<string, string | null>>({});
@@ -107,10 +114,32 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         visualType: InfographicType;
     } | null>(null);
 
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (unsavedTimeoutRef.current) {
+                clearTimeout(unsavedTimeoutRef.current);
+            }
+        };
+    }, []);
+
     // --- CRUD Helpers ---
+    const markAsUnsaved = () => {
+        setHasUnsavedChanges(true);
+        // Clear existing timeout
+        if (unsavedTimeoutRef.current) {
+            clearTimeout(unsavedTimeoutRef.current);
+        }
+        // Auto-clear after debounce period (when save should be complete)
+        unsavedTimeoutRef.current = setTimeout(() => {
+            setHasUnsavedChanges(false);
+        }, SAVE_DEBOUNCE_MS + 500); // Add 500ms buffer
+    };
+
     const updateUnitBlocks = (newBlocks: ActivityBlock[]) => {
         if (onUnitUpdate) {
             onUnitUpdate({ ...unit, activityBlocks: newBlocks });
+            markAsUnsaved();
         } else if (onUpdateBlock) {
             console.warn("Using Legacy onUpdateBlock - Full CRUD not supported properly without onUnitUpdate");
         }
@@ -218,6 +247,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     };
 
     const handleShare = async () => {
+        // Check for unsaved changes and warn user
+        if (hasUnsavedChanges) {
+            const proceed = confirm(
+                '⚠️ יש שינויים שעדיין נשמרים!\n\n' +
+                'אם תשתפו עכשיו, הקישור עלול להפנות לגרסה ללא השינויים האחרונים.\n\n' +
+                'המתינו מספר שניות ונסו שוב, או לחצו "אישור" להמשיך בכל זאת.'
+            );
+            if (!proceed) return;
+        }
+
         // Build proper student share URL with courseId and unitId
         let shareUrl = window.location.href;
         if (courseId) {
@@ -983,9 +1022,17 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
                     <div className="flex items-center gap-3">
                         {/* Share Button */}
-                        <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl font-bold transition shadow-sm border border-transparent hover:border-slate-200">
-                            <IconShare className="w-5 h-5" />
-                            <span className="hidden md:inline">שתף</span>
+                        <button
+                            onClick={handleShare}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition shadow-sm border ${
+                                hasUnsavedChanges
+                                    ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                    : 'text-slate-600 hover:bg-slate-50 border-transparent hover:border-slate-200'
+                            }`}
+                            title={hasUnsavedChanges ? 'יש שינויים שעדיין נשמרים...' : 'שתף קישור לתלמידים'}
+                        >
+                            <IconShare className={`w-5 h-5 ${hasUnsavedChanges ? 'animate-pulse' : ''}`} />
+                            <span className="hidden md:inline">{hasUnsavedChanges ? 'שומר...' : 'שתף'}</span>
                         </button>
 
                         {/* Export PDF Button */}

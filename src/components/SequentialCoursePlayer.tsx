@@ -31,6 +31,8 @@ import TrueFalseQuestion from './TrueFalseQuestion';
 import { PodcastPlayer } from './PodcastPlayer';
 import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { InfographicViewer } from './InfographicViewer';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 
 interface SequentialPlayerProps {
@@ -585,15 +587,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             case 'text':
                 return (
                     <div className="space-y-8 text-right w-full max-w-4xl mx-auto" dir="rtl">
-                        <div className="text-slate-800">
-                            {currentBlock.content.split('\n').map((line: string, i: number) => {
-                                if (!line.trim()) return <br key={i} />;
-                                // Header detection logic (basic)
-                                if (line.startsWith('#')) {
-                                    return <h2 key={i} className="text-3xl md:text-5xl font-black mb-6 text-indigo-600">{line.replace(/^#+\s*/, '')}</h2>;
-                                }
-                                return <p key={i} className="text-2xl md:text-3xl leading-relaxed font-bold mb-6 text-slate-700">{line}</p>;
-                            })}
+                        <div className="text-slate-800 prose prose-lg md:prose-2xl max-w-none prose-headings:text-indigo-600 prose-headings:font-black prose-p:text-slate-700 prose-p:font-bold prose-p:leading-relaxed prose-strong:text-indigo-700">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {currentBlock.content}
+                            </ReactMarkdown>
                         </div>
                     </div>
                 );
@@ -755,74 +752,48 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         </div>
                     </div>
 
-                    {/* Central Progress Bar with Markers */}
-                    <div className="flex-1 mx-8 max-w-md hidden md:block relative group h-6 mt-2">
-                        {/* Markers Icons (Floating Above) */}
-                        <div className="absolute -top-10 left-0 right-0 h-8 pointer-events-none w-full">
-                            {playbackQueue.map((block, idx) => {
-                                const isCompleted = idx < currentIndex;
-                                const isCurrent = idx === currentIndex;
-                                const result = stepResults[block.id];
+                    {/* Simplified Progress Bar with Current Step Icon */}
+                    <div className="flex-1 mx-4 max-w-lg hidden md:flex items-center gap-4">
+                        {/* Current Step Icon (Large) */}
+                        {currentBlock && (() => {
+                            const CurrentIcon = getIconForBlockType(currentBlock.type);
+                            return (
+                                <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shadow-lg backdrop-blur-sm">
+                                    <CurrentIcon className="w-6 h-6 text-yellow-300 drop-shadow-md" />
+                                </div>
+                            );
+                        })()}
 
-                                // Use centralized icon mapping for consistency with Teacher Cockpit
-                                const Icon = getIconForBlockType(block.type);
+                        {/* Progress Dots & Bar Container */}
+                        <div className="flex-1 flex flex-col gap-2">
+                            {/* Simple Colored Dots */}
+                            <div className="flex items-center justify-center gap-1">
+                                {playbackQueue.map((block, idx) => {
+                                    const isCompleted = idx < currentIndex;
+                                    const isCurrent = idx === currentIndex;
+                                    const result = stepResults[block.id];
 
-                                // Styling
-                                let iconColor = "text-white/30";
-                                let scale = "scale-75";
-                                if (isCurrent) {
-                                    iconColor = "text-yellow-300";
-                                    scale = "scale-150 drop-shadow-[0_0_8px_rgba(253,224,71,0.6)]";
-                                } else if (isCompleted) {
-                                    // Check result from stepResults
-                                    if (result === 'success') iconColor = "text-green-400";
-                                    else if (result === 'failure') iconColor = "text-red-400";
-                                    else iconColor = "text-lime-400"; // Default completed
-                                    scale = "scale-100 opacity-90";
-                                }
+                                    let dotColor = "bg-white/30"; // Future
+                                    if (isCurrent) {
+                                        dotColor = "bg-yellow-400 ring-2 ring-yellow-300 ring-offset-1 ring-offset-blue-600";
+                                    } else if (isCompleted) {
+                                        if (result === 'success') dotColor = "bg-green-400";
+                                        else if (result === 'failure') dotColor = "bg-red-400";
+                                        else dotColor = "bg-green-400"; // Viewed/completed
+                                    }
 
-                                // Position Calculation (RTL Friendly)
-                                const total = playbackQueue.length;
-                                // Prevent division by zero if total <= 1
-                                const percentage = total > 1 ? (idx / (total - 1)) * 100 : 50;
+                                    return (
+                                        <div
+                                            key={`dot-${block.id}`}
+                                            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${dotColor} ${isCurrent ? 'scale-125' : ''}`}
+                                        />
+                                    );
+                                })}
+                            </div>
 
-                                return (
-                                    <div
-                                        key={`icon-${block.id}`}
-                                        className={`absolute top-0 flex flex-col items-center justify-center transition-all duration-500 ${iconColor} ${scale}`}
-                                        style={{ right: `${percentage}%`, transform: 'translateX(50%)' }}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        {isCurrent && <div className="mt-1 w-1 h-1 bg-yellow-300 rounded-full animate-ping" />}
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Ticks on the Bar (Simplified) */}
-                        <div className="absolute top-1 left-0 right-0 h-4 pointer-events-none w-full">
-                            {playbackQueue.map((block, idx) => {
-                                const isCurrent = idx === currentIndex;
-                                const total = playbackQueue.length;
-                                const percentage = total > 1 ? (idx / (total - 1)) * 100 : 50;
-
-                                return (
-                                    <div
-                                        key={`tick-${idx}`}
-                                        className={`absolute top-0 w-0.5 h-4 bg-white/20 rounded-full transition-all ${isCurrent ? 'bg-yellow-300 h-5 -mt-0.5 shadow-[0_0_8px_yellow]' : ''}`}
-                                        style={{ right: `${percentage}%`, transform: 'translateX(50%)' }}
-                                    />
-                                )
-                            })}
-                        </div>
-
-                        {/* The Bar Itself */}
-                        <div className="h-4 bg-black/20 rounded-full overflow-hidden p-1 backdrop-blur-sm shadow-inner relative z-0">
-                            <div
-                                className="h-full bg-gradient-to-l from-lime-400 to-green-500 rounded-full transition-all duration-500 shadow-[0_0_15px_rgba(163,230,53,0.5)] relative"
-                                style={{ width: `${((currentIndex + 1) / playbackQueue.length) * 100}%` }}
-                            >
-                                <div className="absolute inset-0 bg-white/30 animate-pulse-slow"></div>
+                            {/* Step Counter Text */}
+                            <div className="text-center text-white/80 text-sm font-medium">
+                                שלב {currentIndex + 1} מתוך {playbackQueue.length}
                             </div>
                         </div>
                     </div>

@@ -246,9 +246,17 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                                 <IconCheck className="w-6 h-6" /> כל הכבוד! הסדר נכון
                             </span>
                         ) : (
-                            <span className="text-red-500 flex items-center justify-center gap-2">
-                                <IconX className="w-6 h-6" /> הסדר שגוי, נסה שוב
-                            </span>
+                            <div className="space-y-4">
+                                <span className="text-red-500 flex items-center justify-center gap-2">
+                                    <IconX className="w-6 h-6" /> הסדר שגוי, נסה שוב
+                                </span>
+                                <button
+                                    onClick={() => setIsSubmitted(false)}
+                                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
+                                >
+                                    נסה שוב
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
