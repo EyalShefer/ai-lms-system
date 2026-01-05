@@ -43,6 +43,11 @@ import { db } from '../firebase';
 import { createPortal } from 'react-dom';
 import InspectorBadge from './InspectorBadge';
 import InspectorDashboard from './InspectorDashboard';
+import YouTubeSearchModal from './YouTubeSearchModal';
+import { YouTubeVideoResult } from '../services/youtubeService';
+import MindMapEditor from './MindMapEditor';
+import MindMapGeneratorModal from './MindMapGeneratorModal';
+import type { MindMapContent } from '../shared/types/courseTypes';
 
 const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
@@ -57,7 +62,8 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'memory_game': 'משחק זיכרון',
     'true_false_speed': 'אמת או שקר',
     'matching': 'התאמה',
-    'audio-response': 'תשובה קולית'
+    'audio-response': 'תשובה קולית',
+    'mindmap': 'מפת חשיבה'
 };
 
 // --- הגדרות מקומיות ---
@@ -128,6 +134,55 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     // --- Podcast Custom Source State ---
     const [podcastSourceMode, setPodcastSourceMode] = useState<Record<string, 'full' | 'custom'>>({});
     const [podcastCustomText, setPodcastCustomText] = useState<Record<string, string>>({});
+
+    // --- YouTube Search Modal State ---
+    const [youtubeSearchOpen, setYoutubeSearchOpen] = useState(false);
+    const [youtubeSearchBlockId, setYoutubeSearchBlockId] = useState<string | null>(null);
+
+    // --- Mind Map Modal State ---
+    const [mindMapModalOpen, setMindMapModalOpen] = useState(false);
+    const [mindMapBlockId, setMindMapBlockId] = useState<string | null>(null);
+
+    // Handler for YouTube video selection
+    const handleYouTubeVideoSelect = async (video: YouTubeVideoResult) => {
+        const blockId = youtubeSearchBlockId;
+        if (!blockId) return;
+
+        setLoadingBlockId(blockId);
+
+        try {
+            // Try to get transcript
+            let transcript = "";
+            try {
+                const text = await MultimodalService.processYoutubeUrl(video.watchUrl);
+                if (text) transcript = text;
+            } catch (e) {
+                console.warn("Could not get transcript for YouTube video:", e);
+            }
+
+            const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+            if (block) {
+                updateBlock(blockId, block.content, {
+                    media: video.embedUrl,
+                    mediaType: 'video',
+                    transcript,
+                    videoId: video.videoId,
+                    videoTitle: video.title,
+                    channelTitle: video.channelTitle,
+                    duration: video.duration,
+                    thumbnailUrl: video.thumbnailUrl,
+                    hasCaptions: video.hasCaptions,
+                    educationalScore: video.educationalScore,
+                    source: 'youtube-search'
+                });
+            }
+        } catch (e) {
+            console.error("Error embedding YouTube video:", e);
+        } finally {
+            setLoadingBlockId(null);
+            setMediaInputMode({ ...mediaInputMode, [blockId]: null });
+        }
+    };
 
     // Unsaved Changes Protection
     const handleBack = () => {
@@ -903,12 +958,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             );
         }
 
-        // 3. תפריט משנה לוידאו (העלאה או קישור)
+        // 3. תפריט משנה לוידאו (העלאה, קישור, או חיפוש YouTube)
         if (mode === 'video_select') {
             return (
                 <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
+                    <button onClick={() => { setYoutubeSearchBlockId(blockId); setYoutubeSearchOpen(true); }} className={`${mediaBtnClass} bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border-red-200`}><IconVideo className="w-4 h-4" /> חפש YouTube</button>
                     <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="video/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
-                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'video_link' })} className={mediaBtnClass}><IconLink className="w-4 h-4" /> קישור</button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'video_link' })} className={mediaBtnClass}><IconLink className="w-4 h-4" /> קישור ידני</button>
                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
                 </div>
             );
@@ -1013,6 +1069,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
                         <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+                        <button onClick={() => addBlockAtIndex('mindmap', index)} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
 
                         <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
                     </div>
@@ -1031,9 +1088,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const renderEmbeddedMedia = (blockId: string, metadata: any) => {
         if (!metadata?.media) return null;
         return (
-            <div className="mb-4 relative rounded-xl overflow-hidden border border-gray-200 group">
+            <div className="mb-4 relative rounded-xl overflow-hidden border border-gray-200">
                 {metadata.mediaType === 'video' ? <video src={metadata.media} controls className="w-full h-48 bg-black" /> : <img src={metadata.media} alt="מדיה" className="w-full h-48 object-cover bg-gray-50" />}
-                <button onClick={() => { const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId); if (block) updateBlock(blockId, block.content, { media: null, mediaType: null }); }} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full text-red-500 hover:bg-white hover:text-red-600 transition-colors shadow-sm opacity-0 group-hover:opacity-100"><IconTrash className="w-4 h-4" /></button>
+                <button onClick={() => { const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId); if (block) updateBlock(blockId, block.content, { media: null, mediaType: null }); }} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-md border border-red-200" title="הסר מדיה"><IconTrash className="w-4 h-4" /></button>
             </div>
         );
     };
@@ -1252,6 +1309,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 ) : (
                                                     <div className="relative">
                                                         <img src={block.content} className="w-full h-64 object-cover rounded-xl shadow-md bg-gray-100" alt="Block Media" />
+                                                        <button
+                                                            onClick={() => updateBlock(block.id, '', { caption: null, mediaType: null, aiPrompt: null, uploadedFileUrl: null, fileName: null })}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-md border border-red-200"
+                                                            title="הסר תמונה"
+                                                        >
+                                                            <IconTrash className="w-4 h-4" />
+                                                        </button>
                                                         <div className="mt-3">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none p-1 text-sm text-center text-gray-600 placeholder-gray-400" placeholder="הוסיפו כיתוב לתמונה..." value={block.metadata?.caption || ''} onChange={(e) => updateBlock(block.id, block.content, { caption: e.target.value })} />
                                                         </div>
@@ -1362,6 +1426,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         ) : (
                                                             <video src={block.content} controls className="w-full h-64 bg-black rounded-xl shadow-md" />
                                                         )}
+                                                        <button
+                                                            onClick={() => updateBlock(block.id, '', { caption: null, mediaType: null, transcript: null, videoId: null, videoTitle: null, channelTitle: null, duration: null, thumbnailUrl: null, hasCaptions: null, educationalScore: null, source: null })}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-md border border-red-200"
+                                                            title="הסר וידאו"
+                                                        >
+                                                            <IconTrash className="w-4 h-4" />
+                                                        </button>
                                                         <div className="mt-3">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none p-1 text-sm text-center text-gray-600 placeholder-gray-400" placeholder="הוסיפו כיתוב לוידאו..." value={block.metadata?.caption || ''} onChange={(e) => updateBlock(block.id, block.content, { caption: e.target.value })} />
                                                         </div>
@@ -1470,6 +1541,64 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                                     </p>
                                                                 </>
                                                             )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* MINDMAP BLOCK */}
+                                        {block.type === 'mindmap' && (
+                                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-2xl border border-purple-100 relative overflow-hidden">
+                                                {/* Decorative Background */}
+                                                <div className="absolute top-0 left-0 w-64 h-64 bg-purple-200/20 rounded-full -translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+
+                                                <div className="relative z-10">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="bg-white p-3 rounded-xl shadow-sm">
+                                                                <IconBrain className="w-6 h-6 text-purple-600" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="text-lg font-bold text-purple-900">{block.content.title || 'מפת חשיבה'}</h3>
+                                                                <p className="text-xs text-purple-600 opacity-80">המחשה ויזואלית של מושגים</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setMindMapBlockId(block.id);
+                                                                setMindMapModalOpen(true);
+                                                            }}
+                                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-md"
+                                                        >
+                                                            <IconSparkles className="w-4 h-4" />
+                                                            {block.content.nodes && block.content.nodes.length > 1 ? 'ייצר מחדש' : 'צור מפה'}
+                                                        </button>
+                                                    </div>
+
+                                                    {block.content.nodes && block.content.nodes.length > 1 ? (
+                                                        <MindMapEditor
+                                                            content={block.content}
+                                                            onChange={(newContent: MindMapContent) => updateBlock(block.id, newContent)}
+                                                            onSave={() => setIsDirty(true)}
+                                                        />
+                                                    ) : (
+                                                        <div className="text-center py-12 bg-white/50 rounded-xl border border-purple-100">
+                                                            <div className="text-7xl mb-4">🗺️</div>
+                                                            <h4 className="text-purple-800 font-bold text-lg mb-2">טרם נוצרה מפת חשיבה</h4>
+                                                            <p className="text-purple-600 text-sm mb-6 max-w-md mx-auto">
+                                                                לחצו על "צור מפה" כדי ליצור מפת חשיבה אוטומטית מתוכן היחידה
+                                                            </p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setMindMapBlockId(block.id);
+                                                                    setMindMapModalOpen(true);
+                                                                }}
+                                                                className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full font-bold shadow-lg hover:from-purple-700 hover:to-indigo-700 hover:scale-105 transition-all flex items-center gap-2 mx-auto"
+                                                            >
+                                                                <IconSparkles className="w-5 h-5" />
+                                                                צור מפת חשיבה
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1902,6 +2031,34 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     document.body
                 )
             }
+
+            {/* YouTube Search Modal */}
+            <YouTubeSearchModal
+                isOpen={youtubeSearchOpen}
+                onClose={() => { setYoutubeSearchOpen(false); setYoutubeSearchBlockId(null); }}
+                onSelectVideo={handleYouTubeVideoSelect}
+                gradeLevel={gradeLevel}
+                subject={subject}
+                initialQuery={editedUnit.title || ''}
+            />
+
+            {/* Mind Map Generator Modal */}
+            <MindMapGeneratorModal
+                isOpen={mindMapModalOpen}
+                onClose={() => {
+                    setMindMapModalOpen(false);
+                    setMindMapBlockId(null);
+                }}
+                onGenerate={(content: MindMapContent) => {
+                    if (mindMapBlockId) {
+                        updateBlock(mindMapBlockId, content);
+                        setIsDirty(true);
+                    }
+                }}
+                sourceText={course?.fullBookContent || editedUnit.baseContent || ''}
+                topic={editedUnit.title}
+                gradeLevel={gradeLevel}
+            />
         </div >
     );
 };
