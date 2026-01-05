@@ -27,7 +27,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
     if (!isOpen) return null;
 
-    const baseUrl = `${window.location.origin}/course/${courseId}/play`;
+    const baseUrl = `${window.location.origin}/?studentCourseId=${courseId}`;
 
     // Links configuration
     const links = [
@@ -35,28 +35,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             key: 'universal',
             label: 'Universal Link',
             description: 'Students will see content assigned to them (or all if unspecified).',
-            url: unitId ? `${baseUrl}?unit=${unitId}` : baseUrl,
+            url: unitId ? `${baseUrl}&unit=${unitId}` : baseUrl,
             icon: <IconLink size={18} className="text-blue-500" />
         },
         {
             key: 'support',
             label: 'Support Level',
             description: 'Direct access to Support materials only.',
-            url: unitId ? `${baseUrl}?unit=${unitId}&group=support` : `${baseUrl}?group=support`,
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=support` : `${baseUrl}&group=support`,
             icon: <div className="w-4 h-4 rounded-full bg-green-100 border border-green-400" />
         },
         {
             key: 'core',
             label: 'Core Level',
             description: 'Standard curriculum access.',
-            url: unitId ? `${baseUrl}?unit=${unitId}&group=core` : `${baseUrl}?group=core`,
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=core` : `${baseUrl}&group=core`,
             icon: <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-400" />
         },
         {
             key: 'enrichment',
             label: 'Enrichment Level',
             description: 'Advanced challenges and extra projects.',
-            url: unitId ? `${baseUrl}?unit=${unitId}&group=enrichment` : `${baseUrl}?group=enrichment`,
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=enrichment` : `${baseUrl}&group=enrichment`,
             icon: <div className="w-4 h-4 rounded-full bg-purple-100 border border-purple-400" />
         }
     ];
