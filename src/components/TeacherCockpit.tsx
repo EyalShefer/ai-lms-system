@@ -8,6 +8,7 @@ import { createBlock } from '../shared/config/blockDefinitions';
 import { downloadLessonPlanPDF } from '../services/pdfExportService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { TextToSpeechButton } from './TextToSpeechButton';
+import { RichTextEditor } from './RichTextEditor';
 
 
 interface TeacherCockpitProps {
@@ -753,17 +754,17 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
         // Editable Mode (Text)
         if (editingBlockId === block.id && block.type === 'text') {
-            const rawContent = getTextContentForEdit(block.content);
+            const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
             return (
                 <div className="relative">
-                    <textarea
-                        className="w-full p-6 border border-blue-200 bg-white/50 rounded-xl focus:ring-4 focus:ring-blue-50 outline-none transition-all text-slate-800 leading-relaxed resize-y min-h-[300px] font-sans shadow-inner"
-                        defaultValue={rawContent}
-                        onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                    <RichTextEditor
+                        value={textContent}
+                        onChange={(html) => updateBlockContent(block.id, html)}
                         placeholder="כתבו כאן את תוכן הפעילות..."
+                        minHeight="300px"
                         autoFocus
                     />
-                    <div className="absolute bottom-4 left-4 flex gap-2 z-30">
+                    <div className="mt-3 flex gap-2 justify-end">
                         <button onClick={() => setEditingBlockId(null)} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-md transition-all">
                             סיום עריכה
                         </button>

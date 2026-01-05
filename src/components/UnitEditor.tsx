@@ -48,6 +48,7 @@ import { YouTubeVideoResult } from '../services/youtubeService';
 import MindMapEditor from './MindMapEditor';
 import MindMapGeneratorModal from './MindMapGeneratorModal';
 import type { MindMapContent } from '../shared/types/courseTypes';
+import { RichTextEditor } from './RichTextEditor';
 
 const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
@@ -1525,12 +1526,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                             {/* Custom Text Input */}
                                                             {podcastSourceMode[block.id] === 'custom' && (
                                                                 <div className="mb-6 animate-scale-in">
-                                                                    <textarea
+                                                                    <RichTextEditor
                                                                         value={podcastCustomText[block.id] || ''}
-                                                                        onChange={(e) => setPodcastCustomText((prev: any) => ({ ...prev, [block.id]: e.target.value }))}
+                                                                        onChange={(html) => setPodcastCustomText((prev: any) => ({ ...prev, [block.id]: html }))}
                                                                         placeholder="הדביקו כאן את הטקסט עליו יבוסס הפודקאסט..."
-                                                                        className="w-full p-4 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 min-h-[120px] text-sm bg-white/50 focus:bg-white transition-colors"
+                                                                        minHeight="120px"
                                                                         disabled={loadingBlockId === block.id}
+                                                                        className="border-indigo-200"
                                                                     />
                                                                     <p className="text-right text-xs text-gray-400 mt-1">מינימום 50 תווים</p>
                                                                 </div>
@@ -1753,7 +1755,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <div className="pr-7 mt-2">
                                                         {!(block.content && block.content.question) && (<div className="flex justify-end mb-2"><button onClick={() => handleAutoGenerateOpenQuestion(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-100 text-teal-700 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-teal-200 transition-colors"><IconSparkles className="w-3 h-3" /> צרו שאלה באמצעות AI</button></div>)}
                                                         <label className="text-xs font-bold text-gray-400 mb-1 block flex items-center gap-1"><IconBrain className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:</label>
-                                                        <textarea className="w-full p-3 border border-gray-200/80 rounded-xl bg-white/80 text-sm focus:bg-white transition-colors outline-none focus:border-teal-300" rows={4} value={block.metadata?.modelAnswer || ''} onChange={(e) => updateBlock(block.id, block.content, { modelAnswer: e.target.value })} placeholder="כתבו כאן את התשובה המצופה..." />
+                                                        <RichTextEditor
+                                                            value={block.metadata?.modelAnswer || ''}
+                                                            onChange={(html) => updateBlock(block.id, block.content, { modelAnswer: html })}
+                                                            placeholder="כתבו כאן את התשובה המצופה..."
+                                                            minHeight="100px"
+                                                        />
                                                     </div>
                                                 )}
                                                 <div className="mt-3 pt-3 border-t border-gray-200/50 flex justify-between items-center">
@@ -1780,7 +1787,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
-                                                <textarea className="w-full p-4 border border-purple-200/60 bg-white rounded-xl focus:ring-2 focus:ring-purple-100 outline-none transition-all text-gray-800 text-lg leading-relaxed min-h-[160px]" dir="rtl" value={typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || '')} onChange={(e) => updateBlock(block.id, e.target.value)} />
+                                                <RichTextEditor
+                                                    value={typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || '')}
+                                                    onChange={(html) => updateBlock(block.id, html)}
+                                                    placeholder="כתבו את הטקסט המלא עם [מילים להסתרה]..."
+                                                    minHeight="160px"
+                                                />
                                                 <div className="mt-2 flex justify-end">
                                                     <AiRefineToolbar
                                                         blockId={block.id}

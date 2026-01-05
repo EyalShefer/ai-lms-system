@@ -525,3 +525,90 @@ export const IconShoppingCart = ({ className = "w-5 h-5" }: IconProps) => (
         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
     </svg>
 );
+
+// --- אייקונים לעורך טקסט עשיר (Rich Text Editor) ---
+
+export const IconBold = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
+        <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
+    </svg>
+);
+
+export const IconItalic = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="19" y1="4" x2="10" y2="4"></line>
+        <line x1="14" y1="20" x2="5" y2="20"></line>
+        <line x1="15" y1="4" x2="9" y2="20"></line>
+    </svg>
+);
+
+export const IconUnderline = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"></path>
+        <line x1="4" y1="21" x2="20" y2="21"></line>
+    </svg>
+);
+
+export const IconH2 = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M4 12h8"></path>
+        <path d="M4 18V6"></path>
+        <path d="M12 18V6"></path>
+        <path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"></path>
+    </svg>
+);
+
+export const IconH3 = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M4 12h8"></path>
+        <path d="M4 18V6"></path>
+        <path d="M12 18V6"></path>
+        <path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"></path>
+        <path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"></path>
+    </svg>
+);
+
+export const IconListNumbers = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="10" y1="6" x2="21" y2="6"></line>
+        <line x1="10" y1="12" x2="21" y2="12"></line>
+        <line x1="10" y1="18" x2="21" y2="18"></line>
+        <path d="M4 6h1v4"></path>
+        <path d="M4 10h2"></path>
+        <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>
+    </svg>
+);
+
+export const IconAlignRight = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="21" y1="6" x2="3" y2="6"></line>
+        <line x1="21" y1="12" x2="9" y2="12"></line>
+        <line x1="21" y1="18" x2="7" y2="18"></line>
+    </svg>
+);
+
+export const IconAlignCenter = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="18" y1="6" x2="6" y2="6"></line>
+        <line x1="21" y1="12" x2="3" y2="12"></line>
+        <line x1="18" y1="18" x2="6" y2="18"></line>
+    </svg>
+);
+
+export const IconAlignLeft = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="15" y2="12"></line>
+        <line x1="3" y1="18" x2="17" y2="18"></line>
+    </svg>
+);
+
+export const IconClearFormatting = ({ className = "w-5 h-5" }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M4 7V4h16v3"></path>
+        <path d="M9 20h6"></path>
+        <path d="M12 4v16"></path>
+        <path d="m3 3 18 18"></path>
+    </svg>
+);
