@@ -6,6 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { openai } from '../../services/ai/geminiApi';
 import { BOT_PERSONAS } from '../../services/ai/prompts';
+import { InlineMathKeyboard } from '../math/MathKeyboard';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -40,7 +41,9 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<string>('teacher');
+  const [showMathKeyboard, setShowMathKeyboard] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-scroll to bottom
@@ -177,6 +180,30 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
     }
   };
 
+  // Handle math symbol insertion
+  const handleMathInsert = (symbol: string) => {
+    if (symbol === '⌫') {
+      // Backspace - remove last character
+      setInput(prev => prev.slice(0, -1));
+    } else {
+      // Insert symbol at cursor position or end
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = input.slice(0, start) + symbol + input.slice(end);
+        setInput(newValue);
+        // Restore cursor position after symbol
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + symbol.length;
+          textarea.focus();
+        }, 0);
+      } else {
+        setInput(prev => prev + symbol);
+      }
+    }
+  };
+
   const personaOptions = [
     { value: 'teacher', label: '👨‍🏫 מורה', description: 'מסביר בסבלנות' },
     { value: 'socratic', label: '🤔 סוקרטי', description: 'מוביל בשאלות' },
@@ -254,31 +281,59 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
 
       {/* Input area */}
       {!readOnly && (
-        <div className="flex gap-2">
-          <textarea
-            className="flex-1 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows={2}
-            placeholder="שאל שאלה... (Enter לשליחה)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyPress}
-            disabled={isLoading}
-          />
-          {isLoading ? (
-            <button
-              onClick={handleCancelStreaming}
-              className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-            >
-              ⏹️ עצור
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-              disabled={!input.trim()}
-            >
-              שלח
-            </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={2}
+                placeholder="שאל שאלה... (Enter לשליחה)"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                disabled={isLoading}
+              />
+              {/* Math keyboard toggle button */}
+              <button
+                onClick={() => setShowMathKeyboard(!showMathKeyboard)}
+                className={`absolute bottom-2 left-2 p-1.5 rounded-lg transition-colors ${
+                  showMathKeyboard
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="מקלדת מתמטית"
+                type="button"
+              >
+                🔢
+              </button>
+            </div>
+            {isLoading ? (
+              <button
+                onClick={handleCancelStreaming}
+                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition self-end"
+              >
+                ⏹️ עצור
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed self-end"
+                disabled={!input.trim()}
+              >
+                שלח
+              </button>
+            )}
+          </div>
+
+          {/* Math keyboard */}
+          {showMathKeyboard && (
+            <div className="bg-gray-50 p-2 rounded-lg border border-gray-200">
+              <InlineMathKeyboard
+                onInsert={handleMathInsert}
+                symbols={['+', '−', '×', '÷', '=', '<', '>', '≤', '≥', '/', '.', '½', '¼', '¾', '²', '³', '√', 'π']}
+              />
+            </div>
           )}
         </div>
       )}
