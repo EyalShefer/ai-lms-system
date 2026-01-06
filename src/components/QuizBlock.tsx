@@ -3,6 +3,9 @@ import { IconCheck, IconX, IconSparkles } from '../icons';
 import type { TelemetryData } from '../courseTypes';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export interface QuizData {
     question: string;
@@ -81,7 +84,8 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
 
         return (
             <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                     a: ({ node, href, children, ...props }) => {
                         if (href?.startsWith('#cit-')) {

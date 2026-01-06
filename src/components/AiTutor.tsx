@@ -8,6 +8,9 @@ import { validateInput, checkForDistress } from '../services/securityService';
 import { openai, MODEL_NAME, BOT_PERSONAS } from '../services/ai/geminiApi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface Message {
     id: string;
@@ -148,9 +151,11 @@ const AiTutor: React.FC = () => {
                                     ? 'bg-indigo-600 text-white rounded-br-none'
                                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
                                     }`}>
-                                    }`}>
                                     <div className="prose prose-sm max-w-none prose-p:my-0 prose-ul:my-0 prose-li:my-0 text-inherit">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm, remarkMath]}
+                                            rehypePlugins={[rehypeKatex]}
+                                        >
                                             {msg.text}
                                         </ReactMarkdown>
                                     </div>
