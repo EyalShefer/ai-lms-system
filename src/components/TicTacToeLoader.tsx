@@ -5,9 +5,11 @@ type Player = 'X' | 'O' | null;
 interface TicTacToeLoaderProps {
     isLoading: boolean;
     onContinue: () => void;
+    sourceMode?: 'upload' | 'text' | 'multimodal' | 'topic' | null;
+    productType?: 'lesson' | 'game' | 'exam' | 'podcast' | null;
 }
 
-const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue }) => {
+const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue, sourceMode, productType }) => {
     const [board, setBoard] = useState<Player[]>(Array(9).fill(null));
     const [isXNext, setIsXNext] = useState<boolean>(true); // Human is X
     const [winner, setWinner] = useState<Player | 'Draw' | null>(null);
@@ -157,6 +159,23 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
         console.log('isLoading prop changed:', isLoading);
     }, [isLoading]);
 
+    // --- Dynamic Loading Text ---
+    const productTypeHebrew = {
+        'lesson': 'מערך השיעור',
+        'game': 'הפעילות לתלמיד',
+        'exam': 'המבחן',
+        'podcast': 'הפודקאסט'
+    }[productType || 'lesson'] || 'הפעילות';
+
+    const sourceTextHebrew = {
+        'upload': 'מהקובץ שהעלתם',
+        'text': 'מהטקסט שהדבקתם',
+        'multimodal': 'מהסרטון שתמללתם',
+        'topic': 'על הנושא שבחרתם'
+    }[sourceMode || 'topic'] || '';
+
+    const loadingMessage = `${productTypeHebrew} ${sourceTextHebrew} בבניה`;
+
     return (
         <div className="fixed inset-0 z-[200] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center font-sans animate-fade-in" dir="ltr">
 
@@ -164,7 +183,7 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
             <div className="flex flex-col items-center animate-fade-in shrink-0" dir="rtl">
                 <img src="/WizdiLogo.png" alt="Wizdi" className="h-20 w-auto mb-4 object-contain" />
                 <h2 className="text-2xl md:text-3xl font-bold text-center px-4 leading-relaxed" style={{ color: '#0ea5e9' }}>
-                    עד שהפעילות שביקשתם תהיה מוכנה<br />בואו נשחק קצת...
+                    {loadingMessage}<br />בואו נשחק קצת...
                 </h2>
                 <p className="text-sm text-gray-400 mt-2 font-medium bg-white/50 px-3 py-1 rounded-full backdrop-blur-sm">
                     זמן היצירה עשוי להימשך בין דקה לדקה וחצי

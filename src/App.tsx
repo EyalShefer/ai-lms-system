@@ -135,6 +135,7 @@ const AuthenticatedApp = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false); // NEW: Simulate Guest
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
+  const [loaderContext, setLoaderContext] = useState<{ sourceMode?: string; productType?: string }>({});
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
 
   const { loadCourse } = useCourseStore();
@@ -240,6 +241,7 @@ const AuthenticatedApp = () => {
 
     // 1. Close Wizard Immediately & Show Loading
     setWizardMode(null);
+    setLoaderContext({ sourceMode: wizardData.mode, productType: wizardData.settings?.productType });
     setShowLoader(false); // DIRECT ENTRY: Skip game loader, go straight to editor
 
     // Safety check: verify currentUser exists again just in case
@@ -639,6 +641,8 @@ const AuthenticatedApp = () => {
         <TicTacToeLoader
           isLoading={isGenerating}
           onContinue={() => setShowLoader(false)}
+          sourceMode={loaderContext.sourceMode as any}
+          productType={loaderContext.productType as any}
         />
       )}
     </div>

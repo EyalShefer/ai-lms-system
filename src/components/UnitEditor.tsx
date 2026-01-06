@@ -1116,23 +1116,32 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const productType = (course as any)?.wizardData?.settings?.productType || 'lesson';
     const productTypeHebrew = {
         'lesson': 'מערך השיעור',
-        'game': 'המשחק',
+        'game': 'הפעילות לתלמיד',
         'exam': 'המבחן',
         'podcast': 'הפודקאסט'
     }[productType as string] || 'הפעילות';
 
     const productTypeStatusLabel = {
         'lesson': 'מצב למידה',
-        'game': 'מצב משחק',
+        'game': 'מצב תרגול',
         'exam': 'מצב מבחן',
         'podcast': 'מצב האזנה'
     }[productType as string] || 'מצב פעילות';
+
+    // --- Dynamic Source Text ---
+    const sourceMode = (course as any)?.wizardData?.mode || 'topic';
+    const sourceTextHebrew = {
+        'upload': 'מהקובץ שהעלתם',
+        'text': 'מהטקסט שהדבקתם',
+        'multimodal': 'מהסרטון שתמללתם',
+        'topic': 'על הנושא שבחרתם'
+    }[sourceMode as string] || '';
 
     if (isAutoGenerating) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
                 <div className="relative mb-6"><div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div></div>
-                <h2 className="text-2xl font-bold text-gray-800">ה-AI כותב את תוכן {productTypeHebrew}...</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
             </div>
         );
     }

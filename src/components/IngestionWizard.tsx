@@ -54,14 +54,14 @@ const PRODUCT_CONFIG: Record<string, {
         ]
     },
     game: {
-        titleLabel: "כותרת המשחק",
-        lengthLabel: "משך המשחק",
-        headerLabel: "יצירת משחק",
-        defaultTitleName: "משחק חדש",
+        titleLabel: "כותרת הפעילות",
+        lengthLabel: "משך הפעילות",
+        headerLabel: "יצירת פעילות לתלמיד",
+        defaultTitleName: "פעילות חדשה",
         lengthOptions: [
-            { id: 'short', label: 'קצר' },
-            { id: 'medium', label: 'בינוני' },
-            { id: 'long', label: 'ארוך' }
+            { id: 'short', label: 'קצרה' },
+            { id: 'medium', label: 'בינונית' },
+            { id: 'long', label: 'ארוכה' }
         ]
     },
     podcast: {
@@ -736,8 +736,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             />
                             <ProductCard
                                 id="game"
-                                label="משחק / תרגול"
-                                desc="פעילות משחקית לשינון וחזרה בצורה חוויתית."
+                                label="פעילות לתלמיד"
+                                desc="פעילות אינטראקטיבית לתרגול וחזרה בצורה חוויתית."
                                 icon={IconJoystick} // Using Joystick icon
                                 color="pink"
                                 isActive={selectedProduct === 'game'}
