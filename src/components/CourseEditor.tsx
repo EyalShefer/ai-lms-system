@@ -291,14 +291,18 @@ const CourseEditor: React.FC = () => {
                     const wizardData = course?.wizardData;
 
                     if (wizardData) {
-                        // Check for Youtube
-                        if (wizardData.mediaType === 'youtube' || (wizardData.sourceText && wizardData.sourceText.includes("TRANSCRIPT:"))) {
+                        // Check for Youtube (mediaType or transcript marker in text)
+                        if (wizardData.mediaType === 'youtube' || (wizardData.pastedText && wizardData.pastedText.includes("TRANSCRIPT:"))) {
                             sourceType = 'YOUTUBE';
                         }
-                        // Check for Text File (Length heuristic)
-                        else if (wizardData.sourceText && wizardData.sourceText.length > 100) {
+                        // Check for Text File - use pastedText from wizard (not sourceText)
+                        // Also check the sourceText parameter passed to this function
+                        else if ((wizardData.pastedText && wizardData.pastedText.length > 100) || (sourceText && sourceText.length > 100)) {
                             sourceType = 'TEXT_FILE';
                         }
+                    } else if (sourceText && sourceText.length > 100) {
+                        // Fallback: if no wizardData but sourceText was passed
+                        sourceType = 'TEXT_FILE';
                     }
 
                     // 2. Generate Full Lesson Plan (No Skeleton)

@@ -1432,6 +1432,18 @@ export const generateCourseSyllabus = async (
     ? 1
     : (activityLength === 'short' ? 3 : (activityLength === 'long' ? 8 : 5));
 
+  // Inject source text into prompt if available
+  const sourceTextSection = sourceText
+    ? `
+      SOURCE CONTENT (Base the syllabus STRICTLY on this content):
+      """
+      ${sourceText.substring(0, 10000)}
+      """
+
+      CRITICAL: The syllabus MUST be derived from the source content above. Do NOT invent topics that are not covered in the source text.
+    `
+    : '';
+
   const prompt = `
       Task: Create a Syllabus (Table of Contents) for a Lesson Plan.
       Topic: "${topic}"
@@ -1440,12 +1452,13 @@ export const generateCourseSyllabus = async (
       Count: Exactly ${unitCount} distinct Learning Units.
       Language: Hebrew.
 
-      ${sourceText ? `Base strict on source text found in context (first 10k chars).` : ''}
+      ${sourceTextSection}
 
       Structure:
       - Divide the topic into logical "Phases" or "Modules".
       - Each Module contains 1-2 Learning Units.
       - Total Learning Units: ${unitCount}.
+      ${sourceText ? '- IMPORTANT: Unit titles must reflect the actual content from the source text provided above.' : ''}
 
       Output JSON:
       {
