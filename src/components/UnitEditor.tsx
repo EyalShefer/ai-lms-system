@@ -459,8 +459,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             // 1. Visually lock immediately to prevent flicker
             setLoadingBlockId(pendingPodcast.id);
 
-            // 2. Clear the flag to prevent infinite loops
-            updateBlock(pendingPodcast.id, pendingPodcast.content, { autoGenerate: false });
+            // 2. Clear the flag to prevent infinite loops (without setting isDirty - this is internal operation)
+            setEditedUnit((prev: any) => ({
+                ...prev,
+                activityBlocks: prev.activityBlocks.map((block: any) =>
+                    block.id === pendingPodcast.id
+                        ? { ...block, metadata: { ...block.metadata, autoGenerate: false } }
+                        : block
+                )
+            }));
 
             // 3. Trigger generation
             handleGeneratePodcastBlock(pendingPodcast.id);
@@ -1198,7 +1205,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         title={isDirty ? 'יש שינויים לא שמורים - מומלץ לשמור קודם' : 'צור קישור לתלמידים'}
                     >
                         <IconLink className={`w-4 h-4 ${isDirty ? 'animate-pulse' : ''}`} />
-                        {isDirty ? 'שמור לפני שיתוף!' : 'קישור לתלמיד'}
+                        {isDirty ? 'שמור לפני שיתוף!' : 'העתקת קישור לתלמיד'}
                     </button>
 
                     <button

@@ -5,8 +5,7 @@ import {
     IconSparkles,
     IconChevronLeft, IconChevronRight,
     IconCheck, IconX, IconStar, IconLink,
-    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell,
-    IconSend
+    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell
 } from '../icons';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import { getIconForBlockType } from '../utils/pedagogicalIcons';
@@ -1079,6 +1078,37 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 <div className="max-w-6xl mx-auto flex items-center justify-between text-white bg-[#3565e3] pb-4 border-b border-white/10">
                     {/* Exit/Back & Progress Text */}
                     <div className="flex items-center gap-4">
+                        {/* Submit Button - Leftmost */}
+                        <button
+                            onClick={handleSubmitActivity}
+                            disabled={isSubmitting || hasSubmitted}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${
+                                hasSubmitted
+                                    ? 'bg-green-500 text-white cursor-default'
+                                    : isSubmitting
+                                        ? 'bg-white/30 text-white/70 cursor-wait'
+                                        : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 border border-green-300/30'
+                            }`}
+                            title="הגש פעילות"
+                        >
+                            {hasSubmitted ? (
+                                <>
+                                    <IconCheck className="w-5 h-5" />
+                                    <span className="hidden md:inline">הוגש</span>
+                                </>
+                            ) : isSubmitting ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                                    <span className="hidden md:inline">שולח...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <IconChevronLeft className="w-5 h-5" />
+                                    <span className="hidden md:inline">הגש פעילות</span>
+                                </>
+                            )}
+                        </button>
+
                         <button
                             onClick={() => {
                                 if (onExit) {
@@ -1093,7 +1123,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             title="חזרה לדשבורד"
                         >
                             <IconChevronRight className="w-5 h-5" />
-                            <span className="font-bold text-sm hidden sm:inline">יציאה</span>
+                            <span className="font-bold text-sm hidden sm:inline">חזרה</span>
                         </button>
 
                         {/* Source Document Toggle Button */}
@@ -1161,36 +1191,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
                     {/* Stats: Streak & XP & Gems */}
                     <div className="flex items-center gap-4">
-                        {/* Submit Button - Left side */}
-                        <button
-                            onClick={handleSubmitActivity}
-                            disabled={isSubmitting || hasSubmitted}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${
-                                hasSubmitted
-                                    ? 'bg-green-500 text-white cursor-default'
-                                    : isSubmitting
-                                        ? 'bg-white/30 text-white/70 cursor-wait'
-                                        : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 border border-green-300/30'
-                            }`}
-                        >
-                            {hasSubmitted ? (
-                                <>
-                                    <IconCheck className="w-5 h-5" />
-                                    <span className="hidden md:inline">הוגש</span>
-                                </>
-                            ) : isSubmitting ? (
-                                <>
-                                    <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                                    <span className="hidden md:inline">שולח...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <IconSend className="w-5 h-5" />
-                                    <span className="hidden md:inline">הגש פעילות</span>
-                                </>
-                            )}
-                        </button>
-
                         {/* Streak Widget */}
                         <div className="flex items-center gap-2 bg-black/20 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all">
                             <StreakFlame count={gamificationProfile.currentStreak} />
