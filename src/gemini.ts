@@ -887,31 +887,39 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
     }
   };
 
-  // ONLY generate Summary Infographic (the single visual in the lesson)
-  if (updatedPlan.summary.visual_summary?.type === 'infographic') {
-    const summaryText = updatedPlan.summary.takeaway_sentence;
-    const summaryPrompt = updatedPlan.summary.visual_summary.content || summaryText;
-    const detection = detectInfographicType(summaryPrompt);
+  // ALWAYS generate Summary Infographic (the single visual in the lesson)
+  // Even if AI didn't return the exact structure, we create one from the takeaway sentence
+  const summaryText = updatedPlan.summary.takeaway_sentence || updatedPlan.lesson_metadata.title;
 
-    console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic`);
-    console.log(`   Content: "${summaryPrompt.substring(0, 80)}..."`);
+  // Ensure visual_summary exists with infographic type
+  if (!updatedPlan.summary.visual_summary || updatedPlan.summary.visual_summary.type !== 'infographic') {
+    console.log("ℹ️ visual_summary not properly set by AI, creating default infographic structure...");
+    updatedPlan.summary.visual_summary = {
+      type: 'infographic',
+      content: summaryText,
+      status: 'pending'
+    };
+  }
 
-    const url = await generateInfographic(
-      summaryPrompt,
-      detection.suggestedType,
-      updatedPlan.lesson_metadata.subject || updatedPlan.lesson_metadata.title
-    );
+  const summaryPrompt = updatedPlan.summary.visual_summary.content || summaryText;
+  const detection = detectInfographicType(summaryPrompt);
 
-    if (url && updatedPlan.summary.visual_summary) {
-      updatedPlan.summary.visual_summary.url = url;
-      updatedPlan.summary.visual_summary.status = 'generated';
-      console.log("✅ Summary infographic generated successfully");
-    } else if (updatedPlan.summary.visual_summary) {
-      updatedPlan.summary.visual_summary.status = 'failed';
-      console.log("❌ Summary infographic generation failed");
-    }
-  } else {
-    console.log("ℹ️ No infographic requested in summary");
+  console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic`);
+  console.log(`   Content: "${summaryPrompt.substring(0, 80)}..."`);
+
+  const url = await generateInfographic(
+    summaryPrompt,
+    detection.suggestedType,
+    updatedPlan.lesson_metadata.subject || updatedPlan.lesson_metadata.title
+  );
+
+  if (url && updatedPlan.summary.visual_summary) {
+    updatedPlan.summary.visual_summary.url = url;
+    updatedPlan.summary.visual_summary.status = 'generated';
+    console.log("✅ Summary infographic generated successfully");
+  } else if (updatedPlan.summary.visual_summary) {
+    updatedPlan.summary.visual_summary.status = 'failed';
+    console.log("❌ Summary infographic generation failed");
   }
 
   // Log media budget compliance

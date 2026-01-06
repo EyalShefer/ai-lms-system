@@ -304,48 +304,58 @@ export const generateGemini3InfographicFromText = async (
     topic?: string
 ): Promise<Blob | null> => {
     try {
-        console.log('🎨 Calling Gemini 3 Pro Image Cloud Function...');
+        console.log('🎨 Calling Gemini Image Cloud Function (generateGeminiImage)...');
         const startTime = Date.now();
 
-        // Call Cloud Function
-        const generateGemini3InfographicFn = httpsCallable(functions, 'generateGemini3Infographic');
-        const response = await generateGemini3InfographicFn({
-            content: text,
-            visualType,
-            topic
-        });
+        // Build infographic-specific prompt
+        const promptTemplates: Record<InfographicType, string> = {
+            flowchart: `Create a clean educational flowchart infographic in Hebrew (RTL).
+Style: Minimalist, clear arrows, colorful boxes.
+${topic ? `Topic: ${topic}` : ''}
+Content: ${text.substring(0, 1500)}
+Requirements: Large Hebrew text, high contrast, numbered steps.`,
 
-        const result = response.data as any;
+            timeline: `Create a horizontal timeline infographic in Hebrew (RTL).
+Style: Modern, colorful milestone markers.
+${topic ? `Topic: ${topic}` : ''}
+Content: ${text.substring(0, 1500)}
+Requirements: Clear timeline axis, readable Hebrew text, distinct markers.`,
 
-        if (!result.success || !result.image?.base64) {
-            console.error('❌ Gemini 3 Pro Image: No image in response');
+            comparison: `Create a side-by-side comparison infographic in Hebrew (RTL).
+Style: Clean, balanced layout, color-coded categories.
+${topic ? `Topic: ${topic}` : ''}
+Content: ${text.substring(0, 1500)}
+Requirements: Visual separation, large Hebrew text, symmetrical layout.`,
+
+            cycle: `Create a circular cycle diagram infographic in Hebrew (RTL).
+Style: Circular flow with arrows, colorful segments.
+${topic ? `Topic: ${topic}` : ''}
+Content: ${text.substring(0, 1500)}
+Requirements: Circular arrangement, directional arrows, clear Hebrew text.`
+        };
+
+        const prompt = promptTemplates[visualType];
+
+        // Import and use the generateGeminiImage service (uses deployed generateGeminiImage Cloud Function)
+        const { generateGeminiImage, isGeminiImageAvailable } = await import('./imagenService');
+
+        if (!isGeminiImageAvailable()) {
+            console.warn('⚠️ Gemini Image not enabled, skipping...');
             return null;
         }
 
-        const generationTime = Date.now() - startTime;
+        const blob = await generateGeminiImage(prompt, 'pro');
 
-        // Convert base64 to Blob
-        const base64Data = result.image.base64;
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        if (blob) {
+            const generationTime = Date.now() - startTime;
+            console.log(`✅ Gemini Image generation successful (${generationTime}ms)`);
+            return blob;
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: result.image.mimeType || 'image/png' });
 
-        console.log(`✅ Gemini 3 Pro Image generation successful (${generationTime}ms, cost: ~$${result.metadata?.estimatedCost})`);
-
-        return blob;
+        return null;
 
     } catch (error: any) {
-        console.error('❌ Gemini 3 Pro Image generation failed:', error);
-
-        // Check if it's an availability error (not configured)
-        if (error.code === 'functions/unavailable') {
-            console.warn('⚠️ Gemini 3 Pro Image is not configured. Make sure Vertex AI is enabled.');
-        }
-
+        console.error('❌ Gemini Image generation failed:', error);
         return null;
     }
 };
