@@ -36,7 +36,8 @@
       "Bash(npx firebase deploy --only hosting)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: Add side-by-side PDF source viewer in student activity view\n\n- Add \"הצג מקור\" button to show source PDF alongside activity\n- Fix split-view to properly render PDF blocks \\(was treating PDF URLs as text\\)\n- Source panel shows course.pdfSource or course.fullBookContent\n- Respects showSourceToStudent setting\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(npx firebase deploy:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: AI refine toolbar - plural form and consistent positioning\n\n- Changed button text from \"שפר עם AI\" to \"שפרו עם AI\" \\(plural\\)\n- Made textarea wider \\(min-w-[300px]\\) and taller \\(min-h-[80px]\\)\n- Fixed inconsistent button positioning in UnitEditor\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

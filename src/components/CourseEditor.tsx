@@ -938,7 +938,13 @@ const CourseEditor: React.FC = () => {
 
 
     const handleSaveUnit = async (updatedUnit: LearningUnit) => {
-        if (isGenerating) return;
+        console.log('[handleSaveUnit] Called with unit:', updatedUnit.id, updatedUnit.title);
+        console.log('[handleSaveUnit] isGenerating:', isGenerating);
+        console.log('[handleSaveUnit] activityBlocks:', updatedUnit.activityBlocks?.length);
+        if (isGenerating) {
+            console.log('[handleSaveUnit] Blocked by isGenerating!');
+            return;
+        }
 
         const newSyllabus = course.syllabus.map((mod: any) => ({
             ...mod,

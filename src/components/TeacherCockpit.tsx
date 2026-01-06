@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic } from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye } from '../icons';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import { detectInfographicType, analyzeInfographicSuitability } from '../utils/infographicDetector';
@@ -9,6 +9,13 @@ import { downloadLessonPlanPDF } from '../services/pdfExportService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { TextToSpeechButton } from './TextToSpeechButton';
 import { RichTextEditor } from './RichTextEditor';
+
+// Interactive Question Components for preview mode
+import MultipleChoiceQuestion from './MultipleChoiceQuestion';
+import ClozeQuestion from './ClozeQuestion';
+import OrderingQuestion from './OrderingQuestion';
+import CategorizationQuestion from './CategorizationQuestion';
+import MemoryGameQuestion from './MemoryGameQuestion';
 
 
 interface TeacherCockpitProps {
@@ -93,6 +100,7 @@ const SAVE_DEBOUNCE_MS = 2000;
 const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
     const [activeSection, setActiveSection] = useState<string>('all');
     const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+    const [refiningBlockId, setRefiningBlockId] = useState<string | null>(null); // Separate state for AI refine mode
     const [isRefining, setIsRefining] = useState(false);
     const [refinePrompt, setRefinePrompt] = useState("");
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
@@ -100,6 +108,10 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     // Track unsaved changes (for share warning)
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const unsavedTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Editing state for goals
+    const [isEditingGoals, setIsEditingGoals] = useState(false);
+    const [editedGoals, setEditedGoals] = useState<string[]>(unit.goals || []);
 
     // Media State
     const [mediaInputMode, setMediaInputMode] = useState<Record<string, string | null>>({});
@@ -115,6 +127,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         visualType: InfographicType;
     } | null>(null);
 
+    // Interactive Preview State - shows questions as students see them
+    const [previewBlockIds, setPreviewBlockIds] = useState<Set<string>>(new Set());
+
     // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
@@ -123,6 +138,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             }
         };
     }, []);
+
+    // Sync editedGoals when unit.goals changes
+    useEffect(() => {
+        setEditedGoals(unit.goals || []);
+    }, [unit.goals]);
 
     // --- CRUD Helpers ---
     const markAsUnsaved = () => {
@@ -138,18 +158,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     };
 
     const updateUnitBlocks = (newBlocks: ActivityBlock[]) => {
+        console.log('[updateUnitBlocks] Called with', newBlocks.length, 'blocks');
+        console.log('[updateUnitBlocks] onUnitUpdate:', !!onUnitUpdate, 'onUpdateBlock:', !!onUpdateBlock);
         if (onUnitUpdate) {
+            console.log('[updateUnitBlocks] Calling onUnitUpdate...');
             onUnitUpdate({ ...unit, activityBlocks: newBlocks });
             markAsUnsaved();
         } else if (onUpdateBlock) {
             console.warn("Using Legacy onUpdateBlock - Full CRUD not supported properly without onUnitUpdate");
+        } else {
+            console.error('[updateUnitBlocks] No update handler available!');
         }
     };
 
     const addBlockAtIndex = (type: string, index: number) => {
+        console.log('[addBlockAtIndex] Adding block:', type, 'at index:', index);
+        console.log('[addBlockAtIndex] onUnitUpdate exists:', !!onUnitUpdate);
         const newBlock = createBlock(type, 'socratic');
         const newBlocks = [...(unit.activityBlocks || [])];
         newBlocks.splice(index, 0, newBlock);
+        console.log('[addBlockAtIndex] newBlocks length:', newBlocks.length);
         updateUnitBlocks(newBlocks);
         setActiveInsertIndex(null);
         if (type === 'text') setEditingBlockId(newBlock.id);
@@ -186,6 +214,30 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         updateUnitBlocks(newBlocks);
     };
 
+    const saveGoals = () => {
+        if (onUnitUpdate) {
+            const filteredGoals = editedGoals.filter(g => g.trim() !== '');
+            onUnitUpdate({ ...unit, goals: filteredGoals });
+            markAsUnsaved();
+        }
+        setIsEditingGoals(false);
+    };
+
+    const addGoal = () => {
+        setEditedGoals([...editedGoals, '']);
+    };
+
+    const updateGoal = (index: number, value: string) => {
+        const newGoals = [...editedGoals];
+        newGoals[index] = value;
+        setEditedGoals(newGoals);
+    };
+
+    const removeGoal = (index: number) => {
+        const newGoals = editedGoals.filter((_, i) => i !== index);
+        setEditedGoals(newGoals);
+    };
+
 
     const handleScrollTo = (id: string) => {
         const element = document.getElementById(id);
@@ -195,7 +247,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         }
     };
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
         // Use the stored lesson plan from metadata, or create a basic one from available data
         const lessonPlan: TeacherLessonPlan = unit.metadata?.lessonPlan || {
             lesson_metadata: {
@@ -244,7 +296,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             }
         };
 
-        downloadLessonPlanPDF(lessonPlan, `${unit.title} - מערך שיעור.pdf`);
+        await downloadLessonPlanPDF(lessonPlan, `${unit.title} - מערך שיעור.pdf`);
     };
 
     const handleShare = async () => {
@@ -437,7 +489,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             }
 
             updateBlockContent(block.id, finalContent);
-            setEditingBlockId(null);
+            setRefiningBlockId(null);
             setRefinePrompt("");
         } catch (error) {
             console.error("Refine Error:", error);
@@ -472,25 +524,25 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             </div>
             <div className="relative bg-[#f0f4f8] px-4">
                 {activeInsertIndex === index ? (
-                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto">
-                        <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
-                        <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
-                        <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
-                        <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
-                        <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
-                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
+                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('video', index); }} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('multiple-choice', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('open-question', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('interactive-chat', index); }} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
 
-                        <button onClick={() => addBlockAtIndex('fill_in_blanks', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
-                        <button onClick={() => addBlockAtIndex('ordering', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
-                        <button onClick={() => addBlockAtIndex('categorization', index)} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
-                        <button onClick={() => addBlockAtIndex('memory_game', index)} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
-                        <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconClock className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
-                        <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
-                        <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
-                        <button onClick={() => addBlockAtIndex('infographic', index)} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('fill_in_blanks', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('ordering', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('categorization', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('memory_game', index); }} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconClock className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
 
                         <div className="w-px bg-slate-200 mx-2"></div>
-                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
                     </div>
                 ) : (
                     <button
@@ -509,15 +561,22 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     );
 
     const renderRefineToolbar = (block: ActivityBlock) => {
-        if (editingBlockId !== block.id) return null;
+        if (refiningBlockId !== block.id) return null;
 
         const presets = ["קצר יותר", "פשט שפה", "הוסף דוגמאות", "ניסוח מרתק"];
 
         return (
             <div className="absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 animate-fade-in rounded-b-3xl border-t border-slate-100">
+                <button
+                    onClick={() => setRefiningBlockId(null)}
+                    className="absolute top-3 left-3 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                    title="סגור"
+                >
+                    <IconX className="w-4 h-4" />
+                </button>
                 <h4 className="font-bold text-sm mb-3 flex items-center gap-2 text-wizdi-royal">
                     <IconWand className="w-4 h-4" />
-                    עריכה עם AI
+                    שיפור עם AI
                 </h4>
                 <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-md">
                     {presets.map(p => (
@@ -912,74 +971,112 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     if (embedded) {
         return (
             <div className="w-full bg-slate-50 border-t border-slate-100 p-4 md:p-8 animate-fade-in" dir="rtl">
-                <div className="max-w-4xl mx-auto space-y-8">
+                <div className="max-w-4xl mx-auto space-y-6">
                     {/* Embedded Header */}
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
                             <IconEdit className="w-5 h-5 text-indigo-500" />
                             עריכת תוכן היחידה
                         </h2>
-                        {onEdit && (
-                            <button onClick={onEdit} className="text-sm text-indigo-600 font-bold hover:underline">
-                                הגדרות מתקדמות
-                            </button>
-                        )}
+                        <div className="flex items-center gap-3">
+                            {hasUnsavedChanges && (
+                                <span className="text-xs text-amber-600 font-medium flex items-center gap-1 animate-pulse">
+                                    <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                    שומר...
+                                </span>
+                            )}
+                            {!hasUnsavedChanges && onUnitUpdate && (
+                                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                    <IconCheck className="w-3 h-3" />
+                                    נשמר
+                                </span>
+                            )}
+                            {onEdit && (
+                                <button onClick={onEdit} className="text-sm text-indigo-600 font-bold hover:underline">
+                                    הגדרות מתקדמות
+                                </button>
+                            )}
+                        </div>
                     </div>
 
+                    {/* Insert Menu at Top */}
+                    <InsertMenu index={0} />
+
                     {/* Content Loop Reuse */}
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                         {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
                             return (
-                                <div key={block.id} className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-                                    {/* Step Header */}
-                                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
-                                        <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
-                                            <BlockIconRenderer
-                                                blockType={block.type}
-                                                blockIndex={idx}
-                                                totalBlocks={unit.activityBlocks?.length || 1}
-                                                className="w-5 h-5"
-                                            />
-                                        </span>
-
-                                        {/* Block Title */}
-                                        <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
-
-                                        <button
-                                            onClick={() => setEditingBlockId(block.id)}
-                                            className="mr-auto flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-white hover:bg-wizdi-royal rounded-lg transition-all text-xs font-bold bg-slate-50"
-                                        >
-                                            <IconSparkles className="w-3.5 h-3.5" />
-                                            שפרו עם AI
-                                        </button>
-                                    </div>
-
-                                    {/* Refine Toolbar Overlay */}
-                                    {renderRefineToolbar(block)}
-
-                                    {/* Content */}
-                                    <div className="prose prose-lg max-w-none prose-headings:font-black prose-p:text-slate-600 prose-li:text-slate-600">
-                                        {renderBlockContent(block)}
-                                    </div>
-
-                                    {/* Teacher Tip */}
-                                    {getTeacherTip(block) && (
-                                        <div className="mt-8 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
-                                            <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
-                                                <IconSparkles className="w-4 h-4" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
-                                                <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
-                                                    {getTeacherTip(block)}
-                                                </p>
-                                            </div>
+                                <React.Fragment key={block.id}>
+                                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                                        {/* Block Controls (Hover) */}
+                                        <div className="absolute top-4 left-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur border border-slate-100 rounded-lg p-1 z-20 shadow-sm">
+                                            <button onClick={() => moveBlock(idx, 'up')} disabled={idx === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למעלה"><IconArrowUp className="w-4 h-4" /></button>
+                                            <button onClick={() => moveBlock(idx, 'down')} disabled={idx === (unit.activityBlocks?.length || 0) - 1} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למטה"><IconArrowDown className="w-4 h-4" /></button>
+                                            <div className="w-px bg-slate-200 my-1 mx-1"></div>
+                                            <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-600 rounded hover:bg-red-50 transition-colors" title="מחק רכיב"><IconTrash className="w-4 h-4" /></button>
                                         </div>
-                                    )}
-                                </div>
+
+                                        {/* Step Header */}
+                                        <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+                                            <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black shadow-blue-200 shadow-lg glow">
+                                                <BlockIconRenderer
+                                                    blockType={block.type}
+                                                    blockIndex={idx}
+                                                    totalBlocks={unit.activityBlocks?.length || 1}
+                                                    className="w-5 h-5"
+                                                />
+                                            </span>
+
+                                            {/* Block Title */}
+                                            <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
+
+                                            <button
+                                                onClick={() => setRefiningBlockId(block.id)}
+                                                className="mr-auto flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-white hover:bg-wizdi-royal rounded-lg transition-all text-xs font-bold bg-slate-50"
+                                            >
+                                                <IconSparkles className="w-3.5 h-3.5" />
+                                                שפרו עם AI
+                                            </button>
+                                        </div>
+
+                                        {/* Refine Toolbar Overlay */}
+                                        {renderRefineToolbar(block)}
+
+                                        {/* Content */}
+                                        <div className="prose prose-lg max-w-none prose-headings:font-black prose-p:text-slate-600 prose-li:text-slate-600">
+                                            {renderBlockContent(block)}
+                                        </div>
+
+                                        {/* Teacher Tip */}
+                                        {getTeacherTip(block) && (
+                                            <div className="mt-8 bg-amber-50 rounded-xl p-4 md:p-6 border border-amber-100 flex gap-4">
+                                                <div className="bg-white p-2 rounded-full shadow-sm text-amber-500 h-fit">
+                                                    <IconSparkles className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-amber-900 mb-1 text-sm uppercase tracking-wide">הנחיה למורה</h4>
+                                                    <p className="text-sm md:text-base text-amber-800/90 leading-relaxed font-medium">
+                                                        {getTeacherTip(block)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Insert Menu After Block */}
+                                    <InsertMenu index={idx + 1} />
+                                </React.Fragment>
                             )
                         })}
                     </div>
+
+                    {/* Empty State */}
+                    {(!unit.activityBlocks || unit.activityBlocks.length === 0) && (
+                        <div className="text-center py-12 text-slate-400">
+                            <IconPlus className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p>אין רכיבים ביחידה זו. לחצו על "הוסיפו רכיב" להתחיל.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -1103,25 +1200,86 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             </div>
                         )}
 
-                        {/* Goals Card (Static) */}
-                        <div id="goals" className="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-blue-500 print:shadow-none print:border scroll-mt-32">
+                        {/* Goals Card (Editable) */}
+                        <div id="goals" className="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-blue-500 print:shadow-none print:border scroll-mt-32 relative group hover:shadow-md transition-shadow">
+                            {/* Edit Button (Hover) */}
+                            {!isEditingGoals && (
+                                <button
+                                    onClick={() => setIsEditingGoals(true)}
+                                    className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-white hover:bg-blue-600 rounded-lg transition-all text-xs font-bold bg-slate-50 border border-slate-100 opacity-0 group-hover:opacity-100 print:hidden"
+                                >
+                                    <IconEdit className="w-3.5 h-3.5" />
+                                    ערוך
+                                </button>
+                            )}
+
                             <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                                 <IconTarget className="text-blue-500 w-6 h-6" />
                                 יעדי השיעור
                             </h2>
-                            <ul className="space-y-2 text-slate-600 list-disc list-inside">
-                                {(unit.goals && unit.goals.length > 0) ? (
-                                    unit.goals.map((goal, i) => (
-                                        <li key={i}>{goal}</li>
-                                    ))
-                                ) : (
-                                    <>
-                                        <li>התלמיד יבין את הנושא המרכזי ({unit.title}).</li>
-                                        <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
-                                        <li>התלמיד יתרגל יישום של החומר הנלמד.</li>
-                                    </>
-                                )}
-                            </ul>
+
+                            {isEditingGoals ? (
+                                <div className="space-y-3">
+                                    {editedGoals.map((goal, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={goal}
+                                                onChange={(e) => updateGoal(i, e.target.value)}
+                                                className="flex-1 p-2 border border-slate-200 rounded-lg focus:border-blue-400 outline-none text-slate-600"
+                                                placeholder="הכנס יעד..."
+                                                autoFocus={i === editedGoals.length - 1}
+                                            />
+                                            <button
+                                                onClick={() => removeGoal(i)}
+                                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="הסר יעד"
+                                            >
+                                                <IconTrash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <div className="flex gap-2 mt-4">
+                                        <button
+                                            onClick={addGoal}
+                                            className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm font-bold border border-blue-200"
+                                        >
+                                            <IconPlus className="w-4 h-4" />
+                                            הוסף יעד
+                                        </button>
+                                        <div className="flex-1"></div>
+                                        <button
+                                            onClick={() => {
+                                                setEditedGoals(unit.goals || []);
+                                                setIsEditingGoals(false);
+                                            }}
+                                            className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors text-sm font-bold"
+                                        >
+                                            ביטול
+                                        </button>
+                                        <button
+                                            onClick={saveGoals}
+                                            className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors text-sm font-bold shadow-sm"
+                                        >
+                                            שמור
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <ul className="space-y-2 text-slate-600 list-disc list-inside cursor-pointer hover:bg-slate-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setIsEditingGoals(true)}>
+                                    {(unit.goals && unit.goals.length > 0) ? (
+                                        unit.goals.map((goal, i) => (
+                                            <li key={i}>{goal}</li>
+                                        ))
+                                    ) : (
+                                        <>
+                                            <li>התלמיד יבין את הנושא המרכזי ({unit.title}).</li>
+                                            <li>התלמיד יתרגל חשיבה ביקורתית באמצעות שאלות דיון.</li>
+                                            <li>התלמיד יתרגל יישום של החומר הנלמד.</li>
+                                        </>
+                                    )}
+                                </ul>
+                            )}
                         </div>
 
                         {/* Insert Initial Block */}
@@ -1272,17 +1430,17 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                                             </div>
 
                                             {/* Refine Toolbar - Now at bottom of block CONTENT area like UnitEditor */}
-                                            {editingBlockId === block.id && renderRefineToolbar(block)}
+                                            {refiningBlockId === block.id && renderRefineToolbar(block)}
 
-                                            {/* Edit Trigger (If Not Editing) - Centered or accessible */}
-                                            {editingBlockId !== block.id && (
+                                            {/* AI Refine Trigger (If Not Already Refining) */}
+                                            {refiningBlockId !== block.id && (
                                                 <div className="flex justify-end -mt-4 mb-4">
                                                     <button
-                                                        onClick={() => setEditingBlockId(block.id)}
+                                                        onClick={() => setRefiningBlockId(block.id)}
                                                         className="flex items-center gap-2 px-4 py-2 text-blue-500 hover:text-white hover:bg-blue-600 rounded-lg transition-all text-xs font-bold bg-blue-50 border border-blue-100"
                                                     >
                                                         <IconSparkles className="w-4 h-4" />
-                                                        שפרו / ערכו עם AI
+                                                        שפרו עם AI
                                                     </button>
                                                 </div>
                                             )}

@@ -28,6 +28,9 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     // Local state for inline accordion expansion
     const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
 
+    // Presentation/View mode state
+    const [viewingUnit, setViewingUnit] = useState<LearningUnit | null>(null);
+
     const toggleUnitExpansion = (unitId: string) => {
         const newSet = new Set(expandedUnits);
         if (newSet.has(unitId)) {
@@ -142,10 +145,41 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
         });
     };
 
-    const handlePreview = () => {
-        // This functionality needs to be wired up to a Student View (CoursePlayer)
-        alert('Opening Student Preview...');
-        // In a real implementation, this would trigger a modal or navigation to a preview route.
+    // Get all units in order for presentation mode
+    const getAllUnitsInOrder = (): LearningUnit[] => {
+        return course.syllabus.flatMap(module => module.learningUnits);
+    };
+
+    const handlePreview = (unit?: LearningUnit) => {
+        // If specific unit passed, view that unit
+        // Otherwise, view the first unit in presentation mode
+        if (unit) {
+            setViewingUnit(unit);
+        } else {
+            const allUnits = getAllUnitsInOrder();
+            if (allUnits.length > 0) {
+                setViewingUnit(allUnits[0]);
+            }
+        }
+    };
+
+    // Navigate to next/previous unit in presentation mode
+    const handleNextUnit = () => {
+        if (!viewingUnit) return;
+        const allUnits = getAllUnitsInOrder();
+        const currentIndex = allUnits.findIndex(u => u.id === viewingUnit.id);
+        if (currentIndex < allUnits.length - 1) {
+            setViewingUnit(allUnits[currentIndex + 1]);
+        }
+    };
+
+    const handlePrevUnit = () => {
+        if (!viewingUnit) return;
+        const allUnits = getAllUnitsInOrder();
+        const currentIndex = allUnits.findIndex(u => u.id === viewingUnit.id);
+        if (currentIndex > 0) {
+            setViewingUnit(allUnits[currentIndex - 1]);
+        }
     };
 
 
@@ -190,11 +224,12 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                     {/* Toolbar Actions */}
                     <div className="flex items-center gap-3 print:hidden">
                         <button
-                            onClick={handlePreview}
-                            className="p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
-                            title="תצוגת תלמיד דמו"
+                            onClick={() => handlePreview()}
+                            className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm border border-white/60 bg-white/50"
+                            title="מצב הקרנה - תצוגת מערך השיעור למורה"
                         >
                             <IconEye className="w-[22px] h-[22px]" />
+                            <span className="text-sm font-medium hidden md:inline">הקרנה</span>
                         </button>
                         <button
                             onClick={() => handleShare(undefined, undefined, 'collab')}
@@ -359,6 +394,14 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                         </div>
 
                                                         <button
+                                                            onClick={(e) => { e.stopPropagation(); handlePreview(unit); }}
+                                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors bg-white/50 border border-white/60 shadow-sm"
+                                                            title="תצוגת הקרנה"
+                                                        >
+                                                            <IconEye className="w-[18px] h-[18px]" />
+                                                        </button>
+
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteUnit(module.id, unit.id); }}
                                                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors bg-white/50 border border-white/60 shadow-sm"
                                                             title="מחק יחידה"
@@ -429,6 +472,24 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                 unitTitle={shareOptions?.unitTitle}
                 initialTab={shareOptions?.initialTab}
             />
+
+            {/* Presentation/View Mode - TeacherCockpit Full Screen */}
+            {viewingUnit && (
+                <TeacherCockpit
+                    unit={viewingUnit}
+                    courseId={course.id}
+                    embedded={false}
+                    onExit={() => setViewingUnit(null)}
+                    onUnitUpdate={(updatedUnit) => {
+                        // Update the unit in the course
+                        if (onUnitUpdate) {
+                            onUnitUpdate(updatedUnit);
+                        }
+                        // Also update local state to reflect changes
+                        setViewingUnit(updatedUnit);
+                    }}
+                />
+            )}
         </div>
     );
 };
