@@ -660,9 +660,12 @@ const CourseEditor: React.FC = () => {
                     alert("שגיאה בעיבוד הקובץ. המערכת תמשיך על בסיס הנושא בלבד.");
                 }
             } else if (data.pastedText) {
-                // console.log("Using pasted text as source");
+                console.log("📝 Using pasted text as source, length:", data.pastedText.length);
                 processedSourceText = data.pastedText;
             }
+
+            // DEBUG: Log what we're sending to AI
+            console.log("🔍 DEBUG - processedSourceText:", processedSourceText ? `${processedSourceText.substring(0, 200)}... (${processedSourceText.length} chars)` : "UNDEFINED");
 
             const updatedCourseState = {
                 ...course,

@@ -566,7 +566,7 @@ export const generateTeacherStepContent = async (
   sourceType: 'YOUTUBE' | 'TEXT_FILE' | 'TOPIC_ONLY',
   fileData?: any
 ): Promise<TeacherLessonPlan | null> => {
-  // console.log(`🧑‍🏫 Generating Teacher Lesson. Type: ${sourceType}`);
+  console.log(`🧑‍🏫 generateTeacherStepContent called with sourceType: ${sourceType}, sourceText: ${sourceText ? `${sourceText.substring(0, 100)}... (${sourceText.length} chars)` : "UNDEFINED"}`);
 
   const contentToInject = sourceType === 'TOPIC_ONLY' ? topic : sourceText.substring(0, 20000);
 
@@ -1431,6 +1431,9 @@ export const generateCourseSyllabus = async (
   const unitCount = productType === 'lesson'
     ? 1
     : (activityLength === 'short' ? 3 : (activityLength === 'long' ? 8 : 5));
+
+  // DEBUG: Log source text
+  console.log("🎓 generateCourseSyllabus called with sourceText:", sourceText ? `${sourceText.substring(0, 100)}... (${sourceText.length} chars)` : "UNDEFINED");
 
   // Inject source text into prompt if available
   const sourceTextSection = sourceText
