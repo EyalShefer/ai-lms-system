@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
+import { MathRenderer } from './MathRenderer';
 
 interface MultipleChoiceQuestionProps {
     block: ActivityBlock;
@@ -73,9 +74,26 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
     const getOptionText = (opt: any) => typeof opt === 'string' ? opt : opt.text;
     const showFeedback = isReviewMode || (isSubmitted && !isExamMode);
 
+    // Check if text contains math notation
+    const hasMath = (text: string) => text?.includes('$') || text?.includes('\\');
+
+    // Render text with optional math support
+    const renderText = (text: string) => {
+        if (hasMath(text)) {
+            return <MathRenderer content={text} className="inline" />;
+        }
+        return <span>{text}</span>;
+    };
+
     return (
         <div className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm">
-            <h3 className="text-xl font-bold mb-4">{block.content.question}</h3>
+            <h3 className="text-xl font-bold mb-4">
+                {hasMath(block.content.question) ? (
+                    <MathRenderer content={block.content.question} />
+                ) : (
+                    block.content.question
+                )}
+            </h3>
 
             {/* Media rendering could be passed as prop or handled here if we duplicate logic, 
                 but for now let's focus on the question logic. Media is usually external in the CoursePlayer block.
@@ -104,7 +122,7 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                             disabled={!!showFeedback && !isExamMode} // Disable only if feedback shown (practice mode)
                         >
                             <div className="flex justify-between items-center">
-                                <span>{optText}</span>
+                                {renderText(optText)}
                                 {showFeedback && optText === block.content.correctAnswer && <IconCheck className="w-5 h-5 text-green-600" />}
                                 {showFeedback && selectedAnswer === optText && optText !== block.content.correctAnswer && <IconX className="w-5 h-5 text-red-600" />}
                             </div>

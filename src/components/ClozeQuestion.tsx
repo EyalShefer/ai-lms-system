@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 import { calculateQuestionScore } from '../utils/scoring';
+import { MathRenderer } from './MathRenderer';
 
 interface ClozeQuestionProps {
     block: ActivityBlock;
@@ -219,7 +220,11 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
             <div className="mb-8 text-lg leading-loose text-center" dir="rtl">
                 {parts.map((part, i) => (
                     <React.Fragment key={i}>
-                        <span dangerouslySetInnerHTML={{ __html: part }} />
+                        {part.includes('$') || part.includes('\\') ? (
+                            <MathRenderer content={part} className="inline" />
+                        ) : (
+                            <span dangerouslySetInnerHTML={{ __html: part }} />
+                        )}
                         {i < parts.length - 1 && (
                             <span
                                 onDrop={(e) => handleDrop(e, i)}

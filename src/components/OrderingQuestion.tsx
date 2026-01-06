@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 import { calculateQuestionScore } from '../utils/scoring';
+import { MathRenderer } from './MathRenderer';
 
 interface OrderingQuestionProps {
     block: ActivityBlock;
@@ -168,7 +169,11 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                             {index + 1}
                         </div>
                         <div className="flex-1 font-medium text-gray-700 select-none">
-                            {item}
+                            {item.includes('$') || item.includes('\\') ? (
+                                <MathRenderer content={item} className="inline" />
+                            ) : (
+                                item
+                            )}
                         </div>
 
                         {!isSubmitted && (
