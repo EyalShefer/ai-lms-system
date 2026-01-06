@@ -1780,7 +1780,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     {/* השימוש החדש ברכיב המאוחד */}
                                                     {renderMediaToolbar(block.id)}
                                                 </div>
-                                                <div className="mt-2">
+                                                <div className="mt-2 flex justify-end">
                                                     <AiRefineToolbar
                                                         blockId={block.id}
                                                         blockType={block.type}

@@ -58,7 +58,7 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                 title="שפר או שנה את התוכן באמצעות הוראות חופשיות"
             >
                 <IconSparkles className="w-3 h-3 text-purple-600" />
-                שפר עם AI
+                שפרו עם AI
             </button>
         );
     }
@@ -85,7 +85,7 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                     value={instruction}
                     onChange={(e) => setInstruction(e.target.value)}
                     placeholder="למשל: 'הוסיפו עוד 2 מסיחים', 'הפכו את השאלה לקשה יותר', 'תנו דוגמאות מעולם החי'..."
-                    className="w-full text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[60px] resize-none bg-white/80"
+                    className="w-full min-w-[300px] text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[80px] resize-none bg-white/80"
                     disabled={isLoading}
                     autoFocus
                     onKeyDown={(e) => {
