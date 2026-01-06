@@ -89,6 +89,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [forceExam, setForceExam] = useState(false); // DEBUG: Override mode
     const isExamMode = forceExam || course?.mode === 'exam';
 
+    // Source PDF/Text Panel (side-by-side view)
+    const [showSourcePanel, setShowSourcePanel] = useState(false);
+    const hasSourceContent = !!(course?.pdfSource || course?.fullBookContent);
+    const shouldShowSource = course?.showSourceToStudent && hasSourceContent;
+
     useEffect(() => {
         // Safe check for window
         if (typeof window !== 'undefined') {
@@ -1090,6 +1095,24 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             <IconChevronRight className="w-5 h-5" />
                             <span className="font-bold text-sm hidden sm:inline">יציאה</span>
                         </button>
+
+                        {/* Source Document Toggle Button */}
+                        {shouldShowSource && (
+                            <button
+                                onClick={() => setShowSourcePanel(!showSourcePanel)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition border ${
+                                    showSourcePanel
+                                        ? 'bg-white text-blue-600 border-white'
+                                        : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                                }`}
+                                title={showSourcePanel ? 'סגור מסמך מקור' : 'הצג מסמך מקור'}
+                            >
+                                <IconBook className="w-5 h-5" />
+                                <span className="font-bold text-sm hidden sm:inline">
+                                    {showSourcePanel ? 'סגור מקור' : 'הצג מקור'}
+                                </span>
+                            </button>
+                        )}
                         <div className="flex flex-col text-right">
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-bold opacity-80 uppercase tracking-widest">{currentUser?.displayName || "אורח"}</span>
@@ -1193,56 +1216,101 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 </div>
             </div>
 
-            {/* 3. Bottom Action Bar (Sticky) */}
+            {/* 2. Main Card Area with Optional Source Panel */}
+            <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure') ? 'pb-48' : 'pb-32'}`}>
 
-
-            {/* 2. Main Card Area (Modified for spacing) */}
-            <div className={`flex-1 overflow-y-auto w-full max-w-6xl mx-auto p-4 flex flex-col justify-start pt-4 md:pt-12 transition-all duration-300 scrollbar-none [&::-webkit-scrollbar]:hidden ${(stepStatus === 'success' || stepStatus === 'failure') ? 'pb-64' : 'pb-48'
-                }`}>
-                {/* Floating XP Animation */}
-                {showFloater && <XpFloater amount={showFloater.amount} onComplete={() => setShowFloater(null)} />}
-
-                {/* split-view-logic */}
-                {(() => {
-                    // Check for Context (Previous block was passive content?)
-                    const prevBlock = playbackQueue[currentIndex - 1];
-                    const isInteractive = !['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'].includes(currentBlock.type);
-                    const hasContext = prevBlock && ['text', 'pdf'].includes(prevBlock.type) && isInteractive;
-
-                    if (hasContext) {
-                        return (
-                            <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
-                                {/* Context Panel (Left/Top) */}
-                                <div className="flex-1 bg-white/90 backdrop-blur rounded-[32px] shadow-xl p-6 md:p-8 overflow-y-auto border-4 border-white/50 max-h-[60vh] lg:max-h-none">
-                                    <div className="prose prose-xl prose-indigo max-w-none text-slate-800 dir-rtl">
-                                        {prevBlock.content.split('\n').map((line: string, i: number) => {
-                                            if (!line.trim()) return <br key={i} />;
-                                            if (line.startsWith('#')) {
-                                                return <h3 key={i} className="text-2xl md:text-3xl font-bold mb-4 text-indigo-600">{line.replace(/^#+\s*/, '')}</h3>;
-                                            }
-                                            return <p key={i} className="text-xl md:text-2xl leading-relaxed font-medium mb-4">{line}</p>;
-                                        })}
+                {/* Source Document Panel (Left side when open) */}
+                {showSourcePanel && shouldShowSource && (
+                    <div className="w-1/2 h-full bg-white/95 backdrop-blur border-l border-white/20 flex flex-col animate-in slide-in-from-right duration-300 z-10">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 shrink-0">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                                <IconBook className="w-5 h-5 text-blue-500" />
+                                מסמך מקור
+                            </h3>
+                            <button
+                                onClick={() => setShowSourcePanel(false)}
+                                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                <IconX className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-auto min-h-0">
+                            {course?.pdfSource ? (
+                                <iframe
+                                    src={course.pdfSource}
+                                    className="w-full h-full border-none"
+                                    title="מסמך מקור"
+                                />
+                            ) : course?.fullBookContent ? (
+                                <div className="p-6 prose max-w-none text-sm leading-relaxed" dir="rtl">
+                                    <div className="font-serif text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                        {course.fullBookContent}
                                     </div>
                                 </div>
-
-                                {/* Active Question Panel (Right/Bottom) */}
-                                <div className="flex-1 bg-white rounded-[32px] shadow-2xl p-6 md:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500">
-                                    {renderBlockContent()}
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    // Standard Single View
-                    return (
-                        <div className="bg-white rounded-[32px] shadow-2xl overflow-hidden min-h-[500px] flex flex-col relative animate-in zoom-in-95 duration-300 max-w-5xl mx-auto w-full">
-                            <div className="p-8 md:p-12 flex-1 flex flex-col justify-center">
-                                {renderBlockContent()}
-                            </div>
+                            ) : null}
                         </div>
-                    );
-                })()}
+                    </div>
+                )}
 
+                {/* Activity Content Area */}
+                <div className={`${showSourcePanel && shouldShowSource ? 'w-1/2' : 'w-full'} overflow-y-auto p-4 pt-4 md:pt-12 scrollbar-none [&::-webkit-scrollbar]:hidden`}>
+                    <div className={`${showSourcePanel && shouldShowSource ? 'max-w-2xl' : 'max-w-6xl'} mx-auto`}>
+                        {/* Floating XP Animation */}
+                        {showFloater && <XpFloater amount={showFloater.amount} onComplete={() => setShowFloater(null)} />}
+
+                        {/* split-view-logic (for previous block context, only when source panel is closed) */}
+                        {(() => {
+                            // Check for Context (Previous block was passive content?)
+                            const prevBlock = playbackQueue[currentIndex - 1];
+                            const isInteractive = !['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'].includes(currentBlock.type);
+                            const hasContext = prevBlock && ['text', 'pdf'].includes(prevBlock.type) && isInteractive;
+
+                            // Only show inline context if source panel is closed
+                            if (hasContext && !showSourcePanel) {
+                                return (
+                                    <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
+                                        {/* Context Panel (Left/Top) - PDF or Text */}
+                                        <div className="flex-1 bg-white/90 backdrop-blur rounded-[32px] shadow-xl p-6 md:p-8 overflow-y-auto border-4 border-white/50 lg:max-h-none lg:min-h-[500px]">
+                                            {prevBlock.type === 'pdf' ? (
+                                                <iframe
+                                                    src={`${prevBlock.content}#toolbar=0`}
+                                                    width="100%"
+                                                    height="100%"
+                                                    title="PDF Context"
+                                                    className="border-0 rounded-xl min-h-[400px] lg:min-h-full"
+                                                />
+                                            ) : (
+                                                <div className="prose prose-xl prose-indigo max-w-none text-slate-800 dir-rtl">
+                                                    {prevBlock.content.split('\n').map((line: string, i: number) => {
+                                                        if (!line.trim()) return <br key={i} />;
+                                                        if (line.startsWith('#')) {
+                                                            return <h3 key={i} className="text-2xl md:text-3xl font-bold mb-4 text-indigo-600">{line.replace(/^#+\s*/, '')}</h3>;
+                                                        }
+                                                        return <p key={i} className="text-xl md:text-2xl leading-relaxed font-medium mb-4">{line}</p>;
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Active Question Panel (Right/Bottom) */}
+                                        <div className="flex-1 bg-white rounded-[32px] shadow-2xl p-6 md:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500">
+                                            {renderBlockContent()}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // Standard Single View
+                            return (
+                                <div className={`bg-white rounded-[32px] shadow-2xl overflow-hidden min-h-[500px] flex flex-col relative animate-in zoom-in-95 duration-300 ${showSourcePanel ? 'max-w-full' : 'max-w-5xl'} mx-auto w-full`}>
+                                    <div className="p-8 md:p-12 flex-1 flex flex-col justify-center">
+                                        {renderBlockContent()}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
             </div>
 
             {/* Success Modal Overlay */}
