@@ -219,7 +219,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
             <div className="mb-8 text-lg leading-loose text-center" dir="rtl">
                 {parts.map((part, i) => (
                     <React.Fragment key={i}>
-                        {part}
+                        <span dangerouslySetInnerHTML={{ __html: part }} />
                         {i < parts.length - 1 && (
                             <span
                                 onDrop={(e) => handleDrop(e, i)}
