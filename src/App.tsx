@@ -132,6 +132,7 @@ const AuthenticatedApp = () => {
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [cameFromStudentDashboard, setCameFromStudentDashboard] = useState(false); // Track if student came from dashboard
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
+  const [wizardProduct, setWizardProduct] = useState<'lesson' | 'podcast' | 'exam' | 'game' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false); // NEW: Simulate Guest
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
@@ -583,7 +584,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} />}
                 {mode === 'editor' && <CourseEditor />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -625,10 +626,11 @@ const AuthenticatedApp = () => {
               <LazyLoadErrorBoundary>
                 <IngestionWizard
                   initialMode={wizardMode}
+                  initialProduct={wizardProduct || undefined}
                   initialTopic=""
                   title="יצירת פעילות חדשה"
                   onComplete={handleWizardComplete}
-                  onCancel={() => setWizardMode(null)}
+                  onCancel={() => { setWizardMode(null); setWizardProduct(null); }}
                 />
               </LazyLoadErrorBoundary>
             </Suspense>

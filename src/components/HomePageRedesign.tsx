@@ -18,7 +18,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -232,7 +232,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                             <div className="grid grid-cols-2 gap-3 mt-4">
                                 {/* מערך שיעור */}
                                 <button
-                                    onClick={() => handleCardClick("Lesson Plan", () => onCreateNew('lesson'))}
+                                    onClick={() => handleCardClick("Lesson Plan", () => onCreateNew('learning', 'lesson'))}
                                     className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                                 >
                                     <div className="flex items-start gap-3">
@@ -261,7 +261,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
 
                                 {/* פודקאסט AI */}
                                 <button
-                                    onClick={() => handleCardClick("Podcast", () => onCreateNew('podcast'))}
+                                    onClick={() => handleCardClick("Podcast", () => onCreateNew('learning', 'podcast'))}
                                     className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-cyan rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                                 >
                                     <div className="flex items-start gap-3">
@@ -281,7 +281,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
 
                                 {/* פעילות לתלמיד */}
                                 <button
-                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning'))}
+                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning', 'game'))}
                                     className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-pink-500 rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                                 >
                                     <div className="flex items-start gap-3">
@@ -301,7 +301,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
 
                                 {/* מבחן / בוחן */}
                                 <button
-                                    onClick={() => handleCardClick("Exam", () => onCreateNew('exam'))}
+                                    onClick={() => handleCardClick("Exam", () => onCreateNew('learning', 'exam'))}
                                     className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-amber-500 rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                                 >
                                     <div className="flex items-start gap-3">

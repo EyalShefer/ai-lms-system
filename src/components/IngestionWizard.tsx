@@ -94,6 +94,7 @@ interface IngestionWizardProps {
     onCancel: () => void;
     initialTopic?: string;
     initialMode?: 'learning' | 'exam';
+    initialProduct?: 'lesson' | 'podcast' | 'exam' | 'game';
     title?: string;
     cancelLabel?: string;
     cancelIcon?: React.ReactNode;
@@ -244,6 +245,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     onCancel,
     initialTopic,
     initialMode = 'learning',
+    initialProduct,
     //  cancelLabel = "חזרה",
     //  cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" />
 }) => {
@@ -258,8 +260,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [pastedText, setPastedText] = useState('');
     // const [subMode, setSubMode] = useState<'youtube' | 'audio' | null>(null);
 
-    // Step 2: Product
-    const [selectedProduct, setSelectedProduct] = useState<ProductType>(null);
+    // Step 2: Product - use initialProduct if provided
+    const [selectedProduct, setSelectedProduct] = useState<ProductType>(initialProduct || null);
 
     // Step 3: Settings
     const [customTitle, setCustomTitle] = useState('');
@@ -426,7 +428,12 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
         if (step === 1 && canProceed()) {
             updateTitleFromInput();
-            setStep(2);
+            // Skip step 2 if initialProduct was provided (user already chose product type)
+            if (initialProduct) {
+                setStep(3);
+            } else {
+                setStep(2);
+            }
         } else if (step === 2 && canProceed()) {
             setStep(3);
         } else if (step === 3) {
