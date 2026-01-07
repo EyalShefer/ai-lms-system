@@ -319,3 +319,65 @@ export interface QAAgentResult {
   criticalIssues: TestResult[];
   allResults: TestResult[];
 }
+
+// ===== AUTO-FIX SYSTEM =====
+
+export type FixType =
+  | 'regenerate_content'      // יצירה מחדש של תוכן
+  | 'add_missing_field'       // הוספת שדה חסר
+  | 'fix_structure'           // תיקון מבנה
+  | 'remove_invalid'          // הסרת תוכן לא תקין
+  | 'update_reference'        // עדכון הפניה
+  | 'regenerate_block'        // יצירה מחדש של בלוק
+  | 'fix_options'             // תיקון אפשרויות (שאלות בחירה)
+  | 'add_correct_answer'      // הוספת תשובה נכונה
+  | 'fix_json_schema'         // תיקון סכמת JSON
+  | 'manual_review';          // דורש בדיקה ידנית
+
+export interface FixSuggestion {
+  id: string;
+  testResultId: string;
+  fixType: FixType;
+  description: string;
+  descriptionHe: string;
+  autoFixable: boolean;
+  estimatedDuration: number; // seconds
+  riskLevel: 'low' | 'medium' | 'high';
+  targetPath: {
+    collection: string;
+    documentId: string;
+    field?: string;
+    blockId?: string;
+  };
+  fixData?: Record<string, unknown>;
+  requiresAI: boolean;
+  aiPrompt?: string;
+}
+
+export interface FixResult {
+  id: string;
+  suggestionId: string;
+  status: 'success' | 'failed' | 'partial' | 'skipped';
+  appliedAt: Date;
+  appliedBy?: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  errorMessage?: string;
+  revalidationResult?: TestResult;
+}
+
+export interface FixBatch {
+  id: string;
+  createdAt: Date;
+  fixes: FixSuggestion[];
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  completedFixes: number;
+  failedFixes: number;
+  results: FixResult[];
+}
+
+// Extended TestResult with fix suggestions
+export interface TestResultWithFix extends TestResult {
+  fixSuggestions?: FixSuggestion[];
+  canAutoFix?: boolean;
+}

@@ -11,6 +11,15 @@ export { runContentQualityAgent, validateCourse, validateUnit, validateBlock, va
 export { runStudentSimulationAgent, simulateCourse, simulateUnit } from './studentSimulationAgent';
 export { runAIGenerationAgent, testMultipleChoiceGeneration, testOpenQuestionGeneration } from './aiGenerationAgent';
 
+// Auto-Fix Agent
+export {
+  generateFixSuggestions,
+  executeFix,
+  executeFixBatch,
+  enhanceTestResultsWithFixes,
+  revalidateAfterFix
+} from './autoFixAgent';
+
 // Types re-export
 export type {
   TestResult,
@@ -24,7 +33,12 @@ export type {
   ContentQualityCheck,
   StudentSimulationRun,
   AIGenerationTest,
-  QATestConfig
+  QATestConfig,
+  FixSuggestion,
+  FixResult,
+  FixBatch,
+  FixType,
+  TestResultWithFix
 } from '../../types/qa.types';
 
 export { DEFAULT_QA_CONFIG, DEFAULT_STUDENT_PROFILES } from '../../types/qa.types';

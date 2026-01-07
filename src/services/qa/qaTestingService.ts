@@ -493,7 +493,7 @@ async function runPerformanceTests(config: QATestConfig['performance']): Promise
 // ===== MAIN ORCHESTRATOR =====
 
 export async function runFullQAReport(
-  config: QATestConfig = require('../../types/qa.types').DEFAULT_QA_CONFIG,
+  config: QATestConfig = DEFAULT_QA_CONFIG,
   triggeredBy: 'manual' | 'scheduled' | 'ci' = 'manual',
   userId?: string
 ): Promise<QAReport> {
