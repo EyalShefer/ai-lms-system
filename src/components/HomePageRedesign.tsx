@@ -5,7 +5,7 @@ import {
     IconChart,
     IconList
 } from '../icons';
-import { IconUpload, IconShare, IconBell, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconBell, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck } from '@tabler/icons-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -209,74 +209,121 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
             </section>
 
             {/* Main Action Cards */}
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
 
-                {/* Card 1: Create Learning Content */}
-                <div
-                    onClick={() => handleCardClick("Learning Generator", () => onCreateNew('learning'))}
-                    className="lg:col-span-2 group cursor-pointer"
-                >
-                    <div className="card-glass rounded-3xl p-8 h-full hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-3 border-transparent hover:border-wizdi-cyan/30">
+                {/* Card 1: Create Learning Content - With 4 Sub-buttons */}
+                <div className="lg:col-span-2">
+                    <div className="card-glass rounded-3xl p-8 h-full gradient-border">
                         <div className="flex flex-col h-full">
-                            <div className="flex items-start justify-between mb-6">
-                                <div className="w-16 h-16 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                    <IconSparkles className="w-8 h-8 text-white" />
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                                        <IconSparkles className="w-7 h-7 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-800">יצירת תוכן לימודי</h2>
+                                        <p className="text-slate-500 text-sm">בחרו את סוג התוכן שתרצו ליצור</p>
+                                    </div>
                                 </div>
                                 <span className="bg-wizdi-lime/20 text-lime-700 text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
                             </div>
 
-                            <h2 className="text-2xl lg:text-3xl font-black text-slate-800 mb-3">
-                                יצירת תוכן לימודי
-                            </h2>
-                            <p className="text-slate-500 mb-6 flex-grow">
-                                צרו שיעורים אינטראקטיביים, פודקאסטים AI, ופעילויות תרגול מכל מקור - סרטון, קובץ, טקסט או נושא
-                            </p>
+                            {/* 4 Sub-buttons Grid */}
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                                {/* מערך שיעור */}
+                                <button
+                                    onClick={() => handleCardClick("Lesson Plan", () => onCreateNew('lesson'))}
+                                    className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="icon-container w-12 h-12 bg-wizdi-royal/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors">
+                                            {/* Flow icon - vertical timeline */}
+                                            <svg className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <circle className="flow-dot" cx="12" cy="4" r="2" fill="currentColor" stroke="none"/>
+                                                <line x1="12" y1="6" x2="12" y2="9" strokeLinecap="round"/>
+                                                <circle className="flow-dot" cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+                                                <line x1="12" y1="11.5" x2="12" y2="14.5" strokeLinecap="round"/>
+                                                <circle className="flow-dot" cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/>
+                                                <line x1="12" y1="17.5" x2="12" y2="20" strokeLinecap="round"/>
+                                                <circle className="flow-dot" cx="12" cy="21" r="1" fill="currentColor" stroke="none"/>
+                                            </svg>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-slate-800 mb-1">מערך שיעור</h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed">בניית יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                        התחל
+                                        <IconChevronLeft className="w-4 h-4" />
+                                    </div>
+                                </button>
 
-                            <div className="flex flex-wrap gap-2 mb-6">
-                                <span className="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">שיעור</span>
-                                <span className="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">פודקאסט</span>
-                                <span className="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">פעילות</span>
-                                <span className="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">אינפוגרפיקה</span>
-                            </div>
+                                {/* פודקאסט AI */}
+                                <button
+                                    onClick={() => handleCardClick("Podcast", () => onCreateNew('podcast'))}
+                                    className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-cyan rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="icon-container w-12 h-12 bg-wizdi-cyan/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-cyan transition-colors">
+                                            <IconMicrophone className="w-6 h-6 text-wizdi-cyan group-hover/btn:text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-slate-800 mb-1">פודקאסט AI</h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed">יצירת פרק אודיו המבוסס על התוכן, להאזנה ולמידה</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-wizdi-cyan text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                        התחל
+                                        <IconChevronLeft className="w-4 h-4" />
+                                    </div>
+                                </button>
 
-                            <div className="flex items-center gap-2 text-wizdi-royal font-bold group-hover:translate-x-[-8px] transition-transform">
-                                התחילו ליצור
-                                <IconChevronLeft className="w-5 h-5" />
+                                {/* פעילות לתלמיד */}
+                                <button
+                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning'))}
+                                    className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-pink-500 rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="icon-container w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-pink-500 transition-colors">
+                                            <IconMoodSmile className="w-6 h-6 text-pink-500 group-hover/btn:text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-slate-800 mb-1">פעילות לתלמיד</h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed">פעילות אינטראקטיבית לתרגול וחזרה בצורה חווייתית</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-pink-500 text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                        התחל
+                                        <IconChevronLeft className="w-4 h-4" />
+                                    </div>
+                                </button>
+
+                                {/* מבחן / בוחן */}
+                                <button
+                                    onClick={() => handleCardClick("Exam", () => onCreateNew('exam'))}
+                                    className="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-amber-500 rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="icon-container w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-amber-500 transition-colors">
+                                            <IconClipboardCheck className="w-6 h-6 text-amber-500 group-hover/btn:text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-slate-800 mb-1">מבחן / בוחן</h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed">שאלון הערכה מסכם לבדיקת ידע, עם ציונים ומשוב</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-amber-500 text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                        התחל
+                                        <IconChevronLeft className="w-4 h-4" />
+                                    </div>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Card 2: Create Exam */}
-                <div
-                    onClick={() => handleCardClick("Exam Creator", () => onCreateNew('exam'))}
-                    className="group cursor-pointer"
-                >
-                    <div className="bg-gradient-to-br from-wizdi-royal to-indigo-800 rounded-3xl p-8 h-full text-white hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-32 h-32 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-                        <div className="absolute bottom-0 right-0 w-24 h-24 bg-wizdi-cyan/20 rounded-full translate-x-1/2 translate-y-1/2"></div>
-
-                        <div className="relative z-10 flex flex-col h-full">
-                            <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                <IconList className="w-7 h-7 text-white" />
-                            </div>
-
-                            <h2 className="text-2xl font-black mb-3">
-                                יצירת מבחן
-                            </h2>
-                            <p className="text-blue-100 mb-6 flex-grow">
-                                בניית שאלונים עם בדיקה אוטומטית וניתוח ציונים מפורט
-                            </p>
-
-                            <div className="flex items-center gap-2 font-bold group-hover:translate-x-[-8px] transition-transform">
-                                צרו מבחן
-                                <IconChevronLeft className="w-5 h-5" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Card 3: Dashboard */}
+                {/* Card 2: Dashboard */}
                 <div
                     onClick={() => handleCardClick("Dashboard", onNavigateToDashboard)}
                     className="group cursor-pointer"
@@ -481,6 +528,32 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                 }
                 .animate-blob { animation: blob 7s infinite; }
                 .animation-delay-2000 { animation-delay: 2s; }
+
+                /* Gradient border for main card */
+                .gradient-border {
+                    position: relative;
+                }
+                .gradient-border::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    border-radius: inherit;
+                    padding: 3px;
+                    background: linear-gradient(135deg, #00C2FF, #8CE81C, #FFD500);
+                    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                    -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+                    pointer-events: none;
+                }
+
+                /* Flow icon - only animate on hover */
+                .flow-dot {
+                    transition: transform 0.3s ease;
+                }
+                .sub-btn:hover .flow-dot {
+                    transform: scale(1.15);
+                }
             `}</style>
         </div>
     );
