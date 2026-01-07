@@ -12,7 +12,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 
 // --- Lazy Loading ---
-const HomePage = React.lazy(() => import('./components/HomePage'));
+const HomePage = React.lazy(() => import('./components/HomePageRedesign'));
 const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));

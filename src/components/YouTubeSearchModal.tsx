@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { searchYouTubeVideos, YouTubeVideoResult } from '../services/youtubeService';
+import { searchYouTubeVideos, type YouTubeVideoResult } from '../services/youtubeService';
 
 // Icons
 const IconSearch = (props: React.SVGProps<SVGSVGElement>) => (
@@ -241,8 +241,8 @@ const YouTubeSearchModal: React.FC<YouTubeSearchModalProps> = ({
                             <div
                                 key={video.videoId}
                                 className={`bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-lg cursor-pointer ${selectedVideoId === video.videoId
-                                        ? 'border-red-500 ring-2 ring-red-200'
-                                        : 'border-gray-200 hover:border-red-300'
+                                    ? 'border-red-500 ring-2 ring-red-200'
+                                    : 'border-gray-200 hover:border-red-300'
                                     }`}
                                 onClick={() => setPreviewVideoId(previewVideoId === video.videoId ? null : video.videoId)}
                             >
