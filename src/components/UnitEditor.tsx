@@ -44,7 +44,7 @@ import { createPortal } from 'react-dom';
 import InspectorBadge from './InspectorBadge';
 import InspectorDashboard from './InspectorDashboard';
 import YouTubeSearchModal from './YouTubeSearchModal';
-import { YouTubeVideoResult } from '../services/youtubeService';
+import type { YouTubeVideoResult } from '../services/youtubeService';
 import MindMapEditor from './MindMapEditor';
 import MindMapGeneratorModal from './MindMapGeneratorModal';
 import type { MindMapContent } from '../shared/types/courseTypes';
@@ -155,8 +155,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             // Try to get transcript
             let transcript = "";
             try {
-                const text = await MultimodalService.processYoutubeUrl(video.watchUrl);
-                if (text) transcript = text;
+                const result = await MultimodalService.processYoutubeUrl(video.watchUrl);
+                if (result?.text) transcript = result.text;
             } catch (e) {
                 console.warn("Could not get transcript for YouTube video:", e);
             }
@@ -574,6 +574,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         const newBlocks = [...(editedUnit.activityBlocks || [])];
         newBlocks.splice(index, 0, newBlock);
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
+        setIsDirty(true);
         setActiveInsertIndex(null);
     };
 
@@ -1025,11 +1026,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             if (videoId) {
                                 try {
                                     console.log("Calling processYoutubeUrl...");
-                                    const text = await MultimodalService.processYoutubeUrl(url);
-                                    console.log("Transcript Result Length:", text?.length);
+                                    const result = await MultimodalService.processYoutubeUrl(url);
+                                    console.log("Transcript Result Length:", result?.text?.length);
 
-                                    if (text) {
-                                        transcript = text;
+                                    if (result?.text) {
+                                        transcript = result.text;
                                     } else {
                                         alert("השרת החזיר תמלול ריק. ייתכן ואין כתוביות בסרטון זה.");
                                     }
@@ -1072,23 +1073,23 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             <div>
                 {activeInsertIndex === index ? (
                     <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50">
-                        <button onClick={() => addBlockAtIndex('text', index)} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
-                        <button onClick={() => addBlockAtIndex('image', index)} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
-                        <button onClick={() => addBlockAtIndex('video', index)} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
-                        <button onClick={() => addBlockAtIndex('multiple-choice', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
-                        <button onClick={() => addBlockAtIndex('open-question', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
-                        <button onClick={() => addBlockAtIndex('interactive-chat', index)} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('video', index); }} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('multiple-choice', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('open-question', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('interactive-chat', index); }} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
 
-                        <button onClick={() => addBlockAtIndex('fill_in_blanks', index)} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
-                        <button onClick={() => addBlockAtIndex('ordering', index)} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
-                        <button onClick={() => addBlockAtIndex('categorization', index)} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
-                        <button onClick={() => addBlockAtIndex('memory_game', index)} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
-                        <button onClick={() => addBlockAtIndex('true_false_speed', index)} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
-                        <button onClick={() => addBlockAtIndex('audio-response', index)} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
-                        <button onClick={() => addBlockAtIndex('podcast', index)} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
-                        <button onClick={() => addBlockAtIndex('mindmap', index)} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('fill_in_blanks', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('ordering', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('categorization', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('memory_game', index); }} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
 
-                        <button onClick={() => setActiveInsertIndex(null)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
                     </div>
                 ) : (
                     <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-50 hover:border-blue-300">
@@ -1206,11 +1207,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                     <button
                         onClick={handleCopyLinkClick}
-                        className={`px-5 py-2 text-sm flex items-center gap-2 rounded-xl font-bold transition-all ${
-                            isDirty
-                                ? 'bg-amber-50 text-amber-600 border-2 border-amber-300 hover:bg-amber-100'
-                                : 'btn-lip-primary'
-                        }`}
+                        className={`px-5 py-2 text-sm flex items-center gap-2 rounded-xl font-bold transition-all ${isDirty
+                            ? 'bg-amber-50 text-amber-600 border-2 border-amber-300 hover:bg-amber-100'
+                            : 'btn-lip-primary'
+                            }`}
                         title={isDirty ? 'יש שינויים לא שמורים - מומלץ לשמור קודם' : 'צור קישור לתלמידים'}
                     >
                         <IconLink className={`w-4 h-4 ${isDirty ? 'animate-pulse' : ''}`} />
@@ -1419,11 +1419,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                                             if (MultimodalService.validateYouTubeUrl(url)) {
                                                                                 try {
                                                                                     log("Valid YouTube URL. Fetching transcript...");
-                                                                                    const text = await MultimodalService.processYoutubeUrl(url);
+                                                                                    const result = await MultimodalService.processYoutubeUrl(url);
 
-                                                                                    if (text) {
-                                                                                        log(`Transcript found! Length: ${text.length} chars`);
-                                                                                        transcript = text;
+                                                                                    if (result?.text) {
+                                                                                        log(`Transcript found! Length: ${result.text.length} chars`);
+                                                                                        transcript = result.text;
                                                                                     } else {
                                                                                         log("Transcript is empty/null from server.");
                                                                                         alert("השרת החזיר תמלול ריק.");
