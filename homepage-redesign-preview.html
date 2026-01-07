@@ -120,6 +120,40 @@
             border-color: #00C2FF;
             background: linear-gradient(135deg, #F5F9FF, white);
         }
+
+        /* Sub-button hover animations */
+        .sub-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .sub-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        }
+        .sub-btn:active {
+            transform: translateY(-2px);
+        }
+
+        /* Icon pulse on hover */
+        .sub-btn:hover .icon-container {
+            animation: iconPulse 0.5s ease;
+        }
+        @keyframes iconPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        /* Flow icon - only animate on hover */
+        .flow-icon .dot1,
+        .flow-icon .dot2,
+        .flow-icon .dot3,
+        .flow-icon .dot4 {
+            transition: transform 0.3s ease;
+        }
+        .sub-btn:hover .flow-icon .dot1 { transform: scale(1.2); }
+        .sub-btn:hover .flow-icon .dot2 { transform: scale(1.15); transition-delay: 0.05s; }
+        .sub-btn:hover .flow-icon .dot3 { transform: scale(1.15); transition-delay: 0.1s; }
+        .sub-btn:hover .flow-icon .dot4 { transform: scale(1.1); transition-delay: 0.15s; }
     </style>
 </head>
 <body class="font-rubik">
@@ -231,70 +265,110 @@
         </section>
 
         <!-- Main Action Cards - Modern Grid -->
-        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
 
-            <!-- Card 1: Create Learning Content -->
-            <div class="lg:col-span-2 group cursor-pointer animate-slide-in delay-200">
-                <div class="card-glass rounded-3xl p-8 h-full hover-lift gradient-border">
+            <!-- Card 1: Create Learning Content - With Sub-buttons -->
+            <div class="lg:col-span-2 animate-slide-in delay-200">
+                <div class="card-glass rounded-3xl p-8 h-full gradient-border">
                     <div class="flex flex-col h-full">
-                        <div class="flex items-start justify-between mb-6">
-                            <div class="w-16 h-16 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-14 h-14 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-black text-slate-800">יצירת תוכן לימודי</h2>
+                                    <p class="text-slate-500 text-sm">בחרו את סוג התוכן שתרצו ליצור</p>
+                                </div>
                             </div>
                             <span class="bg-wizdi-lime/20 text-lime-700 text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
                         </div>
 
-                        <h2 class="text-2xl lg:text-3xl font-black text-slate-800 mb-3">
-                            יצירת תוכן לימודי
-                        </h2>
-                        <p class="text-slate-500 mb-6 flex-grow">
-                            צרו שיעורים אינטראקטיביים, פודקאסטים AI, ומשחקוני תרגול מכל מקור - סרטון, קובץ או נושא חופשי
-                        </p>
+                        <!-- 4 Sub-buttons Grid -->
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <!-- מערך שיעור -->
+                            <button class="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-royal rounded-2xl p-4 text-right">
+                                <div class="flex items-start gap-3">
+                                    <div class="icon-container w-12 h-12 bg-wizdi-royal/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors">
+                                        <!-- Flow icon - vertical timeline -->
+                                        <svg class="w-6 h-6 text-wizdi-royal group-hover/btn:text-white flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle class="dot1" cx="12" cy="4" r="2" fill="currentColor" stroke="none"/>
+                                            <line x1="12" y1="6" x2="12" y2="9" stroke-linecap="round"/>
+                                            <circle class="dot2" cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+                                            <line x1="12" y1="11.5" x2="12" y2="14.5" stroke-linecap="round"/>
+                                            <circle class="dot3" cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/>
+                                            <line x1="12" y1="17.5" x2="12" y2="20" stroke-linecap="round"/>
+                                            <circle class="dot4" cx="12" cy="21" r="1" fill="currentColor" stroke="none"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-800 mb-1">מערך שיעור</h3>
+                                        <p class="text-xs text-slate-500 leading-relaxed">בניית יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                    התחל
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                </div>
+                            </button>
 
-                        <div class="flex flex-wrap gap-2 mb-6">
-                            <span class="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">שיעור</span>
-                            <span class="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">פודקאסט</span>
-                            <span class="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">משחק</span>
-                            <span class="bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">אינפוגרפיקה</span>
-                        </div>
+                            <!-- פודקאסט AI -->
+                            <button class="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-wizdi-cyan rounded-2xl p-4 text-right">
+                                <div class="flex items-start gap-3">
+                                    <div class="icon-container w-12 h-12 bg-wizdi-cyan/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-cyan transition-colors">
+                                        <svg class="w-6 h-6 text-wizdi-cyan group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-800 mb-1">פודקאסט AI</h3>
+                                        <p class="text-xs text-slate-500 leading-relaxed">יצירת פרק אודיו המבוסס על התוכן, להאזנה ולמידה</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 text-wizdi-cyan text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                    התחל
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                </div>
+                            </button>
 
-                        <div class="flex items-center gap-2 text-wizdi-royal font-bold group-hover:translate-x-[-8px] transition-transform">
-                            התחל ליצור
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            <!-- פעילות לתלמיד -->
+                            <button class="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-pink-500 rounded-2xl p-4 text-right">
+                                <div class="flex items-start gap-3">
+                                    <div class="icon-container w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-pink-500 transition-colors">
+                                        <svg class="w-6 h-6 text-pink-500 group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-800 mb-1">פעילות לתלמיד</h3>
+                                        <p class="text-xs text-slate-500 leading-relaxed">פעילות אינטראקטיבית לתרגול וחזרה בצורה חווייתית</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 text-pink-500 text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                    התחל
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                </div>
+                            </button>
+
+                            <!-- מבחן / בוחן -->
+                            <button class="sub-btn group/btn bg-white hover:bg-wizdi-cloud border-2 border-slate-100 hover:border-amber-500 rounded-2xl p-4 text-right">
+                                <div class="flex items-start gap-3">
+                                    <div class="icon-container w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-amber-500 transition-colors">
+                                        <svg class="w-6 h-6 text-amber-500 group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-800 mb-1">מבחן / בוחן</h3>
+                                        <p class="text-xs text-slate-500 leading-relaxed">שאלון הערכה מסכם לבדיקת ידע, עם ציונים ומשוב</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1 text-amber-500 text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform">
+                                    התחל
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 2: Create Exam -->
+            <!-- Card 2: Dashboard -->
             <div class="group cursor-pointer animate-slide-in delay-300">
-                <div class="bg-gradient-to-br from-wizdi-royal to-indigo-800 rounded-3xl p-8 h-full text-white hover-lift relative overflow-hidden">
-                    <!-- Decorative -->
-                    <div class="absolute top-0 left-0 w-32 h-32 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-                    <div class="absolute bottom-0 right-0 w-24 h-24 bg-wizdi-cyan/20 rounded-full translate-x-1/2 translate-y-1/2"></div>
-
-                    <div class="relative z-10 flex flex-col h-full">
-                        <div class="w-14 h-14 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                        </div>
-
-                        <h2 class="text-2xl font-black mb-3">
-                            יצירת מבחן
-                        </h2>
-                        <p class="text-blue-100 mb-6 flex-grow">
-                            בניית שאלונים עם בדיקה אוטומטית וניתוח ציונים מפורט
-                        </p>
-
-                        <div class="flex items-center gap-2 font-bold group-hover:translate-x-[-8px] transition-transform">
-                            צור מבחן
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Card 3: Dashboard -->
-            <div class="group cursor-pointer animate-slide-in delay-400">
                 <div class="bg-slate-800 rounded-3xl p-8 h-full text-white hover-lift relative overflow-hidden">
                     <!-- Chart decoration -->
                     <div class="absolute bottom-0 left-0 right-0 h-20 opacity-20">
