@@ -174,6 +174,65 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
     }
 
+    // AI News collection - public read for all authenticated users
+    match /ai_news/{newsId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // AI News collection (alternate name used in code)
+    match /aiNews/{newsId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // Prompts Library collection
+    match /prompts/{promptId} {
+      // All authenticated users can read prompts
+      allow read: if isAuthenticated();
+
+      // Authenticated users can create prompts (goes live immediately)
+      allow create: if isAuthenticated() && (
+        request.resource.data.createdBy == request.auth.uid ||
+        request.resource.data.createdBy == null // Auto-generated prompts
+      );
+
+      // Only the creator can update their own prompts
+      // Cloud Functions can update any prompt (for stats)
+      allow update: if isAuthenticated() && (
+        resource.data.createdBy == request.auth.uid ||
+        // Allow incrementing usageCount by anyone
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount', 'averageRating', 'ratingCount'])
+      );
+
+      // Only the creator can delete their own prompts
+      allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Prompt Ratings collection
+    match /prompt_ratings/{ratingId} {
+      // All authenticated users can read ratings
+      allow read: if isAuthenticated();
+
+      // Users can create their own ratings
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Users can update their own ratings
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Users can delete their own ratings
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // AI Blog collection - weekly curated articles
+    match /aiBlog/{articleId} {
+      // All authenticated users can read blog articles
+      allow read: if isAuthenticated();
+
+      // Only Cloud Functions can write (via admin SDK)
+      allow write: if false;
+    }
+
     // Block all other collections by default
     match /{document=**} {
       allow read, write: if false;

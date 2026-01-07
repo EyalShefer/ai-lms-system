@@ -8,4 +8,7 @@ export interface UserProfile {
     xp: number;
     streak: number;
     lastLearnDate: string; // YYYY-MM-DD
+
+    // Teacher settings
+    emailReportsEnabled?: boolean; // Receive email reports when task due dates pass
 }

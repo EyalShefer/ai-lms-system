@@ -5,7 +5,8 @@ import {
     IconChart,
     IconList
 } from '../icons';
-import { IconUpload, IconShare, IconBell, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb } from '@tabler/icons-react';
+import AIBlogWidget from './AIBlogWidget';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -18,7 +19,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -208,12 +209,12 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                 </div>
             </section>
 
-            {/* Main Action Cards */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+            {/* Main Section - Studio + Prompts */}
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
                 {/* Card 1: Create Learning Content - With 4 Sub-buttons */}
                 <div className="lg:col-span-2">
-                    <div className="card-glass rounded-3xl p-8 h-full gradient-border">
+                    <div className="card-glass rounded-3xl p-8 gradient-border h-full">
                         <div className="flex flex-col h-full">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
@@ -237,16 +238,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="icon-container w-12 h-12 bg-wizdi-royal/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors">
-                                            {/* Flow icon - vertical timeline */}
-                                            <svg className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <circle className="flow-dot" cx="12" cy="4" r="2" fill="currentColor" stroke="none"/>
-                                                <line x1="12" y1="6" x2="12" y2="9" strokeLinecap="round"/>
-                                                <circle className="flow-dot" cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/>
-                                                <line x1="12" y1="11.5" x2="12" y2="14.5" strokeLinecap="round"/>
-                                                <circle className="flow-dot" cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/>
-                                                <line x1="12" y1="17.5" x2="12" y2="20" strokeLinecap="round"/>
-                                                <circle className="flow-dot" cx="12" cy="21" r="1" fill="currentColor" stroke="none"/>
-                                            </svg>
+                                            <IconLayoutList className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-slate-800 mb-1">מערך שיעור</h3>
@@ -323,14 +315,116 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                     </div>
                 </div>
 
-                {/* Card 2: Dashboard */}
+                {/* Prompts Library Card - Priority #2 */}
+                <div className="lg:col-span-1">
+                    <div
+                        onClick={() => handleCardClick("Prompts Library", () => onNavigateToPrompts?.())}
+                        className="group cursor-pointer h-full"
+                    >
+                        <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-3xl p-6 text-white hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden h-full flex flex-col">
+                            {/* Decorative elements */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                            <div className="absolute bottom-0 left-0 w-20 h-20 bg-wizdi-gold/20 rounded-full blur-xl"></div>
+
+                            <div className="relative z-10 flex flex-col h-full">
+                                <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <IconBulb className="w-6 h-6 text-wizdi-gold" />
+                                </div>
+
+                                <h2 className="text-2xl font-black mb-2 !text-white">
+                                    מאגר פרומפטים AI
+                                </h2>
+                                <p className="text-purple-100 text-sm mb-4 flex-grow">
+                                    פרומפטים מוכנים לכל צורך הוראתי - בדיקת עבודות, יצירת תוכן, משוב לתלמידים ועוד
+                                </p>
+
+                                <div className="flex items-center gap-2 font-bold text-wizdi-gold text-base group-hover:translate-x-[-8px] transition-transform">
+                                    כניסה למאגר
+                                    <IconChevronLeft className="w-5 h-5" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            {/* Secondary Section - Recent Activities + Dashboard */}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {/* Recent Activity */}
+                <div className="card-glass rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-wizdi-gold/20 rounded-xl flex items-center justify-center">
+                                <svg className="w-5 h-5 text-wizdi-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <h3 className="font-bold text-slate-800">פעילויות אחרונות</h3>
+                        </div>
+                        <button
+                            onClick={onNavigateToDashboard}
+                            className="text-wizdi-royal text-xs font-medium hover:underline"
+                        >
+                            הכל
+                        </button>
+                    </div>
+
+                    <div className="space-y-2">
+                        {loadingActivities ? (
+                            <div className="flex items-center justify-center py-4">
+                                <div className="animate-spin w-6 h-6 border-2 border-wizdi-royal border-t-transparent rounded-full"></div>
+                            </div>
+                        ) : recentActivities.length === 0 ? (
+                            <div className="text-center py-4 text-slate-400">
+                                <IconSparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">אין פעילויות עדיין</p>
+                            </div>
+                        ) : (
+                            recentActivities.slice(0, 3).map((activity) => {
+                                const getActivityIcon = () => {
+                                    if (activity.type === 'test') return <IconList className="w-4 h-4 text-wizdi-cyan" />;
+                                    if (activity.type === 'lesson') return <IconVideo className="w-4 h-4 text-lime-600" />;
+                                    return <IconSparkles className="w-4 h-4 text-wizdi-royal" />;
+                                };
+
+                                const getActivityBgColor = () => {
+                                    if (activity.type === 'test') return 'bg-wizdi-cyan/10';
+                                    if (activity.type === 'lesson') return 'bg-wizdi-lime/20';
+                                    return 'bg-wizdi-royal/10';
+                                };
+
+                                return (
+                                    <div
+                                        key={activity.id}
+                                        onClick={() => onEditCourse?.(activity.id)}
+                                        className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer group"
+                                    >
+                                        <div className={`w-8 h-8 ${getActivityBgColor()} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                                            {getActivityIcon()}
+                                        </div>
+                                        <div className="flex-grow min-w-0">
+                                            <p className="text-sm font-medium text-slate-700 truncate">{activity.title}</p>
+                                        </div>
+                                        {activity.submissionCount && activity.submissionCount > 0 && (
+                                            <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                                                {activity.submissionCount}
+                                            </span>
+                                        )}
+                                        <IconChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-wizdi-royal transition-colors" />
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Dashboard */}
                 <div
                     onClick={() => handleCardClick("Dashboard", onNavigateToDashboard)}
                     className="group cursor-pointer"
                 >
-                    <div className="bg-slate-800 rounded-3xl p-8 h-full text-white hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
+                    <div className="bg-slate-800 rounded-2xl p-5 text-white hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden h-full">
                         {/* Chart decoration */}
-                        <div className="absolute bottom-0 left-0 right-0 h-20 opacity-20">
+                        <div className="absolute bottom-0 left-0 right-0 h-12 opacity-20">
                             <svg viewBox="0 0 200 50" preserveAspectRatio="none" className="w-full h-full">
                                 <defs>
                                     <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -342,124 +436,26 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                             </svg>
                         </div>
 
-                        <div className="relative z-10 flex flex-col h-full">
-                            <div className="w-14 h-14 bg-wizdi-lime rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                <IconChart className="w-7 h-7 text-slate-800" />
+                        <div className="relative z-10 flex items-center gap-4">
+                            <div className="w-12 h-12 bg-wizdi-lime rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <IconChart className="w-6 h-6 text-slate-800" />
                             </div>
-
-                            <h2 className="text-2xl font-black mb-3">
-                                לוח בקרה
-                            </h2>
-                            <p className="text-slate-300 mb-6 flex-grow">
-                                צפייה בנתונים, מעקב התקדמות וניהול ציונים
-                            </p>
-
-                            <div className="flex items-center gap-2 font-bold text-wizdi-lime group-hover:translate-x-[-8px] transition-transform">
-                                כניסה ללוח
-                                <IconChevronLeft className="w-5 h-5" />
+                            <div className="flex-grow">
+                                <h2 className="text-lg font-black !text-white">לוח בקרה</h2>
+                                <p className="text-slate-300 text-xs">צפייה בנתונים ומעקב התקדמות</p>
+                            </div>
+                            <div className="flex items-center gap-2 font-bold text-wizdi-lime text-sm group-hover:translate-x-[-8px] transition-transform">
+                                כניסה
+                                <IconChevronLeft className="w-4 h-4" />
                             </div>
                         </div>
                     </div>
                 </div>
+            </section>
 
-                {/* Card 4: Recent Activity */}
-                <div className="lg:col-span-2">
-                    <div className="card-glass rounded-3xl p-8 h-full">
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-wizdi-gold/20 rounded-2xl flex items-center justify-center">
-                                    <svg className="w-6 h-6 text-wizdi-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">הפעילויות האחרונות שלי</h3>
-                                    <p className="text-sm text-slate-500">לחצו לעריכה ושליחה</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={onNavigateToDashboard}
-                                className="text-wizdi-royal text-sm font-medium hover:underline"
-                            >
-                                צפה בהכל
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {loadingActivities ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="animate-spin w-8 h-8 border-3 border-wizdi-royal border-t-transparent rounded-full"></div>
-                                </div>
-                            ) : recentActivities.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400">
-                                    <IconSparkles className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                    <p className="font-medium">אין פעילויות עדיין</p>
-                                    <p className="text-sm">צרו את הפעילות הראשונה שלכם!</p>
-                                </div>
-                            ) : (
-                                recentActivities.map((activity) => {
-                                    const getActivityIcon = () => {
-                                        if (activity.type === 'test') return <IconList className="w-5 h-5 text-wizdi-cyan" />;
-                                        if (activity.type === 'lesson') return <IconVideo className="w-5 h-5 text-lime-600" />;
-                                        return <IconSparkles className="w-5 h-5 text-wizdi-royal" />;
-                                    };
-
-                                    const getActivityBgColor = () => {
-                                        if (activity.type === 'test') return 'bg-wizdi-cyan/10';
-                                        if (activity.type === 'lesson') return 'bg-wizdi-lime/20';
-                                        return 'bg-wizdi-royal/10';
-                                    };
-
-                                    const getActivityTypeLabel = () => {
-                                        if (activity.type === 'test') return 'מבחן';
-                                        if (activity.type === 'lesson') return 'מערך שיעור';
-                                        return 'פעילות';
-                                    };
-
-                                    const formatTimeAgo = (timestamp: any) => {
-                                        if (!timestamp) return '';
-                                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                                        const now = new Date();
-                                        const diffMs = now.getTime() - date.getTime();
-                                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-                                        if (diffHours < 1) return 'עכשיו';
-                                        if (diffHours < 24) return `לפני ${diffHours} שעות`;
-                                        if (diffDays === 1) return 'אתמול';
-                                        if (diffDays < 7) return `לפני ${diffDays} ימים`;
-                                        return date.toLocaleDateString('he-IL');
-                                    };
-
-                                    return (
-                                        <div
-                                            key={activity.id}
-                                            onClick={() => onEditCourse?.(activity.id)}
-                                            className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors cursor-pointer group"
-                                        >
-                                            <div className={`w-10 h-10 ${getActivityBgColor()} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                                                {getActivityIcon()}
-                                            </div>
-                                            <div className="flex-grow min-w-0">
-                                                <p className="font-medium text-slate-700 truncate">{getActivityTypeLabel()}: {activity.title}</p>
-                                                <p className="text-xs text-slate-400">{formatTimeAgo(activity.createdAt)}</p>
-                                            </div>
-                                            {activity.submissionCount && activity.submissionCount > 0 ? (
-                                                <span className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">
-                                                    {activity.submissionCount} הגשות
-                                                </span>
-                                            ) : (
-                                                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 group-hover:bg-wizdi-royal group-hover:text-white transition-colors">
-                                                    ערוך ושלח
-                                                </span>
-                                            )}
-                                            <IconChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-wizdi-royal transition-colors" />
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                </div>
-
+            {/* AI Blog - Compact News Section */}
+            <section className="mb-8">
+                <AIBlogWidget compact={true} showFeatured={true} maxItems={1} />
             </section>
 
             {/* How It Works */}
@@ -547,13 +543,6 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: 
                     pointer-events: none;
                 }
 
-                /* Flow icon - only animate on hover */
-                .flow-dot {
-                    transition: transform 0.3s ease;
-                }
-                .sub-btn:hover .flow-dot {
-                    transform: scale(1.15);
-                }
             `}</style>
         </div>
     );

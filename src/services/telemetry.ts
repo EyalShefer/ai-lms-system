@@ -78,5 +78,16 @@ export const GamificationService = {
         const snap = await getDoc(doc(db, 'users', userId));
         if (snap.exists()) return snap.data() as UserProfile;
         return null;
+    },
+
+    /**
+     * Update email reports setting for teacher
+     */
+    updateEmailReportsSetting: async (userId: string, enabled: boolean): Promise<void> => {
+        if (!userId) return;
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            emailReportsEnabled: enabled
+        });
     }
 };

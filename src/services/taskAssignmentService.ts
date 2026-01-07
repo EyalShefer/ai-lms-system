@@ -52,6 +52,7 @@ export interface CreateTaskParams {
     dueDate?: Date;
     maxPoints?: number;
     taskType?: 'activity' | 'exam' | 'practice';
+    emailReportEnabled?: boolean;
 }
 
 export async function createTask(params: CreateTaskParams): Promise<string> {
@@ -72,7 +73,8 @@ export async function createTask(params: CreateTaskParams): Promise<string> {
         assignedAt: serverTimestamp(),
         dueDate: params.dueDate ? Timestamp.fromDate(params.dueDate) : null,
         maxPoints: params.maxPoints || 100,
-        taskType: params.taskType || 'activity'
+        taskType: params.taskType || 'activity',
+        emailReportEnabled: params.emailReportEnabled ?? false
     };
 
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), taskData);

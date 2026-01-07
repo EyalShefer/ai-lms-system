@@ -1230,6 +1230,293 @@ export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
     logger.info(`Cleaned up ${deleted} old events`);
 });
 
+// --- AI NEWS SERVICE ---
+// Fetches AI/EdTech news from RSS feeds, translates to Hebrew using OpenAI
+
+const AI_NEWS_RSS_FEEDS = [
+    { url: 'https://openai.com/blog/rss.xml', name: 'OpenAI Blog' },
+    { url: 'https://blog.google/technology/ai/rss/', name: 'Google AI Blog' },
+    { url: 'https://www.edsurge.com/feeds/articles', name: 'EdSurge' },
+];
+
+const EDUCATION_KEYWORDS = [
+    'education', 'learning', 'teaching', 'school', 'student', 'teacher',
+    'classroom', 'curriculum', 'training', 'course', 'lesson',
+    'academic', 'university', 'edtech', 'e-learning', 'tutoring'
+];
+
+function calculateNewsRelevance(title: string, summary: string): number {
+    const text = `${title} ${summary}`.toLowerCase();
+    let score = 5;
+    for (const keyword of EDUCATION_KEYWORDS) {
+        if (text.includes(keyword)) score += 1;
+    }
+    return Math.min(score, 10);
+}
+
+async function parseRSSFeedServer(feedUrl: string, sourceName: string): Promise<Array<{
+    title: string;
+    summary: string;
+    link: string;
+    pubDate: string;
+    sourceName: string;
+}>> {
+    try {
+        const response = await fetch(feedUrl, {
+            headers: { 'User-Agent': 'Wizdi-News-Bot/1.0' }
+        });
+
+        if (!response.ok) {
+            logger.warn(`RSS fetch failed for ${feedUrl}: ${response.status}`);
+            return [];
+        }
+
+        const xml = await response.text();
+        const articles: Array<{
+            title: string;
+            summary: string;
+            link: string;
+            pubDate: string;
+            sourceName: string;
+        }> = [];
+
+        // Simple XML parsing for RSS items
+        const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+
+        for (let i = 0; i < Math.min(itemMatches.length, 5); i++) {
+            const item = itemMatches[i];
+
+            const titleMatch = item.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/);
+            const descMatch = item.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+            const linkMatch = item.match(/<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/link>/);
+            const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+
+            const title = titleMatch?.[1]?.trim() || '';
+            let summary = descMatch?.[1]?.trim() || '';
+
+            // Clean HTML from summary
+            summary = summary.replace(/<[^>]*>/g, '').substring(0, 500);
+
+            if (title) {
+                articles.push({
+                    title,
+                    summary,
+                    link: linkMatch?.[1]?.trim() || feedUrl,
+                    pubDate: pubDateMatch?.[1] || new Date().toISOString(),
+                    sourceName
+                });
+            }
+        }
+
+        return articles;
+    } catch (error) {
+        logger.error(`Error fetching RSS ${feedUrl}:`, error);
+        return [];
+    }
+}
+
+async function translateToHebrew(openai: OpenAI, title: string, summary: string): Promise<{
+    hebrewTitle: string;
+    hebrewSummary: string;
+}> {
+    try {
+        const prompt = `אתה עוזר שמתרגם ומסכם חדשות טכנולוגיה למורים ישראליים.
+
+כתבה באנגלית:
+כותרת: ${title}
+תקציר: ${summary}
+
+אנא:
+1. תרגם את הכותרת לעברית בצורה תמציתית וברורה
+2. כתוב סיכום של 2-3 משפטים בעברית, המתמקד בהשפעה על מורים ובית הספר
+
+החזר JSON בלבד:
+{"hebrewTitle": "...", "hebrewSummary": "..."}`;
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            max_tokens: 500,
+            temperature: 0.3
+        });
+
+        const content = response.choices[0].message.content || '{}';
+        return JSON.parse(content);
+    } catch (error) {
+        logger.error('Translation error:', error);
+        return { hebrewTitle: title, hebrewSummary: summary };
+    }
+}
+
+/**
+ * Scheduled function to fetch and update AI news
+ * Runs every 6 hours
+ */
+export const updateAINews = onSchedule({
+    schedule: 'every 6 hours',
+    secrets: [openAiApiKey],
+    memory: '512MiB',
+    timeoutSeconds: 300
+}, async () => {
+    logger.info('📰 Starting AI News update...');
+
+    try {
+        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+        const allArticles: Array<{
+            title: string;
+            summary: string;
+            link: string;
+            pubDate: string;
+            sourceName: string;
+            relevanceScore: number;
+        }> = [];
+
+        // Fetch from all RSS feeds
+        for (const feed of AI_NEWS_RSS_FEEDS) {
+            const articles = await parseRSSFeedServer(feed.url, feed.name);
+            for (const article of articles) {
+                const relevanceScore = calculateNewsRelevance(article.title, article.summary);
+                if (relevanceScore >= 5) {
+                    allArticles.push({ ...article, relevanceScore });
+                }
+            }
+        }
+
+        logger.info(`Found ${allArticles.length} relevant articles`);
+
+        // Sort by relevance and take top 5
+        const topArticles = allArticles
+            .sort((a, b) => b.relevanceScore - a.relevanceScore)
+            .slice(0, 5);
+
+        // Translate and save to Firestore
+        for (const article of topArticles) {
+            // Check if article already exists (by URL)
+            const existing = await db.collection('aiNews')
+                .where('sourceUrl', '==', article.link)
+                .limit(1)
+                .get();
+
+            if (!existing.empty) {
+                logger.info(`Skipping existing article: ${article.title}`);
+                continue;
+            }
+
+            // Translate to Hebrew
+            const { hebrewTitle, hebrewSummary } = await translateToHebrew(
+                openai,
+                article.title,
+                article.summary
+            );
+
+            // Verify translation contains Hebrew (skip if translation failed)
+            const hasHebrew = (text: string) => /[\u0590-\u05FF]/.test(text);
+            if (!hasHebrew(hebrewTitle) || !hasHebrew(hebrewSummary)) {
+                logger.warn(`Skipping non-Hebrew translation: ${article.title}`);
+                continue;
+            }
+
+            // Save to Firestore
+            await db.collection('aiNews').add({
+                originalTitle: article.title,
+                originalSummary: article.summary,
+                hebrewTitle,
+                hebrewSummary,
+                sourceUrl: article.link,
+                sourceName: article.sourceName,
+                publishedAt: new Date(article.pubDate),
+                fetchedAt: FieldValue.serverTimestamp(),
+                relevanceScore: article.relevanceScore
+            });
+
+            logger.info(`✅ Added news: ${hebrewTitle}`);
+        }
+
+        // Cleanup old news (keep only last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const oldNews = await db.collection('aiNews')
+            .where('fetchedAt', '<', thirtyDaysAgo)
+            .get();
+
+        const batch = db.batch();
+        oldNews.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        logger.info(`📰 AI News update complete. Added ${topArticles.length} articles, deleted ${oldNews.size} old ones.`);
+
+    } catch (error) {
+        logger.error('AI News update failed:', error);
+    }
+});
+
+/**
+ * Manual trigger for AI news update (for admin use)
+ */
+export const triggerAINewsUpdate = onCall({
+    cors: true,
+    secrets: [openAiApiKey]
+}, async (request) => {
+    // Verify admin (optional - add your admin check logic)
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    logger.info(`📰 Manual AI News update triggered by ${request.auth.uid}`);
+
+    // Re-use the same logic (simplified for manual trigger)
+    const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+    let addedCount = 0;
+
+    for (const feed of AI_NEWS_RSS_FEEDS) {
+        const articles = await parseRSSFeedServer(feed.url, feed.name);
+
+        for (const article of articles.slice(0, 2)) {
+            const relevanceScore = calculateNewsRelevance(article.title, article.summary);
+
+            if (relevanceScore >= 5) {
+                const existing = await db.collection('aiNews')
+                    .where('sourceUrl', '==', article.link)
+                    .limit(1)
+                    .get();
+
+                if (existing.empty) {
+                    const { hebrewTitle, hebrewSummary } = await translateToHebrew(
+                        openai,
+                        article.title,
+                        article.summary
+                    );
+
+                    // Verify translation contains Hebrew
+                    const hasHebrew = (text: string) => /[\u0590-\u05FF]/.test(text);
+                    if (!hasHebrew(hebrewTitle) || !hasHebrew(hebrewSummary)) {
+                        logger.warn(`Skipping non-Hebrew translation: ${article.title}`);
+                        continue;
+                    }
+
+                    await db.collection('aiNews').add({
+                        originalTitle: article.title,
+                        originalSummary: article.summary,
+                        hebrewTitle,
+                        hebrewSummary,
+                        sourceUrl: article.link,
+                        sourceName: article.sourceName,
+                        publishedAt: new Date(article.pubDate),
+                        fetchedAt: FieldValue.serverTimestamp(),
+                        relevanceScore
+                    });
+
+                    addedCount++;
+                }
+            }
+        }
+    }
+
+    return { success: true, addedCount };
+});
+
 /**
  * Generate Infographic with Gemini 3 Pro Image
  * Preview API - Advanced text rendering with Hebrew RTL support
@@ -1357,3 +1644,916 @@ export const generateGemini3Infographic = onCall({
         );
     }
 });
+
+// ============================================
+// PROMPTS LIBRARY - Auto-Generation Agent
+// ============================================
+
+// Prompt categories for teacher tools
+const PROMPT_CATEGORIES = [
+    {
+        id: 'exams',
+        name: 'יצירת מבחנים',
+        icon: '📝',
+        subcategories: ['מבחן רב-ברירה', 'מבחן פתוח', 'בוחן מהיר (5 דקות)', 'מבחן מותאם לתלמידים עם לקויות']
+    },
+    {
+        id: 'lessons',
+        name: 'הכנת שיעורים',
+        icon: '📚',
+        subcategories: ['פתיחת שיעור מעניינת', 'סיכום שיעור', 'שיעור מבוסס חקר', 'שיעור הפוך (Flipped)']
+    },
+    {
+        id: 'feedback',
+        name: 'משוב לתלמידים',
+        icon: '💬',
+        subcategories: ['משוב על עבודה כתובה', 'משוב מעודד לתלמיד מתקשה', 'משוב לתלמיד מצטיין', 'משוב להורים']
+    },
+    {
+        id: 'activities',
+        name: 'משחקים ופעילויות',
+        icon: '🎮',
+        subcategories: ['משחק כיתתי', 'תחרות קבוצתית', 'חידון', 'פעילות שיתופית']
+    },
+    {
+        id: 'adaptations',
+        name: 'התאמות אישיות',
+        icon: '🎯',
+        subcategories: ['פישוט טקסט', 'העשרה לתלמיד מצטיין', 'התאמה לדיסלקציה', 'תרגום לערבית']
+    },
+    {
+        id: 'content',
+        name: 'יצירת תוכן',
+        icon: '✨',
+        subcategories: ['סיפור לימודי', 'שיר על נושא', 'דיאלוג להמחשה', 'אנלוגיה להסבר מושג']
+    },
+    {
+        id: 'management',
+        name: 'ניהול כיתה',
+        icon: '👥',
+        subcategories: ['תסריט לשיחה עם הורה', 'טיפול בבעיית משמעת', 'הנעת תלמיד מנותק', 'בניית חוזה כיתתי']
+    },
+    {
+        id: 'assessment',
+        name: 'הערכה חלופית',
+        icon: '📊',
+        subcategories: ['רובריקה להערכה', 'פרויקט מסכם', 'תיק עבודות (Portfolio)', 'הערכת עמיתים']
+    }
+];
+
+/**
+ * Generate AI Teaching Prompts - Weekly Scheduler
+ * Creates one new prompt per week and marks it as featured
+ * Runs every Monday at 9 AM Israel time
+ */
+export const generateWeeklyPrompt = onSchedule({
+    schedule: '0 9 * * 1', // Every Monday at 9 AM
+    timeZone: 'Asia/Jerusalem',
+    secrets: [openAiApiKey],
+    memory: '512MiB',
+    timeoutSeconds: 120
+}, async () => {
+    logger.info('🤖 Starting weekly prompt generation...');
+
+    try {
+        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+
+        // Pick a random category and subcategory
+        const randomCategory = PROMPT_CATEGORIES[Math.floor(Math.random() * PROMPT_CATEGORIES.length)];
+        const randomSubcategory = randomCategory.subcategories[Math.floor(Math.random() * randomCategory.subcategories.length)];
+
+        logger.info(`📌 Selected: ${randomCategory.name} > ${randomSubcategory}`);
+
+        // Generate prompt using OpenAI
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: `אתה מומחה ליצירת פרומפטים למורים בישראל. צור פרומפט איכותי שמורים יוכלו להעתיק לכלי AI כמו ChatGPT, Claude או Gemini.
+
+הפרומפט חייב לכלול שדות דינמיים בפורמט {{שם_שדה}} שהמורה ימלא לפני ההעתקה.
+
+ענה בפורמט JSON בלבד:
+{
+  "title": "כותרת קצרה וברורה",
+  "description": "תיאור של 1-2 משפטים מה הפרומפט עושה",
+  "promptTemplate": "הפרומפט עצמו עם {{שדות}} דינמיים",
+  "fields": [
+    {
+      "id": "שם_השדה",
+      "label": "שם תצוגה",
+      "placeholder": "דוגמה למילוי",
+      "type": "text|select|number",
+      "options": ["אפשרות1", "אפשרות2"], // רק אם type=select
+      "required": true
+    }
+  ],
+  "tips": "טיפ קצר לשימוש יעיל"
+}`
+                },
+                {
+                    role: 'user',
+                    content: `צור פרומפט איכותי בקטגוריה "${randomCategory.name}" עבור "${randomSubcategory}".
+
+דרישות:
+1. הפרומפט חייב להיות בעברית
+2. כלול לפחות 3 שדות דינמיים (מקצוע, שכבה, נושא וכו')
+3. הפרומפט צריך להיות מפורט ולתת הנחיות ברורות לכלי ה-AI
+4. הוסף טיפ שימושי למורה`
+                }
+            ],
+            temperature: 0.8,
+            max_tokens: 2000
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+            throw new Error('No content in OpenAI response');
+        }
+
+        // Parse the JSON response
+        const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const promptData = JSON.parse(cleanedContent);
+
+        // Unmark previous featured prompt
+        const previousFeatured = await db.collection('prompts')
+            .where('isFeatured', '==', true)
+            .get();
+
+        const batch = db.batch();
+        previousFeatured.docs.forEach(doc => {
+            batch.update(doc.ref, { isFeatured: false });
+        });
+
+        // Create the new prompt
+        const newPromptRef = db.collection('prompts').doc();
+        batch.set(newPromptRef, {
+            id: newPromptRef.id,
+            title: promptData.title,
+            description: promptData.description,
+            category: randomCategory.name,
+            subcategory: randomSubcategory,
+            promptTemplate: promptData.promptTemplate,
+            fields: promptData.fields,
+            targetTools: ['ChatGPT', 'Claude', 'Gemini'],
+            tips: promptData.tips,
+            createdBy: null, // Auto-generated
+            creatorName: 'מערכת Wizdi',
+            createdAt: FieldValue.serverTimestamp(),
+            isAutoGenerated: true,
+            usageCount: 0,
+            averageRating: 0,
+            ratingCount: 0,
+            status: 'active',
+            isFeatured: true,
+            featuredAt: FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+
+        logger.info(`✅ Weekly prompt created: "${promptData.title}" (${randomCategory.name} > ${randomSubcategory})`);
+
+    } catch (error: any) {
+        logger.error('❌ Weekly prompt generation failed:', error);
+    }
+});
+
+/**
+ * Bulk Generate Initial Prompts
+ * One-time function to create initial prompts using Gemini 2.0 Flash
+ * Call manually via: firebase functions:call generateInitialPrompts
+ */
+export const generateInitialPrompts = onCall({
+    cors: true,
+    memory: '2GiB',
+    timeoutSeconds: 540 // 9 minutes
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    logger.info('🚀 Starting bulk prompt generation with Gemini 2.0 Flash...');
+
+    // Dynamic import to avoid cold start issues
+    const { VertexAI } = await import('@google-cloud/vertexai');
+
+    const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'ai-lms-pro';
+    const vertexAI = new VertexAI({ project: projectId, location: 'us-central1' });
+    const model = vertexAI.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
+
+    const createdPrompts: string[] = [];
+    let errorCount = 0;
+
+    // Generate prompts for each category/subcategory combination
+    for (const category of PROMPT_CATEGORIES) {
+        for (const subcategory of category.subcategories) {
+            // Check if we already have a prompt for this combination
+            const existing = await db.collection('prompts')
+                .where('category', '==', category.name)
+                .where('subcategory', '==', subcategory)
+                .where('isAutoGenerated', '==', true)
+                .limit(1)
+                .get();
+
+            if (!existing.empty) {
+                logger.info(`⏭️ Skipping existing: ${category.name} > ${subcategory}`);
+                continue;
+            }
+
+            try {
+                logger.info(`📝 Generating: ${category.name} > ${subcategory}`);
+
+                const prompt = `אתה מומחה פדגוגי ליצירת פרומפטים איכותיים למורים בישראל.
+
+צור פרומפט מקצועי ומעמיק בקטגוריה "${category.name}" עבור "${subcategory}".
+
+הפרומפט צריך להיות:
+1. מותאם לשימוש עם כלי AI כמו ChatGPT, Claude או Gemini
+2. כולל הנחיות ברורות ומפורטות שמנחות את ה-AI ליצור תוצר איכותי
+3. מכיל לפחות 3 שדות דינמיים שהמורה ימלא (בפורמט {{שם_שדה}})
+4. כתוב בעברית תקנית ומקצועית
+5. כולל טיפ שימושי למורה
+
+ענה בפורמט JSON בלבד (ללא markdown או backticks):
+{
+  "title": "כותרת קצרה וברורה",
+  "description": "תיאור של 1-2 משפטים על מה הפרומפט עושה",
+  "promptTemplate": "הפרומפט המלא עם {{שדות}} דינמיים - צריך להיות מפורט ומקצועי",
+  "fields": [
+    {"id": "field1", "label": "תווית בעברית", "placeholder": "דוגמה למה לכתוב", "type": "text", "required": true}
+  ],
+  "tips": "טיפ מועיל לשימוש יעיל בפרומפט"
+}
+
+סוגי שדות אפשריים: "text", "select", "number"
+עבור select הוסף גם "options": ["אפשרות1", "אפשרות2"]`;
+
+                const result = await model.generateContent(prompt);
+                const response = result.response;
+                const content = response.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!content) continue;
+
+                const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                const promptData = JSON.parse(cleanedContent);
+
+                const newPromptRef = db.collection('prompts').doc();
+                await newPromptRef.set({
+                    id: newPromptRef.id,
+                    title: promptData.title,
+                    description: promptData.description,
+                    category: category.name,
+                    subcategory: subcategory,
+                    promptTemplate: promptData.promptTemplate,
+                    fields: promptData.fields,
+                    targetTools: ['ChatGPT', 'Claude', 'Gemini'],
+                    tips: promptData.tips,
+                    createdBy: null,
+                    creatorName: 'מערכת Wizdi',
+                    createdAt: FieldValue.serverTimestamp(),
+                    isAutoGenerated: true,
+                    usageCount: 0,
+                    averageRating: 0,
+                    ratingCount: 0,
+                    status: 'active',
+                    isFeatured: false
+                });
+
+                createdPrompts.push(`${category.name} > ${subcategory}`);
+                logger.info(`✅ Created: ${promptData.title}`);
+
+                // Delay to avoid rate limits
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+            } catch (error: any) {
+                errorCount++;
+                logger.warn(`⚠️ Failed: ${category.name} > ${subcategory}:`, error.message);
+            }
+        }
+    }
+
+    // Mark one random prompt as featured
+    const allPrompts = await db.collection('prompts')
+        .where('isAutoGenerated', '==', true)
+        .get();
+
+    if (!allPrompts.empty) {
+        const randomIndex = Math.floor(Math.random() * allPrompts.docs.length);
+        await allPrompts.docs[randomIndex].ref.update({
+            isFeatured: true,
+            featuredAt: FieldValue.serverTimestamp()
+        });
+    }
+
+    logger.info(`🎉 Bulk generation complete: ${createdPrompts.length} created, ${errorCount} failed`);
+
+    return {
+        success: true,
+        created: createdPrompts.length,
+        errors: errorCount,
+        prompts: createdPrompts
+    };
+});
+
+/**
+ * Delete all auto-generated prompts
+ * One-time function to clear prompts before regenerating with a better model
+ */
+export const deleteAutoGeneratedPrompts = onCall({
+    cors: true,
+    memory: '512MiB',
+    timeoutSeconds: 120
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    logger.info('🗑️ Deleting all auto-generated prompts...');
+
+    const autoGenerated = await db.collection('prompts')
+        .where('isAutoGenerated', '==', true)
+        .get();
+
+    let deletedCount = 0;
+    const batch = db.batch();
+
+    for (const doc of autoGenerated.docs) {
+        batch.delete(doc.ref);
+        deletedCount++;
+
+        // Firestore batch limit is 500
+        if (deletedCount % 400 === 0) {
+            await batch.commit();
+            logger.info(`Deleted ${deletedCount} prompts so far...`);
+        }
+    }
+
+    // Commit remaining
+    if (deletedCount % 400 !== 0) {
+        await batch.commit();
+    }
+
+    logger.info(`✅ Deleted ${deletedCount} auto-generated prompts`);
+
+    return {
+        success: true,
+        deleted: deletedCount
+    };
+});
+
+// ============================================
+// TASK EMAIL REPORT SYSTEM
+// ============================================
+
+import { sendTaskReportEmail, type TaskReportData } from './services/emailService';
+import { analyzeSubmissions, type SubmissionData, type TaskData } from './services/submissionAnalysisService';
+
+/**
+ * Scheduled function to check for tasks with passed due dates
+ * and send email reports to teachers
+ * Runs every hour
+ */
+export const checkDueTasksAndSendReports = onSchedule({
+    schedule: 'every 1 hours',
+    secrets: [openAiApiKey],
+    memory: '512MiB',
+    timeoutSeconds: 300
+}, async () => {
+    logger.info('📧 Starting due tasks check for email reports...');
+
+    const now = new Date();
+
+    try {
+        // Find tasks where:
+        // 1. dueDate has passed (dueDate < now)
+        // 2. emailReportSentAt is null/undefined (not sent yet)
+        // Note: We check teacher's emailReportsEnabled setting, not the task setting
+        const tasksSnapshot = await db.collection('student_tasks')
+            .where('dueDate', '<', now)
+            .get();
+
+        if (tasksSnapshot.empty) {
+            logger.info('No tasks with passed due dates');
+            return;
+        }
+
+        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+        let processedCount = 0;
+        let errorCount = 0;
+        let skippedCount = 0;
+
+        for (const taskDoc of tasksSnapshot.docs) {
+            const taskData = taskDoc.data();
+
+            // Skip if report already sent
+            if (taskData.emailReportSentAt) {
+                continue;
+            }
+
+            try {
+                logger.info(`Processing task: ${taskData.title} (${taskDoc.id})`);
+
+                // Check if teacher has email reports enabled
+                const teacherDoc = await db.collection('users').doc(taskData.teacherId).get();
+                const teacherData = teacherDoc.data();
+
+                if (!teacherData?.emailReportsEnabled) {
+                    logger.info(`Skipping - teacher ${taskData.teacherId} has email reports disabled`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Get teacher email from Firebase Auth
+                const teacherRecord = await auth.getUser(taskData.teacherId);
+                const teacherEmail = teacherRecord.email;
+
+                if (!teacherEmail) {
+                    logger.warn(`No email found for teacher: ${taskData.teacherId}`);
+                    continue;
+                }
+
+                // Get all submissions for this task
+                const submissionsSnapshot = await db.collection('task_submissions')
+                    .where('taskId', '==', taskDoc.id)
+                    .get();
+
+                const submissions: SubmissionData[] = submissionsSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        studentId: data.studentId,
+                        studentName: data.studentName || 'תלמיד',
+                        status: data.status,
+                        progress: data.progress || 0,
+                        score: data.score,
+                        maxScore: data.maxScore,
+                        percentage: data.percentage,
+                        telemetry: data.telemetry,
+                        answers: data.answers
+                    };
+                });
+
+                // Estimate total assigned (from submissions or assume class size)
+                const totalAssigned = Math.max(submissions.length, taskData.studentIds?.length || submissions.length);
+
+                // Analyze submissions with AI
+                const task: TaskData = {
+                    id: taskDoc.id,
+                    title: taskData.title,
+                    courseTitle: taskData.courseTitle,
+                    maxPoints: taskData.maxPoints || 100
+                };
+
+                const analysis = await analyzeSubmissions(openai, task, submissions, totalAssigned);
+
+                // Prepare report data
+                const reportData: TaskReportData = {
+                    taskTitle: taskData.title,
+                    courseTitle: taskData.courseTitle,
+                    dueDate: taskData.dueDate.toDate(),
+                    stats: analysis.stats,
+                    aiInsights: analysis.aiInsights,
+                    viewSubmissionsUrl: `https://wizdi.app/teacher/tasks/${taskDoc.id}/submissions`
+                };
+
+                // Send email
+                await sendTaskReportEmail(teacherEmail, reportData);
+
+                // Mark as sent
+                await taskDoc.ref.update({
+                    emailReportSentAt: FieldValue.serverTimestamp()
+                });
+
+                processedCount++;
+                logger.info(`✅ Report sent for task: ${taskData.title} to ${teacherEmail}`);
+
+            } catch (taskError: any) {
+                errorCount++;
+                logger.error(`Failed to process task ${taskDoc.id}:`, taskError.message);
+            }
+        }
+
+        logger.info(`📧 Task email reports complete: ${processedCount} sent, ${skippedCount} skipped, ${errorCount} failed`);
+
+    } catch (error: any) {
+        logger.error('Failed to check due tasks:', error);
+    }
+});
+
+// ============================================
+// AI BLOG - Weekly Article Curation Agent
+// ============================================
+
+// Quality sources - ONLY AI + Education focused
+const AI_BLOG_SOURCES = [
+    // EdTech specific - highest priority (dedicated AI in Education coverage)
+    { url: 'https://www.edsurge.com/feeds/articles', name: 'EdSurge', priority: 3 },
+    { url: 'https://www.iste.org/explore/feed', name: 'ISTE', priority: 3 },
+    { url: 'https://thejournal.com/rss-feeds/the-journal.aspx', name: 'THE Journal', priority: 2 },
+    { url: 'https://www.eschoolnews.com/feed/', name: 'eSchool News', priority: 2 },
+    { url: 'https://edtechmagazine.com/k12/rss.xml', name: 'EdTech Magazine', priority: 2 },
+
+    // AI companies with education focus
+    { url: 'https://blog.khanacademy.org/feed/', name: 'Khan Academy', priority: 3 },
+
+    // Research & Policy on AI + Education
+    { url: 'https://hai.stanford.edu/news/rss.xml', name: 'Stanford HAI', priority: 2 },
+    { url: 'https://www.brookings.edu/topic/education/feed/', name: 'Brookings Education', priority: 2 },
+
+    // Teacher-focused practical blogs
+    { url: 'https://www.cultofpedagogy.com/feed/', name: 'Cult of Pedagogy', priority: 2 },
+    { url: 'https://ditchthattextbook.com/feed/', name: 'Ditch That Textbook', priority: 2 },
+
+    // AI Research (filtered by education keywords)
+    { url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', name: 'MIT Tech Review', priority: 1 },
+    { url: 'https://www.anthropic.com/news/rss', name: 'Anthropic', priority: 1 },
+];
+
+// Keywords - must have BOTH AI and Education terms
+const BLOG_AI_KEYWORDS = [
+    'ai', 'artificial intelligence', 'chatgpt', 'gpt', 'gemini', 'claude',
+    'machine learning', 'generative ai', 'llm', 'language model', 'openai',
+    'copilot', 'ai tutor', 'ai assistant', 'automation'
+];
+
+const BLOG_EDUCATION_KEYWORDS = [
+    'education', 'learning', 'teaching', 'school', 'student', 'teacher',
+    'classroom', 'curriculum', 'course', 'lesson', 'tutoring', 'k-12',
+    'academic', 'university', 'edtech', 'instruction', 'pedagogy',
+    'assessment', 'homework', 'grading', 'literacy', 'stem'
+];
+
+interface RawBlogArticle {
+    title: string;
+    summary: string;
+    link: string;
+    pubDate: string;
+    sourceName: string;
+    relevanceScore: number;
+}
+
+/**
+ * Parse RSS feed for blog articles
+ */
+async function parseBlogRSSFeed(feedUrl: string, sourceName: string): Promise<RawBlogArticle[]> {
+    try {
+        const response = await fetch(feedUrl, {
+            headers: { 'User-Agent': 'Wizdi-Blog-Agent/1.0' }
+        });
+
+        if (!response.ok) {
+            logger.warn(`Blog RSS fetch failed for ${feedUrl}: ${response.status}`);
+            return [];
+        }
+
+        const xml = await response.text();
+        const articles: RawBlogArticle[] = [];
+
+        // Parse RSS items
+        const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+
+        for (let i = 0; i < Math.min(itemMatches.length, 10); i++) {
+            const item = itemMatches[i];
+
+            const titleMatch = item.match(/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/);
+            const descMatch = item.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+            const linkMatch = item.match(/<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/link>/);
+            const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+
+            const title = titleMatch?.[1]?.trim() || '';
+            let summary = descMatch?.[1]?.trim() || '';
+
+            // Clean HTML
+            summary = summary.replace(/<[^>]*>/g, '').substring(0, 800);
+
+            if (title) {
+                // Calculate relevance - MUST have BOTH AI and Education keywords
+                const text = `${title} ${summary}`.toLowerCase();
+
+                // Count AI keywords found
+                let aiScore = 0;
+                for (const keyword of BLOG_AI_KEYWORDS) {
+                    if (text.includes(keyword)) aiScore += 1;
+                }
+
+                // Count Education keywords found
+                let eduScore = 0;
+                for (const keyword of BLOG_EDUCATION_KEYWORDS) {
+                    if (text.includes(keyword)) eduScore += 1;
+                }
+
+                // Only include if has BOTH AI (score >= 1) AND Education (score >= 1)
+                // Final score = AI matches + Education matches
+                const relevanceScore = (aiScore >= 1 && eduScore >= 1) ? (aiScore + eduScore) : 0;
+
+                // Skip articles that don't have both AI and Education content
+                if (relevanceScore === 0) {
+                    continue;
+                }
+
+                articles.push({
+                    title,
+                    summary,
+                    link: linkMatch?.[1]?.trim() || feedUrl,
+                    pubDate: pubDateMatch?.[1] || new Date().toISOString(),
+                    sourceName,
+                    relevanceScore
+                });
+            }
+        }
+
+        return articles;
+    } catch (error) {
+        logger.error(`Error fetching blog RSS ${feedUrl}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Generate Hebrew blog article with practical classroom applications using GPT-4o
+ */
+async function generateBlogArticle(
+    openai: OpenAI,
+    article: RawBlogArticle
+): Promise<{
+    title: string;
+    summary: string;
+    keyPoints: string[];
+    classroomTips: string[];
+    category: 'tool' | 'research' | 'tip' | 'trend';
+    readingTime: number;
+} | null> {
+    try {
+        const prompt = `אתה עורך בלוג מומחה בחינוך וטכנולוגיה, כותב למורים ישראליים.
+
+קיבלת מאמר חדש באנגלית על AI בחינוך:
+
+כותרת: ${article.title}
+תקציר: ${article.summary}
+מקור: ${article.sourceName}
+
+משימתך ליצור תוכן מקורי בעברית שיהיה שימושי למורים. אל תתרגם מילה במילה - תן ערך מוסף!
+
+צור JSON בלבד:
+{
+    "title": "כותרת מושכת בעברית (עד 60 תווים)",
+    "summary": "סיכום של 2-3 משפטים שמסביר מה חשוב כאן למורה",
+    "keyPoints": [
+        "נקודה מעשית 1",
+        "נקודה מעשית 2",
+        "נקודה מעשית 3"
+    ],
+    "classroomTips": [
+        "טיפ קונקרטי לשימוש בכיתה 1",
+        "טיפ קונקרטי לשימוש בכיתה 2"
+    ],
+    "category": "tool|research|tip|trend",
+    "readingTime": 2
+}
+
+קטגוריות:
+- tool: כלי AI חדש או עדכון משמעותי
+- research: מחקר או נתונים חדשים
+- tip: טיפ מעשי ליישום מיידי
+- trend: מגמה או שינוי בתחום
+
+חשוב:
+1. כל התוכן חייב להיות בעברית תקנית
+2. התמקד ב"מה המורה יכול לעשות עם זה מחר בכיתה"
+3. היה ספציפי - לא "אפשר להשתמש בזה" אלא "תנו לתלמידים משימה לכתוב שאלות לחומר הלימוד"`;
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o', // Using GPT-4o for higher quality Hebrew content
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            max_tokens: 1500,
+            temperature: 0.7
+        });
+
+        const content = response.choices[0].message.content || '{}';
+        const result = JSON.parse(content);
+
+        // Validate Hebrew content
+        const hasHebrew = (text: string) => /[\u0590-\u05FF]/.test(text);
+        if (!hasHebrew(result.title) || !hasHebrew(result.summary)) {
+            logger.warn(`Blog article not in Hebrew: ${article.title}`);
+            return null;
+        }
+
+        return result;
+    } catch (error) {
+        logger.error('Error generating blog article:', error);
+        return null;
+    }
+}
+
+/**
+ * Weekly Blog Article Generation Agent
+ * Runs every Sunday at 10 AM Israel time
+ * Curates one high-quality article per week
+ */
+export const generateWeeklyBlogArticle = onSchedule({
+    schedule: '0 10 * * 0', // Every Sunday at 10 AM
+    timeZone: 'Asia/Jerusalem',
+    secrets: [openAiApiKey],
+    memory: '512MiB',
+    timeoutSeconds: 300
+}, async () => {
+    logger.info('📝 Starting weekly blog article generation...');
+
+    try {
+        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+        const allArticles: RawBlogArticle[] = [];
+
+        // Fetch from all sources
+        for (const source of AI_BLOG_SOURCES) {
+            const articles = await parseBlogRSSFeed(source.url, source.name);
+            // Apply source priority multiplier
+            articles.forEach(a => a.relevanceScore *= source.priority);
+            allArticles.push(...articles);
+        }
+
+        logger.info(`Found ${allArticles.length} potential articles`);
+
+        // Filter only highly relevant articles (score >= 6)
+        const relevantArticles = allArticles
+            .filter(a => a.relevanceScore >= 6)
+            .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+        if (relevantArticles.length === 0) {
+            logger.warn('No relevant articles found this week');
+            return;
+        }
+
+        // Check for duplicates (by URL)
+        for (const article of relevantArticles) {
+            const existing = await db.collection('aiBlog')
+                .where('originalUrl', '==', article.link)
+                .limit(1)
+                .get();
+
+            if (!existing.empty) {
+                logger.info(`Skipping duplicate: ${article.title}`);
+                continue;
+            }
+
+            // Generate Hebrew blog article
+            const blogContent = await generateBlogArticle(openai, article);
+
+            if (!blogContent) {
+                continue;
+            }
+
+            // Category labels in Hebrew
+            const categoryLabels: Record<string, string> = {
+                tool: 'כלי חדש',
+                research: 'מחקר',
+                tip: 'טיפ מעשי',
+                trend: 'מגמה'
+            };
+
+            // Save to Firestore
+            const newArticleRef = db.collection('aiBlog').doc();
+            await newArticleRef.set({
+                id: newArticleRef.id,
+                // Hebrew content
+                title: blogContent.title,
+                summary: blogContent.summary,
+                keyPoints: blogContent.keyPoints,
+                classroomTips: blogContent.classroomTips,
+                // Original source
+                originalTitle: article.title,
+                originalUrl: article.link,
+                sourceName: article.sourceName,
+                // Metadata
+                category: blogContent.category,
+                categoryLabel: categoryLabels[blogContent.category] || 'כללי',
+                readingTime: blogContent.readingTime || 2,
+                publishedAt: new Date(article.pubDate),
+                createdAt: FieldValue.serverTimestamp(),
+                // Engagement
+                viewCount: 0,
+                helpfulCount: 0
+            });
+
+            logger.info(`✅ Weekly blog article created: "${blogContent.title}"`);
+
+            // Only create one article per week
+            break;
+        }
+
+        // Cleanup old articles (keep last 52 = 1 year)
+        const oldArticles = await db.collection('aiBlog')
+            .orderBy('createdAt', 'desc')
+            .offset(52)
+            .get();
+
+        if (!oldArticles.empty) {
+            const batch = db.batch();
+            oldArticles.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            logger.info(`Cleaned up ${oldArticles.size} old blog articles`);
+        }
+
+    } catch (error: any) {
+        logger.error('Weekly blog generation failed:', error);
+    }
+});
+
+/**
+ * Manual trigger for blog article generation (for testing/admin)
+ */
+export const triggerBlogArticleGeneration = onCall({
+    cors: true,
+    secrets: [openAiApiKey],
+    memory: '512MiB',
+    timeoutSeconds: 300
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const forceRegenerate = request.data?.forceRegenerate === true;
+
+    logger.info(`📝 Manual blog generation triggered by ${request.auth.uid}${forceRegenerate ? ' (force regenerate)' : ''}`);
+
+    // If force regenerate, delete all existing articles first
+    if (forceRegenerate) {
+        const existingArticles = await db.collection('aiBlog').get();
+        if (!existingArticles.empty) {
+            const batch = db.batch();
+            existingArticles.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            logger.info(`Deleted ${existingArticles.size} existing articles for regeneration`);
+        }
+    }
+
+    const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+    const allArticles: RawBlogArticle[] = [];
+
+    // Fetch from all sources
+    for (const source of AI_BLOG_SOURCES) {
+        const articles = await parseBlogRSSFeed(source.url, source.name);
+        articles.forEach(a => a.relevanceScore *= source.priority);
+        allArticles.push(...articles);
+    }
+
+    // Get most relevant
+    const relevantArticles = allArticles
+        .filter(a => a.relevanceScore >= 4)
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, 3);
+
+    if (relevantArticles.length === 0) {
+        return { success: false, message: 'No relevant articles found' };
+    }
+
+    let createdCount = 0;
+
+    for (const article of relevantArticles) {
+        // Check duplicate
+        const existing = await db.collection('aiBlog')
+            .where('originalUrl', '==', article.link)
+            .limit(1)
+            .get();
+
+        if (!existing.empty) continue;
+
+        const blogContent = await generateBlogArticle(openai, article);
+        if (!blogContent) continue;
+
+        const categoryLabels: Record<string, string> = {
+            tool: 'כלי חדש',
+            research: 'מחקר',
+            tip: 'טיפ מעשי',
+            trend: 'מגמה'
+        };
+
+        const newArticleRef = db.collection('aiBlog').doc();
+        await newArticleRef.set({
+            id: newArticleRef.id,
+            title: blogContent.title,
+            summary: blogContent.summary,
+            keyPoints: blogContent.keyPoints,
+            classroomTips: blogContent.classroomTips,
+            originalTitle: article.title,
+            originalUrl: article.link,
+            sourceName: article.sourceName,
+            category: blogContent.category,
+            categoryLabel: categoryLabels[blogContent.category] || 'כללי',
+            readingTime: blogContent.readingTime || 2,
+            publishedAt: new Date(article.pubDate),
+            createdAt: FieldValue.serverTimestamp(),
+            viewCount: 0,
+            helpfulCount: 0
+        });
+
+        createdCount++;
+        logger.info(`✅ Created: "${blogContent.title}"`);
+    }
+
+    return {
+        success: true,
+        created: createdCount,
+        message: `Created ${createdCount} blog articles`
+    };
+})

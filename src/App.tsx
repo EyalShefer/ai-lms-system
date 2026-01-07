@@ -21,6 +21,7 @@ const PedagogicalInsights = React.lazy(() => import('./components/PedagogicalIns
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
 const SequentialCoursePlayer = React.lazy(() => import('./components/SequentialCoursePlayer'));
 const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
+const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -584,7 +585,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} />}
                 {mode === 'editor' && <CourseEditor />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -605,6 +606,11 @@ const AuthenticatedApp = () => {
                     onViewInsights={() => setMode('insights')}
                     // @ts-ignore
                     onNavigateToAnalytics={() => setMode('analytics')}
+                  />
+                )}
+                {mode === 'prompts' && (
+                  <PromptsLibrary
+                    onBack={() => setMode('list')}
                   />
                 )}
                 {mode === 'student-dashboard' && <StudentHome

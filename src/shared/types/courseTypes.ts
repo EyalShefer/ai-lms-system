@@ -414,6 +414,10 @@ export interface StudentTask {
 
     // Task type
     taskType: 'activity' | 'exam' | 'practice';
+
+    // Email report settings
+    emailReportEnabled?: boolean;  // Whether to send email report when due date passes
+    emailReportSentAt?: any;       // Timestamp when report was sent (prevents duplicates)
 }
 
 export interface StudentTaskSubmission {

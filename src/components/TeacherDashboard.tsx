@@ -5,6 +5,7 @@ import { generateClassAnalysis, generateStudentReport } from '../services/ai/gem
 // gradeBatch removed
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import { feedbackService } from '../services/feedbackService';
+import { GamificationService } from '../services/telemetry';
 import type { StudentAnalyticsProfile } from '../shared/types/courseTypes';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +23,7 @@ import { SmartGroupingPanel } from './SmartGroupingPanel';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
 import { ShareModal } from './ShareModal';
-import { IconBrandGoogle, IconShare } from '@tabler/icons-react';
+import { IconBrandGoogle, IconShare, IconMail, IconMailOff } from '@tabler/icons-react';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -82,37 +83,37 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
-                <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
+                <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-6 text-white flex justify-between items-center">
                     <div>
                         <h3 className="text-2xl font-bold flex items-center gap-2">
                             <IconBrain className="w-8 h-8 opacity-80" /> תובנות פסיכו-פדגוגיות
                         </h3>
                         <p className="opacity-80 text-sm mt-1">ניתוח עבור: {student.name}</p>
                     </div>
-                    <button onClick={onClose} className="hover:bg-indigo-700 p-2 rounded-full transition-colors"><IconX className="w-6 h-6" /></button>
+                    <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-full transition-colors"><IconX className="w-6 h-6" /></button>
                 </div>
 
                 <div className="p-4 md:p-8 max-h-[70vh] overflow-y-auto">
                     {/* Header Chips */}
                     <div className="flex gap-4 mb-8 flex-wrap">
-                        <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold border border-purple-100 flex items-center gap-2">
+                        <div className="bg-wizdi-cyan/10 text-wizdi-cyan px-4 py-2 rounded-xl font-bold border border-wizdi-cyan/20 flex items-center gap-2">
                             🎭 פרופיל: {analytics.psychologicalProfile}
                         </div>
-                        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold border border-blue-100 flex items-center gap-2">
+                        <div className="bg-wizdi-royal/10 text-wizdi-royal px-4 py-2 rounded-xl font-bold border border-wizdi-royal/20 flex items-center gap-2">
                             ⚡ מעורבות: {analytics.engagementScore}%
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         {/* Strengths */}
-                        <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
-                            <h4 className="text-green-800 font-bold mb-4 flex items-center gap-2 text-lg">
+                        <div className="bg-wizdi-lime/10 p-6 rounded-3xl border border-wizdi-lime/20">
+                            <h4 className="text-wizdi-lime font-bold mb-4 flex items-center gap-2 text-lg">
                                 <IconCheck className="w-5 h-5" /> חוזקות זוהו
                             </h4>
                             <ul className="space-y-3">
                                 {analytics.strengths.map((s, i) => (
-                                    <li key={i} className="flex gap-3 text-green-900 leading-relaxed font-bold opacity-80 text-sm">
-                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 shrink-0" />
+                                    <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
+                                        <div className="w-1.5 h-1.5 bg-wizdi-lime rounded-full mt-2 shrink-0" />
                                         {s}
                                     </li>
                                 ))}
@@ -120,13 +121,13 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                         </div>
 
                         {/* Weaknesses */}
-                        <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                            <h4 className="text-red-800 font-bold mb-4 flex items-center gap-2 text-lg">
+                        <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                            <h4 className="text-red-600 font-bold mb-4 flex items-center gap-2 text-lg">
                                 <IconFlag className="w-5 h-5" /> נקודות לשיפור
                             </h4>
                             <ul className="space-y-3">
                                 {analytics.weaknesses.map((w, i) => (
-                                    <li key={i} className="flex gap-3 text-red-900 leading-relaxed font-bold opacity-80 text-sm">
+                                    <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
                                         <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-2 shrink-0" />
                                         {w}
                                     </li>
@@ -136,13 +137,13 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                     </div>
 
                     {/* Recommendation */}
-                    <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 flex gap-4 items-start">
-                        <div className="bg-white p-3 rounded-full shadow-sm text-yellow-500 shrink-0">
+                    <div className="bg-wizdi-gold/10 p-6 rounded-3xl border border-wizdi-gold/20 flex gap-4 items-start">
+                        <div className="bg-white p-3 rounded-full shadow-lg text-wizdi-gold shrink-0">
                             <IconSparkles className="w-6 h-6" />
                         </div>
                         <div>
-                            <h4 className="text-indigo-900 font-bold text-lg mb-1">המלצה להמשך</h4>
-                            <p className="text-indigo-800 leading-relaxed opacity-90">
+                            <h4 className="text-wizdi-royal font-bold text-lg mb-1">המלצה להמשך</h4>
+                            <p className="text-slate-700 leading-relaxed opacity-90">
                                 {analytics.recommendedFocus}
                             </p>
                         </div>
@@ -195,7 +196,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
     // Detail View State
-    const [selectedStudentIds, setSelectedStudentIds] = new Set();
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [viewingTestStudent, setViewingTestStudent] = useState<StudentStat | null>(null);
     const [reportStudent, setReportStudent] = useState<any>(null);
     const [viewingInsightStudent, setViewingInsightStudent] = useState<StudentStat | null>(null); // New State
@@ -213,6 +214,34 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [courseFeedbackStats, setCourseFeedbackStats] = useState<any>(null);
     const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
     const [showMobileFilters, setShowMobileFilters] = useState(false); // Mobile Filter State
+
+    // Email Reports Settings
+    const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
+    const [isEmailSettingLoading, setIsEmailSettingLoading] = useState(false);
+
+    // Load email reports setting
+    useEffect(() => {
+        if (!currentUser) return;
+        GamificationService.getUserProfile(currentUser.uid).then(profile => {
+            if (profile) {
+                setEmailReportsEnabled(profile.emailReportsEnabled ?? false);
+            }
+        });
+    }, [currentUser]);
+
+    // Handler to toggle email reports
+    const handleToggleEmailReports = async (enabled: boolean) => {
+        if (!currentUser) return;
+        setIsEmailSettingLoading(true);
+        try {
+            await GamificationService.updateEmailReportsSetting(currentUser.uid, enabled);
+            setEmailReportsEnabled(enabled);
+        } catch (error) {
+            console.error('Failed to update email setting:', error);
+        } finally {
+            setIsEmailSettingLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (viewMode === 'feedback' && selectedCourseId) {
@@ -685,7 +714,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
         }
     };
 
-    if (loading || !isCoursesLoaded) return <div className="h-screen flex items-center justify-center text-indigo-600 font-bold bg-slate-50">טוען נתונים...</div>;
+    if (loading || !isCoursesLoaded) return <div className="h-screen flex items-center justify-center text-wizdi-royal font-bold">טוען נתונים...</div>;
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 font-sans pb-24 text-right" dir="rtl">
@@ -701,7 +730,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                             {selectedCourseId ? (
                                 <div className="flex items-center gap-3 animate-slide-in-right">
                                     <h2 className="text-3xl font-black text-wizdi-royal tracking-tight text-right line-clamp-1 max-w-[600px] drop-shadow-sm" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
-                                        <span className="text-wizdi-cyan font-bold ml-2 text-lg uppercase tracking-wider bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100/50">
+                                        <span className="text-wizdi-cyan font-bold ml-2 text-lg uppercase tracking-wider bg-wizdi-cyan/10 px-2 py-1 rounded-lg border border-wizdi-cyan/20">
                                             {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.type === 'test' ? 'מבחן' : 'פעילות'}
                                         </span>
                                         {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title || "קורס נבחר"}
@@ -709,7 +738,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-gradient-to-br from-wizdi-royal to-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-500/20 transform hover:scale-110 transition-transform duration-300">
+                                    <div className="bg-gradient-to-br from-wizdi-royal to-wizdi-cyan p-3 rounded-2xl text-white shadow-lg shadow-wizdi-royal/20 transform hover:scale-110 transition-transform duration-300">
                                         <IconLayer className="w-8 h-8" />
                                     </div>
                                     <div>
@@ -736,7 +765,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </button>
                                     <button
                                         onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); setShowOnlyAlerts(false); }}
-                                        className="btn-lip-primary px-6 py-2.5 text-sm flex items-center gap-2 shadow-lg shadow-blue-900/10"
+                                        className="btn-lip-primary px-6 py-2.5 text-sm flex items-center gap-2 shadow-lg shadow-wizdi-royal/20"
                                     >
                                         <IconArrowBack className="w-5 h-5 rotate-180" /> חזרה ללוח
                                     </button>
@@ -749,6 +778,23 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'list' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת רשימה"><IconList className="w-5 h-5" /></button>
                                         <button onClick={() => setViewMode('feedback')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'feedback' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="משוב תלמידים"><IconFlag className="w-5 h-5" /></button>
                                     </div>
+
+                                    <div className="w-px h-8 bg-slate-200 mx-1"></div>
+
+                                    {/* Email Reports Toggle */}
+                                    <button
+                                        onClick={() => handleToggleEmailReports(!emailReportsEnabled)}
+                                        disabled={isEmailSettingLoading}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                                            emailReportsEnabled
+                                                ? 'bg-wizdi-cyan/20 text-wizdi-cyan border border-wizdi-cyan/30'
+                                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                        } ${isEmailSettingLoading ? 'opacity-50' : ''}`}
+                                        title={emailReportsEnabled ? 'דוחות מייל פעילים' : 'הפעל דוחות מייל'}
+                                    >
+                                        {emailReportsEnabled ? <IconMail className="w-4 h-4" /> : <IconMailOff className="w-4 h-4" />}
+                                        <span className="hidden sm:inline">דוחות מייל</span>
+                                    </button>
 
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
 
@@ -774,7 +820,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             {/* Mobile Filter Toggle */}
                                             <button
                                                 onClick={() => setShowMobileFilters(!showMobileFilters)}
-                                                className={`md:hidden p-2 rounded-xl border transition-colors ${showMobileFilters ? 'bg-indigo-100 border-indigo-200 text-indigo-600' : 'bg-white border-transparent text-slate-400'}`}
+                                                className={`md:hidden p-2 rounded-xl border transition-colors ${showMobileFilters ? 'bg-wizdi-royal/10 border-wizdi-royal/20 text-wizdi-royal' : 'bg-white border-transparent text-slate-400'}`}
                                             >
                                                 <IconList className="w-5 h-5" />
                                             </button>
@@ -829,7 +875,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                     <button
                                         onClick={onNavigateToAnalytics}
-                                        className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                                        className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2 shadow-lg shadow-wizdi-royal/20"
                                         title="Neural Dashboard"
                                     >
                                         <IconBrain className="w-5 h-5" />
@@ -837,7 +883,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </button>
                                     <button
                                         onClick={onViewInsights}
-                                        className="bg-stone-900 hover:bg-black text-green-400 border border-stone-700/50 px-3 py-2 rounded-xl text-xs font-mono tracking-tight shadow-lg flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+                                        className="bg-slate-900 hover:bg-black text-wizdi-lime border border-slate-700/50 px-3 py-2 rounded-xl text-xs font-mono tracking-tight shadow-lg flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
                                         title="Wizdi Monitor"
                                     >
                                         <IconSparkles className="w-4 h-4" />
@@ -854,15 +900,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 {!selectedCourseId && (
                     <div className="animate-fade-in relative z-10">
                         {aggregatedCourses.length === 0 ? (
-                            <div className="text-center py-24 bg-white/60 backdrop-blur-sm rounded-[3rem] border border-dashed border-slate-300/60 shadow-inner flex flex-col items-center justify-center gap-6 group">
-                                <div className="bg-slate-50 p-6 rounded-full group-hover:scale-110 transition-transform duration-500">
-                                    <IconBook className="w-20 h-20 text-slate-200 group-hover:text-wizdi-royal/30 transition-colors" />
+                            <div className="text-center py-24 card-glass rounded-[3rem] shadow-xl flex flex-col items-center justify-center gap-6 group">
+                                <div className="bg-wizdi-cloud p-6 rounded-full group-hover:scale-110 transition-transform duration-500">
+                                    <IconBook className="w-20 h-20 text-wizdi-royal/30 group-hover:text-wizdi-royal/50 transition-colors" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black text-slate-400 mb-2">טרם נוצרו כיתות</h3>
+                                    <h3 className="text-2xl font-black text-wizdi-royal/60 mb-2">טרם נוצרו כיתות</h3>
                                     <p className="text-slate-500/80 text-lg font-medium">זה הזמן ליצור את הפעילות הראשונה שלך!</p>
                                 </div>
-                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="text-wizdi-royal font-bold hover:underline bg-blue-50 px-4 py-2 rounded-xl text-sm">נקה סינונים</button>
+                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="btn-lip-primary px-6 py-2 text-sm">נקה סינונים</button>
                             </div>
                         ) : (
                             <>
@@ -877,8 +923,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                 {/* Header Color Splash */}
                                                 <div className={`h-32 p-6 relative overflow-hidden transition-colors duration-500
                                                     ${c.type === 'test'
-                                                        ? 'bg-gradient-to-br from-indigo-900 to-indigo-800'
-                                                        : 'bg-gradient-to-br from-wizdi-royal to-blue-600'}
+                                                        ? 'bg-gradient-to-br from-wizdi-cyan to-wizdi-royal'
+                                                        : 'bg-gradient-to-br from-wizdi-royal to-wizdi-cyan'}
                                                 `}>
                                                     {/* Background Pattern */}
                                                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
@@ -887,10 +933,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     <div className="relative z-10 flex justify-between items-start">
                                                         <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm
                                                             ${c.mode === 'lesson'
-                                                                ? 'bg-indigo-400 text-indigo-900 border-indigo-300'
+                                                                ? 'bg-wizdi-cyan/80 text-white border-wizdi-cyan/50'
                                                                 : c.type === 'test'
-                                                                    ? 'bg-amber-400 text-amber-900 border-amber-300'
-                                                                    : 'bg-wizdi-lime text-green-900 border-lime-300'}
+                                                                    ? 'bg-wizdi-gold text-amber-900 border-wizdi-gold/50'
+                                                                    : 'bg-wizdi-lime text-green-900 border-wizdi-lime/50'}
                                                         `}>
                                                             {c.mode === 'lesson' ? 'מערך שיעור' : c.type === 'test' ? 'מבחן' : 'פעילות'}
                                                         </span>
@@ -931,14 +977,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                             });
                                                             setAssignmentModalOpen(true);
                                                         }}
-                                                        className="p-2.5 bg-white text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-xl shadow-lg hover:scale-110 transition-all"
+                                                        className="p-2.5 bg-white text-slate-600 hover:text-wizdi-lime hover:bg-wizdi-lime/10 rounded-xl shadow-lg hover:scale-110 transition-all"
                                                         title="שייך ל-Google Classroom"
                                                     >
                                                         <IconBrandGoogle className="w-4 h-4" />
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setShareModalCourse({ id: c.courseId, title: c.title }); }}
-                                                        className="p-2.5 bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl shadow-lg hover:scale-110 transition-all"
+                                                        className="p-2.5 bg-white text-slate-600 hover:text-wizdi-royal hover:bg-wizdi-royal/10 rounded-xl shadow-lg hover:scale-110 transition-all"
                                                         title="שתף פעילות/מבחן"
                                                     >
                                                         <IconShare className="w-4 h-4" />
@@ -988,10 +1034,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </div>
                                 ) : viewMode === 'list' ? (
                                     /* --- LIST VIEW --- */
-                                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="card-glass rounded-3xl shadow-xl overflow-hidden">
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-sm text-right">
-                                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                                <thead className="bg-wizdi-cloud text-slate-500 font-medium border-b border-slate-100">
                                                     <tr>
                                                         <th onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 w-1/4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">שם הקורס {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
@@ -1022,21 +1068,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {aggregatedCourses.map(c => (
-                                                        <tr key={c.courseId} onClick={() => setSelectedCourseId(c.courseId)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
+                                                        <tr key={c.courseId} onClick={() => setSelectedCourseId(c.courseId)} className="hover:bg-wizdi-cloud/50 cursor-pointer transition-colors group">
                                                             <td className="p-4">
-                                                                <div className="font-bold text-slate-800 text-base group-hover:text-indigo-700 transition-colors">{c.title}</div>
+                                                                <div className="font-bold text-slate-800 text-base group-hover:text-wizdi-royal transition-colors">{c.title}</div>
                                                                 <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
                                                             </td>
                                                             <td className="p-4">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${c.type === 'test' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${c.type === 'test' ? 'bg-wizdi-cyan/20 text-wizdi-cyan' : 'bg-wizdi-royal/10 text-wizdi-royal'}`}>
                                                                     {c.type === 'test' ? 'מבחן' : 'פעילות'}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
-                                                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
+                                                            <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
+                                                            <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
                                                             <td className="p-4">
                                                                 {c.nextDueDate ? (
-                                                                    <span className="text-slate-700 font-bold bg-yellow-50 text-yellow-700 px-2 py-1 rounded-md text-xs border border-yellow-100">
+                                                                    <span className="font-bold bg-wizdi-gold/20 text-wizdi-gold px-2 py-1 rounded-md text-xs">
                                                                         {new Date(c.nextDueDate).toLocaleDateString('he-IL')}
                                                                     </span>
                                                                 ) : (
@@ -1052,16 +1098,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-indigo-500" style={{ width: `${c.completionRate}%` }}></div>
+                                                                        <div className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan" style={{ width: `${c.completionRate}%` }}></div>
                                                                     </div>
                                                                     <span className="text-xs font-bold">{c.completionRate}%</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 font-black text-lg text-slate-700">{c.avgScore}</td>
+                                                            <td className="p-4 font-black text-lg text-wizdi-royal">{c.avgScore}</td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
-                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="עריכה"><IconEdit className="w-4 h-4" /></button>
-                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-indigo-600 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
+                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-royal rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="עריכה"><IconEdit className="w-4 h-4" /></button>
+                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-lime rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
 
                                                                 </div>
                                                             </td>
@@ -1076,26 +1122,26 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         {/* Stats Cards */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             {/* Positive/Negative Ratio */}
-                                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                                            <div className="card-glass p-6 rounded-3xl shadow-xl flex items-center justify-between">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-500 mb-1">יחס משוב</div>
                                                     <div className="text-3xl font-black text-slate-800 flex items-center gap-2">
-                                                        <span className="text-green-500">{courseFeedbackStats?.stats?.positive || 0}</span>
+                                                        <span className="text-wizdi-lime">{courseFeedbackStats?.stats?.positive || 0}</span>
                                                         <span className="text-slate-300 text-lg">/</span>
                                                         <span className="text-red-500">{courseFeedbackStats?.stats?.negative || 0}</span>
                                                     </div>
                                                 </div>
-                                                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center">
+                                                <div className="w-16 h-16 rounded-full bg-wizdi-cloud flex items-center justify-center">
                                                     {(courseFeedbackStats?.stats?.positive || 0) > (courseFeedbackStats?.stats?.negative || 0) ?
-                                                        <IconCheck className="w-8 h-8 text-green-500" /> :
+                                                        <IconCheck className="w-8 h-8 text-wizdi-lime" /> :
                                                         <IconAlertTriangle className="w-8 h-8 text-red-500" />
                                                     }
                                                 </div>
                                             </div>
 
                                             {/* Top Pain Points */}
-                                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm col-span-2">
-                                                <div className="text-sm font-bold text-slate-500 mb-4">נושאים לשיפור (תגיות נפוצות)</div>
+                                            <div className="card-glass p-6 rounded-3xl shadow-xl col-span-2">
+                                                <div className="text-sm font-bold text-wizdi-royal mb-4">נושאים לשיפור (תגיות נפוצות)</div>
                                                 <div className="flex gap-3 flex-wrap">
                                                     {Object.entries(courseFeedbackStats?.stats?.tags || {}).map(([tag, count]: any) => (
                                                         <div key={tag} className="bg-red-50 border border-red-100 text-red-700 px-4 py-2 rounded-xl flex items-center gap-2 font-bold">
@@ -1111,17 +1157,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         </div>
 
                                         {/* Recent Feedback List */}
-                                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                                            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                                                <h3 className="font-bold text-slate-700">תגובות אחרונות</h3>
+                                        <div className="card-glass rounded-3xl shadow-xl overflow-hidden min-h-[400px]">
+                                            <div className="p-6 border-b border-slate-100 bg-wizdi-cloud/50">
+                                                <h3 className="font-bold text-wizdi-royal">תגובות אחרונות</h3>
                                             </div>
                                             <div className="divide-y divide-slate-100">
                                                 {isFeedbackLoading ? (
-                                                    <div className="p-12 text-center text-indigo-600 font-bold animate-pulse">טוען משובים...</div>
+                                                    <div className="p-12 text-center text-wizdi-royal font-bold animate-pulse">טוען משובים...</div>
                                                 ) : courseFeedbackStats?.recent?.length > 0 ? (
                                                     courseFeedbackStats.recent.map((fb: any) => (
-                                                        <div key={fb.id} className="p-6 hover:bg-slate-50 transition-colors flex gap-4">
-                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${fb.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                        <div key={fb.id} className="p-6 hover:bg-wizdi-cloud/30 transition-colors flex gap-4">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${fb.type === 'positive' ? 'bg-wizdi-lime/20 text-wizdi-lime' : 'bg-red-100 text-red-600'}`}>
                                                                 {fb.type === 'positive' ? <IconCheck className="w-5 h-5" /> : <IconFlag className="w-5 h-5" />}
                                                             </div>
                                                             <div className="flex-1">
@@ -1136,12 +1182,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                                 {fb.tags && fb.tags.length > 0 && (
                                                                     <div className="flex gap-2 mb-2">
                                                                         {fb.tags.map((t: string) => (
-                                                                            <span key={t} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">{t}</span>
+                                                                            <span key={t} className="text-xs bg-wizdi-cloud text-slate-600 px-2 py-0.5 rounded border border-slate-200">{t}</span>
                                                                         ))}
                                                                     </div>
                                                                 )}
 
-                                                                {fb.comment && <div className="text-slate-600 text-sm bg-slate-50 p-3 rounded-xl">{fb.comment}</div>}
+                                                                {fb.comment && <div className="text-slate-600 text-sm bg-wizdi-cloud p-3 rounded-xl">{fb.comment}</div>}
                                                                 <div className="text-xs text-slate-400 mt-2">הקשר: {fb.context?.blockType || 'כללי'}</div>
                                                             </div>
                                                         </div>
@@ -1164,33 +1210,33 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     selectedCourseId && (
                         <div className="space-y-6 animate-fade-in">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                                <div className="card-glass p-4 rounded-3xl shadow-xl text-center">
                                     <span className="text-xs text-slate-400 font-bold">ממוצע כיתתי</span>
-                                    <div className="text-2xl font-black text-slate-700 mt-1">{stats.avg}</div>
+                                    <div className="text-2xl font-black text-wizdi-royal mt-1">{stats.avg}</div>
                                 </div>
-                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                                <div className="card-glass p-4 rounded-3xl shadow-xl text-center">
                                     <span className="text-xs text-slate-400 font-bold">מצטיינים</span>
-                                    <div className="text-2xl font-black text-teal-500 mt-1">{stats.high}</div>
+                                    <div className="text-2xl font-black text-wizdi-lime mt-1">{stats.high}</div>
                                 </div>
-                                <div className="bg-white p-4 rounded-xl border border-red-50 shadow-sm text-center">
+                                <div className="card-glass p-4 rounded-3xl shadow-xl text-center border border-red-100">
                                     <span className="text-xs text-red-400 font-bold">תלמידים בסיכון</span>
                                     <div className="text-2xl font-black text-red-500 mt-1">{stats.risk}</div>
                                 </div>
-                                <div onClick={handleClassAnalysis} className="bg-indigo-600 p-4 rounded-xl shadow-lg shadow-indigo-200 text-white flex flex-col justify-center items-center cursor-pointer hover:bg-indigo-700 transition-colors">
+                                <div onClick={handleClassAnalysis} className="bg-gradient-to-br from-wizdi-royal to-wizdi-cyan p-4 rounded-3xl shadow-xl shadow-wizdi-royal/20 text-white flex flex-col justify-center items-center cursor-pointer hover:scale-105 transition-all">
                                     {aiLoading ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div> : <IconBrain className="w-6 h-6" />}
                                     <span className="font-bold text-sm">ניתוח כיתתי (AI)</span>
                                 </div>
                             </div>
 
                             {(aiInsight || groupAnalysis) && (
-                                <div className="bg-gradient-to-br from-white to-indigo-50/50 p-6 rounded-3xl border border-indigo-100 shadow-sm relative">
+                                <div className="card-glass p-6 rounded-3xl shadow-xl relative">
                                     <button onClick={() => { setAiInsight(null); setGroupAnalysis(null) }} className="absolute top-4 left-4 p-1 hover:bg-slate-100 rounded-full"><IconX className="w-4 h-4 text-slate-400" /></button>
-                                    <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-4"><IconSparkles className="w-5 h-5 text-indigo-600" />{groupAnalysis ? 'תוצאות ניתוח קבוצתי' : 'תובנות כיתתיות'}</h3>
-                                    {groupAnalysis ? <div className="bg-white p-4 rounded-xl border border-indigo-100 text-slate-700 whitespace-pre-line leading-relaxed">{groupAnalysis}</div> : (
+                                    <h3 className="font-bold text-wizdi-royal flex items-center gap-2 mb-4"><IconSparkles className="w-5 h-5 text-wizdi-cyan" />{groupAnalysis ? 'תוצאות ניתוח קבוצתי' : 'תובנות כיתתיות'}</h3>
+                                    {groupAnalysis ? <div className="bg-wizdi-cloud p-4 rounded-xl text-slate-700 whitespace-pre-line leading-relaxed">{groupAnalysis}</div> : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-teal-600 font-bold block mb-2 border-b border-teal-50 pb-1">חוזקות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.strongSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
-                                            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm"><span className="text-red-500 font-bold block mb-2 border-b border-red-50 pb-1">חולשות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.weakSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
-                                            <div className="col-span-full bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-indigo-800 font-medium">💡 המלצה: {aiInsight.actionItems?.[0]}</div>
+                                            <div className="bg-wizdi-lime/10 p-4 rounded-xl border border-wizdi-lime/20"><span className="text-wizdi-lime font-bold block mb-2 border-b border-wizdi-lime/20 pb-1">חוזקות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.strongSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
+                                            <div className="bg-red-50 p-4 rounded-xl border border-red-100"><span className="text-red-500 font-bold block mb-2 border-b border-red-100 pb-1">חולשות:</span><ul className="list-disc list-inside text-slate-600 space-y-1">{aiInsight.weakSkills?.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
+                                            <div className="col-span-full bg-wizdi-royal/10 p-4 rounded-xl border border-wizdi-royal/20 text-wizdi-royal font-medium">💡 המלצה: {aiInsight.actionItems?.[0]}</div>
                                         </div>
                                     )}
                                 </div>
@@ -1211,16 +1257,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                 students={currentCourseStudents}
                             />
 
-                            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                    <div className="font-bold text-slate-700 text-sm">רשימת תלמידים ({currentCourseStudents.length})</div>
+                            <div className="card-glass rounded-3xl shadow-xl overflow-hidden min-h-[400px]">
+                                <div className="p-4 border-b border-slate-100 bg-wizdi-cloud/50 flex justify-between items-center">
+                                    <div className="font-bold text-wizdi-royal text-sm">רשימת תלמידים ({currentCourseStudents.length})</div>
                                     {selectedStudentIds.size > 0 && (
-                                        <button onClick={handleGroupAnalysis} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1"><IconBrain className="w-3 h-3" /> נתח קבוצה ({selectedStudentIds.size})</button>
+                                        <button onClick={handleGroupAnalysis} className="btn-lip-primary text-xs px-3 py-1 flex items-center gap-1"><IconBrain className="w-3 h-3" /> נתח קבוצה ({selectedStudentIds.size})</button>
                                     )}
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                                        <thead className="bg-wizdi-cloud text-slate-500 font-medium">
                                             <tr>
                                                 <th className="p-4 w-10"></th>
                                                 <th className="p-4">שם תלמיד</th>
@@ -1233,9 +1279,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {currentCourseStudents.map(student => (
-                                                <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-indigo-50/50' : ''}`}>
+                                                <tr key={student.id} className={`hover:bg-wizdi-cloud/50 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-wizdi-royal/5' : ''}`}>
                                                     <td className="p-4">
-                                                        <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked={selectedStudentIds.has(student.id)} onChange={() => toggleSelection(student.id)} />
+                                                        <input type="checkbox" className="rounded border-slate-300 text-wizdi-royal focus:ring-wizdi-cyan" checked={selectedStudentIds.has(student.id)} onChange={() => toggleSelection(student.id)} />
                                                     </td>
                                                     <td className="p-4 font-bold text-slate-800 flex items-center gap-2">
                                                         {student.name}
@@ -1247,11 +1293,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     </td>
                                                     <td className="p-4">
                                                         {(student as any).isSubmitted ? (
-                                                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
+                                                            <span className="bg-wizdi-lime/20 text-wizdi-lime px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
                                                                 <IconCheck className="w-3 h-3" /> הוגש
                                                             </span>
                                                         ) : (
-                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
+                                                            <span className="bg-wizdi-gold/20 text-wizdi-gold px-2 py-1 rounded-lg text-xs font-bold flex items-center w-fit gap-1">
                                                                 <IconLoader className="w-3 h-3" /> בתהליך
                                                             </span>
                                                         )}
@@ -1260,22 +1306,22 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div className="h-full bg-indigo-500" style={{ width: `${student.progress}%` }}></div>
+                                                                <div className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan" style={{ width: `${student.progress}%` }}></div>
                                                             </div>
                                                             <span className="text-xs font-bold text-slate-500">{student.progress}%</span>
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        <span className={`px-2 py-1 rounded font-bold text-xs ${student.score < 60 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{student.score}</span>
+                                                        <span className={`px-2 py-1 rounded font-bold text-xs ${student.score < 60 ? 'bg-red-100 text-red-600' : 'bg-wizdi-lime/20 text-wizdi-lime'}`}>{student.score}</span>
                                                     </td>
                                                     <td className="p-4 flex gap-2">
-                                                        <button onClick={() => setViewingTestStudent(student)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="צפה"><IconEye className="w-4 h-4" /></button>
+                                                        <button onClick={() => setViewingTestStudent(student)} className="p-1.5 text-wizdi-royal hover:bg-wizdi-royal/10 rounded transition-colors" title="צפה"><IconEye className="w-4 h-4" /></button>
                                                         {student.analytics && (
-                                                            <button onClick={() => setViewingInsightStudent(student)} className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors" title="תובנות AI">
+                                                            <button onClick={() => setViewingInsightStudent(student)} className="p-1.5 text-wizdi-cyan hover:bg-wizdi-cyan/10 rounded transition-colors" title="תובנות AI">
                                                                 <IconBrain className="w-4 h-4" />
                                                             </button>
                                                         )}
-                                                        <button onClick={() => { setReportStudent(student); generateStudentReport(student).then(r => setReportStudent({ ...student, report: r })); }} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="דוח"><IconEdit className="w-4 h-4" /></button>
+                                                        <button onClick={() => { setReportStudent(student); generateStudentReport(student).then(r => setReportStudent({ ...student, report: r })); }} className="p-1.5 text-wizdi-lime hover:bg-wizdi-lime/10 rounded transition-colors" title="דוח"><IconEdit className="w-4 h-4" /></button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1292,7 +1338,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 {
                     viewingTestStudent && (
                         <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
-                            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-indigo-600 font-bold">טוען את נגן המבחן...</div>}>
+                            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-wizdi-royal font-bold">טוען את נגן המבחן...</div>}>
                                 <CoursePlayer
                                     reviewMode={true}
                                     assignment={{
@@ -1306,11 +1352,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                             </React.Suspense>
 
                             {/* Feedback Footer */}
-                            <div className="bg-white border-t border-indigo-100 p-4 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
+                            <div className="bg-white border-t border-wizdi-cloud p-4 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
                                 <div className="flex-1 w-full">
                                     <label className="text-xs font-bold text-slate-500 mb-1 block">משוב המורה לתלמיד:</label>
                                     <textarea
-                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none h-16 resize-none"
+                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none h-16 resize-none"
                                         placeholder="כתוב כאן משוב מילולי..."
                                         value={feedbackText}
                                         onChange={(e) => setFeedbackText(e.target.value)}
@@ -1320,14 +1366,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     <button
                                         onClick={handleSaveFeedback}
                                         disabled={isSavingFeedback}
-                                        className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                                        className="flex-1 md:flex-none btn-lip-action px-6 py-3 flex items-center justify-center gap-2"
                                     >
                                         {isSavingFeedback ? <span className="animate-spin">⏳</span> : <IconCheck className="w-5 h-5" />}
                                         שמור משוב
                                     </button>
                                     <button
                                         onClick={() => setViewingTestStudent(null)}
-                                        className="flex-1 md:flex-none px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                                        className="flex-1 md:flex-none px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-full transition-colors"
                                     >
                                         סגור
                                     </button>
@@ -1340,43 +1386,43 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 {/* Assignment Creation Modal */}
                 {
                     assignmentModalOpen && createPortal(
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 text-right" dir="rtl">
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
-                                <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 text-right" dir="rtl">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+                                <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-4 text-white flex justify-between items-center">
                                     <h3 className="font-bold text-lg flex items-center gap-2"><IconLink className="w-5 h-5" /> יצירת קישור למשימה</h3>
-                                    <button onClick={() => setAssignmentModalOpen(false)} className="hover:bg-indigo-700 p-1 rounded-full text-indigo-100"><IconX className="w-5 h-5" /></button>
+                                    <button onClick={() => setAssignmentModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full"><IconX className="w-5 h-5" /></button>
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">שם המשימה / מבחן</label>
-                                        <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                        <label className="block text-sm font-bold text-wizdi-royal mb-1">שם המשימה / מבחן</label>
+                                        <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan focus:ring-1 focus:ring-wizdi-cyan outline-none"
                                             value={assignmentData.title} onChange={e => setAssignmentData({ ...assignmentData, title: e.target.value })}
                                             placeholder="למשל: סיום פרק ב׳ - חזרה למבחן"
                                         />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-1">תאריך הגשה</label>
-                                            <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                            <label className="block text-sm font-bold text-wizdi-royal mb-1">תאריך הגשה</label>
+                                            <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
                                                 value={assignmentData.dueDate} onChange={e => setAssignmentData({ ...assignmentData, dueDate: e.target.value })}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-1">שעה</label>
-                                            <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                            <label className="block text-sm font-bold text-wizdi-royal mb-1">שעה</label>
+                                            <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
                                                 value={assignmentData.dueTime} onChange={e => setAssignmentData({ ...assignmentData, dueTime: e.target.value })}
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">הנחיות לתלמיד (אופציונלי)</label>
-                                        <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-indigo-500 outline-none h-20 resize-none"
+                                        <label className="block text-sm font-bold text-wizdi-royal mb-1">הנחיות לתלמיד (אופציונלי)</label>
+                                        <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none h-20 resize-none"
                                             value={assignmentData.instructions} onChange={e => setAssignmentData({ ...assignmentData, instructions: e.target.value })}
                                             placeholder="הנחיות מיוחדות, זמן מומלץ, וכו'..."
                                         />
                                     </div>
 
-                                    <button onClick={handleCreateAssignment} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2 mt-2">
+                                    <button onClick={handleCreateAssignment} className="w-full btn-lip-action py-3 flex justify-center items-center gap-2 mt-2">
                                         <IconLink className="w-5 h-5" /> צור קישור והעתק
                                     </button>
                                     <p className="text-xs text-center text-slate-400">הקישור ישמר בהיסטוריית המשימות של הכיתה</p>
@@ -1389,13 +1435,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 {
                     reportStudent && reportStudent.report && (
                         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-bold text-slate-800">דוח הערכה: {reportStudent.name}</h3>
+                                    <h3 className="text-xl font-bold text-wizdi-royal">דוח הערכה: {reportStudent.name}</h3>
                                     <button onClick={() => setReportStudent(null)}><IconX className="w-6 h-6 text-slate-400 hover:text-red-500" /></button>
                                 </div>
-                                <div className="bg-blue-50 p-4 rounded-xl text-blue-900 text-sm leading-relaxed mb-6">{reportStudent.report.summary}</div>
-                                <button onClick={() => window.print()} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">הדפס דוח</button>
+                                <div className="bg-wizdi-cloud p-4 rounded-xl text-wizdi-royal text-sm leading-relaxed mb-6">{reportStudent.report.summary}</div>
+                                <button onClick={() => window.print()} className="w-full btn-lip-primary py-3">הדפס דוח</button>
                             </div>
                         </div>
                     )
