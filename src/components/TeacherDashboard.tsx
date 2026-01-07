@@ -6,6 +6,7 @@ import { generateClassAnalysis, generateStudentReport } from '../services/ai/gem
 import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore'; // Added deleteDoc, doc, updateDoc
 import { feedbackService } from '../services/feedbackService';
 import type { StudentAnalyticsProfile } from '../shared/types/courseTypes';
+import { useAuth } from '../context/AuthContext';
 
 import { db } from '../firebase';
 import {
@@ -153,6 +154,9 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
 };
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights, onNavigateToAnalytics }) => {
+    // --- Auth ---
+    const { currentUser } = useAuth();
+
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
     const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
@@ -230,9 +234,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     // --- 1. Fetch Courses Metadata ---
     useEffect(() => {
+        if (!currentUser) return;
+
         const fetchCourses = async () => {
             try {
-                const q = query(collection(db, "courses"));
+                const q = query(collection(db, "courses"), where("teacherId", "==", currentUser.uid));
                 const snapshot = await getDocs(q);
                 // Updated mapped type to include syllabus for type detection
                 const map: Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }> = {};
@@ -258,13 +264,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             }
         };
         fetchCourses();
-    }, []);
+    }, [currentUser]);
 
     // --- 1.5 Fetch Assignments for Due Dates ---
     useEffect(() => {
+        if (!currentUser) return;
+
         const fetchAssignments = async () => {
             try {
-                const q = query(collection(db, "assignments"));
+                const q = query(collection(db, "assignments"), where("teacherId", "==", currentUser.uid));
                 const snapshot = await getDocs(q);
                 const map: Record<string, any[]> = {};
 
@@ -283,21 +291,25 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             }
         };
         fetchAssignments();
-    }, []);
+    }, [currentUser]);
 
 
     // --- 2. Fetch Students & Submissions ---
     useEffect(() => {
-        // Fetch Submissions
-        const qSub = collection(db, "submissions");
+        if (!currentUser) return;
+
+        // Fetch Submissions - filter by teacherId
+        const qSub = query(collection(db, "submissions"), where("teacherId", "==", currentUser.uid));
         const unsubSub = onSnapshot(qSub, (snapshot) => {
             const subs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setRawSubmissions(subs);
+        }, (error) => {
+            console.error("Error fetching submissions:", error);
         });
 
         // Legend: We might still need student_progress for older data, but for now we focus on submissions for the new flow.
         // If you want to keep 'student_progress' for "Registered" students who haven't submitted, keep this.
-        const q = collection(db, "student_progress");
+        const q = query(collection(db, "student_progress"), where("teacherId", "==", currentUser.uid));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const raw = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -305,17 +317,26 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             }));
             setRawStudents(raw);
             setLoading(false);
+        }, (error) => {
+            console.error("Error fetching student progress:", error);
+            setLoading(false);
         });
 
-        // Safety Alerts Listener
-        const qAlerts = query(collection(db, "safety_alerts"), where("isHandled", "==", false));
+        // Safety Alerts Listener - filter by teacherId
+        const qAlerts = query(
+            collection(db, "safety_alerts"),
+            where("teacherId", "==", currentUser.uid),
+            where("isHandled", "==", false)
+        );
         const unsubAlerts = onSnapshot(qAlerts, (snapshot) => {
             const alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setSafetyAlerts(alerts);
+        }, (error) => {
+            console.error("Error fetching safety alerts:", error);
         });
 
         return () => { unsubscribe(); unsubSub(); unsubAlerts(); };
-    }, []);
+    }, [currentUser]);
 
     // --- 3. Merge Data ---
     const allData: StudentStat[] = useMemo(() => {

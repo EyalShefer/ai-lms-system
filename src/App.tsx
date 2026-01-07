@@ -583,7 +583,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any) => setWizardMode(m)} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} />}
                 {mode === 'editor' && <CourseEditor />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}

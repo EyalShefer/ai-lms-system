@@ -1,15 +1,100 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
     IconSparkles,
     IconChart,
-    IconBack,
     IconList
 } from '../icons';
-import { IconUpload, IconShare, IconBell, IconVideo, IconFileText, IconPencil, IconFlask } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconBell, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft } from '@tabler/icons-react';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void }) => {
+interface RecentActivity {
+    id: string;
+    title: string;
+    type: 'test' | 'activity' | 'lesson';
+    mode?: string;
+    createdAt: any;
+    submissionCount?: number;
+}
+
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void }) => {
     const { currentUser } = useAuth();
+    const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+    const [loadingActivities, setLoadingActivities] = useState(true);
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
+
+    // Fetch recent activities
+    useEffect(() => {
+        const fetchRecentActivities = async () => {
+            if (!currentUser) {
+                setLoadingActivities(false);
+                return;
+            }
+
+            try {
+                // Fetch recent courses
+                const coursesQuery = query(
+                    collection(db, "courses"),
+                    where("teacherId", "==", currentUser.uid),
+                    orderBy("createdAt", "desc"),
+                    limit(5)
+                );
+                const coursesSnapshot = await getDocs(coursesQuery);
+
+                const activities: RecentActivity[] = [];
+                const courseIds: string[] = [];
+
+                coursesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    courseIds.push(doc.id);
+
+                    // Determine type based on mode or syllabus
+                    let type: 'test' | 'activity' | 'lesson' = 'activity';
+                    if (data.mode === 'exam') type = 'test';
+                    else if (data.mode === 'lesson') type = 'lesson';
+                    else if (data.syllabus && data.syllabus.some((s: any) => s.questions?.length > 0)) type = 'test';
+
+                    activities.push({
+                        id: doc.id,
+                        title: data.title || "ללא שם",
+                        type,
+                        mode: data.mode,
+                        createdAt: data.createdAt,
+                        submissionCount: 0
+                    });
+                });
+
+                // Fetch submission counts for each course
+                if (courseIds.length > 0) {
+                    const submissionsQuery = query(
+                        collection(db, "submissions"),
+                        where("courseId", "in", courseIds)
+                    );
+                    const submissionsSnapshot = await getDocs(submissionsQuery);
+
+                    const submissionCounts: Record<string, number> = {};
+                    submissionsSnapshot.forEach(doc => {
+                        const courseId = doc.data().courseId;
+                        submissionCounts[courseId] = (submissionCounts[courseId] || 0) + 1;
+                    });
+
+                    // Update activities with submission counts
+                    activities.forEach(activity => {
+                        activity.submissionCount = submissionCounts[activity.id] || 0;
+                    });
+                }
+
+                setRecentActivities(activities.slice(0, 3));
+            } catch (error) {
+                console.error("Error fetching recent activities:", error);
+            } finally {
+                setLoadingActivities(false);
+            }
+        };
+
+        fetchRecentActivities();
+    }, [currentUser]);
 
     const getTimeBasedGreeting = () => {
         const hour = new Date().getHours();
@@ -156,7 +241,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew:
 
                             <div className="flex items-center gap-2 text-wizdi-royal font-bold group-hover:translate-x-[-8px] transition-transform">
                                 התחילו ליצור
-                                <IconBack className="w-5 h-5 rotate-180" />
+                                <IconChevronLeft className="w-5 h-5" />
                             </div>
                         </div>
                     </div>
@@ -185,7 +270,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew:
 
                             <div className="flex items-center gap-2 font-bold group-hover:translate-x-[-8px] transition-transform">
                                 צרו מבחן
-                                <IconBack className="w-5 h-5 rotate-180" />
+                                <IconChevronLeft className="w-5 h-5" />
                             </div>
                         </div>
                     </div>
@@ -224,7 +309,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew:
 
                             <div className="flex items-center gap-2 font-bold text-wizdi-lime group-hover:translate-x-[-8px] transition-transform">
                                 כניסה ללוח
-                                <IconBack className="w-5 h-5 rotate-180" />
+                                <IconChevronLeft className="w-5 h-5" />
                             </div>
                         </div>
                     </div>
@@ -239,8 +324,8 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew:
                                     <svg className="w-6 h-6 text-wizdi-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-800">פעילות אחרונה</h3>
-                                    <p className="text-sm text-slate-500">הפעולות האחרונות שלך</p>
+                                    <h3 className="font-bold text-slate-800">הפעילויות האחרונות שלי</h3>
+                                    <p className="text-sm text-slate-500">לחצו לעריכה ושליחה</p>
                                 </div>
                             </div>
                             <button
@@ -252,38 +337,78 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew:
                         </div>
 
                         <div className="space-y-3">
-                            <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors">
-                                <div className="w-10 h-10 bg-wizdi-royal/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                                    <IconSparkles className="w-5 h-5 text-wizdi-royal" />
+                            {loadingActivities ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin w-8 h-8 border-3 border-wizdi-royal border-t-transparent rounded-full"></div>
                                 </div>
-                                <div className="flex-grow min-w-0">
-                                    <p className="font-medium text-slate-700 truncate">שיעור: מבוא לביולוגיה</p>
-                                    <p className="text-xs text-slate-400">לפני 2 שעות</p>
+                            ) : recentActivities.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <IconSparkles className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                    <p className="font-medium">אין פעילויות עדיין</p>
+                                    <p className="text-sm">צרו את הפעילות הראשונה שלכם!</p>
                                 </div>
-                                <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">פורסם</span>
-                            </div>
+                            ) : (
+                                recentActivities.map((activity) => {
+                                    const getActivityIcon = () => {
+                                        if (activity.type === 'test') return <IconList className="w-5 h-5 text-wizdi-cyan" />;
+                                        if (activity.type === 'lesson') return <IconVideo className="w-5 h-5 text-lime-600" />;
+                                        return <IconSparkles className="w-5 h-5 text-wizdi-royal" />;
+                                    };
 
-                            <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors">
-                                <div className="w-10 h-10 bg-wizdi-cyan/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                                    <IconList className="w-5 h-5 text-wizdi-cyan" />
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                    <p className="font-medium text-slate-700 truncate">מבחן: פרק 3 - תאים</p>
-                                    <p className="text-xs text-slate-400">אתמול</p>
-                                </div>
-                                <span className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">23 הגשות</span>
-                            </div>
+                                    const getActivityBgColor = () => {
+                                        if (activity.type === 'test') return 'bg-wizdi-cyan/10';
+                                        if (activity.type === 'lesson') return 'bg-wizdi-lime/20';
+                                        return 'bg-wizdi-royal/10';
+                                    };
 
-                            <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors">
-                                <div className="w-10 h-10 bg-wizdi-lime/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                                    <IconVideo className="w-5 h-5 text-lime-600" />
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                    <p className="font-medium text-slate-700 truncate">פודקאסט AI: היסטוריה מודרנית</p>
-                                    <p className="text-xs text-slate-400">לפני 3 ימים</p>
-                                </div>
-                                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">טיוטה</span>
-                            </div>
+                                    const getActivityTypeLabel = () => {
+                                        if (activity.type === 'test') return 'מבחן';
+                                        if (activity.type === 'lesson') return 'מערך שיעור';
+                                        return 'פעילות';
+                                    };
+
+                                    const formatTimeAgo = (timestamp: any) => {
+                                        if (!timestamp) return '';
+                                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                                        const now = new Date();
+                                        const diffMs = now.getTime() - date.getTime();
+                                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                                        if (diffHours < 1) return 'עכשיו';
+                                        if (diffHours < 24) return `לפני ${diffHours} שעות`;
+                                        if (diffDays === 1) return 'אתמול';
+                                        if (diffDays < 7) return `לפני ${diffDays} ימים`;
+                                        return date.toLocaleDateString('he-IL');
+                                    };
+
+                                    return (
+                                        <div
+                                            key={activity.id}
+                                            onClick={() => onEditCourse?.(activity.id)}
+                                            className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors cursor-pointer group"
+                                        >
+                                            <div className={`w-10 h-10 ${getActivityBgColor()} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                                                {getActivityIcon()}
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <p className="font-medium text-slate-700 truncate">{getActivityTypeLabel()}: {activity.title}</p>
+                                                <p className="text-xs text-slate-400">{formatTimeAgo(activity.createdAt)}</p>
+                                            </div>
+                                            {activity.submissionCount && activity.submissionCount > 0 ? (
+                                                <span className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">
+                                                    {activity.submissionCount} הגשות
+                                                </span>
+                                            ) : (
+                                                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 group-hover:bg-wizdi-royal group-hover:text-white transition-colors">
+                                                    ערוך ושלח
+                                                </span>
+                                            )}
+                                            <IconChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-wizdi-royal transition-colors" />
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 </div>

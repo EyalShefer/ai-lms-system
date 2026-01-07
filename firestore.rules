@@ -136,6 +136,44 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Student progress collection
+    match /student_progress/{progressId} {
+      // Students can create their own progress records
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+
+      // Students can read their own progress
+      // Teachers can read progress for their courses
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.teacherId == request.auth.uid
+      );
+
+      // Students can update their own progress
+      // Teachers can update progress for their courses
+      allow update: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.teacherId == request.auth.uid
+      );
+
+      // Only teachers can delete progress records
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Safety alerts collection
+    match /safety_alerts/{alertId} {
+      // System can create alerts (usually from Cloud Functions)
+      allow create: if isAuthenticated();
+
+      // Teachers can read alerts for their courses
+      allow read: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+
+      // Teachers can update alerts (mark as handled)
+      allow update: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+
+      // Teachers can delete alerts
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
     // Block all other collections by default
     match /{document=**} {
       allow read, write: if false;
