@@ -325,7 +325,7 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
             className="flex items-center gap-1 px-3 py-2 text-slate-600 hover:text-wizdi-royal hover:bg-slate-100 rounded-xl transition-all"
           >
             <IconStar className="w-5 h-5" />
-            <span className="text-sm">דרג</span>
+            <span className="text-sm">דרגו</span>
           </button>
 
           {/* Comments toggle */}
@@ -379,7 +379,7 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
         <div className="px-4 pb-4 border-t border-slate-100 pt-4">
           {commentsWithText.length === 0 ? (
             <p className="text-sm text-slate-500 text-center py-4">
-              אין תגובות עדיין. היה הראשון לדרג ולהגיב!
+              אין תגובות עדיין. היו הראשונים לדרג ולהגיב!
             </p>
           ) : (
             <div className="space-y-3 max-h-60 overflow-y-auto">

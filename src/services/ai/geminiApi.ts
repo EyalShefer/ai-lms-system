@@ -526,10 +526,22 @@ export const generateInfographicFromText = async (
             }
         }
 
-        // Fallback 1: Code-to-Image (if Gemini 3 failed or code-to-image was requested)
-        if (!imageBlob && (preferredMethod === 'code-to-image' || preferredMethod === 'auto' || preferredMethod === 'gemini3')) {
+        // Fallback 1: DALL-E 3 (best quality for Hebrew infographics)
+        // Skip Code-to-Image as it produces basic results - go straight to DALL-E for quality
+        if (!imageBlob) {
+            console.log('🎯 Using DALL-E 3 for high-quality Hebrew infographic...');
+            imageBlob = await generateAiImage(enhancedPrompt);
+            if (imageBlob) {
+                usedProvider = 'dall-e';
+                actualCost = 0.040;
+                console.log('✅ DALL-E 3 infographic generated successfully!');
+            }
+        }
+
+        // Fallback 2: Code-to-Image (only if DALL-E also fails)
+        if (!imageBlob && preferredMethod === 'code-to-image') {
             try {
-                console.log('🎯 Trying Code-to-Image (HTML/CSS)...');
+                console.log('🎯 Trying Code-to-Image (HTML/CSS) as last resort...');
                 const { getInfographicHTMLPrompt } = await import('../../utils/infographicHTMLTemplates');
                 const { convertHTMLToImage } = await import('../../utils/htmlToImage');
 
@@ -559,16 +571,6 @@ export const generateInfographicFromText = async (
                 }
             } catch (codeToImageError) {
                 console.warn('⚠️ Code-to-Image failed:', codeToImageError);
-            }
-        }
-
-        // Fallback 2: DALL-E (if everything else failed)
-        if (!imageBlob) {
-            console.log('🎯 Falling back to DALL-E 3...');
-            imageBlob = await generateAiImage(enhancedPrompt);
-            if (imageBlob) {
-                usedProvider = 'dall-e';
-                actualCost = 0.040;
             }
         }
 

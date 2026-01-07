@@ -19,7 +19,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -70,6 +70,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 if (courseIds.length > 0) {
                     const submissionsQuery = query(
                         collection(db, "submissions"),
+                        where("teacherId", "==", currentUser.uid),
                         where("courseId", "in", courseIds)
                     );
                     const submissionsSnapshot = await getDocs(submissionsQuery);
@@ -87,8 +88,11 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 }
 
                 setRecentActivities(activities.slice(0, 3));
-            } catch (error) {
-                console.error("Error fetching recent activities:", error);
+            } catch (error: any) {
+                console.error("❌ Error fetching recent activities:", error);
+                console.error("Error code:", error?.code);
+                console.error("Error message:", error?.message);
+                // If it's a missing index error, the message will contain a link to create the index
             } finally {
                 setLoadingActivities(false);
             }
@@ -334,7 +338,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                 <h2 className="text-2xl font-black mb-2 !text-white">
                                     מאגר פרומפטים AI
                                 </h2>
-                                <p className="text-purple-100 text-sm mb-4 flex-grow">
+                                <p className="text-purple-100 text-base mb-4 flex-grow">
                                     פרומפטים מוכנים לכל צורך הוראתי - בדיקת עבודות, יצירת תוכן, משוב לתלמידים ועוד
                                 </p>
 
@@ -442,7 +446,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             </div>
                             <div className="flex-grow">
                                 <h2 className="text-lg font-black !text-white">לוח בקרה</h2>
-                                <p className="text-slate-300 text-xs">צפייה בנתונים ומעקב התקדמות</p>
+                                <p className="text-slate-300 text-sm">צפייה בנתונים ומעקב התקדמות</p>
                             </div>
                             <div className="flex items-center gap-2 font-bold text-wizdi-lime text-sm group-hover:translate-x-[-8px] transition-transform">
                                 כניסה
@@ -514,6 +518,18 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     יצירה חדשה
                 </button>
             </div>
+
+            {/* Admin QA Button */}
+            {onNavigateToQA && (
+                <div className="text-center py-4">
+                    <button
+                        onClick={() => onNavigateToQA()}
+                        className="text-slate-400 text-xs hover:text-wizdi-royal transition-colors px-3 py-1 rounded hover:bg-slate-100"
+                    >
+                        🔍 QA Admin
+                    </button>
+                </div>
+            )}
 
             <style>{`
                 @keyframes blob {

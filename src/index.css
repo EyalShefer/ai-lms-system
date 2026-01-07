@@ -393,6 +393,18 @@
     @apply bg-purple-50 border border-purple-200 rounded-xl p-4 mt-3 text-purple-900;
 }
 
+/* Visual placeholder during async loading */
+.visual-placeholder {
+    @apply bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100 rounded-xl p-8 text-center text-slate-500 font-medium mt-4;
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 .slide-card h4 {
     @apply font-bold text-lg text-slate-800 mb-3 border-b pb-2;
 }

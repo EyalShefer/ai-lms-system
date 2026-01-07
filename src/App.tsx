@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
 import LandingPage from './components/LandingPage'; // Import Landing Page
@@ -22,6 +23,8 @@ const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'))
 const SequentialCoursePlayer = React.lazy(() => import('./components/SequentialCoursePlayer'));
 const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
 const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
+const QADashboard = React.lazy(() => import('./components/QADashboard'));
+const WizdiRoutes = React.lazy(() => import('./components/wizdi/WizdiRouter'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -585,8 +588,8 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} />}
-                {mode === 'editor' && <CourseEditor />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={() => setMode('qa-admin')} />}
+                {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
                   simulateGuest={isGuestMode}
@@ -619,6 +622,7 @@ const AuthenticatedApp = () => {
                 />}
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
                 {mode === 'analytics' && <AdaptiveDashboard />}
+                {mode === 'qa-admin' && <QADashboard onBack={() => setMode('list')} />}
               </>
             )}
           </Suspense>
@@ -675,6 +679,21 @@ const AppWrapper = () => {
 };
 
 function App() {
+  const location = useLocation();
+
+  // Check if we're on a Wizdi route - these bypass normal auth
+  const isWizdiRoute = location.pathname.startsWith('/wizdi');
+
+  if (isWizdiRoute) {
+    return (
+      <Suspense fallback={<div className="h-screen flex items-center justify-center">טוען...</div>}>
+        <Routes>
+          <Route path="/wizdi/*" element={<WizdiRoutes />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
   return (
     <AuthProvider>
       <CourseProvider>

@@ -1249,12 +1249,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             if (onExit) {
                                 onExit();
                             } else {
-                                // Fallback: try history.back, then reload to root
-                                if (window.history.length > 1) {
-                                    window.history.back();
-                                } else {
-                                    window.location.href = '/';
-                                }
+                                // Fallback: reload to home
+                                window.location.href = '/';
                             }
                         }} className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors" title="חזרה לבית">
                             <IconChevronRight className="w-5 h-5" />
@@ -1264,7 +1260,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">
                                 {(unit.metadata?.status === 'generating') ? "בונה מערך שיעור..." : "מערך שיעור למורה"}
                             </span>
-                            <h1 className="text-2xl font-black text-slate-800">{unit.title}</h1>
+                            <h1 className="text-2xl font-black text-slate-800">{unit.title?.replace(/^יחידת לימוד:\s*/i, '')}</h1>
                         </div>
                     </div>
 
@@ -1287,24 +1283,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                         <button onClick={handleExportPDF} className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition shadow-sm" title="יצוא ל-PDF">
                             <IconPrinter className="w-5 h-5" />
                             <span className="hidden md:inline">יצוא PDF</span>
-                        </button>
-
-                        <div className="h-8 w-px bg-slate-200 mx-2"></div>
-
-                        <button onClick={() => {
-                            console.log('❌ Exit button clicked, onExit:', typeof onExit);
-                            if (onExit) {
-                                onExit();
-                            } else {
-                                // Fallback: try history.back, then reload to root
-                                if (window.history.length > 1) {
-                                    window.history.back();
-                                } else {
-                                    window.location.href = '/';
-                                }
-                            }
-                        }} className="p-3 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition" title="יציאה">
-                            <IconX className="w-6 h-6" />
                         </button>
                     </div>
                 </div>
@@ -1413,7 +1391,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
                         {/* Blocks Loop */}
                         <div id="instruction" className="space-y-8">
-                            {unit.activityBlocks?.map((block: ActivityBlock, idx: number) => {
+                            {unit.activityBlocks?.filter((block): block is ActivityBlock => block !== null && block !== undefined).map((block: ActivityBlock, idx: number) => {
                                 return (
                                     <React.Fragment key={block.id}>
                                         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:shadow-none print:break-inside-avoid relative overflow-hidden group hover:shadow-md transition-shadow">

@@ -14,6 +14,11 @@ service cloud.firestore {
     // Users collection - only the user can read/write their own data
     match /users/{userId} {
       allow read, write: if isAuthenticated() && isOwner(userId);
+
+      // User's sub-collections (profile, gamification, etc.)
+      match /{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
     }
 
     // Courses collection

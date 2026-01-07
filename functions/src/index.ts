@@ -2556,4 +2556,300 @@ export const triggerBlogArticleGeneration = onCall({
         created: createdCount,
         message: `Created ${createdCount} blog articles`
     };
+});
+
+// ============================================================
+// QA TESTING SYSTEM - Nightly Automated Tests
+// ============================================================
+
+/**
+ * Nightly QA Tests - Runs at 2 AM Israel time
+ * Checks data integrity, content quality, and system health
+ */
+export const runNightlyQATests = onSchedule({
+    schedule: '0 2 * * *', // Every day at 2 AM
+    timeZone: 'Asia/Jerusalem',
+    memory: '1GiB',
+    timeoutSeconds: 540 // 9 minutes
+}, async () => {
+    logger.info('🔍 Starting Nightly QA Tests...');
+    const startTime = Date.now();
+
+    const results: {
+        category: string;
+        testName: string;
+        status: 'passed' | 'failed' | 'warning';
+        message: string;
+        details?: any;
+    }[] = [];
+
+    try {
+        // === 1. DATA INTEGRITY TESTS ===
+        logger.info('📊 Running Data Integrity Tests...');
+
+        // 1.1 Check for courses with empty syllabus
+        const coursesSnapshot = await db.collection('courses').limit(100).get();
+        let emptyCoursesCount = 0;
+        const emptyCourseIds: string[] = [];
+
+        coursesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const syllabus = data.syllabus || [];
+            if (!syllabus.length || syllabus.every((m: any) => !m.learningUnits?.length)) {
+                emptyCoursesCount++;
+                emptyCourseIds.push(doc.id);
+            }
+        });
+
+        results.push({
+            category: 'data-integrity',
+            testName: 'Empty Courses Check',
+            status: emptyCoursesCount === 0 ? 'passed' : 'warning',
+            message: emptyCoursesCount === 0
+                ? `All ${coursesSnapshot.size} courses have content`
+                : `Found ${emptyCoursesCount} courses without content`,
+            details: { emptyCount: emptyCoursesCount, courseIds: emptyCourseIds.slice(0, 10) }
+        });
+
+        // 1.2 Check for invalid blocks (multiple-choice without correct answer)
+        let invalidBlocksCount = 0;
+        const invalidBlocks: { courseId: string; unitId: string; blockId: string }[] = [];
+
+        coursesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const syllabus = data.syllabus || [];
+
+            syllabus.forEach((module: any) => {
+                (module.learningUnits || []).forEach((unit: any) => {
+                    (unit.activityBlocks || []).forEach((block: any) => {
+                        if (block.type === 'multiple-choice') {
+                            const content = block.content || {};
+                            if (!content.correctAnswer && !content.correct_answer) {
+                                invalidBlocksCount++;
+                                invalidBlocks.push({
+                                    courseId: doc.id,
+                                    unitId: unit.id,
+                                    blockId: block.id
+                                });
+                            }
+                        }
+                    });
+                });
+            });
+        });
+
+        results.push({
+            category: 'data-integrity',
+            testName: 'Block Validity Check',
+            status: invalidBlocksCount === 0 ? 'passed' : 'warning',
+            message: invalidBlocksCount === 0
+                ? 'All activity blocks are valid'
+                : `Found ${invalidBlocksCount} blocks without correct answers`,
+            details: { invalidCount: invalidBlocksCount, blocks: invalidBlocks.slice(0, 10) }
+        });
+
+        // === 2. TASK SYSTEM INTEGRITY ===
+        logger.info('📋 Running Task System Tests...');
+
+        // 2.1 Check for orphaned submissions (tasks that don't exist)
+        const tasksSnapshot = await db.collection('student_tasks').limit(50).get();
+        const taskIds = new Set(tasksSnapshot.docs.map(d => d.id));
+
+        const submissionsSnapshot = await db.collection('task_submissions').limit(100).get();
+        let orphanedSubmissions = 0;
+
+        submissionsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.taskId && !taskIds.has(data.taskId)) {
+                orphanedSubmissions++;
+            }
+        });
+
+        results.push({
+            category: 'data-integrity',
+            testName: 'Orphaned Submissions Check',
+            status: orphanedSubmissions === 0 ? 'passed' : 'warning',
+            message: orphanedSubmissions === 0
+                ? 'All submissions linked to valid tasks'
+                : `Found ${orphanedSubmissions} orphaned submissions`,
+            details: { orphanedCount: orphanedSubmissions }
+        });
+
+        // === 3. COLLECTION SIZE MONITORING ===
+        logger.info('📈 Running Collection Size Monitoring...');
+
+        const collections = ['courses', 'student_tasks', 'users', 'submissions', 'prompts'];
+        const collectionSizes: Record<string, number> = {};
+
+        for (const collName of collections) {
+            const snapshot = await db.collection(collName).count().get();
+            collectionSizes[collName] = snapshot.data().count;
+        }
+
+        results.push({
+            category: 'monitoring',
+            testName: 'Collection Sizes',
+            status: 'passed',
+            message: `Monitored ${collections.length} collections`,
+            details: collectionSizes
+        });
+
+        // === 4. RECENT ACTIVITY CHECK ===
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const recentCoursesSnapshot = await db.collection('courses')
+            .where('createdAt', '>=', oneDayAgo)
+            .get();
+
+        results.push({
+            category: 'activity',
+            testName: 'Recent Courses Created',
+            status: 'passed',
+            message: `${recentCoursesSnapshot.size} courses created in last 24h`,
+            details: { count: recentCoursesSnapshot.size }
+        });
+
+        // === SAVE REPORT ===
+        const totalTests = results.length;
+        const passedTests = results.filter(r => r.status === 'passed').length;
+        const failedTests = results.filter(r => r.status === 'failed').length;
+        const warningTests = results.filter(r => r.status === 'warning').length;
+
+        const reportRef = db.collection('qa_reports').doc();
+        await reportRef.set({
+            id: reportRef.id,
+            createdAt: FieldValue.serverTimestamp(),
+            completedAt: FieldValue.serverTimestamp(),
+            triggeredBy: 'scheduled',
+            environment: 'production',
+            summary: {
+                totalTests,
+                passed: passedTests,
+                failed: failedTests,
+                warnings: warningTests,
+                passRate: Math.round((passedTests / totalTests) * 100),
+                overallStatus: failedTests > 0 ? 'failed' : warningTests > 0 ? 'warning' : 'passed',
+                duration: Date.now() - startTime
+            },
+            results
+        });
+
+        logger.info(`✅ Nightly QA Complete: ${passedTests}/${totalTests} passed`);
+
+        // === SEND ALERT IF CRITICAL ISSUES ===
+        if (failedTests > 0) {
+            // Write to mail collection for email alert
+            const criticalIssues = results.filter(r => r.status === 'failed');
+
+            await db.collection('mail').add({
+                to: ['eyal@bonus.co.il'], // Admin email
+                message: {
+                    subject: `⚠️ Wizdi QA Alert: ${failedTests} בדיקות נכשלו`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; direction: rtl; padding: 20px;">
+                            <h2 style="color: #ef4444;">🔴 נמצאו בעיות במערכת</h2>
+                            <p>הבדיקה הלילית מצאה ${failedTests} בעיות קריטיות:</p>
+                            <ul>
+                                ${criticalIssues.map(issue => `
+                                    <li><strong>${issue.testName}</strong>: ${issue.message}</li>
+                                `).join('')}
+                            </ul>
+                            <p>נא לבדוק את לוח הבקרה: <a href="https://wizdi.ai">wizdi.ai</a></p>
+                            <hr/>
+                            <p style="color: #666; font-size: 12px;">דוח QA אוטומטי - ${new Date().toLocaleString('he-IL')}</p>
+                        </div>
+                    `
+                }
+            });
+
+            logger.warn(`📧 Alert email sent for ${failedTests} critical issues`);
+        }
+
+    } catch (error: any) {
+        logger.error('Nightly QA Tests failed:', error);
+
+        // Save error report
+        await db.collection('qa_reports').add({
+            createdAt: FieldValue.serverTimestamp(),
+            triggeredBy: 'scheduled',
+            environment: 'production',
+            summary: {
+                totalTests: 0,
+                passed: 0,
+                failed: 1,
+                overallStatus: 'failed',
+                duration: Date.now() - startTime
+            },
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Manual QA Test Trigger - For admin testing
+ */
+export const triggerQATests = onCall({
+    cors: true,
+    memory: '1GiB',
+    timeoutSeconds: 300
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    logger.info(`🔍 Manual QA Tests triggered by ${request.auth.uid}`);
+
+    // Run the same tests as nightly
+    const startTime = Date.now();
+    const results: any[] = [];
+
+    try {
+        // Quick data integrity check
+        const coursesSnapshot = await db.collection('courses').limit(50).get();
+        let emptyCount = 0;
+        let invalidBlocks = 0;
+
+        coursesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const syllabus = data.syllabus || [];
+            if (!syllabus.length) emptyCount++;
+
+            syllabus.forEach((m: any) => {
+                (m.learningUnits || []).forEach((u: any) => {
+                    (u.activityBlocks || []).forEach((b: any) => {
+                        if (b.type === 'multiple-choice' && !b.content?.correctAnswer && !b.content?.correct_answer) {
+                            invalidBlocks++;
+                        }
+                    });
+                });
+            });
+        });
+
+        results.push({
+            category: 'data-integrity',
+            testName: 'Quick Data Check',
+            status: emptyCount === 0 && invalidBlocks === 0 ? 'passed' : 'warning',
+            message: `${coursesSnapshot.size} courses, ${emptyCount} empty, ${invalidBlocks} invalid blocks`
+        });
+
+        return {
+            success: true,
+            duration: Date.now() - startTime,
+            totalTests: results.length,
+            passed: results.filter(r => r.status === 'passed').length,
+            results
+        };
+
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
 })
+
+// --- WIZDI INTEGRATION ---
+export {
+    wizdiLogin,
+    wizdiRefresh,
+    getStudentStats,
+    getClassStats,
+    getTeacherDashboard,
+    getTaskResults
+} from "./wizdi";

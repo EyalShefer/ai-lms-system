@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Course, Module, LearningUnit } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import {
     IconPlus, IconEdit, IconTrash, IconArrowUp, IconArrowDown,
     IconRobot, IconEye, IconShare, IconPlayerPlay, IconBook,
-    IconClock, IconChat, IconJoystick, IconFlag, IconSparkles
+    IconClock, IconChat, IconJoystick, IconFlag, IconSparkles,
+    IconArrowRight
 } from '../icons';
 // import { useCourseStore } from '../context/CourseContext'; // Remove unused import if not needed
 import { ShareModal } from './ShareModal';
@@ -16,6 +18,7 @@ interface LessonPlanOverviewProps {
     onSelectUnit: (unitId: string) => void;
     onUnitUpdate?: (unit: LearningUnit) => void;
     onGenerateWithAI?: (type: 'unit' | 'module', id: string, instruction?: string) => void;
+    onBack?: () => void;
 }
 
 export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
@@ -23,8 +26,11 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     onUpdateCourse,
     onSelectUnit,
     onUnitUpdate,
-    onGenerateWithAI
+    onGenerateWithAI,
+    onBack
 }) => {
+    const navigate = useNavigate();
+
     // Local state for inline accordion expansion
     const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
 
@@ -206,18 +212,37 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
             {/* Header */}
             <header className="sticky top-4 z-40 card-glass p-6 mb-8 print:mb-4 print:static print:shadow-none print:bg-white">
                 <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 print:text-black">
-                            {course.title || "מערך שיעור ללא שם"}
-                        </h1>
-                        <div className="flex gap-4 mt-2 text-gray-500 font-medium print:text-sm">
-                            <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
-                                {course.gradeLevel || "גיל לא הוגדר"}
-                            </span>
-                            <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
-                                {course.subject || "כללי"}
-                            </span>
-                            {(course.mode === 'lesson' || course.wizardData?.settings?.productType === 'lesson') && <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm print:hidden">מערך שיעור</span>}
+                    <div className="flex items-center gap-4">
+                        {/* Back Button */}
+                        <button
+                            onClick={() => {
+                                console.log('🔙 LessonPlanOverview back clicked, onBack:', typeof onBack);
+                                if (onBack) {
+                                    console.log('🔙 Calling onBack...');
+                                    onBack();
+                                } else {
+                                    console.log('🔙 No onBack, reloading to home...');
+                                    window.location.href = '/';
+                                }
+                            }}
+                            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/80 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-600 transition-all shadow-sm print:hidden"
+                            title="חזרה לדף הבית"
+                        >
+                            <IconArrowRight className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 print:text-black">
+                                {course.title || "מערך שיעור ללא שם"}
+                            </h1>
+                            <div className="flex gap-4 mt-2 text-gray-500 font-medium print:text-sm">
+                                <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
+                                    {course.gradeLevel || "גיל לא הוגדר"}
+                                </span>
+                                <span className="px-3 py-1 bg-white/60 backdrop-blur-sm rounded-full text-sm border border-white/40 shadow-sm print:border print:border-gray-300">
+                                    {course.subject || "כללי"}
+                                </span>
+                                {(course.mode === 'lesson' || course.wizardData?.settings?.productType === 'lesson') && <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm print:hidden">מערך שיעור</span>}
+                            </div>
                         </div>
                     </div>
 
@@ -422,6 +447,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                                             unit={unit}
                                                             courseId={course.id}
                                                             embedded={true}
+                                                            onExit={() => toggleUnitExpansion(unit.id)}
                                                             onUnitUpdate={onUnitUpdate}
                                                             onUpdateBlock={(blockId, content) => handleBlockUpdateInUnit(unit, blockId, content)}
                                                         // onEdit removed to prevent redundant "Advanced Settings" button

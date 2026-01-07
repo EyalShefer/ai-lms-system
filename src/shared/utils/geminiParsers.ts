@@ -44,19 +44,23 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         console.warn("mapSystemItemToBlock received null item");
         return null;
     }
-    console.log("Mapping Item:", item.type || item.selected_interaction, item);
+
+    // Enhanced logging for debugging
+    console.log("🎮 mapSystemItemToBlock - Input:", JSON.stringify(item, null, 2));
 
     // 1. ROBUST DATA NORMALIZATION
-    // console.log("Raw AI Item for Mapping:", JSON.stringify(item)); // DEBUG LOG
-
     // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
     // Sometimes AI returns data: { data: { ... } }
     // We use 'as RawAiItem' because the nesting can be recursive and unpredictable, but we know it conforms to the partial shape
     const rawData: RawAiItem = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
 
-    // Extract Type
+    // Extract Type - normalize underscores and hyphens
     // Keep as string for loose matching against AI outputs (which might use underscores)
-    const typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
+    let typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
+    // Normalize: convert hyphens to underscores for consistent matching
+    typeString = typeString.replace(/-/g, '_');
+
+    console.log("🎮 Detected type:", typeString, "rawData keys:", Object.keys(rawData));
 
     // Extract Question Text (Handle all known variations - Check Root AND Data)
     const questionObj = rawData.question || item.question;
@@ -76,8 +80,9 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     };
 
     // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
-    // Compare against loose strings from AI
-    if (typeString === 'multiple_choice' || typeString === 'multiple-choice' || typeString === 'true_false' || typeString === 'teach_then_ask') {
+    // Compare against normalized strings (all hyphens converted to underscores)
+    if (typeString === 'multiple_choice' || typeString === 'true_false' || typeString === 'teach_then_ask') {
+        console.log("🎮 Handling as MULTIPLE CHOICE");
         // Robust Options Extraction
         let options: (string | RichOption)[] = [];
         if (Array.isArray(rawData.options)) options = rawData.options;
@@ -142,7 +147,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     }
 
     // === CASE B: OPEN QUESTION ===
-    if (typeString === 'open_question' || typeString === 'open-question' || typeString === 'open_ended') {
+    if (typeString === 'open_question' || typeString === 'open_ended') {
+        console.log("🎮 Handling as OPEN QUESTION");
         return {
             id: uuidv4(),
             type: 'open-question',
@@ -159,6 +165,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
     // === CASE C: ORDERING / SEQUENCING ===
     if (typeString === 'ordering' || typeString === 'sequencing') {
+        console.log("🎮 Handling as ORDERING");
         const rawItems = rawData.items || rawData.steps || rawData.correct_order || [];
         // Ensure items are strings
         const items = rawItems.map((i) => {
@@ -203,6 +210,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
     // === CASE D: CATEGORIZATION / GROUPING / MATCHING ===
     if (typeString === 'categorization' || typeString === 'grouping' || typeString === 'matching') {
+        console.log("🎮 Handling as CATEGORIZATION");
         let categories: string[] = [];
         let items: { text: string; category: string }[] = [];
 
@@ -277,8 +285,10 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         };
     }
 
+    // === CASE F: FILL IN BLANKS ===
     if (typeString === 'fill_in_blanks' || typeString === 'cloze') {
-        const rawSentence = rawData.text || rawData.content || questionText || "חסר טקסט להשלמה";
+        console.log("🎮 Handling as FILL IN BLANKS");
+        const rawSentence = rawData.text || rawData.content || rawData.sentence || questionText || "חסר טקסט להשלמה";
         let bank = rawData.word_bank || rawData.options || [];
 
         return {
@@ -312,9 +322,11 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         };
     }
 
-    // === CASE E: MEMORY GAME ===
+    // === CASE H: MEMORY GAME ===
     if (typeString === 'memory_game' || typeString === 'memory' || typeString === 'matching_pairs') {
+        console.log("🎮 Handling as MEMORY GAME");
         const pairs = rawData.pairs || rawData.cards || [];
+        console.log("🎮 Memory game pairs found:", pairs.length, pairs);
 
         // Normalize Pairs
         const normalizedPairs: { card_a: string; card_b: string }[] = [];
@@ -323,12 +335,16 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             pairs.forEach((p: any) => {
                 if (p.card_a && p.card_b) normalizedPairs.push({ card_a: p.card_a, card_b: p.card_b });
                 else if (p.left && p.right) normalizedPairs.push({ card_a: p.left, card_b: p.right });
+                else if (p.term && p.definition) normalizedPairs.push({ card_a: p.term, card_b: p.definition });
+                else if (p.concept && p.meaning) normalizedPairs.push({ card_a: p.concept, card_b: p.meaning });
                 else if (Array.isArray(p) && p.length === 2) normalizedPairs.push({ card_a: p[0], card_b: p[1] });
             });
         }
 
+        console.log("🎮 Normalized pairs:", normalizedPairs.length);
+
         if (normalizedPairs.length < 2) {
-            console.warn("Memory game pairs missing or too few.");
+            console.warn("❌ Memory game pairs missing or too few. Required: 2+, Got:", normalizedPairs.length);
             return null;
         }
 
@@ -344,5 +360,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         };
     }
 
+    // If no type matched, log a warning
+    console.warn("❌ mapSystemItemToBlock: Unknown type -", typeString);
     return null;
 };

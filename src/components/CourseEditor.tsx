@@ -48,6 +48,108 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
     return fullText;
 };
 
+/**
+ * 🚀 PROGRESSIVE LOADING: Creates skeleton blocks for immediate display
+ * Shows the lesson structure immediately while content loads in the background
+ */
+const createLessonSkeletonBlocks = (lessonTitle: string): ActivityBlock[] => {
+    const skeletonStyle = `
+        <style>
+            @keyframes shimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+            @keyframes pulse-glow {
+                0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); }
+                50% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.5); }
+            }
+            .skeleton-loading {
+                background: linear-gradient(90deg, #e5e7eb 25%, #d1d5db 50%, #e5e7eb 75%);
+                background-size: 200% 100%;
+                animation: shimmer 1.5s ease-in-out infinite;
+                border-radius: 8px;
+            }
+            .skeleton-line {
+                height: 14px;
+                margin: 10px 0;
+            }
+            .skeleton-title {
+                height: 20px;
+                width: 50%;
+                margin-bottom: 12px;
+            }
+            .skeleton-paragraph {
+                height: 50px;
+            }
+            .building-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+                border: 1px solid #c7d2fe;
+                border-radius: 20px;
+                padding: 6px 14px;
+                font-size: 13px;
+                font-weight: 600;
+                color: #4f46e5;
+                animation: pulse-glow 2s ease-in-out infinite;
+                margin-bottom: 16px;
+            }
+            .building-badge .spinner {
+                width: 14px;
+                height: 14px;
+                border: 2px solid #c7d2fe;
+                border-top-color: #4f46e5;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+
+    const buildingBadge = `<div class="building-badge"><div class="spinner"></div>בבנייה...</div>`;
+
+    return [
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section hook">${skeletonStyle}<h3>🪝 פתיחה (The Hook)</h3>${buildingBadge}<div class="skeleton-loading skeleton-paragraph"></div><div class="skeleton-loading skeleton-line" style="width: 60%;"></div></div>`,
+            metadata: { time: '5 min', bloomLevel: 'remember', isLoading: true }
+        },
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section instruction"><h3>🎓 הוראה פרונטלית (Direct Instruction)</h3>${buildingBadge}<div class="skeleton-loading skeleton-paragraph"></div><div class="skeleton-loading skeleton-line" style="width: 80%;"></div><div class="skeleton-loading skeleton-line" style="width: 65%;"></div></div>`,
+            metadata: { time: '15 min', bloomLevel: 'understand', isLoading: true }
+        },
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section practice"><h3>🧑‍🏫 תרגול מודרך (Guided Practice)</h3>${buildingBadge}<div class="skeleton-loading skeleton-paragraph"></div></div>`,
+            metadata: { time: '10 min', bloomLevel: 'apply', isLoading: true }
+        },
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section independent-practice"><h3>💻 תרגול עצמאי (Independent Practice)</h3>${buildingBadge}<div class="skeleton-loading skeleton-paragraph"></div></div>`,
+            metadata: { time: '10 min', bloomLevel: 'apply', isLoading: true }
+        },
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section discussion"><h3>💬 דיון כיתתי (Discussion)</h3>${buildingBadge}<div class="skeleton-loading skeleton-line" style="width: 85%;"></div><div class="skeleton-loading skeleton-line" style="width: 75%;"></div></div>`,
+            metadata: { time: '5 min', bloomLevel: 'evaluate', isLoading: true }
+        },
+        {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: `<div class="lesson-section summary"><h3>📝 סיכום (Summary)</h3>${buildingBadge}<div class="skeleton-loading skeleton-line" style="width: 70%;"></div><div class="skeleton-loading" style="height: 120px; margin-top: 12px;"></div></div>`,
+            metadata: { time: '5 min', bloomLevel: 'remember', isLoading: true }
+        }
+    ];
+};
 
 
 // --- תצוגה מקדימה פשוטה - גרסה נקייה (Flex Shell) ---
@@ -123,7 +225,11 @@ import { LessonPlanOverview } from './LessonPlanOverview';
 
 // ... existing imports ...
 
-const CourseEditor: React.FC = () => {
+interface CourseEditorProps {
+    onBack?: () => void;
+}
+
+const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     const navigate = useNavigate();
     const { course, setCourse } = useCourseStore();
     const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
@@ -305,6 +411,27 @@ const CourseEditor: React.FC = () => {
                         sourceType = 'TEXT_FILE';
                     }
 
+                    // 🚀 PROGRESSIVE LOADING STEP 1: Show skeleton blocks IMMEDIATELY
+                    console.log("🚀 Progressive Loading: Creating skeleton blocks...");
+                    const skeletonBlocks = createLessonSkeletonBlocks(unit.title);
+
+                    // Update UI immediately with skeleton
+                    setCourse((currentCourse: any) => {
+                        if (!currentCourse) return currentCourse;
+                        const updatedSyllabus = currentCourse.syllabus.map((m: Module) => ({
+                            ...m,
+                            learningUnits: m.learningUnits.map((u: LearningUnit) =>
+                                u.id === unit.id ? {
+                                    ...u,
+                                    activityBlocks: skeletonBlocks,
+                                    metadata: { ...u.metadata, status: 'loading-content' }
+                                } : u
+                            )
+                        }));
+                        return { ...currentCourse, syllabus: updatedSyllabus };
+                    });
+
+                    // 🚀 PROGRESSIVE LOADING STEP 2: Generate content in background
                     // 2. Generate Full Lesson Plan (No Skeleton)
                     let lessonPlan = await generateTeacherStepContent(
                         unit.title,
@@ -315,23 +442,61 @@ const CourseEditor: React.FC = () => {
                     );
 
                     if (lessonPlan) {
-                        // 2.5 Generate AI Images for Visual Assets (NEW!)
-                        console.log("🎨 Generating visual assets for lesson plan...");
-                        lessonPlan = await generateLessonVisuals(lessonPlan);
-                        console.log("✅ Visual assets generation completed");
+                        // 2.5 🚀 Generate AI Images ASYNCHRONOUSLY (don't block content display!)
+                        // Start visual generation in background - don't await it!
+                        const visualPromise = generateLessonVisuals(lessonPlan).then(async (planWithVisuals) => {
+                            console.log("✅ Visual assets generation completed (background)");
+                            // Update the visual_summary URL in the existing blocks
+                            setCourse((currentCourse: any) => {
+                                if (!currentCourse?.syllabus) return currentCourse;
+                                const updatedSyllabus = currentCourse.syllabus.map((m: Module) => {
+                                    if (!m?.learningUnits) return m;
+                                    return {
+                                        ...m,
+                                        learningUnits: m.learningUnits.map((u: LearningUnit) => {
+                                            if (!u || u.id !== unit.id) return u;
+                                            if (!u.activityBlocks?.length) return u;
+                                            // Find and update the summary block with the visual URL
+                                            const updatedBlocks = u.activityBlocks
+                                                .filter(block => block !== null)
+                                                .map(block => {
+                                                    if (block?.type === 'text' && block?.content?.includes('lesson-section summary')) {
+                                                        // Inject the visual URL into the summary block
+                                                        const visualUrl = planWithVisuals.summary.visual_summary?.url;
+                                                        if (visualUrl) {
+                                                            const updatedContent = block.content.replace(
+                                                                '<div class="visual-placeholder">🎨 יוצר אינפוגרפיקה...</div>',
+                                                                `<div class="generated-visual"><img src="${visualUrl}" alt="Summary Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" /></div>`
+                                                            );
+                                                            return { ...block, content: updatedContent };
+                                                        }
+                                                    }
+                                                    return block;
+                                                });
+                                            return { ...u, activityBlocks: updatedBlocks };
+                                        })
+                                    };
+                                });
+                                return { ...currentCourse, syllabus: updatedSyllabus };
+                            });
+                        }).catch(e => console.error("Background visual generation error:", e));
+
+                        console.log("🎨 Visual generation started in background (not blocking content display)");
 
                         // 2.6 Process Independent Practice Interactive Blocks (NEW!)
                         let independentPracticeBlocks: any[] = [];
                         if (lessonPlan.independent_practice?.interactive_blocks && lessonPlan.independent_practice.interactive_blocks.length > 0) {
                             console.log("🎮 Processing independent practice interactive blocks...");
-                            // Map the AI-generated blocks to ActivityBlocks format
-                            independentPracticeBlocks = lessonPlan.independent_practice.interactive_blocks.map((block: any) => {
-                                return mapSystemItemToBlock({
-                                    type: block.type,
-                                    selected_interaction: block.type,
-                                    ...block.data
-                                });
-                            });
+                            // Map the AI-generated blocks to ActivityBlocks format and filter out nulls
+                            independentPracticeBlocks = lessonPlan.independent_practice.interactive_blocks
+                                .map((block: any) => {
+                                    return mapSystemItemToBlock({
+                                        type: block.type,
+                                        selected_interaction: block.type,
+                                        ...block.data
+                                    });
+                                })
+                                .filter((block: any) => block !== null && block !== undefined);
                             console.log(`✅ Processed ${independentPracticeBlocks.length} independent practice blocks`);
                         }
 
@@ -394,30 +559,6 @@ const CourseEditor: React.FC = () => {
                                     <div class="lesson-section practice">
                                         <h3>🧑‍🏫 תרגול מודרך (Guided Practice - In-Class)</h3>
                                         <p><strong>🎯 הנחיה להנחיית התרגול:</strong> ${lessonPlan.guided_practice.teacher_facilitation_script}</p>
-                                        ${lessonPlan.guided_practice.suggested_activities && lessonPlan.guided_practice.suggested_activities.length > 0 ? `
-                                            <div class="suggested-activities">
-                                                <strong>💡 פעילויות מוצעות (עם הנחיות פדגוגיות):</strong>
-                                                <ul>${lessonPlan.guided_practice.suggested_activities.map(activity => {
-                                                    const typeNames: Record<string, string> = {
-                                                        'multiple-choice': 'שאלה אמריקאית',
-                                                        'memory_game': 'משחק זיכרון',
-                                                        'fill_in_blanks': 'השלמת משפטים',
-                                                        'ordering': 'סידור רצף',
-                                                        'categorization': 'מיון לקטגוריות',
-                                                        'drag_and_drop': 'גרירה והשמה',
-                                                        'hotspot': 'נקודות חמות',
-                                                        'open-question': 'שאלה פתוחה'
-                                                    };
-                                                    return `
-                                                        <li>
-                                                            <strong>✨ ${typeNames[activity.activity_type] || activity.activity_type}</strong>
-                                                            <br/>📋 ${activity.description}
-                                                            ${activity.facilitation_tip ? `<br/>💡 <em>${activity.facilitation_tip}</em>` : ''}
-                                                        </li>
-                                                    `;
-                                                }).join('')}</ul>
-                                            </div>
-                                        ` : ''}
                                         ${lessonPlan.guided_practice.differentiation_strategies ? `
                                             <div class="differentiation">
                                                 <strong>🎯 דיפרנציאציה:</strong>
@@ -435,23 +576,20 @@ const CourseEditor: React.FC = () => {
                                 `,
                                 metadata: { time: '10 min', bloomLevel: 'apply' }
                             },
+                            // INDEPENDENT PRACTICE - Header block
                             {
                                 id: crypto.randomUUID(),
                                 type: 'text',
                                 content: `
                                     <div class="lesson-section independent-practice">
-                                        <h3>💻 תרגול עצמאי (Independent Practice - Digital)</h3>
-                                        <p><strong>📝 הנחיות לתלמידים:</strong> ${lessonPlan.independent_practice?.introduction_text || 'פעילויות אינטראקטיביות לתרגול'}</p>
+                                        <h3>💻 תרגול עצמאי (Independent Practice)</h3>
+                                        <p><strong>📝 הנחיות:</strong> ${lessonPlan.independent_practice?.introduction_text || 'בצעו את הפעילויות האינטראקטיביות הבאות'}</p>
                                         ${lessonPlan.independent_practice?.estimated_duration ? `<div class="duration-badge">⏱️ משך משוער: ${lessonPlan.independent_practice.estimated_duration}</div>` : ''}
-                                        <div class="share-info">
-                                            <p>🔗 <strong>הפעילויות למטה ניתנות לשיתוף עם תלמידים!</strong></p>
-                                            <p style="font-size: 0.9em; color: #666;">💡 גלול למטה כדי לראות את הפעילויות האינטראקטיביות המוכנות</p>
-                                        </div>
                                     </div>
                                 `,
                                 metadata: { time: '10 min', bloomLevel: 'apply' }
                             },
-                            // INDEPENDENT PRACTICE INTERACTIVE BLOCKS (NEW!)
+                            // INTERACTIVE BLOCKS - Each as separate component!
                             ...independentPracticeBlocks,
                             {
                                 id: crypto.randomUUID(),
@@ -479,12 +617,7 @@ const CourseEditor: React.FC = () => {
                                     <div class="lesson-section summary">
                                         <h3>📝 סיכום (Summary)</h3>
                                         <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> "${lessonPlan.summary.takeaway_sentence}"</p>
-                                        ${lessonPlan.summary.visual_summary?.url ? `
-                                            <div class="generated-visual">
-                                                <strong>📊 אינפוגרפיקה לסיכום:</strong>
-                                                <img src="${lessonPlan.summary.visual_summary.url}" alt="Summary Infographic" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
-                                            </div>
-                                        ` : ''}
+                                        <div class="visual-placeholder">🎨 יוצר אינפוגרפיקה...</div>
                                         ${lessonPlan.summary.homework_suggestion ? `
                                             <div class="homework">
                                                 <strong>📚 הצעה לשיעורי בית:</strong> ${lessonPlan.summary.homework_suggestion}
@@ -1078,7 +1211,13 @@ const CourseEditor: React.FC = () => {
                     <TeacherCockpit
                         unit={unitToRender}
                         courseId={course.id}
-                        onExit={() => navigate('/')} // EXIT TO HOME for Single Unit Mode
+                        onExit={() => {
+                            if (onBack) {
+                                onBack();
+                            } else {
+                                window.location.href = '/';
+                            }
+                        }}
                         onUpdateBlock={async (blockId: string, content: any) => {
                             // Handle AI Refinement Updates from Cockpit
                             const updatedUnit = {
@@ -1113,6 +1252,7 @@ const CourseEditor: React.FC = () => {
                         onSelectUnit={(id) => setSelectedUnitId(id)}
                         onUnitUpdate={(unit) => handleSaveUnit(unit)}
                         onGenerateWithAI={handleGenerateWithAI}
+                        onBack={onBack}
                     />
                 ) : (
                     // Classic Loading State

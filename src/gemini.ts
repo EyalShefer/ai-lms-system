@@ -77,24 +77,13 @@ async function getAuthToken(): Promise<string> {
   return await user.getIdToken();
 }
 
-// Create OpenAI client with custom fetch that adds auth token
+// Create OpenAI client
 export const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
   baseURL: `${window.location.origin}/api/openai`,
   timeout: 60000,
-  maxRetries: 2,
-  fetch: async (url: RequestInfo | URL, init?: RequestInit) => {
-    // Get auth token and add to headers
-    const token = await getAuthToken();
-    const headers = new Headers(init?.headers || {});
-    headers.set('Authorization', `Bearer ${token}`);
-
-    return fetch(url, {
-      ...init,
-      headers
-    });
-  }
+  maxRetries: 2
 });
 
 export const BOT_PERSONAS = {
@@ -315,7 +304,7 @@ export const generateUnitSkeleton = async (
 
     Output JSON Structure:
     {
-      "unit_title": "String",
+      "unit_title": "String (DO NOT prefix with 'יחידת לימוד:' - just the topic name)",
       "goals": ["Goal 1 (Understand)", "Goal 2 (Practice)", "Goal 3 (Analyze)"],
       "steps": [
         {
@@ -656,7 +645,8 @@ export const generateTeacherStepContent = async (
 
     ⚠️ MEDIA BUDGET RULE FOR HOOK:
     - If source is YouTube: Use youtube_timestamp (e.g., "Start: 00:30, End: 02:00")
-    - Otherwise: type = "none" (NO images in hook - engage through storytelling instead!)
+    - Otherwise: Generate ONE engaging visual image with type = "illustration" and content = detailed prompt for the image
+    - The hook image should be eye-catching and related to the lesson topic
 
     2. DIRECT INSTRUCTION (15 min)
     Goal: Frontal Teaching with Visual Support
@@ -686,17 +676,23 @@ export const generateTeacherStepContent = async (
 
     4. INDEPENDENT PRACTICE (10 min) - DIGITAL ACTIVITIES
     Goal: Ready-to-use interactive activities students can do independently
+    ⚠️ CRITICAL: Each interactive block MUST be complete and valid!
     Output:
     - Brief introduction text for students (in Hebrew)
-    - 2-3 ready-to-use interactive blocks (choose from):
-      * multiple-choice: { question, options (array), correct_answer }
-      * memory_game: { pairs: [{ card_a, card_b }] }
-      * fill_in_blanks: { instruction, items (array), word_bank (array) }
-      * ordering: { instruction, correct_order (array) }
-      * categorization: { question, categories (array), items: [{ text, category }] }
-      * drag_and_drop: { instruction, zones: [{ id, label }], items: [{ id, text, correctZone }] }
+    - 2-3 ready-to-use interactive blocks (choose DIFFERENT types for variety):
+      * multiple-choice: { question, options (EXACTLY 4 options), correct_answer (must match one option) }
+      * memory_game: { pairs: [{ card_a, card_b }] } - MINIMUM 4 pairs required!
+      * fill_in_blanks: { text (with ___ blanks), word_bank (array of words) }
+      * ordering: { instruction, correct_order (MINIMUM 4 items) }
+      * categorization: { question, categories (2-3), items: [{ text, category }] - MINIMUM 4 items }
       * open-question: { question }
     - Estimated duration (e.g., "10-15 דקות")
+
+    ⚠️ IMPORTANT RULES FOR INTERACTIVE BLOCKS:
+    1. Generate EXACTLY 2-3 different activity types (not the same type twice!)
+    2. Each block must have ALL required fields filled with real content
+    3. For multiple-choice: options must be realistic distractors, not placeholder text
+    4. For memory_game: pairs must be related (concept-definition, term-example, etc.)
 
     5. DISCUSSION (5 min)
     Goal: Oral Assessment + Critical Thinking
@@ -725,7 +721,7 @@ export const generateTeacherStepContent = async (
 
     {
       "lesson_metadata": {
-        "title": "String (Hebrew - catchy lesson title)",
+        "title": "String (Hebrew - catchy lesson title. DO NOT prefix with 'יחידת לימוד:' - just the topic name)",
         "target_audience": "${gradeLevel}",
         "duration": "45 min",
         "subject": "String (e.g., מדעים, היסטוריה)",
@@ -781,16 +777,19 @@ export const generateTeacherStepContent = async (
           {
             "type": "multiple-choice",
             "data": {
-              "question": "String",
-              "options": ["opt1", "opt2", "opt3"],
-              "correct_answer": "opt1"
+              "question": "String (Hebrew - clear question about the topic)",
+              "options": ["אפשרות 1", "אפשרות 2", "אפשרות 3", "אפשרות 4"],
+              "correct_answer": "אפשרות 1"
             }
           },
           {
             "type": "memory_game",
             "data": {
               "pairs": [
-                { "card_a": "מושג 1", "card_b": "הגדרה 1" }
+                { "card_a": "מושג 1", "card_b": "הגדרה 1" },
+                { "card_a": "מושג 2", "card_b": "הגדרה 2" },
+                { "card_a": "מושג 3", "card_b": "הגדרה 3" },
+                { "card_a": "מושג 4", "card_b": "הגדרה 4" }
               ]
             }
           }
@@ -858,37 +857,81 @@ export const generateTeacherStepContent = async (
  * @returns Updated lesson plan with generated infographic URL
  */
 export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Promise<TeacherLessonPlan> => {
-  console.log("🎨 Starting visual generation (Media Budget: 1 infographic only)...");
+  console.log("🎨 Starting visual generation (Media Budget: Hook image + Summary infographic)...");
 
   const updatedPlan = { ...lessonPlan };
 
-  // Helper function to generate infographic and upload to Firebase Storage
-  // Returns a persistent Firebase Storage URL (not a temporary blob URL)
-  const generateInfographic = async (
-    text: string,
-    infographicType: InfographicType,
-    topic?: string
+  // Helper function to generate image and upload to Firebase Storage
+  const generateAndUploadImage = async (
+    prompt: string,
+    type: 'illustration' | 'infographic',
+    infographicType?: InfographicType
   ): Promise<string | null> => {
     try {
-      console.log(`📊 Generating ${infographicType} infographic for summary...`);
-      const blob = await generateInfographicFromText(text, infographicType, topic);
+      let blob: Blob | null = null;
+
+      if (type === 'infographic' && infographicType) {
+        console.log(`📊 Generating ${infographicType} infographic...`);
+        blob = await generateInfographicFromText(prompt, infographicType, updatedPlan.lesson_metadata.title);
+      } else {
+        // Generate illustration using DALL-E directly
+        console.log(`🎨 Generating illustration image...`);
+        const { generateAiImage } = await import('./services/ai/geminiApi');
+        const enhancedPrompt = `Create a colorful, engaging educational illustration for a classroom lesson about: ${prompt}.
+Style: Clean, modern, suitable for students. Include visual elements that represent the topic clearly.
+The image should be eye-catching and help introduce the lesson topic.
+Do NOT include any text in the image - visuals only.`;
+        blob = await generateAiImage(enhancedPrompt);
+      }
+
       if (blob) {
-        // Upload to Firebase Storage and get persistent URL
-        // This URL can be saved to Firestore (unlike blob: URLs)
-        const hash = await generateInfographicHash(text, infographicType);
+        const hash = await generateInfographicHash(prompt, infographicType || 'flowchart');
         const firebaseUrl = await saveToFirebaseCache(hash, blob);
-        console.log(`✅ Infographic uploaded to Firebase Storage`);
+        console.log(`✅ Image uploaded to Firebase Storage`);
         return firebaseUrl;
       }
       return null;
     } catch (error) {
-      console.error("Infographic generation/upload failed:", error);
+      console.error("Image generation/upload failed:", error);
       return null;
     }
   };
 
-  // ALWAYS generate Summary Infographic (the single visual in the lesson)
-  // Even if AI didn't return the exact structure, we create one from the takeaway sentence
+  // 1. HOOK IMAGE - Generate if not YouTube
+  const hookAsset = updatedPlan.hook.media_asset;
+  if (hookAsset && hookAsset.type !== 'youtube_timestamp' && hookAsset.type !== 'none') {
+    // AI requested an illustration for the hook
+    console.log("🖼️ Generating hook illustration...");
+    const hookPrompt = hookAsset.content || updatedPlan.lesson_metadata.title;
+    const hookUrl = await generateAndUploadImage(hookPrompt, 'illustration');
+
+    if (hookUrl) {
+      updatedPlan.hook.media_asset = {
+        ...hookAsset,
+        type: 'illustration',
+        url: hookUrl,
+        status: 'generated'
+      };
+      console.log("✅ Hook illustration generated successfully");
+    }
+  } else if (!hookAsset || hookAsset.type === 'none') {
+    // No media asset specified - generate a default hook image
+    console.log("🖼️ Generating default hook illustration...");
+    const hookPrompt = `${updatedPlan.lesson_metadata.title} - ${updatedPlan.lesson_metadata.subject || 'education'}`;
+    const hookUrl = await generateAndUploadImage(hookPrompt, 'illustration');
+
+    if (hookUrl) {
+      updatedPlan.hook.media_asset = {
+        type: 'illustration',
+        content: hookPrompt,
+        url: hookUrl,
+        status: 'generated'
+      };
+      console.log("✅ Hook illustration generated successfully");
+    }
+  }
+
+  // 2. SUMMARY INFOGRAPHIC - Always generate
   const summaryText = updatedPlan.summary.takeaway_sentence || updatedPlan.lesson_metadata.title;
 
   // Ensure visual_summary exists with infographic type
@@ -907,14 +950,14 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
   console.log(`📊 Summary: Auto-detected ${detection.suggestedType} infographic`);
   console.log(`   Content: "${summaryPrompt.substring(0, 80)}..."`);
 
-  const url = await generateInfographic(
+  const summaryUrl = await generateAndUploadImage(
     summaryPrompt,
-    detection.suggestedType,
-    updatedPlan.lesson_metadata.subject || updatedPlan.lesson_metadata.title
+    'infographic',
+    detection.suggestedType
   );
 
-  if (url && updatedPlan.summary.visual_summary) {
-    updatedPlan.summary.visual_summary.url = url;
+  if (summaryUrl && updatedPlan.summary.visual_summary) {
+    updatedPlan.summary.visual_summary.url = summaryUrl;
     updatedPlan.summary.visual_summary.status = 'generated';
     console.log("✅ Summary infographic generated successfully");
   } else if (updatedPlan.summary.visual_summary) {
@@ -924,8 +967,8 @@ export const generateLessonVisuals = async (lessonPlan: TeacherLessonPlan): Prom
 
   // Log media budget compliance
   console.log("📋 Media Budget Summary:");
-  console.log(`   • Hook: ${updatedPlan.hook.media_asset?.type === 'youtube_timestamp' ? 'YouTube' : 'None'}`);
-  console.log(`   • Slides: None (as per budget)`);
+  console.log(`   • Hook: ${updatedPlan.hook.media_asset?.url ? 'Image ✓' : (updatedPlan.hook.media_asset?.type === 'youtube_timestamp' ? 'YouTube ✓' : 'None')}`);
+  console.log(`   • Slides: None (teacher uses whiteboard)`);
   console.log(`   • Summary: ${updatedPlan.summary.visual_summary?.status === 'generated' ? 'Infographic ✓' : 'None'}`);
 
   return updatedPlan;

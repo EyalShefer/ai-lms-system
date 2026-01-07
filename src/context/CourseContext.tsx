@@ -51,14 +51,17 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         const modId = mod.id || uuidv4();
         const learningUnits = Array.isArray(mod.learningUnits) ? mod.learningUnits : [];
 
-        const cleanUnits = learningUnits.map((unit: any) => {
+        const cleanUnits = learningUnits.filter((unit: any) => unit !== null && unit !== undefined).map((unit: any) => {
             const unitId = unit.id || uuidv4();
             const activityBlocks = Array.isArray(unit.activityBlocks) ? unit.activityBlocks : [];
 
-            const cleanBlocks = activityBlocks.map((block: any) => ({
-                ...block,
-                id: block.id || uuidv4()
-            }));
+            // Filter out null/undefined blocks before mapping
+            const cleanBlocks = activityBlocks
+                .filter((block: any) => block !== null && block !== undefined)
+                .map((block: any) => ({
+                    ...block,
+                    id: block.id || uuidv4()
+                }));
 
             return { ...unit, id: unitId, activityBlocks: cleanBlocks };
         });
