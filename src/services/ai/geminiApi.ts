@@ -781,13 +781,25 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string | null> =
 export const refineBlockContent = async (_blockType: string, content: any, instruction: string) => {
     const prompt = getRefinementPrompt(JSON.stringify(content, null, 2), instruction);
     try {
+        console.log(`🎯 AI Refine - Block type: ${_blockType}, Instruction: ${instruction}`);
         const res = await openaiClient.chat.completions.create({
             model: MODEL_NAME,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" }
         });
-        return JSON.parse(res.choices[0].message.content || "{}");
-    } catch (e) { return content; }
+        const rawResponse = res.choices[0].message.content || "{}";
+        console.log(`✅ AI Refine Response:`, rawResponse.substring(0, 200) + '...');
+        const parsed = JSON.parse(rawResponse);
+        // Validate that we got back a proper object, not an empty one
+        if (Object.keys(parsed).length === 0) {
+            console.warn('⚠️ AI returned empty object, keeping original content');
+            return content;
+        }
+        return parsed;
+    } catch (e) {
+        console.error('❌ AI Refine Error:', e);
+        return content;
+    }
 };
 
 export const attemptAutoFix = async (originalJson: any, validationResult: ValidationResult): Promise<any> => {

@@ -95,11 +95,71 @@ export const getTutorPrompt = (mode: string, sourceText: string, question: strin
 `;
 
 export const getRefinementPrompt = (content: string, instruction: string) => `
-    Act as an expert pedagogical editor.
-    Original text: "${content}"
-    Instruction: ${instruction}
-    Output language: Hebrew.
-      Goal: Improve clarity, accuracy, and engagement.
+אתה עורך פדגוגי מומחה. עליך לשפר את התוכן החינוכי לפי ההוראה שתקבל.
+
+## קלט - JSON מקורי:
+${content}
+
+## הוראת המשתמש:
+${instruction}
+
+## כללים קריטיים:
+1. **שמור על מבנה ה-JSON בדיוק** - החזר את אותם שדות בדיוק כמו בקלט
+2. **שנה רק את מה שההוראה מבקשת** - אל תשנה שדות אחרים
+3. **שפת הפלט: עברית** (אלא אם ההוראה מבקשת אחרת)
+4. **החזר JSON תקין בלבד** - ללא טקסט נוסף, ללא markdown
+
+## דוגמאות למבני JSON נפוצים:
+
+### שאלת רב-ברירה (multiple-choice):
+{
+  "question": "טקסט השאלה",
+  "options": ["תשובה א", "תשובה ב", "תשובה ג", "תשובה ד"],
+  "correctAnswer": "התשובה הנכונה"
+}
+
+### שאלה פתוחה (open-question):
+{
+  "question": "טקסט השאלה",
+  "expectedAnswer": "תשובה מודל"
+}
+
+### השלמת חסר (fill_in_blanks):
+{
+  "text": "משפט עם [מילה חסרה] בסוגריים"
+}
+
+### סידור/מיון (ordering):
+{
+  "instruction": "הוראה למשתמש",
+  "correct_order": ["פריט 1", "פריט 2", "פריט 3"]
+}
+
+### קטגוריזציה (categorization):
+{
+  "question": "שאלה",
+  "categories": ["קטגוריה 1", "קטגוריה 2"],
+  "items": [{ "text": "פריט", "category": "קטגוריה 1" }]
+}
+
+### משחק זיכרון (memory_game):
+{
+  "pairs": [{ "card_a": "מושג", "card_b": "הגדרה" }]
+}
+
+### נכון/לא נכון (true_false_speed):
+{
+  "instruction": "הוראה",
+  "statements": [{ "text": "טענה", "is_true": true }]
+}
+
+### טקסט/הסבר (text):
+{
+  "text": "התוכן הטקסטואלי"
+}
+
+## פלט:
+החזר את ה-JSON המשופר בלבד, ללא הסברים.
 `;
 
 export const getCategorizationPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
