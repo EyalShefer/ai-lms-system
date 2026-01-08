@@ -264,15 +264,21 @@ Generate a JSON object with the following structure. Strict JSON.
 
         const bloomSteps = getBloomDistribution(stepCount, bloomPreferences);
 
+        // Get linguistic constraints for this grade level
+        const linguisticConstraints = getLinguisticConstraintsByGrade(gradeLevel);
+
         const prompt = `
             Task: Create a "Skeleton" for a learning unit.
             ${contextPart}
-            Target Audience: ${gradeLevel}.
+            **TARGET AUDIENCE: ${gradeLevel}**
             ${personalityInstruction}
             Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'game' ? 'GAMIFICATION / PLAY MODE' : 'Learning/Tutorial Mode')}
             Count: Exactly ${stepCount} steps.
             Language: Hebrew.
-            
+
+            **CRITICAL - LANGUAGE ADAPTATION (HARD CONSTRAINT):**
+            ${linguisticConstraints}
+
             BLOOM TAXONOMY REQUIREMENTS:
             ${JSON.stringify(bloomSteps)}
 
@@ -281,18 +287,19 @@ Generate a JSON object with the following structure. Strict JSON.
             2. **SEGMENTATION STRATEGY:** Divorce the Source Text into ${stepCount} DISTINCT chunks.
             3. **ZERO-TEXT-WALL POLICY:** Ensure frequent interaction.
             4. **Topic Policing:** Define strict narrative_focus vs forbidden_topics.
-            
+            5. **LANGUAGE LEVEL:** All titles and narrative_focus descriptions must follow the linguistic constraints above!
+
             Structure Guide:
             ${structureGuide}
 
             Output JSON Structure:
             {
-              "unit_title": "String",
+              "unit_title": "String (age-appropriate title following linguistic constraints)",
               "steps": [
                 {
                   "step_number": 1,
-                  "title": "Title",
-                  "narrative_focus": "Discuss ONLY...",
+                  "title": "Title (in age-appropriate language)",
+                  "narrative_focus": "Discuss ONLY... (using age-appropriate vocabulary)",
                   "forbidden_topics": ["..."],
                   "bloom_level": "Remember",
                   "suggested_interaction_type": "multiple_choice"
