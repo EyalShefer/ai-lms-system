@@ -25,6 +25,7 @@ const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/Adapti
 const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
 const QADashboard = React.lazy(() => import('./components/QADashboard'));
 const WizdiRoutes = React.lazy(() => import('./components/wizdi/WizdiRouter'));
+const KnowledgeBaseAdmin = React.lazy(() => import('./components/KnowledgeBaseAdmin'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -588,7 +589,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={() => setMode('qa-admin')} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={() => setMode('qa-admin')} onNavigateToKnowledgeBase={() => setMode('knowledge-base')} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -623,6 +624,7 @@ const AuthenticatedApp = () => {
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
                 {mode === 'analytics' && <AdaptiveDashboard />}
                 {mode === 'qa-admin' && <QADashboard onBack={() => setMode('list')} />}
+                {mode === 'knowledge-base' && <KnowledgeBaseAdmin />}
               </>
             )}
           </Suspense>
@@ -669,7 +671,7 @@ const AppWrapper = () => {
 
   if (currentUser) {
     return (
-      <GeoGuard>
+      <GeoGuard bypassInDev={true} failOpen={true}>
         <AuthenticatedApp />
       </GeoGuard>
     );

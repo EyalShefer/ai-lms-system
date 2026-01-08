@@ -19,7 +19,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -519,17 +519,25 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 </button>
             </div>
 
-            {/* Admin QA Button */}
-            {onNavigateToQA && (
-                <div className="text-center py-4">
+            {/* Admin Buttons */}
+            <div className="text-center py-4 flex justify-center gap-4">
+                {onNavigateToQA && (
                     <button
                         onClick={() => onNavigateToQA()}
                         className="text-slate-400 text-xs hover:text-wizdi-royal transition-colors px-3 py-1 rounded hover:bg-slate-100"
                     >
                         🔍 QA Admin
                     </button>
-                </div>
-            )}
+                )}
+                {onNavigateToKnowledgeBase && (
+                    <button
+                        onClick={() => onNavigateToKnowledgeBase()}
+                        className="text-slate-400 text-xs hover:text-wizdi-royal transition-colors px-3 py-1 rounded hover:bg-slate-100"
+                    >
+                        📚 בסיס ידע
+                    </button>
+                )}
+            </div>
 
             <style>{`
                 @keyframes blob {

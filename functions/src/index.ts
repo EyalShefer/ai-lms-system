@@ -46,6 +46,15 @@ import {
     estimateGemini3ImageCost
 } from './services/gemini3ImageService';
 
+// --- KNOWLEDGE BASE (RAG) ---
+export {
+    uploadKnowledge,
+    searchKnowledge,
+    getKnowledgeContext,
+    getKnowledgeStats,
+    deleteKnowledgeDocument
+} from './controllers/knowledgeController';
+
 // --- TYPES ---
 // --- TYPES REMOVED (Imported from Shared) ---
 // interface StepInfo ...
@@ -60,14 +69,22 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
     }
 
     // 2. Authenticate user via Firebase Auth token
+    // Support both X-Firebase-Token header (new) and Authorization header (legacy)
+    const firebaseToken = req.headers['x-firebase-token'] as string;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        logger.warn('Missing or invalid Authorization header');
+
+    let idToken: string | undefined;
+    if (firebaseToken) {
+        idToken = firebaseToken;
+    } else if (authHeader?.startsWith('Bearer ')) {
+        idToken = authHeader.split('Bearer ')[1];
+    }
+
+    if (!idToken) {
+        logger.warn('Missing Firebase token');
         res.status(401).json({ error: 'נדרשת הזדהות' });
         return;
     }
-
-    const idToken = authHeader.split('Bearer ')[1];
     try {
         // Verify the Firebase ID token
         const decodedToken = await auth.verifyIdToken(idToken);

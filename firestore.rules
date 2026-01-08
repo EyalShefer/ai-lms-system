@@ -2,22 +2,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if user has QA tester role (for running QA tests)
+    // SECURITY: QA testers should only exist in development/staging
+    function isQATester() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
+        'qa_tester' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+    }
+
+    // Check if user is an admin
+    function isAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
+        'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+    }
+
+    // Validate string length
+    function isValidStringLength(str, maxLen) {
+      return str is string && str.size() <= maxLen;
+    }
+
+    // Validate document has required fields
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    // Rate limiting helper - check if enough time has passed since last action
+    // Note: This requires storing lastActionAt in the document
+    function isNotRateLimited(lastActionField, minIntervalSeconds) {
+      return !resource.data.keys().hasAny([lastActionField]) ||
+        request.time > resource.data[lastActionField] + duration.value(minIntervalSeconds, 's');
     }
 
     // Users collection - only the user can read/write their own data
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && isOwner(userId);
+      // QA testers can read all users for testing purposes
+      allow read: if isAuthenticated() && (isOwner(userId) || isQATester());
+      allow write: if isAuthenticated() && isOwner(userId);
 
       // User's sub-collections (profile, gamification, etc.)
       match /{document=**} {
-        allow read, write: if isAuthenticated() && isOwner(userId);
+        allow read: if isAuthenticated() && (isOwner(userId) || isQATester());
+        allow write: if isAuthenticated() && isOwner(userId);
       }
     }
 
@@ -28,10 +68,12 @@ service cloud.firestore {
 
       // Only the teacher who created the course can read/update/delete it
       // OR students who are explicitly assigned to this course
+      // OR QA testers for testing purposes
       allow read: if isAuthenticated() && (
         resource.data.teacherId == request.auth.uid ||
         (resource.data.studentIds != null && request.auth.uid in resource.data.studentIds) ||
-        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith)
+        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith) ||
+        isQATester()
       );
 
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
@@ -41,7 +83,8 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (
           get(/databases/$(database)/documents/courses/$(courseId)).data.teacherId == request.auth.uid ||
           (get(/databases/$(database)/documents/courses/$(courseId)).data.studentIds != null &&
-           request.auth.uid in get(/databases/$(database)/documents/courses/$(courseId)).data.studentIds)
+           request.auth.uid in get(/databases/$(database)/documents/courses/$(courseId)).data.studentIds) ||
+          isQATester()
         );
 
         allow write: if isAuthenticated() &&
@@ -67,13 +110,32 @@ service cloud.firestore {
 
       // Teachers can read their own assignments
       // Students can read assignments assigned to them
+      // QA testers can read all assignments
       allow read: if isAuthenticated() && (
         resource.data.teacherId == request.auth.uid ||
         resource.data.studentId == request.auth.uid ||
-        (resource.data.studentIds != null && request.auth.uid in resource.data.studentIds)
+        (resource.data.studentIds != null && request.auth.uid in resource.data.studentIds) ||
+        isQATester()
       );
 
       // Only the teacher can update/delete
+      allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Student Tasks collection (for QA testing)
+    match /student_tasks/{taskId} {
+      // Teachers can create student tasks
+      allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
+
+      // Teachers and assigned students can read
+      // QA testers can read all tasks
+      allow read: if isAuthenticated() && (
+        resource.data.teacherId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isQATester()
+      );
+
+      // Teachers can update/delete
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
     }
 
@@ -237,6 +299,80 @@ service cloud.firestore {
       // Only Cloud Functions can write (via admin SDK)
       allow write: if false;
     }
+
+    // QA Reports collection - for automated testing system
+    match /qa_reports/{reportId} {
+      // All authenticated users can read QA reports
+      allow read: if isAuthenticated();
+
+      // All authenticated users can create QA reports
+      allow create: if isAuthenticated();
+
+      // Only the user who created the report can update/delete it
+      allow update, delete: if isAuthenticated() && (
+        resource.data.triggeredByUserId == request.auth.uid ||
+        resource.data.triggeredByUserId == null // System-generated reports
+      );
+    }
+
+    // ============================================
+    // KNOWLEDGE BASE (RAG) COLLECTION
+    // ============================================
+
+    // Math knowledge base - for AI-powered question generation
+    match /math_knowledge/{chunkId} {
+      // All authenticated users can search/read knowledge base
+      allow read: if isAuthenticated();
+
+      // Only admins can write (upload documents) - via Cloud Functions
+      allow write: if false;
+    }
+
+    // ============================================
+    // WIZDI INTEGRATION COLLECTIONS
+    // ============================================
+
+    // Wizdi sessions - managed by Cloud Functions only
+    match /wizdi_sessions/{sessionId} {
+      // Only Cloud Functions can read/write (via Admin SDK)
+      allow read, write: if false;
+    }
+
+    // Wizdi users mapping - managed by Cloud Functions only
+    match /wizdi_users/{userId} {
+      // Only Cloud Functions can read/write (via Admin SDK)
+      allow read, write: if false;
+    }
+
+    // ============================================
+    // SECURITY: Rate Limiting Collection
+    // ============================================
+
+    // Rate limit tracking - write-only for users
+    match /rate_limits/{userId} {
+      // Users can only write to their own rate limit document
+      allow create, update: if isOwner(userId);
+      // No reads allowed from client
+      allow read, delete: if false;
+    }
+
+    // ============================================
+    // SECURITY: Audit Logs Collection
+    // ============================================
+
+    // Audit logs - write-only, read only by admins
+    match /audit_logs/{logId} {
+      // Any authenticated user can create audit logs
+      allow create: if isAuthenticated();
+      // Only admins can read audit logs
+      allow read: if isAdmin();
+      // No updates or deletes allowed
+      allow update, delete: if false;
+    }
+
+    // ============================================
+    // DEFAULT DENY
+    // ============================================
 
     // Block all other collections by default
     match /{document=**} {

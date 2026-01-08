@@ -10,6 +10,7 @@ import { auth } from './firebase';
 import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
 import { detectInfographicType } from './utils/infographicDetector';
 import { generateInfographicHash, saveToFirebaseCache } from './utils/infographicCache';
+import { getKnowledgeContext, formatKnowledgeForPrompt } from './services/knowledgeBaseService';
 
 /**
  * Maps grade level to age-appropriate character description for image generation
@@ -87,7 +88,7 @@ async function getAuthenticatedOpenAIClient(): Promise<OpenAI> {
     timeout: 60000,
     maxRetries: 2,
     defaultHeaders: {
-      'Authorization': `Bearer ${token}`
+      'X-Firebase-Token': token
     }
   });
 }
@@ -1017,9 +1018,33 @@ export const generateInteractiveBlocks = async (
   suggestedTypes: string[],
   sourceText: string,
   topic: string,
-  gradeLevel: string
+  gradeLevel: string,
+  subject?: string
 ): Promise<any[]> => {
   console.log(`🎮 Auto-generating ${suggestedTypes.length} interactive blocks...`);
+
+  // Check if this is a math topic - fetch knowledge base context
+  const isMathTopic = subject === 'math' ||
+    /מתמטיקה|חשבון|חיבור|חיסור|כפל|חילוק|שבר|אחוז|גיאומטריה|שטח|היקף/.test(topic);
+
+  let knowledgeContext = '';
+  if (isMathTopic) {
+    try {
+      // Extract Hebrew grade letter from gradeLevel
+      const gradeMatch = gradeLevel.match(/[א-ת]/);
+      const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+
+      console.log(`📚 Fetching knowledge base context for math: ${topic}, grade ${hebrewGrade}`);
+      knowledgeContext = await getKnowledgeContext(topic, hebrewGrade);
+
+      if (knowledgeContext) {
+        console.log(`✅ Found knowledge base context (${knowledgeContext.length} chars)`);
+        knowledgeContext = formatKnowledgeForPrompt(knowledgeContext);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch knowledge context:', error);
+    }
+  }
 
   const promises = suggestedTypes.map(async (blockType) => {
     try {
@@ -1232,6 +1257,11 @@ export const generateInteractiveBlocks = async (
         default:
           console.warn(`Unknown block type: ${blockType}, skipping`);
           return null;
+      }
+
+      // Add knowledge base context if available (for math topics)
+      if (knowledgeContext) {
+        prompt = `${knowledgeContext}\n\n---\n\n${prompt}`;
       }
 
       // Call OpenAI to generate the block content
