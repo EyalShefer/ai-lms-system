@@ -820,3 +820,199 @@ This section documents ALL AI agents in the system, their locations, purposes, a
 
 ## 19.3 Logic Preservation
 - **Rule:** The BKT Engine (`submitAdaptiveAnswer`) is the Core Truth. Agents may read from it, but only the `Adaptive Brain` (Cloud Function) may write to it.
+
+# 21. 📚 KNOWLEDGE BASE & RAG SYSTEM (The Curriculum Brain)
+*Last Updated: 2026-01-08*
+
+## 21.1 Philosophy
+The Knowledge Base is a **Retrieval Augmented Generation (RAG)** system that grounds AI-generated content in **actual curriculum materials**. Instead of relying solely on the LLM's training data, the system retrieves relevant educational content from uploaded textbooks and teacher guides.
+
+## 21.2 Architecture Overview
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    KNOWLEDGE BASE PIPELINE                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  📄 PDF Upload                                                   │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐  │
+│  │ PDF         │────▶│ Text         │────▶│ Embedding       │  │
+│  │ Processor   │     │ Chunking     │     │ Generation      │  │
+│  └─────────────┘     └──────────────┘     │ (OpenAI)        │  │
+│                                           └────────┬────────┘  │
+│                                                    │            │
+│                                                    ▼            │
+│                                           ┌─────────────────┐  │
+│                                           │ Firestore       │  │
+│                                           │ (math_knowledge)│  │
+│                                           └────────┬────────┘  │
+│                                                    │            │
+│  ┌─────────────────────────────────────────────────┘            │
+│  │                                                              │
+│  ▼                                                              │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              CONTENT GENERATION FLOW                      │  │
+│  │                                                           │  │
+│  │  Topic + Grade  ──▶ Semantic Search ──▶ Relevant Chunks  │  │
+│  │                          │                     │          │  │
+│  │                          ▼                     ▼          │  │
+│  │                   ┌──────────────────────────────────┐   │  │
+│  │                   │ AI Prompt with KB Context:       │   │  │
+│  │                   │ • Curriculum Reference Material  │   │  │
+│  │                   │ • Student Textbook Content       │   │  │
+│  │                   │ • Teacher Guide Insights         │   │  │
+│  │                   └──────────────────────────────────┘   │  │
+│  │                               │                          │  │
+│  │                               ▼                          │  │
+│  │                   📝 Grade-Appropriate Content           │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 21.3 Core Components
+
+### 21.3.1 Knowledge Service
+- **File:** `functions/src/services/knowledgeBase/knowledgeService.ts`
+- **Key Functions:**
+  | Function | Purpose |
+  |----------|---------|
+  | `uploadDocument()` | Process PDF into vectorized chunks |
+  | `search()` | Semantic similarity search |
+  | `searchForPromptContext()` | Build AI prompt context from KB |
+  | `getStats()` | Knowledge base statistics |
+  | `deleteDocument()` | Remove document and chunks |
+
+### 21.3.2 Embedding Service
+- **File:** `functions/src/services/knowledgeBase/embeddingService.ts`
+- **Model:** OpenAI `text-embedding-3-small` (1536 dimensions)
+- **Features:** Batch processing, similarity calculation
+
+### 21.3.3 PDF Processor
+- **File:** `functions/src/services/knowledgeBase/pdfProcessor.ts`
+- **Features:**
+  - Chapter detection (Hebrew patterns: פרק, יחידה, נושא, שיעור)
+  - Content type classification (explanation, example, exercise, solution, etc.)
+  - Smart chunking with overlap
+
+## 21.4 Data Schema
+
+### 21.4.1 Knowledge Chunk (`math_knowledge` collection)
+```typescript
+interface KnowledgeChunk {
+  id: string;
+
+  // Curriculum Location
+  subject: 'math' | 'hebrew' | 'english' | 'science' | 'history' | 'other';
+  grade: 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב';
+  volume: number;           // כרך (1, 2, 3...)
+  volumeType: 'student' | 'teacher';  // ספר תלמיד או מדריך למורה
+
+  // Book Location
+  chapter: string;
+  chapterNumber?: number;
+  pageRange?: string;       // "עמ' 45-52"
+
+  // Content
+  content: string;
+  contentType: 'explanation' | 'example' | 'exercise' | 'solution' |
+               'tip' | 'common_mistake' | 'definition' | 'rule' | 'summary';
+
+  // Vector Embedding
+  embedding: number[];      // 1536 dimensions
+
+  // Metadata
+  source: string;           // Original file name
+  keywords: string[];
+  relatedTopics: string[];
+
+  // Usage Tracking
+  usageCount: number;
+  lastUsedAt?: Timestamp;
+}
+```
+
+## 21.5 Integration with Content Generation
+
+### 21.5.1 Backend Integration
+- **File:** `functions/src/controllers/aiController.ts`
+- **Integration Points:**
+
+  | Function | KB Usage | Chunks Retrieved |
+  |----------|----------|------------------|
+  | `generateStudentUnitSkeleton()` | Auto-fetch by topic+grade | 5 chunks |
+  | `generateStepContent()` | Auto-fetch by narrative_focus | 3 chunks |
+
+### 21.5.2 Context Priority Rules
+```
+Priority 1: User-provided sourceText (explicit override)
+Priority 2: Knowledge Base context (curriculum-aligned)
+Priority 3: Topic-only (LLM general knowledge - fallback)
+```
+
+### 21.5.3 Grade Format Conversion
+The system converts various grade formats to KB format:
+- "כיתה ב׳" → "ב"
+- "Grade 2" → "ב"
+- "2" → "ב"
+- "second" → "ב"
+
+## 21.6 Cloud Functions
+
+| Function | Purpose | Auth |
+|----------|---------|------|
+| `uploadKnowledge` | Admin: Upload and process PDFs | Admin only |
+| `searchKnowledge` | Search knowledge base | Authenticated |
+| `getKnowledgeContext` | Get context for AI generation | Authenticated |
+| `getKnowledgeStats` | Admin: View KB statistics | Admin only |
+| `deleteKnowledgeDocument` | Admin: Delete documents | Admin only |
+
+## 21.7 Chunk Configuration
+```typescript
+CHUNK_CONFIG = {
+  maxTokens: 500,           // ~375 Hebrew words
+  overlapTokens: 50,        // Context continuity
+  minChunkLength: 100,      // Minimum valid chunk
+}
+```
+
+## 21.8 Search Parameters
+- **Default limit:** 5 results
+- **Minimum similarity:** 0.7 (70% semantic match)
+- **Max fetch for comparison:** 500 candidates
+
+## 21.9 Usage Tracking
+Every retrieval automatically:
+1. Increments `usageCount` on retrieved chunks
+2. Updates `lastUsedAt` timestamp
+3. Enables analytics on most-used content
+
+## 21.10 Critical Rules
+
+### ✅ DO:
+1. **Always check KB first** - Before falling back to general LLM knowledge
+2. **Respect grade filtering** - Only retrieve content for the target grade
+3. **Include teacher guide** - 40% of context should come from teacher guides
+4. **Log KB operations** - Track success/failure for debugging
+5. **Graceful degradation** - Continue without KB if lookup fails
+
+### ❌ DON'T:
+1. **Never skip KB for curriculum content** - It ensures grade-appropriate material
+2. **Never ignore volumeType filtering** - Student vs teacher content serves different purposes
+3. **Never expose embeddings** - Return chunks without the 1536-dimension vectors
+4. **Never hardcode grade strings** - Use `gradeToKBFormat()` helper
+
+## 21.11 Logging & Monitoring
+```
+🔍 Fetching Knowledge Base context for topic: "חיבור וחיסור", grade: ב
+📚 Knowledge Base returned 2847 chars of context
+📚 Step 3: KB returned 1523 chars
+⚠️ Knowledge Base lookup failed (continuing without): [error message]
+```
+
+## 21.12 Future Enhancements
+- [ ] Support additional subjects beyond math
+- [ ] Implement cross-grade prerequisite detection
+- [ ] Add quality scoring for chunks
+- [ ] Implement Firestore Vector Search for better performance at scale
+- [ ] Add multi-language embedding support
