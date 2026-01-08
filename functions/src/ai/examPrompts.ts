@@ -14,6 +14,178 @@
  */
 
 /**
+ * EXAM-SPECIFIC LINGUISTIC CONSTRAINTS BY GRADE LEVEL
+ *
+ * Similar to getLinguisticConstraintsByGrade but adapted for EXAM context:
+ * - Maintains formal, objective tone throughout
+ * - No encouragement or "friendly" language
+ * - Focus on age-appropriate vocabulary and sentence complexity
+ * - No scaffolding or hints in the language itself
+ */
+export const getExamLinguisticConstraints = (gradeLevel: string): string => {
+    const grade = gradeLevel?.toLowerCase() || '';
+
+    // Elementary School: Grades 1-2 (כיתות א'-ב')
+    if (grade.includes('א') || grade.includes('ב') ||
+        grade.includes('1') || grade.includes('2') ||
+        grade.includes('first') || grade.includes('second')) {
+        return `
+### EXAM LINGUISTIC CONSTRAINTS - EARLY ELEMENTARY (Grades 1-2)
+
+**Sentence Structure:**
+- Maximum 6-8 words per sentence
+- Simple Subject-Verb-Object only
+- ONE idea per question
+- **FORBIDDEN:** Compound sentences, subordinate clauses
+
+**Vocabulary:**
+- Use only basic, concrete words child knows
+- Objects: בית, כלב, שמש, מים, ספר
+- Actions: רץ, אוכל, קורא, כותב
+- Numbers appropriate for age (1-20 for Grade 1, 1-100 for Grade 2)
+
+**Question Formulation:**
+- Direct, simple questions: "מה..?", "כמה..?", "איזה..?"
+- **FORBIDDEN:** Complex question stems, multiple conditions
+
+**Tone:**
+- Neutral and clear (NOT warm or encouraging - this is an exam)
+- No "בוא נראה" or "נסה לחשוב" - use direct instructions
+`;
+    }
+
+    // Elementary School: Grades 3-4 (כיתות ג'-ד')
+    if (grade.includes('ג') || grade.includes('ד') ||
+        grade.includes('3') || grade.includes('4') ||
+        grade.includes('third') || grade.includes('fourth')) {
+        return `
+### EXAM LINGUISTIC CONSTRAINTS - ELEMENTARY (Grades 3-4)
+
+**Sentence Structure:**
+- Maximum 10-12 words per sentence
+- Simple sentences with ONE connector if needed: "ו", "או", "כי"
+- **FORBIDDEN:** Passive voice, complex construct chains
+
+**Vocabulary:**
+- Concrete nouns and basic subject vocabulary
+- Technical terms ONLY if taught and defined in source material
+- Abstract words must be from taught curriculum
+
+**Question Formulation:**
+- Clear question stems
+- One concept per question
+- Visual aids (tables, simple diagrams) acceptable
+
+**Tone:**
+- Formal but accessible
+- Direct instructions: "סמן", "כתוב", "חשב"
+- No encouragement phrases
+`;
+    }
+
+    // Elementary School: Grades 5-6 (כיתות ה'-ו')
+    if (grade.includes('ה') || grade.includes('ו') ||
+        grade.includes('5') || grade.includes('6') ||
+        grade.includes('fifth') || grade.includes('sixth')) {
+        return `
+### EXAM LINGUISTIC CONSTRAINTS - UPPER ELEMENTARY (Grades 5-6)
+
+**Sentence Structure:**
+- Maximum 12-15 words per sentence
+- Compound sentences allowed: "אולם", "לכן", "משום ש"
+- **FORBIDDEN:** Academic nominalization, overly complex syntax
+
+**Vocabulary:**
+- Subject-specific terms as taught
+- Can assume basic curriculum vocabulary
+- New terms only if defined in the source text
+
+**Question Formulation:**
+- Can include multi-step problems
+- Reading comprehension with moderate complexity
+- Clear success criteria
+
+**Tone:**
+- Formal, objective
+- "ציין", "הסבר", "השווה"
+`;
+    }
+
+    // Middle School: Grades 7-9 (כיתות ז'-ט')
+    if (grade.includes('ז') || grade.includes('ח') || grade.includes('ט') ||
+        grade.includes('7') || grade.includes('8') || grade.includes('9') ||
+        grade.includes('seventh') || grade.includes('eighth') || grade.includes('ninth')) {
+        return `
+### EXAM LINGUISTIC CONSTRAINTS - MIDDLE SCHOOL (Grades 7-9)
+
+**Sentence Structure:**
+- Maximum 18-20 words per sentence
+- Full range of compound and complex sentences
+- Logical connectors expected: "לעומת זאת", "כתוצאה מכך"
+
+**Vocabulary:**
+- Full subject-specific terminology
+- Academic vocabulary appropriate to subject
+- Can assume exposure to abstract concepts
+
+**Question Formulation:**
+- Multi-step analysis questions allowed
+- Can require synthesis of information
+- Compare/contrast questions appropriate
+
+**Tone:**
+- Fully formal, academic
+- "נתח", "הוכח", "נמק", "הערך"
+`;
+    }
+
+    // High School: Grades 10-12 (כיתות י'-י"ב)
+    if (grade.includes('י') || grade.includes('10') || grade.includes('11') || grade.includes('12') ||
+        grade.includes('tenth') || grade.includes('eleventh') || grade.includes('twelfth') ||
+        grade.includes('תיכון') || grade.includes('high')) {
+        return `
+### EXAM LINGUISTIC CONSTRAINTS - HIGH SCHOOL (Grades 10-12)
+
+**Sentence Structure:**
+- No restrictions on complexity
+- Academic Hebrew register expected
+- Nominalization and formal constructions appropriate
+
+**Vocabulary:**
+- Full academic and professional vocabulary
+- Subject jargon expected without simplification
+- Nuanced terminology distinctions
+
+**Question Formulation:**
+- Bagrut-style questions appropriate
+- Critical analysis and evaluation
+- Source-based argumentation
+- Extended response questions
+
+**Tone:**
+- Fully formal, state-exam style
+- "דון", "בחן באופן ביקורתי", "הצג טיעון מנומק"
+`;
+    }
+
+    // Default - Middle School formal
+    return `
+### EXAM LINGUISTIC CONSTRAINTS - DEFAULT (Middle School Level)
+
+**Sentence Structure:**
+- Maximum 15 words per sentence
+- Clear, formal language
+
+**Vocabulary:**
+- Standard academic vocabulary
+- Technical terms as appropriate
+
+**Tone:**
+- Formal, objective, examiner voice
+`;
+};
+
+/**
  * STAGE 1: EXAM ARCHITECT PROMPT
  *
  * Role: Strategic Test Planner
@@ -147,31 +319,32 @@ Role: Professional Exam Question Writer.
 Task: Create ONE rigorous exam question.
 Input: Question specifications from Exam Architect.
 
+**TARGET AUDIENCE: ${gradeLevel}**
+
 ${contextText}
 
 MANDATORY REQUIREMENTS:
 
-1. **EXAM MODE - CRITICAL:**
+1. **LANGUAGE ADAPTATION FOR EXAM (CRITICAL - HARD CONSTRAINT):**
+${getExamLinguisticConstraints(gradeLevel)}
+
+2. **EXAM MODE - CRITICAL:**
    - You are creating a TEST question, NOT a teaching moment.
    - **BAN:** Do NOT output any 'teach_content'. Set it to empty string "".
    - **BAN:** Do NOT provide 'progressive_hints'. Set to empty array [].
    - **Tone:** Neutral, Objective, Formal (Examiner voice - NOT friendly teacher).
 
-2. **ASSESSMENT FOCUS:**
+3. **ASSESSMENT FOCUS:**
    - Test ONLY: ${stepInfo.assessment_focus || stepInfo.narrative_focus || "the specified concept"}.
    - Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
    - Bloom Level: ${stepInfo.bloom_level} - match cognitive demand exactly.
 
-3. **PEDAGOGY:**
-   - Interaction Type: ${stepInfo.suggested_interaction_type} (STRICT - no fallback without reason).
-   - Age Adaptation (${gradeLevel}): Use age-appropriate terminology, but maintain formal tone.
-
-4. **STRICT GROUNDING (Anti-Hallucination):**
+5. **STRICT GROUNDING (Anti-Hallucination):**
    - Use ONLY the provided Source Text.
    - If information is not in the source, it doesn't exist.
    - Do NOT add external knowledge or examples.
 
-5. **QUESTION QUALITY STANDARDS:**
+6. **QUESTION QUALITY STANDARDS:**
    - **Multiple Choice:**
      * Question must be clear and unambiguous.
      * Exactly 4 options (A, B, C, D).

@@ -138,26 +138,30 @@ export const getStepContentPrompt = (
   stepInfo: any,
   mode: string,
   linguisticConstraints: string,
-  _gradeLevel: string
+  gradeLevel: string
 ) => `
     ${contextText}
     ${examEnforcer}
 
+    **TARGET AUDIENCE: ${gradeLevel}**
+
     MANDATORY REQUIREMENTS:
-  1. ** Pedagogy:** Strictly follow the Bloom Level(${stepInfo.bloom_level}) and Interaction Type(${stepInfo.suggested_interaction_type}).
-    2. ** ZERO - TEXT - WALL RULE(V4 Anti - Batching):**
-       - ** CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
-       - ** Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
-       - ** BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
+
+    1. **LANGUAGE ADAPTATION (CRITICAL - HARD CONSTRAINT):**
+    ${linguisticConstraints}
+
+    2. **Pedagogy:** Strictly follow the Bloom Level (${stepInfo.bloom_level}) and Interaction Type (${stepInfo.suggested_interaction_type}).
+
+    3. **ZERO-TEXT-WALL RULE (V4 Anti-Batching):**
+       - **CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
+       - **Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
+       - **BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
        ${mode === 'exam'
     ? `- **EXAM MODE:** Do NOT output 'teach_content'. Set it to null or empty string. Focus entirely on the Question.`
     : `- **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.`
   }
 
-    ${linguisticConstraints}
-
-       - ** Age Adaptation(Grades 1 - 6):** Every technical term MUST have a concrete analogy.
-       - ** Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'As per Linguistic Constraints above'}.
+       - **Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'Follow the Linguistic Constraints for this grade level'}.
 
   4. ** STRICT GROUNDING(Anti - Hallucination V3):**
        - ** Rule:** Use ONLY the provided Source Text.If it's not in the PDF, it doesn't exist.
@@ -593,3 +597,278 @@ Returns a JSON object. NO markdown formatting.
   "auto_repair_instruction": "String prompt to send back to the Generator AI to fix the specific issues found (if FAIL)."
 }
 `;
+
+/**
+ * DYNAMIC LINGUISTIC CONSTRAINTS BY GRADE LEVEL
+ *
+ * This function generates grade-appropriate linguistic guidelines based on CEFR standards.
+ * It ensures content is written at the appropriate complexity level for each age group.
+ *
+ * Reference: PROJECT_DNA Section 1.3 (Complexity Adaptation) and pedagogicalPrompts.ts
+ */
+export const getLinguisticConstraintsByGrade = (gradeLevel: string): string => {
+    const grade = gradeLevel?.toLowerCase() || '';
+
+    // Elementary School: Grades 1-2 (כיתות א'-ב')
+    if (grade.includes('א') || grade.includes('ב') ||
+        grade.includes('1') || grade.includes('2') ||
+        grade.includes('first') || grade.includes('second')) {
+        return `
+### LINGUISTIC CONSTRAINTS - EARLY ELEMENTARY (Grades 1-2) | CEFR Pre-A1 to A1
+
+**CRITICAL: This is for YOUNG CHILDREN (ages 6-8). Language must be EXTREMELY simple.**
+
+**Sentence Structure:**
+- Maximum 5-8 words per sentence
+- Simple Subject-Verb-Object only ("הכלב רץ בגינה")
+- ONE idea per sentence
+- **FORBIDDEN:** Compound sentences, subordinate clauses, passive voice
+
+**Vocabulary:**
+- Use only basic, concrete words from daily life
+- Objects child can touch/see: בית, כלב, אמא, שמש, מים, אוכל
+- Actions child does: רץ, אוכל, ישן, משחק, צוחק
+- **FORBIDDEN:** Abstract concepts without concrete examples
+- Every new word MUST have a familiar example: "פרפר - זוכר את הפרפר הכתום שראינו בגינה?"
+
+**Tone & Style:**
+- Warm, encouraging, playful
+- Direct address: "אתה", "שלך", "בוא נראה"
+- Use questions to engage: "מה אתה חושב?"
+- Short paragraphs (2-3 sentences max)
+
+**Analogies (MANDATORY):**
+- Every concept needs a concrete daily-life example
+- "השמש חמה - כמו כשאתה מתחמם ליד התנור"
+- "מספרים - כמו לספור את האצבעות שלך"
+`;
+    }
+
+    // Elementary School: Grades 3-4 (כיתות ג'-ד')
+    if (grade.includes('ג') || grade.includes('ד') ||
+        grade.includes('3') || grade.includes('4') ||
+        grade.includes('third') || grade.includes('fourth')) {
+        return `
+### LINGUISTIC CONSTRAINTS - ELEMENTARY (Grades 3-4) | CEFR A1-A2
+
+**Sentence Structure:**
+- Maximum 8-10 words per sentence
+- Simple sentences with ONE connector allowed: "ו", "אבל", "כי"
+- **FORBIDDEN:** Passive voice ("התפוח נאכל" → use "דני אכל את התפוח")
+- **FORBIDDEN:** Long construct chains ("סמיכויות")
+- **FORBIDDEN:** Complex subordinate clauses
+
+**Vocabulary:**
+- Concrete nouns primarily (שולחן, עץ, חיה, מכונית)
+- Simple action verbs in present/past tense
+- Abstract words MUST be explained in parentheses or with example
+- Example: "אקלים (מזג האוויר לאורך זמן - האם בדרך כלל חם או קר?)"
+
+**Tone & Style:**
+- Friendly, clear, encouraging
+- Direct address: "אתה/את", "נסה/נסי"
+- Break complex ideas into small steps
+- Use bullet points and numbered lists
+
+**Analogies (MANDATORY for technical terms):**
+- "פוטוסינתזה - כמו שאתה צריך לאכול כדי לקבל כוח, הצמח משתמש באור השמש כדי לייצר אוכל"
+- "אטום - חלקיק קטנטן, כמו גרגיר חול, אבל קטן בהרבה - כל כך קטן שאי אפשר לראות אותו"
+`;
+    }
+
+    // Elementary School: Grades 5-6 (כיתות ה'-ו')
+    if (grade.includes('ה') || grade.includes('ו') ||
+        grade.includes('5') || grade.includes('6') ||
+        grade.includes('fifth') || grade.includes('sixth')) {
+        return `
+### LINGUISTIC CONSTRAINTS - UPPER ELEMENTARY (Grades 5-6) | CEFR A2-B1
+
+**Sentence Structure:**
+- Maximum 10-12 words per sentence
+- Simple compound sentences allowed: "וגם", "אבל", "לכן", "כי"
+- **FORBIDDEN:** Passive voice (use active: "המדענים גילו" not "התגלה ע"י")
+- **FORBIDDEN:** Long chains of construct states
+- **FORBIDDEN:** Academic nominalization
+
+**Vocabulary:**
+- Concrete nouns + basic abstract concepts with explanation
+- Can introduce subject-specific terms WITH immediate definition
+- Example: "מערכת העיכול (החלקים בגוף שמפרקים את האוכל)"
+
+**Tone & Style:**
+- Clear, respectful, slightly more mature
+- Can use "אנחנו" for inclusive feeling
+- Encourage curiosity: "בואו נבדוק למה זה קורה"
+- Paragraphs of 3-4 sentences OK
+
+**Cognitive Level:**
+- Simple cause-and-effect: "כאשר X קורה, אז Y"
+- Basic comparisons: "בדומה ל...", "שונה מ..."
+- Introduce "Why" questions
+
+**Analogies (Required for new concepts):**
+- "כדור הארץ סובב סביב השמש כמו שילד רץ במעגל סביב עץ בחצר"
+- "DNA הוא כמו ספר מתכונים - הוא מכיל את כל ההוראות לבניית הגוף"
+`;
+    }
+
+    // Middle School: Grades 7-8 (כיתות ז'-ח')
+    if (grade.includes('ז') || grade.includes('ח') ||
+        grade.includes('7') || grade.includes('8') ||
+        grade.includes('seventh') || grade.includes('eighth')) {
+        return `
+### LINGUISTIC CONSTRAINTS - MIDDLE SCHOOL (Grades 7-8) | CEFR B1
+
+**Sentence Structure:**
+- Maximum 15-18 words per sentence
+- Compound sentences with logical connectors: "למרות ש", "מפני ש", "לכן", "אולם"
+- Complex sentences allowed but must be clear
+- Passive voice allowed sparingly when appropriate
+
+**Vocabulary:**
+- Subject-specific terminology expected (with brief reminder if complex)
+- Abstract concepts without extensive explanation if grade-appropriate
+- Can use academic terms that students have encountered before
+
+**Tone & Style:**
+- More mature, treats student as capable learner
+- Can include mild humor or engaging hooks
+- "שימו לב ש...", "חשוב להבין ש..."
+- Metaphors allowed if clear
+
+**Cognitive Level:**
+- Cause-and-effect chains (A leads to B leads to C)
+- Compare and contrast multiple items
+- Basic analysis: "מה היתרונות והחסרונות?"
+- Can introduce multiple perspectives
+
+**Analogies (For complex concepts only):**
+- Use analogies for truly difficult concepts, not for everything
+- "מערכת החיסון פועלת כמו צבא שמגן על המדינה מפני פולשים"
+`;
+    }
+
+    // Middle School: Grade 9 (כיתה ט')
+    if (grade.includes('ט') || grade.includes('9') || grade.includes('ninth')) {
+        return `
+### LINGUISTIC CONSTRAINTS - MIDDLE SCHOOL (Grade 9) | CEFR B1-B2
+
+**Sentence Structure:**
+- Maximum 18-20 words per sentence
+- Full range of compound and complex sentences
+- Logical connectors required: "לעומת זאת", "כתוצאה מכך", "יתרה מזאת"
+- Embedded clauses allowed
+
+**Vocabulary:**
+- Full subject-specific vocabulary expected
+- Technical terms used naturally
+- Abstract concepts discussed without simplification
+
+**Tone & Style:**
+- Academic but accessible
+- Objective tone for factual content
+- Can challenge students: "האם אתם מסכימים? נמקו."
+- Treats student as young adult
+
+**Cognitive Level:**
+- Multi-step analysis required
+- Synthesis of information from multiple sources
+- Basic evaluation: "עד כמה הטיעון משכנע?"
+- Introduction to critical thinking
+
+**No analogies required** - use only when genuinely helpful for abstract concepts
+`;
+    }
+
+    // High School: Grades 10-12 (כיתות י'-י"ב)
+    if (grade.includes('י') || grade.includes('10') || grade.includes('11') || grade.includes('12') ||
+        grade.includes('tenth') || grade.includes('eleventh') || grade.includes('twelfth') ||
+        grade.includes('תיכון') || grade.includes('high')) {
+        return `
+### LINGUISTIC CONSTRAINTS - HIGH SCHOOL (Grades 10-12) | CEFR B2-C1
+
+**Sentence Structure:**
+- No hard limit on sentence length, but clarity is paramount
+- Academic/Formal Hebrew register expected
+- **REQUIRED:** Use of nominalization ("שם פעולה") where appropriate
+  - Instead of "אנשים התנגדו" → "התנגדות הציבור הובילה ל..."
+- Complex syntax with embedded clauses
+- Full passive voice usage when stylistically appropriate
+
+**Vocabulary:**
+- Full academic vocabulary
+- Subject-specific jargon expected without explanation
+- Nuanced language: "לטעון" vs "להציע" vs "לקבוע"
+
+**Tone & Style:**
+- Formal, academic, objective
+- **FORBIDDEN:** "Baby talk", over-simplification, excessive encouragement
+- Treats student as scholar/researcher
+- "יש לציין ש...", "מן הראוי לבחון...", "ניתן לטעון ש..."
+
+**Cognitive Level:**
+- Critical analysis and evaluation
+- Synthesis across multiple sources
+- Identifying bias, assumptions, limitations
+- Constructing and deconstructing arguments
+- Meta-cognitive awareness: "מהן ההנחות מאחורי טיעון זה?"
+
+**No analogies** - students should engage with concepts directly at their complexity level
+`;
+    }
+
+    // College/University or Professional (סטודנטים/הכשרה מקצועית)
+    if (grade.includes('סטודנט') || grade.includes('אוניברסיט') ||
+        grade.includes('מקצועי') || grade.includes('college') ||
+        grade.includes('university') || grade.includes('professional') ||
+        grade.includes('adult')) {
+        return `
+### LINGUISTIC CONSTRAINTS - HIGHER EDUCATION / PROFESSIONAL | CEFR C1-C2
+
+**Sentence Structure:**
+- No restrictions - use academic conventions
+- Complex argumentation structures expected
+- Discipline-specific discourse patterns
+
+**Vocabulary:**
+- Full technical/professional vocabulary
+- Field-specific terminology without explanation
+- Precision in word choice is critical
+
+**Tone & Style:**
+- Formal academic or professional register
+- Objective, evidence-based language
+- Can engage with theoretical frameworks directly
+
+**Cognitive Level:**
+- Advanced analysis, synthesis, and evaluation
+- Original argumentation expected
+- Engagement with primary sources
+- Critical evaluation of methodology
+`;
+    }
+
+    // Default fallback - Middle School level (safe middle ground)
+    return `
+### LINGUISTIC CONSTRAINTS - GENERAL (Default: Middle School Level) | CEFR B1
+
+**Note:** Grade level not clearly specified. Using middle-school appropriate language as default.
+
+**Sentence Structure:**
+- Maximum 15 words per sentence
+- Clear compound sentences with logical connectors
+- Avoid overly complex constructions
+
+**Vocabulary:**
+- Clear, accessible language
+- Explain technical terms on first use
+- Prefer concrete over abstract when possible
+
+**Tone & Style:**
+- Friendly but respectful
+- Engaging without being childish
+- Clear explanations with examples
+
+**Analogies:** Use for complex concepts to aid understanding
+`;
+};

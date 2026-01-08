@@ -1,7 +1,7 @@
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import OpenAI from "openai";
-import { getSkeletonPrompt, getStepContentPrompt, getPodcastPrompt, getGuardianPrompt } from "../ai/prompts";
+import { getSkeletonPrompt, getStepContentPrompt, getPodcastPrompt, getGuardianPrompt, getLinguisticConstraintsByGrade } from "../ai/prompts";
 import { mapSystemItemToBlock, cleanJsonString } from "../shared/utils/geminiParsers";
 import { getCached, setCache, getSkeletonCacheKey, getStepContentCacheKey } from "../services/cacheService";
 import { getOpenAIClient } from "../utils/connectionPool";
@@ -350,8 +350,8 @@ Generate a JSON object with the following structure. Strict JSON.
             }
         }
 
-        // Linguistic Logic Re-creation (Simplified for Vault V1)
-        const linguisticConstraints = "LINGUISTIC CONSTRAINTS: Use clear, engaging language.";
+        // Dynamic Linguistic Constraints based on Grade Level (CEFR Standards)
+        const linguisticConstraints = getLinguisticConstraintsByGrade(gradeLevel);
 
         const contextText = sourceText ? `Source: ${sourceText.substring(0, 3000)}...` : `Topic: ${topic}`;
 
