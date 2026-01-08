@@ -563,19 +563,34 @@ export async function runFullQAReport(
 export async function saveQAReport(report: QAReport): Promise<string> {
   const reportRef = doc(collection(db, 'qa_reports'));
 
-  await setDoc(reportRef, {
-    ...report,
+  // Clean undefined values to prevent Firestore errors
+  const cleanReport = {
+    id: report.id,
     createdAt: Timestamp.fromDate(report.createdAt),
     completedAt: Timestamp.fromDate(report.completedAt),
-    // Store suites separately to avoid document size limits
+    triggeredBy: report.triggeredBy,
+    environment: report.environment,
+    summary: report.summary,
+    metadata: {
+      browserInfo: report.metadata?.browserInfo || null,
+      appVersion: report.metadata?.appVersion || null,
+      nodeVersion: report.metadata?.nodeVersion || null
+    },
+    // Only include triggeredByUserId if it exists
+    ...(report.triggeredByUserId && { triggeredByUserId: report.triggeredByUserId }),
+    // Store suites with cleaned timestamps
     suites: report.suites.map(s => ({
       ...s,
       tests: s.tests.map(t => ({
         ...t,
-        timestamp: Timestamp.fromDate(t.timestamp)
+        timestamp: Timestamp.fromDate(t.timestamp),
+        // Clean optional details field
+        details: t.details || null
       }))
     }))
-  });
+  };
+
+  await setDoc(reportRef, cleanReport);
 
   return reportRef.id;
 }

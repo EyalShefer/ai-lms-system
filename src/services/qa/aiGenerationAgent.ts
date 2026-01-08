@@ -190,7 +190,7 @@ async function testMultipleChoiceGeneration(
     );
 
     const result = await Promise.race([
-      generateSingleMultipleChoiceQuestion(topic, gradeLevel, sourceText),
+      generateSingleMultipleChoiceQuestion(topic, gradeLevel, null, sourceText || SAMPLE_SOURCE_TEXT),
       timeoutPromise
     ]);
 
@@ -248,7 +248,7 @@ async function testOpenQuestionGeneration(
     );
 
     const result = await Promise.race([
-      generateSingleOpenQuestion(topic, gradeLevel, sourceText),
+      generateSingleOpenQuestion(topic, gradeLevel, null, sourceText || SAMPLE_SOURCE_TEXT),
       timeoutPromise
     ]);
 
@@ -306,7 +306,7 @@ async function testCategorizationGeneration(
     );
 
     const result = await Promise.race([
-      generateCategorizationQuestion(topic, gradeLevel, sourceText),
+      generateCategorizationQuestion(topic, gradeLevel, sourceText || SAMPLE_SOURCE_TEXT),
       timeoutPromise
     ]);
 
@@ -363,7 +363,7 @@ async function testOrderingGeneration(
     );
 
     const result = await Promise.race([
-      generateOrderingQuestion(topic, gradeLevel, sourceText),
+      generateOrderingQuestion(topic, gradeLevel, sourceText || SAMPLE_SOURCE_TEXT),
       timeoutPromise
     ]);
 
@@ -420,7 +420,7 @@ async function testMemoryGameGeneration(
     );
 
     const result = await Promise.race([
-      generateMemoryGame(topic, gradeLevel, sourceText),
+      generateMemoryGame(topic, gradeLevel, sourceText || SAMPLE_SOURCE_TEXT),
       timeoutPromise
     ]);
 

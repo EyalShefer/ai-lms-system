@@ -1,5 +1,6 @@
 import { lazy, Suspense, memo } from 'react';
 import type { ActivityBlock } from '../../shared/types/courseTypes';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 // Lazy load question components
 const MultipleChoiceQuestion = lazy(() => import('./MultipleChoiceQuestion'));
@@ -102,7 +103,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
       case 'text':
         return (
           <div className="prose max-w-none p-6 bg-white rounded-lg shadow">
-            <div dangerouslySetInnerHTML={{ __html: block.content || '' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content as string) }} />
           </div>
         );
 

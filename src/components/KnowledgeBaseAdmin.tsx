@@ -2,7 +2,9 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { functions, storage } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 
 interface UploadResponse {
   success: boolean;
@@ -46,8 +48,11 @@ const SUBJECTS = [
 ];
 
 export default function KnowledgeBaseAdmin() {
+  const { currentUser } = useAuth();
+
   // Upload state
   const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [subject, setSubject] = useState('math');
   const [grade, setGrade] = useState('ב');
   const [volume, setVolume] = useState(1);
@@ -96,30 +101,28 @@ export default function KnowledgeBaseAdmin() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file || !currentUser) return;
 
     setUploading(true);
     setUploadResult(null);
+    setUploadProgress('מעלה קובץ ל-Storage...');
 
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data URL prefix
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const fileBase64 = await base64Promise;
+      // Step 1: Upload to Firebase Storage first (bypasses Cloud Function size limits)
+      const timestamp = Date.now();
+      const storagePath = `knowledge-base/${currentUser.uid}/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
 
-      // Call Cloud Function
-      const uploadFunc = httpsCallable(functions, 'uploadKnowledge');
+      await uploadBytes(storageRef, file);
+      const fileUrl = await getDownloadURL(storageRef);
+
+      setUploadProgress('מעבד את הקובץ עם AI...');
+
+      // Step 2: Call Cloud Function with Storage URL (not base64)
+      const uploadFunc = httpsCallable(functions, 'uploadKnowledge', { timeout: 300000 });
       const result = await uploadFunc({
-        fileBase64,
+        fileUrl,
+        storagePath,
         mimeType: file.type,
         fileName: file.name,
         subject,
@@ -129,11 +132,13 @@ export default function KnowledgeBaseAdmin() {
       });
 
       setUploadResult(result.data as UploadResponse);
+      setUploadProgress('');
 
       // Refresh stats
       loadStats();
     } catch (error: any) {
       console.error('Upload failed:', error);
+      setUploadProgress('');
       setUploadResult({
         success: false,
         documentId: '',
@@ -341,7 +346,7 @@ export default function KnowledgeBaseAdmin() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                       />
                     </svg>
-                    מעבד... (זה יכול לקחת כמה דקות)
+                    {uploadProgress || 'מעבד... (זה יכול לקחת כמה דקות)'}
                   </span>
                 ) : (
                   'העלה וארגן'

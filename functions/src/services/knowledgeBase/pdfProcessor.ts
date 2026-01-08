@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import * as logger from 'firebase-functions/logger';
 import { CHUNK_CONFIG, KnowledgeChunk } from './types';
 import { estimateTokens } from './embeddingService';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse');
 
 export interface ExtractedChapter {
   name: string;
@@ -29,8 +31,8 @@ export class PDFProcessor {
   }
 
   /**
-   * Extract text from PDF using GPT-4o Vision
-   * This handles both text-based PDFs and scanned documents
+   * Extract text from PDF using pdf-parse library
+   * Then use GPT to organize into chapters
    */
   async extractTextFromPDF(
     pdfBase64: string,
@@ -38,102 +40,114 @@ export class PDFProcessor {
   ): Promise<ProcessedPDF> {
     logger.info(`📄 Processing PDF: ${fileName}`);
 
-    // For PDFs, we need to convert pages to images first
-    // Since we can't do that directly in Cloud Functions without additional libraries,
-    // we'll use a text extraction approach via GPT-4o
-
-    const systemPrompt = `אתה מומחה לחילוץ תוכן מספרי לימוד במתמטיקה.
-
-משימתך:
-1. חלץ את **כל הטקסט** מהמסמך
-2. זהה **פרקים/יחידות** לפי כותרות
-3. שמור על המבנה המקורי
-
-פלט בפורמט JSON:
-{
-  "chapters": [
-    {
-      "name": "שם הפרק/יחידה",
-      "chapterNumber": 1,
-      "content": "כל התוכן של הפרק...",
-      "pageRange": "עמ' 1-5"
-    }
-  ],
-  "metadata": {
-    "bookTitle": "שם הספר אם מופיע",
-    "grade": "כיתה אם מופיע",
-    "subject": "מקצוע"
-  }
-}
-
-כללים:
-- חלץ הכל - אל תדלג על תוכן
-- שמור על עברית תקינה
-- אם אין חלוקה לפרקים, צור פרק אחד עם כל התוכן
-- זהה דפוסים כמו: "פרק א", "יחידה 1", "נושא:", "שיעור"`;
-
     try {
-      // Note: For actual PDF processing, you'd need to:
-      // 1. Convert PDF to images using pdf-lib or similar
-      // 2. Send each page to Vision API
-      // 3. Combine results
+      // Step 1: Extract raw text using pdf-parse
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      const pdfData = await pdfParse(pdfBuffer);
 
-      // For now, we'll use the file API approach if available,
-      // or fall back to a simpler text extraction
+      const rawText = pdfData.text;
+      const pageCount = pdfData.numpages;
 
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `חלץ את התוכן מהמסמך הבא. שם הקובץ: ${fileName}`,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${pdfBase64}`,
-                  detail: 'high',
-                },
-              },
-            ],
+      logger.info(`📖 Extracted ${rawText.length} characters from ${pageCount} pages`);
+
+      if (!rawText || rawText.trim().length < 100) {
+        // If very little text extracted, it might be a scanned PDF
+        // Return with minimal processing
+        logger.warn('Very little text extracted - PDF might be scanned/image-based');
+        return {
+          fullText: rawText || '',
+          chapters: [{
+            name: 'תוכן כללי',
+            content: rawText || 'לא ניתן לחלץ טקסט מהמסמך. ייתכן שזהו PDF סרוק.',
+            chapterNumber: 1,
+          }],
+          metadata: {
+            pageCount,
+            extractionMethod: 'text',
           },
-        ],
-        max_tokens: 16000,
-        response_format: { type: 'json_object' },
+        };
+      }
+
+      // Step 2: Split text into chapters based on patterns
+      // Instead of using GPT (which truncates content), we detect chapter boundaries ourselves
+      const chapters: ExtractedChapter[] = [];
+
+      // Try to detect chapter boundaries using common Hebrew patterns
+      const chapterPatterns = [
+        /^(פרק\s+[\u05d0-\u05ea\d]+)/gm,  // פרק א / פרק 1
+        /^(יחידה\s+[\u05d0-\u05ea\d]+)/gm,  // יחידה א
+        /^(נושא\s*:?\s*[\u05d0-\u05ea\d]+)/gm,  // נושא: / נושא 1
+      ];
+
+      let chapterBoundaries: { index: number; name: string }[] = [];
+
+      for (const pattern of chapterPatterns) {
+        let match;
+        while ((match = pattern.exec(rawText)) !== null) {
+          chapterBoundaries.push({
+            index: match.index,
+            name: match[1].trim(),
+          });
+        }
+      }
+
+      // Sort by position in text
+      chapterBoundaries.sort((a, b) => a.index - b.index);
+
+      // Remove duplicates that are too close together (within 100 chars)
+      chapterBoundaries = chapterBoundaries.filter((boundary, i) => {
+        if (i === 0) return true;
+        return boundary.index - chapterBoundaries[i - 1].index > 100;
       });
 
-      const content = response.choices[0]?.message?.content || '{}';
-      const parsed = JSON.parse(content);
+      if (chapterBoundaries.length > 0) {
+        // Create chapters based on detected boundaries
+        for (let i = 0; i < chapterBoundaries.length; i++) {
+          const start = chapterBoundaries[i].index;
+          const end = i < chapterBoundaries.length - 1
+            ? chapterBoundaries[i + 1].index
+            : rawText.length;
 
-      const chapters: ExtractedChapter[] = (parsed.chapters || []).map(
-        (ch: any, index: number) => ({
-          name: ch.name || `פרק ${index + 1}`,
-          content: ch.content || '',
-          pageRange: ch.pageRange,
-          chapterNumber: ch.chapterNumber || index + 1,
-        })
-      );
+          const chapterContent = rawText.substring(start, end).trim();
 
-      // If no chapters found, create one with all content
-      if (chapters.length === 0 && parsed.content) {
+          if (chapterContent.length > 50) {  // Only include if has real content
+            chapters.push({
+              name: chapterBoundaries[i].name,
+              content: chapterContent,
+              chapterNumber: i + 1,
+            });
+          }
+        }
+
+        // Add any content before first chapter
+        if (chapterBoundaries[0].index > 200) {
+          chapters.unshift({
+            name: 'מבוא',
+            content: rawText.substring(0, chapterBoundaries[0].index).trim(),
+            chapterNumber: 0,
+          });
+        }
+      }
+
+      // If no chapters detected, create a single chapter with all content
+      if (chapters.length === 0) {
         chapters.push({
-          name: 'תוכן כללי',
-          content: parsed.content,
+          name: 'תוכן הספר',
+          content: rawText,
           chapterNumber: 1,
         });
       }
 
-      const fullText = chapters.map((ch) => ch.content).join('\n\n');
+      const fullText = rawText;
+
+      logger.info(`📚 Organized into ${chapters.length} chapters`);
 
       return {
         fullText,
         chapters,
         metadata: {
-          extractionMethod: 'vision',
+          pageCount,
+          extractionMethod: 'text',
         },
       };
     } catch (error: any) {

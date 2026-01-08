@@ -9,6 +9,7 @@ import { downloadLessonPlanPDF } from '../services/pdfExportService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { TextToSpeechButton } from './TextToSpeechButton';
 import { RichTextEditor } from './RichTextEditor';
+import { sanitizeHtml } from '../utils/sanitize';
 
 // Interactive Question Components for preview mode
 import MultipleChoiceQuestion from './MultipleChoiceQuestion';
@@ -853,7 +854,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative p-2 -m-2"
                             title="לחץ לעריכה"
                         >
-                            <div dangerouslySetInnerHTML={{ __html: contentWithoutTitle }} />
+                            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentWithoutTitle) }} />
                         </div>
                     </div>
                 );
@@ -958,7 +959,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                                     {(block.content?.text || "").split(/(\[.*?\])/g).map((part: string, i: number) =>
                                         part.startsWith('[')
                                             ? <span key={i} className="inline-block bg-yellow-100 border-b-2 border-yellow-400 px-2 mx-1 font-bold text-yellow-800">{part.replace(/[\[\]]/g, '')}</span>
-                                            : <span key={i} dangerouslySetInnerHTML={{ __html: part }} />
+                                            : <span key={i} dangerouslySetInnerHTML={{ __html: sanitizeHtml(part) }} />
                                     )}
                                 </p>
                             </div>

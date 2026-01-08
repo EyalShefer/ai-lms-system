@@ -1,8 +1,129 @@
 rules_version = '2';
+
+// Firebase Storage Security Rules
+// SECURITY: Implements owner-based access control, file type validation, and size limits
+
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    // Helper function: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function: Check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper function: Validate file size (max 10MB)
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // Helper function: Validate image file type
+    function isValidImage() {
+      return request.resource.contentType.matches('image/(png|jpeg|jpg|gif|webp)');
+    }
+
+    // Helper function: Validate document file type
+    function isValidDocument() {
+      return request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)')
+          || request.resource.contentType.matches('text/plain');
+    }
+
+    // Helper function: Validate audio file type
+    function isValidAudio() {
+      return request.resource.contentType.matches('audio/(mpeg|mp3|wav|ogg|webm)');
+    }
+
+    // Helper function: Validate video file type
+    function isValidVideo() {
+      return request.resource.contentType.matches('video/(mp4|webm|ogg)');
+    }
+
+    // Helper function: Check any valid file type
+    function isValidFileType() {
+      return isValidImage() || isValidDocument() || isValidAudio() || isValidVideo();
+    }
+
+    // ===== USER UPLOADS =====
+    // Users can only access their own uploaded files
+    match /users/{userId}/{allPaths=**} {
+      // Read: Only owner can read their files
+      allow read: if isOwner(userId);
+
+      // Write: Only owner can write, with validation
+      allow write: if isOwner(userId)
+                   && isValidFileSize()
+                   && isValidFileType();
+
+      // Delete: Only owner can delete their files
+      allow delete: if isOwner(userId);
+    }
+
+    // ===== COURSE CONTENT =====
+    // Course assets uploaded by teachers
+    match /courses/{courseId}/{allPaths=**} {
+      // Read: Any authenticated user can read course content
+      // (Fine-grained access control happens at Firestore level)
+      allow read: if isAuthenticated();
+
+      // Write: Only course creator/teacher can write
+      // Note: We can't easily verify teacher ownership here,
+      // so we rely on Firestore rules + Cloud Functions for validation
+      allow write: if isAuthenticated()
+                   && isValidFileSize()
+                   && isValidFileType();
+    }
+
+    // ===== PROFILE PICTURES =====
+    match /profiles/{userId}/avatar.{ext} {
+      // Anyone can view profile pictures
+      allow read: if isAuthenticated();
+
+      // Only owner can update their profile picture
+      allow write: if isOwner(userId)
+                   && isValidImage()
+                   && request.resource.size < 2 * 1024 * 1024; // Max 2MB for avatars
+    }
+
+    // ===== SUBMISSION ATTACHMENTS =====
+    // Student submissions with file attachments
+    match /submissions/{submissionId}/{fileName} {
+      // Read: Authenticated users (access control via Firestore)
+      allow read: if isAuthenticated();
+
+      // Write: Authenticated users with size/type limits
+      allow write: if isAuthenticated()
+                   && isValidFileSize()
+                   && (isValidImage() || isValidDocument() || isValidAudio());
+    }
+
+    // ===== SHARED/PUBLIC ASSETS =====
+    // Assets that are meant to be publicly accessible (e.g., app assets)
+    match /public/{allPaths=**} {
+      // Anyone can read public assets
+      allow read: if true;
+
+      // No direct writes - only via Cloud Functions
+      allow write: if false;
+    }
+
+    // ===== TEMPORARY UPLOADS =====
+    // For processing uploads before moving to final location
+    match /temp/{userId}/{fileName} {
+      allow read, write: if isOwner(userId)
+                        && isValidFileSize()
+                        && isValidFileType();
+
+      // Auto-cleanup: temp files older than 24h should be deleted by Cloud Function
+    }
+
+    // ===== DEFAULT DENY =====
+    // Catch-all: deny everything else
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

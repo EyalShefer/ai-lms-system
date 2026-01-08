@@ -10,6 +10,11 @@ export { runFullQAReport, saveQAReport, getRecentQAReports } from './qaTestingSe
 export { runContentQualityAgent, validateCourse, validateUnit, validateBlock, validateLessonPlan } from './contentQualityAgent';
 export { runStudentSimulationAgent, simulateCourse, simulateUnit } from './studentSimulationAgent';
 export { runAIGenerationAgent, testMultipleChoiceGeneration, testOpenQuestionGeneration } from './aiGenerationAgent';
+export { runE2EGenerationAgent } from './e2eGenerationAgent';
+
+// New Assessment Agents
+export { runStudentActivityAgent, runActivitySession, validateScoringPolicy } from './studentActivityAgent';
+export { runAssessmentIntegrityAgent, validateCourseAssessment, validateScoringRules, ASSESSMENT_POLICY } from './assessmentIntegrityAgent';
 
 // Auto-Fix Agent
 export {
@@ -49,12 +54,18 @@ import { runFullQAReport, saveQAReport } from './qaTestingService';
 import { runContentQualityAgent } from './contentQualityAgent';
 import { runStudentSimulationAgent } from './studentSimulationAgent';
 import { runAIGenerationAgent } from './aiGenerationAgent';
+import { runE2EGenerationAgent } from './e2eGenerationAgent';
+import { runStudentActivityAgent } from './studentActivityAgent';
+import { runAssessmentIntegrityAgent } from './assessmentIntegrityAgent';
 import type { QAReport, QAAgentResult, TestSuite, TestResult } from '../../types/qa.types';
 
 export interface FullQARunOptions {
   includeContentQuality?: boolean;
   includeStudentSimulation?: boolean;
   includeAIGeneration?: boolean;
+  includeE2EGeneration?: boolean;  // E2E content generation testing
+  includeStudentActivity?: boolean;  // Student activity/exam testing with scoring
+  includeAssessmentIntegrity?: boolean;  // Assessment policy validation
   maxCourses?: number;
   saveReport?: boolean;
   userId?: string;
@@ -73,6 +84,9 @@ export async function runComprehensiveQA(options: FullQARunOptions = {}): Promis
     includeContentQuality = true,
     includeStudentSimulation = true,
     includeAIGeneration = false, // Disabled by default (API costs)
+    includeE2EGeneration = false, // Disabled by default (API costs)
+    includeStudentActivity = false, // Disabled by default
+    includeAssessmentIntegrity = false, // Disabled by default
     maxCourses = 10,
     saveReport = true,
     userId
@@ -150,6 +164,72 @@ export async function runComprehensiveQA(options: FullQARunOptions = {}): Promis
       status: aiResult.success ? 'passed' : 'failed'
     };
     report.suites.push(aiSuite);
+  }
+
+  // Run E2E Generation Agent (optional, costs money - full content generation flows)
+  if (includeE2EGeneration) {
+    console.log('\n🏭 Running E2E Generation Agent...');
+    const e2eResult = await runE2EGenerationAgent();
+    agentResults.push(e2eResult);
+
+    const e2eSuite: TestSuite = {
+      id: 'suite_e2e_generation',
+      name: 'E2E Content Generation Tests',
+      nameHe: 'בדיקות יצירת תוכן מקצה לקצה',
+      category: 'e2e-generation',
+      tests: e2eResult.tests,
+      passedCount: e2eResult.summary.passed,
+      failedCount: e2eResult.summary.failed,
+      warningCount: e2eResult.summary.warnings,
+      skippedCount: 0,
+      duration: e2eResult.summary.duration,
+      status: e2eResult.status
+    };
+    report.suites.push(e2eSuite);
+  }
+
+  // Run Student Activity Agent (tests scoring with actual activity simulation)
+  if (includeStudentActivity) {
+    console.log('\n📝 Running Student Activity Agent...');
+    const activityResult = await runStudentActivityAgent(Math.min(maxCourses, 5), true);
+    agentResults.push(activityResult);
+
+    const activitySuite: TestSuite = {
+      id: 'suite_student_activity',
+      name: 'Student Activity Tests',
+      nameHe: 'בדיקות פעילות תלמיד',
+      category: 'student-activity',
+      tests: activityResult.allResults,
+      passedCount: activityResult.testsPassed,
+      failedCount: activityResult.testsFailed,
+      warningCount: activityResult.allResults.filter(t => t.status === 'warning').length,
+      skippedCount: 0,
+      duration: activityResult.duration,
+      status: activityResult.success ? 'passed' : 'failed'
+    };
+    report.suites.push(activitySuite);
+  }
+
+  // Run Assessment Integrity Agent (validates scoring policy compliance)
+  if (includeAssessmentIntegrity) {
+    console.log('\n⚖️ Running Assessment Integrity Agent...');
+    const integrityResult = await runAssessmentIntegrityAgent(maxCourses);
+    agentResults.push(integrityResult);
+
+    const integritySuite: TestSuite = {
+      id: 'suite_assessment_integrity',
+      name: 'Assessment Integrity Tests',
+      nameHe: 'בדיקות אינטגריטי הערכה',
+      category: 'assessment-integrity',
+      tests: integrityResult.allResults,
+      passedCount: integrityResult.testsPassed,
+      failedCount: integrityResult.testsFailed,
+      warningCount: integrityResult.allResults.filter(t => t.status === 'warning').length,
+      skippedCount: 0,
+      duration: integrityResult.duration,
+      status: integrityResult.success ? 'passed' : 'failed'
+    };
+    report.suites.push(integritySuite);
   }
 
   // Recalculate summary

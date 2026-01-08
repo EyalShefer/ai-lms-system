@@ -14,6 +14,7 @@ import { FractionInput, fractionToString } from '../math/FractionInput';
 import type { FractionValue } from '../math/FractionInput';
 import { InlineMathKeyboard, NumberPad } from '../math/MathKeyboard';
 import { validateMathAnswer, getValidationOptionsForGrade } from '../../utils/mathValidation';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface OpenQuestionProps {
   block: ActivityBlock;
@@ -120,11 +121,11 @@ const OpenQuestion = memo(function OpenQuestion({
       );
     }
 
-    // Regular HTML content
+    // Regular HTML content - sanitize for XSS protection
     return (
       <div
         className="prose max-w-none mb-4"
-        dangerouslySetInnerHTML={{ __html: question }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(question) }}
       />
     );
   };

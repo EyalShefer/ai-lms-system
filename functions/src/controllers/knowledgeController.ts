@@ -53,6 +53,8 @@ export const uploadKnowledge = onCall(
     // 3. Validate request
     const {
       fileBase64,
+      fileUrl,
+      storagePath,
       mimeType,
       fileName,
       subject,
@@ -61,8 +63,12 @@ export const uploadKnowledge = onCall(
       volumeType,
     } = request.data as KnowledgeUploadRequest;
 
-    if (!fileBase64 || !fileName) {
+    // Either base64 or Storage URL must be provided
+    if (!fileBase64 && (!fileUrl || !storagePath)) {
       throw new HttpsError('invalid-argument', 'חסר קובץ');
+    }
+    if (!fileName) {
+      throw new HttpsError('invalid-argument', 'חסר שם קובץ');
     }
 
     if (!subject || !grade || !volume || !volumeType) {
@@ -76,6 +82,8 @@ export const uploadKnowledge = onCall(
 
       const result = await service.uploadDocument({
         fileBase64,
+        fileUrl,
+        storagePath,
         mimeType: mimeType || 'application/pdf',
         fileName,
         subject,

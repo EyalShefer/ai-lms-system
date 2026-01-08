@@ -1,6 +1,7 @@
 // knowledgeService.ts - Main Knowledge Base Service
 
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -38,9 +39,28 @@ export class KnowledgeService {
     try {
       logger.info(`📤 Starting upload: ${request.fileName}`);
 
+      // Get file content - either from base64 or from Storage URL
+      let fileBase64: string;
+
+      if (request.fileUrl && request.storagePath) {
+        // Download from Firebase Storage
+        logger.info(`📥 Downloading from Storage: ${request.storagePath}`);
+        const storage = getStorage();
+        const bucket = storage.bucket();
+        const file = bucket.file(request.storagePath);
+
+        const [buffer] = await file.download();
+        fileBase64 = buffer.toString('base64');
+        logger.info(`📥 Downloaded ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
+      } else if (request.fileBase64) {
+        fileBase64 = request.fileBase64;
+      } else {
+        throw new Error('Either fileBase64 or fileUrl/storagePath must be provided');
+      }
+
       // 1. Process PDF into chunks
       const { chunks, chapters } = await this.pdfProcessor.processDocument(
-        request.fileBase64,
+        fileBase64,
         request.fileName,
         {
           subject: request.subject,
@@ -60,36 +80,48 @@ export class KnowledgeService {
 
       const embeddingResults = await this.embeddingService.generateEmbeddingsBatch(texts);
 
-      // 3. Save to Firestore
-      const batch = this.db.batch();
+      // 3. Save to Firestore in batches (max 10 per batch due to embedding size ~6KB each)
+      const BATCH_SIZE = 10;
       let savedCount = 0;
       const documentId = uuidv4();
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const embeddingResult = embeddingResults[i];
+      // Process in batches
+      for (let batchStart = 0; batchStart < chunks.length; batchStart += BATCH_SIZE) {
+        const batch = this.db.batch();
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
 
-        if (!embeddingResult.embedding || embeddingResult.embedding.length === 0) {
-          errors.push(`Failed to generate embedding for chunk ${i + 1}`);
-          continue;
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunk = chunks[i];
+          const embeddingResult = embeddingResults[i];
+
+          if (!embeddingResult.embedding || embeddingResult.embedding.length === 0) {
+            errors.push(`Failed to generate embedding for chunk ${i + 1}`);
+            continue;
+          }
+
+          const chunkId = `${documentId}_${i}`;
+          const docRef = this.db.collection(COLLECTION_NAME).doc(chunkId);
+
+          const fullChunk: KnowledgeChunk = {
+            id: chunkId,
+            ...chunk,
+            embedding: embeddingResult.embedding,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
+
+          // Remove undefined values - Firestore doesn't accept them
+          const cleanChunk = Object.fromEntries(
+            Object.entries(fullChunk).filter(([_, v]) => v !== undefined)
+          );
+
+          batch.set(docRef, cleanChunk);
+          savedCount++;
         }
 
-        const chunkId = `${documentId}_${i}`;
-        const docRef = this.db.collection(COLLECTION_NAME).doc(chunkId);
-
-        const fullChunk: KnowledgeChunk = {
-          id: chunkId,
-          ...chunk,
-          embedding: embeddingResult.embedding,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        };
-
-        batch.set(docRef, fullChunk);
-        savedCount++;
+        await batch.commit();
+        logger.info(`💾 Saved batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
       }
-
-      await batch.commit();
 
       logger.info(`✅ Upload complete: ${savedCount} chunks saved`);
 

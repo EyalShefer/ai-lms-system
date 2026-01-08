@@ -3,6 +3,7 @@ import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 import { calculateQuestionScore } from '../utils/scoring';
 import { MathRenderer } from './MathRenderer';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface ClozeQuestionProps {
     block: ActivityBlock;
@@ -223,7 +224,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                         {part.includes('$') || part.includes('\\') ? (
                             <MathRenderer content={part} className="inline" />
                         ) : (
-                            <span dangerouslySetInnerHTML={{ __html: part }} />
+                            <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(part) }} />
                         )}
                         {i < parts.length - 1 && (
                             <span

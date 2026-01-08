@@ -11,6 +11,9 @@ import {
   runContentQualityAgent,
   runStudentSimulationAgent,
   runAIGenerationAgent,
+  runE2EGenerationAgent,
+  runStudentActivityAgent,
+  runAssessmentIntegrityAgent,
   generateFixSuggestions,
   executeFix,
   executeFixBatch,
@@ -91,6 +94,13 @@ const IconWrench = ({ className = "w-4 h-4" }: { className?: string }) => (
 const IconZap = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+  </svg>
+);
+
+const IconCopy = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
   </svg>
 );
 
@@ -443,7 +453,10 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
   const [selectedAgents, setSelectedAgents] = useState({
     contentQuality: true,
     studentSimulation: true,
-    aiGeneration: false
+    aiGeneration: false,
+    e2eGeneration: false,
+    studentActivity: false,
+    assessmentIntegrity: false
   });
 
   // Fix state
@@ -451,6 +464,7 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
   const [isFixingAll, setIsFixingAll] = useState(false);
   const [fixResults, setFixResults] = useState<Map<string, FixResult>>(new Map());
   const [fixProgress, setFixProgress] = useState<string>('');
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     loadRecentReports();
@@ -475,6 +489,9 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
         includeContentQuality: selectedAgents.contentQuality,
         includeStudentSimulation: selectedAgents.studentSimulation,
         includeAIGeneration: selectedAgents.aiGeneration,
+        includeE2EGeneration: selectedAgents.e2eGeneration,
+        includeStudentActivity: selectedAgents.studentActivity,
+        includeAssessmentIntegrity: selectedAgents.assessmentIntegrity,
         maxCourses: 10,
         saveReport: true,
         userId: currentUser?.uid
@@ -491,23 +508,46 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
     }
   };
 
-  const handleRunSingleAgent = async (agentType: 'content' | 'simulation' | 'ai') => {
+  const handleRunSingleAgent = async (agentType: 'content' | 'simulation' | 'ai' | 'e2e' | 'activity' | 'integrity') => {
     setIsRunning(true);
     setRunProgress(`מריץ סוכן...`);
     setFixResults(new Map());
 
     try {
       let result: QAAgentResult;
+      let agentNameHe: string;
+      let categoryName: string;
 
       switch (agentType) {
         case 'content':
           result = await runContentQualityAgent(10);
+          agentNameHe = 'איכות תוכן';
+          categoryName = 'content-quality';
           break;
         case 'simulation':
           result = await runStudentSimulationAgent(5);
+          agentNameHe = 'סימולציית תלמיד';
+          categoryName = 'student-simulation';
           break;
         case 'ai':
           result = await runAIGenerationAgent(['multiple-choice', 'open-question']);
+          agentNameHe = 'יצירת AI';
+          categoryName = 'ai-generation';
+          break;
+        case 'e2e':
+          result = await runE2EGenerationAgent();
+          agentNameHe = 'יצירת תוכן מקצה לקצה';
+          categoryName = 'e2e-generation';
+          break;
+        case 'activity':
+          result = await runStudentActivityAgent(5, true);
+          agentNameHe = 'פעילות תלמיד';
+          categoryName = 'student-activity';
+          break;
+        case 'integrity':
+          result = await runAssessmentIntegrityAgent(10);
+          agentNameHe = 'אינטגריטי הערכה';
+          categoryName = 'assessment-integrity';
           break;
       }
 
@@ -521,8 +561,8 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
         suites: [{
           id: `suite_${agentType}`,
           name: agentType,
-          nameHe: agentType === 'content' ? 'איכות תוכן' : agentType === 'simulation' ? 'סימולציית תלמיד' : 'יצירת AI',
-          category: agentType === 'content' ? 'content-quality' : agentType === 'simulation' ? 'student-simulation' : 'ai-generation',
+          nameHe: agentNameHe,
+          category: categoryName,
           tests: result.allResults,
           passedCount: result.testsPassed,
           failedCount: result.testsFailed,
@@ -621,6 +661,112 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
     ).length;
   }, 0) || 0;
 
+  // Generate full report for copying
+  const generateFullReport = (): string => {
+    if (!currentReport) return '';
+
+    const lines: string[] = [];
+
+    lines.push('# 📊 דוח QA מלא');
+    lines.push(`תאריך: ${new Date(currentReport.createdAt).toLocaleString('he-IL')}`);
+    lines.push(`סביבה: ${currentReport.environment}`);
+    lines.push('');
+
+    lines.push('## 📈 סיכום');
+    lines.push(`- סה"כ בדיקות: ${currentReport.summary.totalTests}`);
+    lines.push(`- עברו: ${currentReport.summary.passed} (${currentReport.summary.passRate}%)`);
+    lines.push(`- נכשלו: ${currentReport.summary.failed}`);
+    lines.push(`- אזהרות: ${currentReport.summary.warnings}`);
+    lines.push(`- זמן ריצה: ${Math.round(currentReport.summary.duration / 1000)} שניות`);
+    lines.push('');
+
+    // Critical Issues
+    if (currentReport.summary.criticalIssues.length > 0) {
+      lines.push('## 🔴 בעיות קריטיות');
+      currentReport.summary.criticalIssues.forEach(issue => {
+        lines.push(`### ❌ ${issue.nameHe}`);
+        lines.push(`- הודעה: ${issue.messageHe}`);
+        if (issue.details) {
+          lines.push('- פרטים:');
+          lines.push('```json');
+          lines.push(JSON.stringify(issue.details, null, 2));
+          lines.push('```');
+        }
+        lines.push('');
+      });
+    }
+
+    // All Suites
+    lines.push('## 📋 תוצאות מפורטות לפי קטגוריה');
+    lines.push('');
+
+    currentReport.suites.forEach(suite => {
+      const statusIcon = suite.status === 'passed' ? '✅' : suite.status === 'failed' ? '❌' : '⚠️';
+      lines.push(`### ${statusIcon} ${suite.nameHe}`);
+      lines.push(`- עברו: ${suite.passedCount} | נכשלו: ${suite.failedCount} | אזהרות: ${suite.warningCount}`);
+      lines.push('');
+
+      suite.tests.forEach(test => {
+        const testIcon = test.status === 'passed' ? '✅' : test.status === 'failed' ? '❌' : '⚠️';
+        lines.push(`#### ${testIcon} ${test.nameHe}`);
+        lines.push(`- סטטוס: ${test.status}`);
+        lines.push(`- הודעה: ${test.messageHe}`);
+        if (test.duration > 0) {
+          lines.push(`- זמן: ${test.duration}ms`);
+        }
+
+        if (test.details) {
+          lines.push('- **פרטים מלאים:**');
+          lines.push('```json');
+          lines.push(JSON.stringify(test.details, null, 2));
+          lines.push('```');
+        }
+
+        // Add fix suggestions for failed tests
+        if (test.status === 'failed' || test.status === 'warning') {
+          const suggestions = generateFixSuggestions(test);
+          if (suggestions.length > 0) {
+            lines.push('- **הצעות תיקון:**');
+            suggestions.forEach(s => {
+              lines.push(`  - ${s.descriptionHe} (${s.autoFixable ? 'אוטומטי' : 'ידני'})`);
+            });
+          }
+        }
+
+        lines.push('');
+      });
+    });
+
+    // Add raw JSON at the end
+    lines.push('---');
+    lines.push('## 📄 JSON מלא (לניתוח טכני)');
+    lines.push('```json');
+    lines.push(JSON.stringify(currentReport, null, 2));
+    lines.push('```');
+
+    return lines.join('\n');
+  };
+
+  const handleCopyReport = async () => {
+    const fullReport = generateFullReport();
+    try {
+      await navigator.clipboard.writeText(fullReport);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      // Fallback: create a textarea and copy
+      const textarea = document.createElement('textarea');
+      textarea.value = fullReport;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6" dir="rtl">
       {/* Header */}
@@ -642,6 +788,30 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
         </div>
 
         <div className="flex gap-2">
+          <button
+            onClick={handleCopyReport}
+            disabled={!currentReport}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition ${
+              copySuccess
+                ? 'bg-green-600 text-white'
+                : !currentReport
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                  : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
+            }`}
+            title={!currentReport ? 'הרץ בדיקות כדי ליצור דוח' : 'העתק דוח מלא ללוח'}
+          >
+            {copySuccess ? (
+              <>
+                <IconCheck className="w-4 h-4" />
+                הועתק!
+              </>
+            ) : (
+              <>
+                <IconCopy className="w-4 h-4" />
+                העתק דוח מלא
+              </>
+            )}
+          </button>
           <button
             onClick={handleRunQA}
             disabled={isRunning || isFixingAll}
@@ -688,6 +858,33 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
             />
             ✨ בדיקת יצירת AI (עלות API)
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedAgents.e2eGeneration}
+              onChange={e => setSelectedAgents(prev => ({ ...prev, e2eGeneration: e.target.checked }))}
+              className="w-4 h-4"
+            />
+            🏭 יצירת תוכן מקצה לקצה (עלות API)
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedAgents.studentActivity}
+              onChange={e => setSelectedAgents(prev => ({ ...prev, studentActivity: e.target.checked }))}
+              className="w-4 h-4"
+            />
+            📝 פעילות תלמיד (ניקוד)
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedAgents.assessmentIntegrity}
+              onChange={e => setSelectedAgents(prev => ({ ...prev, assessmentIntegrity: e.target.checked }))}
+              className="w-4 h-4"
+            />
+            ⚖️ אינטגריטי הערכה
+          </label>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -712,6 +909,27 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
             className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 transition disabled:opacity-50"
           >
             ✨ יצירת AI
+          </button>
+          <button
+            onClick={() => handleRunSingleAgent('e2e')}
+            disabled={isRunning}
+            className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 transition disabled:opacity-50"
+          >
+            🏭 E2E יצירת תוכן
+          </button>
+          <button
+            onClick={() => handleRunSingleAgent('activity')}
+            disabled={isRunning}
+            className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 transition disabled:opacity-50"
+          >
+            📝 פעילות תלמיד
+          </button>
+          <button
+            onClick={() => handleRunSingleAgent('integrity')}
+            disabled={isRunning}
+            className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 transition disabled:opacity-50"
+          >
+            ⚖️ אינטגריטי
           </button>
         </div>
       </div>

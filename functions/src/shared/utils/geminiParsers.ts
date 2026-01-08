@@ -118,6 +118,29 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 correctAnswer = normalizedOptions[0];
             }
 
+            // 🛡️ VALIDATION: Ensure correctAnswer matches one of the options
+            // If not, try to find a partial match or default to first option
+            if (!normalizedOptions.includes(correctAnswer)) {
+                console.warn(`correctAnswer "${correctAnswer}" not found in options. Attempting fuzzy match...`);
+
+                // Try case-insensitive match
+                const lowerCorrect = correctAnswer.toLowerCase().trim();
+                const matchedOption = normalizedOptions.find(opt =>
+                    opt.toLowerCase().trim() === lowerCorrect ||
+                    opt.toLowerCase().includes(lowerCorrect) ||
+                    lowerCorrect.includes(opt.toLowerCase())
+                );
+
+                if (matchedOption) {
+                    console.log(`Found fuzzy match: "${matchedOption}"`);
+                    correctAnswer = matchedOption;
+                } else {
+                    // Last resort: use first option and log warning
+                    console.warn(`No match found. Defaulting to first option: "${normalizedOptions[0]}"`);
+                    correctAnswer = normalizedOptions[0];
+                }
+            }
+
             // Normalize type to accepted enum
             const finalType: ActivityBlockType = typeString === 'true_false' ? 'multiple-choice' : 'multiple-choice';
 

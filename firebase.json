@@ -36,6 +36,39 @@
     ],
     "headers": [
       {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-XSS-Protection",
+            "value": "1; mode=block"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-DNS-Prefetch-Control",
+            "value": "off"
+          },
+          {
+            "key": "X-Permitted-Cross-Domain-Policies",
+            "value": "none"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "accelerometer=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(self), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), midi=(), payment=(), picture-in-picture=(self), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(self)"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://ai-lms-system.web.app https://generativelanguage.googleapis.com https://api.openai.com https://ipwho.is https://ipapi.co https://ipinfo.io https://freeipapi.com https://api.ipdata.co; frame-src 'self' https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self' https://wizdi.co.il https://*.wizdi.co.il https://ai-lms-system.web.app https://ai-lms-system.firebaseapp.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          }
+        ]
+      },
+      {
         "source": "/index.html",
         "headers": [
           {

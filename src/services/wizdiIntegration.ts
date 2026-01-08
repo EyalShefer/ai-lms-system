@@ -1,7 +1,76 @@
 /**
  * Wizdi Integration Service
  * Handles postMessage communication with Wizdi parent window
+ *
+ * SECURITY: This module implements secure postMessage communication
+ * with origin validation to prevent cross-origin attacks.
  */
+
+// Allowed origins for Wizdi communication
+// IMPORTANT: Update this list with actual Wizdi production domains
+const ALLOWED_WIZDI_ORIGINS: string[] = [
+  'https://wizdi.co.il',
+  'https://www.wizdi.co.il',
+  'https://app.wizdi.co.il',
+  'https://staging.wizdi.co.il',
+  // Development origins (remove in production)
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+
+// Cache the parent origin after first successful validation
+let validatedParentOrigin: string | null = null;
+
+/**
+ * Validate if an origin is allowed for Wizdi communication
+ */
+function isAllowedOrigin(origin: string): boolean {
+  // Check exact match first
+  if (ALLOWED_WIZDI_ORIGINS.includes(origin)) {
+    return true;
+  }
+
+  // Allow any wizdi.co.il subdomain
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith('.wizdi.co.il') || url.hostname === 'wizdi.co.il') {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+/**
+ * Get the target origin for postMessage
+ * Returns the validated parent origin or throws if not validated
+ */
+function getTargetOrigin(): string {
+  if (validatedParentOrigin) {
+    return validatedParentOrigin;
+  }
+
+  // If we haven't validated yet, try to get referrer
+  try {
+    const referrer = document.referrer;
+    if (referrer) {
+      const referrerOrigin = new URL(referrer).origin;
+      if (isAllowedOrigin(referrerOrigin)) {
+        validatedParentOrigin = referrerOrigin;
+        return referrerOrigin;
+      }
+    }
+  } catch {
+    // Referrer parsing failed
+  }
+
+  // Fallback: use wildcard but log warning
+  // This is less secure but prevents breaking existing integrations
+  console.warn('[Wizdi Security] Could not validate parent origin, using wildcard. Please ensure ALLOWED_WIZDI_ORIGINS is configured correctly.');
+  return '*';
+}
 
 // Event types that we send to Wizdi
 export type WizdiEventType =
@@ -150,8 +219,9 @@ export function sendToWizdi<T>(type: WizdiEventType, payload: T): void {
   };
 
   try {
-    window.parent.postMessage(event, '*');
-    console.log('[Wizdi] Sent event:', type);
+    const targetOrigin = getTargetOrigin();
+    window.parent.postMessage(event, targetOrigin);
+    console.log('[Wizdi] Sent event:', type, 'to origin:', targetOrigin);
   } catch (error) {
     console.error('[Wizdi] Failed to send event:', error);
   }
@@ -356,15 +426,31 @@ export function onWizdiCommand(handler: CommandHandler): () => void {
 /**
  * Initialize Wizdi message listener
  * Call this once at app startup
+ *
+ * SECURITY: This listener validates the origin of incoming messages
+ * to prevent cross-origin attacks from malicious websites.
  */
 export function initWizdiListener(): () => void {
   const handleMessage = (event: MessageEvent) => {
-    // We accept messages from any origin when embedded
-    // In production, you might want to validate event.origin
+    // SECURITY: Validate origin before processing any message
+    if (!isAllowedOrigin(event.origin)) {
+      // Silently ignore messages from unknown origins
+      // Don't log to avoid console spam from legitimate browser extensions etc.
+      return;
+    }
+
+    // Cache the validated origin for outbound messages
+    if (!validatedParentOrigin && event.origin) {
+      validatedParentOrigin = event.origin;
+      console.log('[Wizdi] Validated parent origin:', event.origin);
+    }
 
     const data = event.data as WizdiCommand;
 
-    if (!data || !data.type) return;
+    // Validate message structure
+    if (!data || typeof data !== 'object' || !data.type) {
+      return;
+    }
 
     // Check if it's a command we recognize
     const validCommands: WizdiCommandType[] = [
@@ -374,18 +460,40 @@ export function initWizdiListener(): () => void {
     ];
 
     if (validCommands.includes(data.type as WizdiCommandType)) {
-      console.log('[Wizdi] Received command:', data.type);
+      console.log('[Wizdi] Received command:', data.type, 'from:', event.origin);
+
+      // Additional validation for navigation commands
+      if (data.type === 'NAVIGATE_TO_TASK' && data.taskId) {
+        // Validate taskId format (alphanumeric and common ID chars only)
+        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(data.taskId)) {
+          console.warn('[Wizdi Security] Invalid taskId format received');
+          return;
+        }
+      }
+
+      if (data.type === 'NAVIGATE_TO_COURSE') {
+        if (data.courseId && !/^[a-zA-Z0-9_-]{1,100}$/.test(data.courseId)) {
+          console.warn('[Wizdi Security] Invalid courseId format received');
+          return;
+        }
+        if (data.unitId && !/^[a-zA-Z0-9_-]{1,100}$/.test(data.unitId)) {
+          console.warn('[Wizdi Security] Invalid unitId format received');
+          return;
+        }
+      }
+
       commandHandlers.forEach(handler => handler(data));
     }
   };
 
   window.addEventListener('message', handleMessage);
 
-  console.log('[Wizdi] Message listener initialized');
+  console.log('[Wizdi] Message listener initialized with origin validation');
 
   // Return cleanup function
   return () => {
     window.removeEventListener('message', handleMessage);
+    validatedParentOrigin = null; // Reset on cleanup
   };
 }
 

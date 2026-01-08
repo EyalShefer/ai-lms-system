@@ -39,7 +39,12 @@ export interface KnowledgeChunk {
 }
 
 export interface KnowledgeUploadRequest {
-  fileBase64: string;
+  // Option 1: Direct base64 (for small files)
+  fileBase64?: string;
+  // Option 2: Storage URL (for large files - recommended)
+  fileUrl?: string;
+  storagePath?: string;
+
   mimeType: 'application/pdf' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   fileName: string;
 
