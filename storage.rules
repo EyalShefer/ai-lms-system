@@ -78,7 +78,7 @@ service firebase.storage {
     }
 
     // ===== PROFILE PICTURES =====
-    match /profiles/{userId}/avatar.{ext} {
+    match /profiles/{userId}/{fileName} {
       // Anyone can view profile pictures
       allow read: if isAuthenticated();
 
