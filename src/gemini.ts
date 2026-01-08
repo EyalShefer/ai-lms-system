@@ -77,9 +77,39 @@ async function getAuthToken(): Promise<string> {
   return await user.getIdToken();
 }
 
-// Create OpenAI client
+// Create authenticated OpenAI client with Firebase Auth token
+async function getAuthenticatedOpenAIClient(): Promise<OpenAI> {
+  const token = await getAuthToken();
+  return new OpenAI({
+    apiKey: OPENAI_API_KEY || 'dummy-key-for-proxy',
+    dangerouslyAllowBrowser: true,
+    baseURL: `${window.location.origin}/api/openai`,
+    timeout: 60000,
+    maxRetries: 2,
+    defaultHeaders: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+}
+
+// Cached client instance with token refresh
+let cachedClient: OpenAI | null = null;
+let cachedTokenExpiry: number = 0;
+
+async function getOpenAIClient(): Promise<OpenAI> {
+  const now = Date.now();
+  // Refresh client if token is about to expire (5 min buffer)
+  if (!cachedClient || now >= cachedTokenExpiry - 5 * 60 * 1000) {
+    cachedClient = await getAuthenticatedOpenAIClient();
+    // Firebase tokens expire in 1 hour
+    cachedTokenExpiry = now + 55 * 60 * 1000;
+  }
+  return cachedClient;
+}
+
+// For backwards compatibility - create unauthenticated client (will fail on proxy without auth)
 export const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
+  apiKey: OPENAI_API_KEY || 'dummy-key-for-proxy',
   dangerouslyAllowBrowser: true,
   baseURL: `${window.location.origin}/api/openai`,
   timeout: 60000,
@@ -320,7 +350,7 @@ export const generateUnitSkeleton = async (
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -505,7 +535,7 @@ export const generateStepContent = async (
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: userContent as any }],
       response_format: { type: "json_object" },
@@ -827,7 +857,7 @@ export const generateTeacherStepContent = async (
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: userContent as any }],
       response_format: { type: "json_object" },
@@ -1205,7 +1235,7 @@ export const generateInteractiveBlocks = async (
       }
 
       // Call OpenAI to generate the block content
-      const response = await openai.chat.completions.create({
+      const response = await (await getOpenAIClient()).chat.completions.create({
         model: MODEL_NAME,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
@@ -1252,7 +1282,7 @@ export const regenerateImage = async (prompt: string): Promise<string | null> =>
   console.log(`🎨 Regenerating image with prompt: "${prompt.substring(0, 50)}..."`);
 
   try {
-    const response = await openai.images.generate({
+    const response = await (await getOpenAIClient()).images.generate({
       model: "dall-e-3",
       prompt: prompt,
       size: "1024x1024",
@@ -1307,7 +1337,7 @@ export const generatePodcastScript = async (sourceText: string, topic?: string):
       Style: Conversational, fun, like "NotebookLM".
       `;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -1360,7 +1390,7 @@ export const validateContent = async (
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [
         { role: "system", content: PEDAGOGICAL_SYSTEM_PROMPT + "\n\n" + STRUCTURAL_SYSTEM_PROMPT },
@@ -1409,7 +1439,7 @@ export const attemptAutoFix = async (
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -1528,7 +1558,7 @@ export const generateCourseSyllabus = async (
     `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: "gpt-4o", // Strong model for structure
       messages: [
         { role: "system", content: "You are a Curriculum Architect. Output strict JSON." },
@@ -1672,7 +1702,7 @@ export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
   }
 
   try {
-    const response = await openai.images.generate({
+    const response = await (await getOpenAIClient()).images.generate({
       model: "dall-e-3",
       prompt: prompt,
       n: 1,
@@ -2075,7 +2105,7 @@ export const generateFullUnitContent = async (
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [
         { role: "system", content: systemPrompt },
@@ -2193,7 +2223,7 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
   `;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }]
     });
@@ -2248,7 +2278,7 @@ export const checkOpenQuestionAnswer = async (
     `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -2276,7 +2306,7 @@ export const generateQuestionsFromText = async (text: string, type: string) => {
   `;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -2291,7 +2321,7 @@ export const generateQuestionsFromText = async (text: string, type: string) => {
 
 export const generateImagePromptBlock = async (context: string) => {
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: `Suggest a creative, safe, educational image prompt(English) for: "${context.substring(0, 300)}".` }]
     });
@@ -2327,7 +2357,7 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
     }
     `;
   try {
-    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.categories || result.categories.length < 2) return null;
@@ -2356,7 +2386,7 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
     }
     `;
   try {
-    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.correct_order || result.correct_order.length < 2) return null;
@@ -2384,7 +2414,7 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
     }
     `;
   try {
-    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const parsed = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation: Must have at least one cloze deletion
     if (!parsed.text || !parsed.text.includes('[') || !parsed.text.includes(']')) return null;
@@ -2414,7 +2444,7 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
     }
     `;
   try {
-    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.pairs || result.pairs.length < 3) return null;
@@ -2462,7 +2492,7 @@ export const generateStudentReport = async (studentData: any) => {
     `;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -2548,7 +2578,7 @@ export const generateStudentAnalysis = async (
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -2589,7 +2619,7 @@ export const generateClassAnalysis = async (students: any[]) => {
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -2632,7 +2662,7 @@ export const generateSingleMultipleChoiceQuestion = async (
   `;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -2685,7 +2715,7 @@ export const generateSingleOpenQuestion = async (
   `;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -2740,7 +2770,7 @@ export const refineBlockContent = async (
   `;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await (await getOpenAIClient()).chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -2820,7 +2850,7 @@ export const generateDifferentiatedContent = async (
         Generate the 3 levels now.
         `;
 
-    const response = await openai.chat.completions.create({
+    const response = await (await getOpenAIClient()).chat.completions.create({
       model: "gpt-4o", // Use a smart model for this complex task
       messages: [
         { role: "system", content: sysPrompt },
