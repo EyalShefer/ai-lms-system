@@ -145,7 +145,7 @@ const AuthenticatedApp = () => {
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
 
   const { loadCourse } = useCourseStore();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
 
   useEffect(() => {
     // console.log("DEBUG: App wizardMode changed to:", wizardMode);
@@ -589,7 +589,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={() => setMode('qa-admin')} onNavigateToKnowledgeBase={() => setMode('knowledge-base')} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}

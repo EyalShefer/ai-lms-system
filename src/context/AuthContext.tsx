@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase';
-import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // Import signInAnonymously
+import { auth, db } from '../firebase';
+import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
 interface AuthContextType {
     currentUser: User | null;
     loading: boolean;
+    isAdmin: boolean;
     mockLogin: () => void;
     googleClassroomToken: string | null;
     connectClassroom: () => Promise<void>;
@@ -16,11 +18,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [googleClassroomToken, setGoogleClassroomToken] = useState<string | null>(null);
 
     useEffect(() => {
         console.log("🔵 AuthProvider: מאזין לשינויי התחברות...");
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             console.log("🟢 AuthProvider: סטטוס משתמש השתנה:", user ? "מחובר (" + (user.email || 'Anonymous') + ")" : "מנותק");
 
             if (user && user.isAnonymous) {
@@ -29,8 +32,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 Object.defineProperty(devUser, 'email', { value: 'dev@test.com' });
                 Object.defineProperty(devUser, 'displayName', { value: 'Wizdi Developer (Anon)' });
                 setCurrentUser(devUser);
+                setIsAdmin(false);
             } else {
                 setCurrentUser(user);
+
+                // Check if user is admin
+                if (user) {
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', user.uid));
+                        const userData = userDoc.data();
+                        const hasAdminRole = userData?.roles?.includes('admin') || userData?.isAdmin === true;
+                        setIsAdmin(hasAdminRole);
+                        console.log("👤 Admin status:", hasAdminRole);
+                    } catch (error) {
+                        console.warn("Failed to check admin status:", error);
+                        setIsAdmin(false);
+                    }
+                } else {
+                    setIsAdmin(false);
+                }
             }
             setLoading(false);
         });
@@ -79,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, loading, mockLogin, googleClassroomToken, connectClassroom }}>
+        <AuthContext.Provider value={{ currentUser, loading, isAdmin, mockLogin, googleClassroomToken, connectClassroom }}>
             {children}
         </AuthContext.Provider>
     );
