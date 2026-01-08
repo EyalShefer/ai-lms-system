@@ -5,6 +5,49 @@ import { getSkeletonPrompt, getStepContentPrompt, getPodcastPrompt, getGuardianP
 import { mapSystemItemToBlock, cleanJsonString } from "../shared/utils/geminiParsers";
 import { getCached, setCache, getSkeletonCacheKey, getStepContentCacheKey } from "../services/cacheService";
 import { getOpenAIClient } from "../utils/connectionPool";
+import { KnowledgeService } from "../services/knowledgeBase";
+
+// Helper to convert grade level string to Knowledge Base grade format
+const gradeToKBFormat = (gradeLevel: string): 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב' | null => {
+    if (!gradeLevel) return null;
+    const g = gradeLevel.toLowerCase();
+
+    // Map various formats to Knowledge Base grade format
+    const gradeMap: Record<string, 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב'> = {
+        // Hebrew letter formats
+        'א': 'א', 'ב': 'ב', 'ג': 'ג', 'ד': 'ד', 'ה': 'ה', 'ו': 'ו',
+        'ז': 'ז', 'ח': 'ח', 'ט': 'ט', 'י': 'י', 'יא': 'יא', 'יב': 'יב',
+        // Full Hebrew class names
+        "כיתה א": 'א', "כיתה א׳": 'א', "כיתה א'": 'א',
+        "כיתה ב": 'ב', "כיתה ב׳": 'ב', "כיתה ב'": 'ב',
+        "כיתה ג": 'ג', "כיתה ג׳": 'ג', "כיתה ג'": 'ג',
+        "כיתה ד": 'ד', "כיתה ד׳": 'ד', "כיתה ד'": 'ד',
+        "כיתה ה": 'ה', "כיתה ה׳": 'ה', "כיתה ה'": 'ה',
+        "כיתה ו": 'ו', "כיתה ו׳": 'ו', "כיתה ו'": 'ו',
+        "כיתה ז": 'ז', "כיתה ז׳": 'ז', "כיתה ז'": 'ז',
+        "כיתה ח": 'ח', "כיתה ח׳": 'ח', "כיתה ח'": 'ח',
+        "כיתה ט": 'ט', "כיתה ט׳": 'ט', "כיתה ט'": 'ט',
+        "כיתה י": 'י', "כיתה י׳": 'י', "כיתה י'": 'י',
+        "כיתה יא": 'יא', "כיתה י״א": 'יא', "כיתה יא'": 'יא',
+        "כיתה יב": 'יב', "כיתה י״ב": 'יב', "כיתה יב'": 'יב',
+        // English/number formats
+        '1': 'א', '2': 'ב', '3': 'ג', '4': 'ד', '5': 'ה', '6': 'ו',
+        '7': 'ז', '8': 'ח', '9': 'ט', '10': 'י', '11': 'יא', '12': 'יב',
+        'first': 'א', 'second': 'ב', 'third': 'ג', 'fourth': 'ד',
+        'fifth': 'ה', 'sixth': 'ו', 'seventh': 'ז', 'eighth': 'ח',
+        'ninth': 'ט', 'tenth': 'י', 'eleventh': 'יא', 'twelfth': 'יב',
+    };
+
+    // Direct match
+    if (gradeMap[g]) return gradeMap[g];
+
+    // Search for partial match
+    for (const [key, value] of Object.entries(gradeMap)) {
+        if (g.includes(key)) return value;
+    }
+
+    return null;
+};
 
 // Note: In a real migration, we would ideally move the 'geminiApi.ts' logic 
 // fully to a 'service' file in the backend. For this "Vault" phase, 
@@ -258,9 +301,34 @@ Generate a JSON object with the following structure. Strict JSON.
             }
         }
 
-        const contextPart = sourceText
-            ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
-            : `Topic: "${topic}"`;
+        // Fetch Knowledge Base context if no sourceText provided
+        let knowledgeBaseContext = "";
+        const kbGrade = gradeToKBFormat(gradeLevel);
+        if (!sourceText && topic && kbGrade) {
+            try {
+                logger.info(`🔍 Fetching Knowledge Base context for topic: "${topic}", grade: ${kbGrade}`);
+                const knowledgeService = new KnowledgeService(openaiApiKey.value());
+                knowledgeBaseContext = await knowledgeService.searchForPromptContext(topic, kbGrade, {
+                    includeTeacherGuide: true,
+                    maxChunks: 5
+                });
+                if (knowledgeBaseContext) {
+                    logger.info(`📚 Knowledge Base returned ${knowledgeBaseContext.length} chars of context`);
+                }
+            } catch (kbError: any) {
+                logger.warn(`Knowledge Base lookup failed (continuing without): ${kbError.message}`);
+            }
+        }
+
+        // Build context: prioritize sourceText, then Knowledge Base, then just topic
+        let contextPart: string;
+        if (sourceText) {
+            contextPart = `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`;
+        } else if (knowledgeBaseContext) {
+            contextPart = `Topic: "${topic}"\n\n**CURRICULUM REFERENCE MATERIAL (from Knowledge Base):**\n${knowledgeBaseContext}\n\n**IMPORTANT:** Use the above curriculum material as your PRIMARY source. Generate content that aligns with how this topic is taught at this grade level.`;
+        } else {
+            contextPart = `Topic: "${topic}"`;
+        }
 
         const bloomSteps = getBloomDistribution(stepCount, bloomPreferences);
 
@@ -360,7 +428,35 @@ Generate a JSON object with the following structure. Strict JSON.
         // Dynamic Linguistic Constraints based on Grade Level (CEFR Standards)
         const linguisticConstraints = getLinguisticConstraintsByGrade(gradeLevel);
 
-        const contextText = sourceText ? `Source: ${sourceText.substring(0, 3000)}...` : `Topic: ${topic}`;
+        // Fetch Knowledge Base context if no sourceText provided
+        let knowledgeBaseContext = "";
+        const kbGrade = gradeToKBFormat(gradeLevel);
+        const stepNarrativeFocus = stepInfo?.narrative_focus || stepInfo?.description || topic;
+        if (!sourceText && stepNarrativeFocus && kbGrade) {
+            try {
+                logger.info(`🔍 Step ${stepInfo?.step_number}: Fetching KB context for "${stepNarrativeFocus}"`);
+                const knowledgeService = new KnowledgeService(openaiApiKey.value());
+                knowledgeBaseContext = await knowledgeService.searchForPromptContext(stepNarrativeFocus, kbGrade, {
+                    includeTeacherGuide: true,
+                    maxChunks: 3 // Smaller context for step content
+                });
+                if (knowledgeBaseContext) {
+                    logger.info(`📚 Step ${stepInfo?.step_number}: KB returned ${knowledgeBaseContext.length} chars`);
+                }
+            } catch (kbError: any) {
+                logger.warn(`Step ${stepInfo?.step_number}: KB lookup failed: ${kbError.message}`);
+            }
+        }
+
+        // Build context: prioritize sourceText, then Knowledge Base
+        let contextText: string;
+        if (sourceText) {
+            contextText = `Source: ${sourceText.substring(0, 3000)}...`;
+        } else if (knowledgeBaseContext) {
+            contextText = `Topic: ${topic}\n\n**CURRICULUM REFERENCE (from Knowledge Base):**\n${knowledgeBaseContext}\n\n**Use this material as the basis for generating age-appropriate content.**`;
+        } else {
+            contextText = `Topic: ${topic}`;
+        }
 
         const prompt = getStepContentPrompt(
             contextText,
