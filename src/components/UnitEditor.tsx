@@ -662,12 +662,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             if (!sourceText || sourceText.length < 10) {
                 const userTopic = prompt("נראה שאין מספיק תוכן ליצירת שאלה. על מה תרצו שהשאלה תהיה?");
                 if (!userTopic) return;
-                const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, userTopic);
+                const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, userTopic, subject);
                 if (result) updateBlock(blockId, { question: result.content.question, options: result.content.options, correctAnswer: result.content.correctAnswer });
                 return;
             }
 
-            const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, sourceText);
+            const result = await generateSingleMultipleChoiceQuestion(editedUnit.title, gradeLevel, {}, sourceText, subject);
             if (result) {
                 updateBlock(blockId, { question: result.content.question, options: result.content.options, correctAnswer: result.content.correctAnswer });
             } else {
@@ -685,7 +685,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setLoadingBlockId(blockId);
         try {
             const sourceText = course.fullBookContent || "";
-            const result = await generateCategorizationQuestion(editedUnit.title, gradeLevel, sourceText);
+            const result = await generateCategorizationQuestion(editedUnit.title, gradeLevel, sourceText, subject);
             if (result) updateBlock(blockId, result);
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
@@ -693,7 +693,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setLoadingBlockId(blockId);
         try {
             const sourceText = course.fullBookContent || "";
-            const result = await generateOrderingQuestion(editedUnit.title, gradeLevel, sourceText);
+            const result = await generateOrderingQuestion(editedUnit.title, gradeLevel, sourceText, subject);
             if (result) updateBlock(blockId, result);
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
@@ -701,7 +701,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setLoadingBlockId(blockId);
         try {
             const sourceText = course.fullBookContent || "";
-            const result = await generateFillInBlanksQuestion(editedUnit.title, gradeLevel, sourceText);
+            const result = await generateFillInBlanksQuestion(editedUnit.title, gradeLevel, sourceText, subject);
             if (result) updateBlock(blockId, result);
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
@@ -709,7 +709,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setLoadingBlockId(blockId);
         try {
             const sourceText = course.fullBookContent || "";
-            const result = await generateMemoryGame(editedUnit.title, gradeLevel, sourceText);
+            const result = await generateMemoryGame(editedUnit.title, gradeLevel, sourceText, subject);
             if (result) updateBlock(blockId, result);
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };

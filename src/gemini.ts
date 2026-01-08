@@ -2365,8 +2365,47 @@ export const generateImagePromptBlock = async (context: string) => {
 // NEW GENERATORS (Categorization, Ordering, etc.)
 // ==========================================
 
-export const generateCategorizationQuestion = async (topic: string, gradeLevel: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+/**
+ * Helper function to fetch knowledge base context for math topics
+ */
+const getKnowledgeBaseContext = async (topic: string, gradeLevel: string, subject?: string): Promise<string> => {
+  // Check if this is a math topic
+  const isMathTopic = subject === 'math' ||
+    /מתמטיקה|חשבון|חיבור|חיסור|כפל|חילוק|שבר|אחוז|גיאומטריה|שטח|היקף|מספר|ספרה|עשרות|מאות|אלפים/.test(topic);
+
+  if (!isMathTopic) {
+    return '';
+  }
+
+  try {
+    // Extract Hebrew grade letter from gradeLevel
+    const gradeMatch = gradeLevel.match(/[א-ת]/);
+    const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+
+    console.log(`📚 Fetching knowledge base context for: ${topic}, grade ${hebrewGrade}`);
+    const context = await getKnowledgeContext(topic, hebrewGrade);
+
+    if (context) {
+      console.log(`✅ Found knowledge base context (${context.length} chars)`);
+      return formatKnowledgeForPrompt(context);
+    }
+  } catch (error) {
+    console.warn('Failed to fetch knowledge context:', error);
+  }
+
+  return '';
+};
+
+export const generateCategorizationQuestion = async (topic: string, gradeLevel: string, sourceText?: string, subject?: string) => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
+  }
   const prompt = `
     Create a detailed Categorization Activity.
       ${grounding}
@@ -2396,8 +2435,16 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
   } catch { return null; }
 };
 
-export const generateOrderingQuestion = async (topic: string, gradeLevel: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+export const generateOrderingQuestion = async (topic: string, gradeLevel: string, sourceText?: string, subject?: string) => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
+  }
   const prompt = `
     Create an Ordering / Sequencing Activity.
       ${grounding}
@@ -2424,8 +2471,16 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
   } catch { return null; }
 };
 
-export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: string, sourceText?: string, subject?: string) => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
+  }
   const prompt = `
     Create a Fill -in -the - Blanks(Cloze) Text.
       ${grounding}
@@ -2452,8 +2507,16 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
   } catch { return null; }
 };
 
-export const generateMemoryGame = async (topic: string, gradeLevel: string, sourceText?: string) => {
-  const grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+export const generateMemoryGame = async (topic: string, gradeLevel: string, sourceText?: string, subject?: string) => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
+  }
   const prompt = `
     Create a Memory Game(Matching Pairs).
       ${grounding}
@@ -2667,22 +2730,32 @@ export const generateClassAnalysis = async (students: any[]) => {
 // --- PODCAST FOLLOW-UP GENERATORS (Single Block) ---
 
 export const generateSingleMultipleChoiceQuestion = async (
-  _topic: string,
+  topic: string,
   gradeLevel: string,
   _taxonomy: any,
-  sourceText: string
+  sourceText: string,
+  subject?: string
 ): Promise<any | null> => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let textSection = sourceText ? `TEXT:\n"""${sourceText.substring(0, 5000)}"""` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    textSection = `${knowledgeContext}\n\n---\n\n${textSection}`;
+  }
+
   const prompt = `
-    Based on the following text (Podcast Script), create a single Multiple Choice Question.
-    
-    TEXT:
-    """${sourceText.substring(0, 5000)}"""
+    Based on the following content, create a single Multiple Choice Question.
+
+    ${textSection}
 
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
-    
+
     Goal: Test understanding of the core message.
-    
+
     OUTPUT JSON:
     {
       "question": "The question text",
@@ -2721,22 +2794,32 @@ export const generateSingleMultipleChoiceQuestion = async (
 };
 
 export const generateSingleOpenQuestion = async (
-  _topic: string,
+  topic: string,
   gradeLevel: string,
   _taxonomy: any,
-  sourceText: string
+  sourceText: string,
+  subject?: string
 ): Promise<any | null> => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  let textSection = sourceText ? `TEXT:\n"""${sourceText.substring(0, 5000)}"""` : `Topic: "${topic}"`;
+
+  // Add knowledge base context if available
+  if (knowledgeContext) {
+    textSection = `${knowledgeContext}\n\n---\n\n${textSection}`;
+  }
+
   const prompt = `
-    Based on the following text (Podcast Script), create a single Open-Ended Question.
-    
-    TEXT:
-    """${sourceText.substring(0, 5000)}"""
+    Based on the following content, create a single Open-Ended Question.
+
+    ${textSection}
 
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
-    
+
     Goal: Encourage deep thinking or opinion.
-    
+
     OUTPUT JSON:
     {
       "question": "The open question text",
