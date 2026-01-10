@@ -2,7 +2,6 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
-import LandingPage from './components/LandingPage'; // Import Landing Page
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
 import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
@@ -13,14 +12,19 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 
 // --- Lazy Loading ---
-const HomePage = React.lazy(() => import('./components/HomePageRedesign'));
 const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
 const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard'));
-const StudentHome = React.lazy(() => import('./components/StudentHome'));
 const PedagogicalInsights = React.lazy(() => import('./components/PedagogicalInsights'));
 const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'));
-const SequentialCoursePlayer = React.lazy(() => import('./components/SequentialCoursePlayer'));
+
+// --- Responsive Components (auto-switch between desktop/mobile) ---
+import {
+    ResponsiveHomePage as HomePage,
+    ResponsiveStudentHome as StudentHome,
+    ResponsiveSequentialCoursePlayer as SequentialCoursePlayer,
+    ResponsiveLandingPage as LandingPage
+} from './components/ResponsiveWrappers';
 const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
 const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
 const QADashboard = React.lazy(() => import('./components/QADashboard'));

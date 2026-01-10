@@ -35,8 +35,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             {/* Navbar */}
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-white/40 px-6 py-4 flex justify-between items-center shadow-glass">
                 <div className="flex items-center gap-2">
-                    <img src="/WizdiLogo.png" alt="Hebrew LMS" className="h-10 w-auto" loading="eager" decoding="async" />
-                    <span className="font-black text-xl tracking-tight text-wizdi-royal">Hebrew LMS</span>
+                    <img src="/WizdiLogo.png" alt="Wizdi" className="h-10 w-auto" loading="eager" decoding="async" />
+                    <span className="font-black text-xl tracking-tight text-wizdi-royal">Wizdi</span>
                 </div>
                 <div className="flex items-center gap-4">
                     <button onClick={onLogin} className="text-wizdi-royal hover:text-wizdi-royal/80 font-bold transition-colors">כניסה למערכת</button>
