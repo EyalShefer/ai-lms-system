@@ -27,7 +27,7 @@ const Login: React.FC = () => {
                     className="w-full py-3 px-4 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-3 font-bold text-gray-700"
                 >
                     {/* אייקון גוגל רשמי */}
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" loading="eager" decoding="async" />
                     כניסה עם Google
                 </button>
 

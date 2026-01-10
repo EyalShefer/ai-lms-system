@@ -87,6 +87,8 @@ const CourseList: React.FC<CourseListProps> = ({ onSelectCourse, onCreateNew }) 
                         alt="Wizdi Studio"
                         className="h-32 w-auto object-contain hover:scale-105 transition-transform duration-500 drop-shadow-sm"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        loading="eager"
+                        decoding="async"
                     />
                 </div>
 

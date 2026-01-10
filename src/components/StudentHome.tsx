@@ -65,35 +65,35 @@ const TaskCard: React.FC<{
     const getStatusBadge = () => {
         if (task.status === 'graded') {
             return (
-                <span className="px-2.5 py-1 bg-wizdi-lime/20 text-wizdi-lime text-xs font-bold rounded-full flex items-center gap-1">
-                    <IconCheck size={12} /> נבדק
+                <span className="px-2.5 py-1 bg-wizdi-action-light text-wizdi-action-dark text-xs font-bold rounded-full flex items-center gap-1" aria-label="נבדק">
+                    <IconCheck size={12} aria-hidden="true" /> נבדק
                 </span>
             );
         }
         if (task.status === 'submitted') {
             return (
-                <span className="px-2.5 py-1 bg-wizdi-cyan/20 text-wizdi-cyan text-xs font-bold rounded-full flex items-center gap-1">
-                    <IconClipboardCheck size={12} /> הוגש
+                <span className="px-2.5 py-1 bg-wizdi-cyan/20 text-wizdi-cyan text-xs font-bold rounded-full flex items-center gap-1" aria-label="הוגש">
+                    <IconClipboardCheck size={12} aria-hidden="true" /> הוגש
                 </span>
             );
         }
         if (isOverdue) {
             return (
-                <span className="px-2.5 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full flex items-center gap-1">
-                    <IconAlertTriangle size={12} /> באיחור
+                <span className="px-2.5 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full flex items-center gap-1" aria-label="באיחור">
+                    <IconAlertTriangle size={12} aria-hidden="true" /> באיחור
                 </span>
             );
         }
         if (isNew) {
             return (
-                <span className="px-2.5 py-1 bg-wizdi-royal/10 text-wizdi-royal text-xs font-bold rounded-full flex items-center gap-1 animate-pulse">
-                    <IconSparkles size={12} /> חדש
+                <span className="px-2.5 py-1 bg-wizdi-royal/10 text-wizdi-royal text-xs font-bold rounded-full flex items-center gap-1 animate-pulse motion-reduce:animate-none" aria-label="משימה חדשה">
+                    <IconSparkles size={12} aria-hidden="true" /> חדש
                 </span>
             );
         }
         if (task.progress > 0) {
             return (
-                <span className="px-2.5 py-1 bg-wizdi-gold/20 text-wizdi-gold text-xs font-bold rounded-full">
+                <span className="px-2.5 py-1 bg-wizdi-gold/20 text-wizdi-gold text-xs font-bold rounded-full" aria-label="בתהליך">
                     בתהליך
                 </span>
             );
@@ -102,50 +102,70 @@ const TaskCard: React.FC<{
     };
 
     const getTaskIcon = () => {
-        if (task.taskType === 'exam') return <IconClipboardCheck size={20} />;
-        if (task.taskType === 'practice') return <IconTarget size={20} />;
-        return <IconBook size={20} />;
+        if (task.taskType === 'exam') return <IconClipboardCheck size={20} aria-hidden="true" />;
+        if (task.taskType === 'practice') return <IconTarget size={20} aria-hidden="true" />;
+        return <IconBook size={20} aria-hidden="true" />;
+    };
+
+    const getTaskTypeLabel = () => {
+        if (task.taskType === 'exam') return 'מבחן';
+        if (task.taskType === 'practice') return 'תרגול';
+        return 'שיעור';
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+        }
     };
 
     return (
-        <div
+        <article
             onClick={onClick}
+            onKeyDown={handleKeyDown}
+            role="button"
+            tabIndex={0}
+            aria-label={`${getTaskTypeLabel()}: ${task.title}. ${isCompleted ? 'הושלם' : isOverdue ? 'באיחור' : isNew ? 'חדש' : ''}`}
             className={`
                 card-glass rounded-3xl p-6 cursor-pointer transition-all duration-300
                 hover:shadow-xl hover:-translate-y-2 hover:border-wizdi-cyan active:scale-[0.98]
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
+                motion-reduce:hover:transform-none motion-reduce:active:transform-none
+                dark:bg-slate-800/80
                 ${isCompleted ? 'opacity-75' : isOverdue ? 'ring-2 ring-red-200' : isNew ? 'ring-2 ring-wizdi-cyan/30 shadow-lg shadow-wizdi-cyan/10' : ''}
             `}
         >
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
                 <div className={`p-2.5 rounded-xl ${
-                    isCompleted ? 'bg-wizdi-lime/20 text-wizdi-lime' :
+                    isCompleted ? 'bg-wizdi-action-light text-wizdi-action' :
                     isOverdue ? 'bg-red-100 text-red-600' :
                     'bg-wizdi-royal/10 text-wizdi-royal'
-                }`}>
+                }`} aria-hidden="true">
                     {getTaskIcon()}
                 </div>
                 {getStatusBadge()}
             </div>
 
             {/* Title */}
-            <h3 className={`font-bold text-lg mb-1 line-clamp-2 ${isCompleted ? 'text-slate-400' : 'text-slate-800'}`}>
+            <h3 className={`font-bold text-lg mb-1 line-clamp-2 ${isCompleted ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-white'}`}>
                 {task.title}
             </h3>
 
             {/* Meta info */}
-            <p className="text-sm text-slate-500 mb-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                 {task.courseTitle} {task.teacherName && `• ${task.teacherName}`}
             </p>
 
             {/* Progress bar (if in progress) */}
             {task.progress > 0 && task.progress < 100 && (
-                <div className="mb-3">
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                <div className="mb-3" role="progressbar" aria-valuenow={task.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`התקדמות: ${task.progress}%`}>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
                         <span>התקדמות</span>
                         <span>{task.progress}%</span>
                     </div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan rounded-full transition-all"
                             style={{ width: `${task.progress}%` }}
@@ -156,24 +176,24 @@ const TaskCard: React.FC<{
 
             {/* Score (if graded) */}
             {task.status === 'graded' && task.score !== undefined && (
-                <div className="mb-3 bg-wizdi-lime/10 rounded-xl p-3 text-center border border-wizdi-lime/20">
-                    <div className="text-2xl font-black text-wizdi-lime">{task.percentage}%</div>
-                    <div className="text-xs text-wizdi-lime/80">{task.score}/{task.maxPoints} נקודות</div>
+                <div className="mb-3 bg-wizdi-action-light dark:bg-wizdi-action/20 rounded-xl p-3 text-center border border-wizdi-action/20" aria-label={`ציון: ${task.percentage}%, ${task.score} מתוך ${task.maxPoints} נקודות`}>
+                    <div className="text-2xl font-black text-wizdi-action">{task.percentage}%</div>
+                    <div className="text-xs text-wizdi-action/80">{task.score}/{task.maxPoints} נקודות</div>
                 </div>
             )}
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
                 {/* Due date */}
                 {task.dueDate && !isCompleted && (
-                    <div className={`flex items-center gap-1.5 text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
-                        <IconClock size={14} />
+                    <div className={`flex items-center gap-1.5 text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                        <IconClock size={14} aria-hidden="true" />
                         <span>{formatDueDate(task.dueDate)}</span>
                     </div>
                 )}
                 {isCompleted && task.submittedAt && (
-                    <div className="flex items-center gap-1.5 text-sm text-slate-400">
-                        <IconCheck size={14} />
+                    <div className="flex items-center gap-1.5 text-sm text-slate-400 dark:text-slate-500">
+                        <IconCheck size={14} aria-hidden="true" />
                         <span>הוגש</span>
                     </div>
                 )}
@@ -181,20 +201,20 @@ const TaskCard: React.FC<{
 
                 {/* Points */}
                 <div className="flex items-center gap-1 text-sm text-wizdi-gold font-medium">
-                    <IconStar size={14} className="fill-wizdi-gold" />
+                    <IconStar size={14} className="fill-wizdi-gold" aria-hidden="true" />
                     <span>{task.maxPoints} נק׳</span>
                 </div>
             </div>
 
             {/* Action hint */}
             {!isCompleted && (
-                <div className="mt-4 flex items-center justify-center">
-                    <span className="btn-lip-action px-6 py-2 text-sm">
+                <div className="mt-4 flex items-center justify-center" aria-hidden="true">
+                    <span className="btn-lip-action px-6 py-2 min-h-[36px] text-sm">
                         {task.progress > 0 ? 'המשך' : 'התחל'} <IconChevronLeft size={16} className="inline mr-1" />
                     </span>
                 </div>
             )}
-        </div>
+        </article>
     );
 };
 
@@ -279,43 +299,55 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
         <div className="min-h-screen pb-32 font-sans text-slate-900 overflow-x-hidden" dir="rtl">
 
             {/* --- TOP BAR (GAMIFICATION HUD) --- */}
-            <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-wizdi-cloud z-40">
+            <header className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-wizdi-cloud dark:border-slate-800 z-sticky" role="banner">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     {/* League */}
-                    <div className="flex items-center gap-2 hover:bg-wizdi-cloud p-2 rounded-xl cursor-pointer transition-colors">
-                        <IconTrophy className="text-wizdi-gold fill-wizdi-gold w-6 h-6" />
-                        <div className="hidden sm:block">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">ליגה</div>
+                    <button
+                        className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-gold"
+                        aria-label={`ליגה: ${gameStats.league.name}, דירוג ${gameStats.league.rank} מתוך ${gameStats.league.totalParticipants}`}
+                    >
+                        <IconTrophy className="text-wizdi-gold fill-wizdi-gold w-6 h-6" aria-hidden="true" />
+                        <div className="hidden sm:block text-right">
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">ליגה</div>
                             <div className="text-sm font-bold text-wizdi-gold">{gameStats.league.name}</div>
                         </div>
-                    </div>
+                    </button>
 
                     {/* Streak */}
-                    <div className="flex items-center gap-2 hover:bg-wizdi-cloud p-2 rounded-xl cursor-pointer transition-colors">
+                    <button
+                        className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        aria-label={`רצף: ${gameStats.streak.current} ימים רצופים`}
+                    >
                         <div className="relative">
-                            <IconFlame className="text-orange-500 fill-orange-500 w-6 h-6 animate-pulse" />
-                            <div className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[9px] font-black px-1 rounded-full">
+                            <IconFlame className="text-orange-500 fill-orange-500 w-6 h-6 animate-pulse motion-reduce:animate-none" aria-hidden="true" />
+                            <div className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[9px] font-black px-1 rounded-full" aria-hidden="true">
                                 {gameStats.streak.current}
                             </div>
                         </div>
                         <span className="hidden sm:block text-sm font-bold text-orange-600">{gameStats.streak.current} ימים</span>
-                    </div>
+                    </button>
 
                     {/* Gems */}
-                    <div className="flex items-center gap-2 hover:bg-wizdi-cloud p-2 rounded-xl cursor-pointer transition-colors">
-                        <IconDiamond className="text-wizdi-cyan fill-wizdi-cyan w-6 h-6" />
+                    <button
+                        className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan"
+                        aria-label={`${gameStats.currency.gems} יהלומים`}
+                    >
+                        <IconDiamond className="text-wizdi-cyan fill-wizdi-cyan w-6 h-6" aria-hidden="true" />
                         <span className="text-sm font-bold text-wizdi-cyan">{gameStats.currency.gems}</span>
-                    </div>
+                    </button>
 
                     {/* Notifications */}
-                    <div className="relative hover:bg-wizdi-cloud p-2 rounded-xl cursor-pointer transition-colors">
-                        <IconBell className="w-6 h-6 text-slate-400" />
+                    <button
+                        className="relative hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] min-w-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
+                        aria-label={newTasksCount > 0 ? `${newTasksCount} התראות חדשות` : 'אין התראות חדשות'}
+                    >
+                        <IconBell className="w-6 h-6 text-slate-400 dark:text-slate-500" aria-hidden="true" />
                         {newTasksCount > 0 && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce motion-reduce:animate-none" aria-hidden="true">
                                 {newTasksCount}
                             </div>
                         )}
-                    </div>
+                    </button>
                 </div>
             </header>
 
@@ -359,40 +391,49 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                 </div>
 
                 {/* --- FILTER TABS --- */}
-                <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-2" role="tablist" aria-label="סינון משימות">
                     <button
                         onClick={() => setActiveFilter('all')}
-                        className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition-all ${
+                        role="tab"
+                        aria-selected={activeFilter === 'all'}
+                        aria-controls="tasks-panel"
+                        className={`px-4 py-2 min-h-[44px] rounded-full font-bold text-sm whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ${
                             activeFilter === 'all'
                                 ? 'btn-lip-primary shadow-lg'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:border-wizdi-cyan'
+                                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-wizdi-cyan'
                         }`}
                     >
                         כל המשימות
                     </button>
                     <button
                         onClick={() => setActiveFilter('pending')}
-                        className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
+                        role="tab"
+                        aria-selected={activeFilter === 'pending'}
+                        aria-controls="tasks-panel"
+                        className={`px-4 py-2 min-h-[44px] rounded-full font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ${
                             activeFilter === 'pending'
                                 ? 'btn-lip-primary shadow-lg'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:border-wizdi-cyan'
+                                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-wizdi-cyan'
                         }`}
                     >
                         להגשה
                         {pendingCount > 0 && (
                             <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                                activeFilter === 'pending' ? 'bg-white/20' : 'bg-wizdi-royal/10 text-wizdi-royal'
-                            }`}>
+                                activeFilter === 'pending' ? 'bg-white/20' : 'bg-wizdi-royal/10 text-wizdi-royal dark:bg-wizdi-royal/20'
+                            }`} aria-label={`${pendingCount} משימות`}>
                                 {pendingCount}
                             </span>
                         )}
                     </button>
                     <button
                         onClick={() => setActiveFilter('completed')}
-                        className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition-all ${
+                        role="tab"
+                        aria-selected={activeFilter === 'completed'}
+                        aria-controls="tasks-panel"
+                        className={`px-4 py-2 min-h-[44px] rounded-full font-bold text-sm whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ${
                             activeFilter === 'completed'
                                 ? 'btn-lip-primary shadow-lg'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:border-wizdi-cyan'
+                                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-wizdi-cyan'
                         }`}
                     >
                         הושלמו
@@ -400,53 +441,61 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                 </div>
 
                 {/* --- TASKS GRID --- */}
-                {filteredTasks.length === 0 ? (
-                    <EmptyState
-                        type={
-                            activeFilter === 'completed' ? 'no-completed' :
-                            activeFilter === 'pending' ? 'no-pending' :
-                            'no-tasks'
-                        }
-                    />
-                ) : (
-                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                                onClick={() => handleTaskClick(task)}
-                            />
-                        ))}
-                    </div>
-                )}
+                <div id="tasks-panel" role="tabpanel" aria-label={`משימות: ${activeFilter === 'all' ? 'כל המשימות' : activeFilter === 'pending' ? 'להגשה' : 'הושלמו'}`}>
+                    {filteredTasks.length === 0 ? (
+                        <EmptyState
+                            type={
+                                activeFilter === 'completed' ? 'no-completed' :
+                                activeFilter === 'pending' ? 'no-pending' :
+                                'no-tasks'
+                            }
+                        />
+                    ) : (
+                        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list" aria-label="רשימת משימות">
+                            {filteredTasks.map((task) => (
+                                <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    onClick={() => handleTaskClick(task)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
 
             </div>
 
             {/* --- TASK DETAIL MODAL --- */}
             {selectedTask && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                <div
+                    className="fixed inset-0 z-modal flex items-end sm:items-center justify-center"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="task-modal-title"
+                >
                     {/* Backdrop */}
                     <div
                         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
                         onClick={() => setSelectedTask(null)}
+                        aria-hidden="true"
                     />
 
                     {/* Card */}
-                    <div className="bg-white w-full sm:w-[480px] sm:rounded-3xl rounded-t-3xl relative z-10 animate-in slide-in-from-bottom-10 duration-300 shadow-2xl overflow-hidden">
+                    <div className="bg-white dark:bg-slate-800 w-full sm:w-[480px] sm:rounded-3xl rounded-t-3xl relative z-10 animate-in slide-in-from-bottom-10 duration-300 shadow-2xl overflow-hidden motion-reduce:animate-none">
                         {/* Header */}
                         <div className={`p-6 text-white ${
-                            selectedTask.status === 'graded' ? 'bg-gradient-to-l from-wizdi-lime to-green-600' :
+                            selectedTask.status === 'graded' ? 'bg-gradient-to-l from-wizdi-action to-wizdi-action-dark' :
                             selectedTask.isOverdue ? 'bg-gradient-to-l from-red-500 to-orange-500' :
                             'bg-gradient-to-l from-wizdi-royal to-wizdi-cyan'
                         }`}>
                             <div className="flex items-start gap-4">
-                                <div className="p-3 bg-white/20 rounded-xl">
+                                <div className="p-3 bg-white/20 rounded-xl" aria-hidden="true">
                                     {selectedTask.taskType === 'exam' ? <IconClipboardCheck size={28} /> :
                                      selectedTask.taskType === 'practice' ? <IconTarget size={28} /> :
                                      <IconBook size={28} />}
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="text-xl font-bold mb-1">{selectedTask.title}</h3>
+                                    <h3 id="task-modal-title" className="text-xl font-bold mb-1">{selectedTask.title}</h3>
                                     <p className="text-white/80 text-sm">{selectedTask.courseTitle}</p>
                                 </div>
                             </div>
@@ -456,56 +505,56 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                         <div className="p-6">
                             {/* Instructions */}
                             {selectedTask.instructions && (
-                                <div className="mb-4 p-4 bg-wizdi-cloud rounded-xl">
-                                    <h4 className="font-bold text-wizdi-royal mb-2">הוראות מהמורה:</h4>
-                                    <p className="text-slate-600 text-sm">{selectedTask.instructions}</p>
+                                <div className="mb-4 p-4 bg-wizdi-cloud dark:bg-slate-700 rounded-xl">
+                                    <h4 className="font-bold text-wizdi-royal dark:text-wizdi-cyan mb-2">הוראות מהמורה:</h4>
+                                    <p className="text-slate-600 dark:text-slate-300 text-sm">{selectedTask.instructions}</p>
                                 </div>
                             )}
 
                             {/* Meta info */}
-                            <div className="space-y-3 mb-6">
+                            <dl className="space-y-3 mb-6">
                                 {selectedTask.dueDate && (
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500 flex items-center gap-2">
-                                            <IconClock size={18} />
+                                        <dt className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                            <IconClock size={18} aria-hidden="true" />
                                             מועד הגשה
-                                        </span>
-                                        <span className={`font-medium ${selectedTask.isOverdue ? 'text-red-600' : 'text-slate-800'}`}>
+                                        </dt>
+                                        <dd className={`font-medium ${selectedTask.isOverdue ? 'text-red-600' : 'text-slate-800 dark:text-slate-200'}`}>
                                             {formatDueDate(selectedTask.dueDate)}
-                                        </span>
+                                        </dd>
                                     </div>
                                 )}
                                 <div className="flex items-center justify-between">
-                                    <span className="text-slate-500 flex items-center gap-2">
-                                        <IconStar size={18} className="text-wizdi-gold" />
+                                    <dt className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                        <IconStar size={18} className="text-wizdi-gold" aria-hidden="true" />
                                         ניקוד מקסימלי
-                                    </span>
-                                    <span className="font-medium text-slate-800">{selectedTask.maxPoints} נקודות</span>
+                                    </dt>
+                                    <dd className="font-medium text-slate-800 dark:text-slate-200">{selectedTask.maxPoints} נקודות</dd>
                                 </div>
                                 {selectedTask.teacherName && (
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500">מורה</span>
-                                        <span className="font-medium text-slate-800">{selectedTask.teacherName}</span>
+                                        <dt className="text-slate-500 dark:text-slate-400">מורה</dt>
+                                        <dd className="font-medium text-slate-800 dark:text-slate-200">{selectedTask.teacherName}</dd>
                                     </div>
                                 )}
-                            </div>
+                            </dl>
 
                             {/* Score display */}
                             {selectedTask.status === 'graded' && selectedTask.score !== undefined && (
-                                <div className="mb-6 bg-wizdi-lime/10 rounded-xl p-4 text-center border border-wizdi-lime/20">
-                                    <div className="text-4xl font-black text-wizdi-lime mb-1">{selectedTask.percentage}%</div>
-                                    <div className="text-wizdi-lime/80">{selectedTask.score}/{selectedTask.maxPoints} נקודות</div>
+                                <div className="mb-6 bg-wizdi-action-light dark:bg-wizdi-action/20 rounded-xl p-4 text-center border border-wizdi-action/20" aria-label={`ציון: ${selectedTask.percentage}%`}>
+                                    <div className="text-4xl font-black text-wizdi-action mb-1">{selectedTask.percentage}%</div>
+                                    <div className="text-wizdi-action/80">{selectedTask.score}/{selectedTask.maxPoints} נקודות</div>
                                 </div>
                             )}
 
                             {/* Progress display */}
                             {selectedTask.progress > 0 && selectedTask.progress < 100 && (
-                                <div className="mb-6">
-                                    <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
+                                <div className="mb-6" role="progressbar" aria-valuenow={selectedTask.progress} aria-valuemin={0} aria-valuemax={100}>
+                                    <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400 mb-2">
                                         <span>התקדמות נוכחית</span>
                                         <span>{selectedTask.progress}%</span>
                                     </div>
-                                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                         <div
                                             className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan rounded-full"
                                             style={{ width: `${selectedTask.progress}%` }}
@@ -518,19 +567,21 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                             <div className="grid grid-cols-2 gap-3">
                                 <button
                                     onClick={() => setSelectedTask(null)}
-                                    className="px-4 py-3 rounded-full font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                    className="px-4 py-3 min-h-[44px] rounded-full font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                                 >
                                     סגור
                                 </button>
                                 <button
                                     onClick={handleLaunch}
-                                    className={`flex items-center justify-center gap-2 ${
+                                    disabled={selectedTask.status === 'graded' || selectedTask.status === 'submitted'}
+                                    aria-disabled={selectedTask.status === 'graded' || selectedTask.status === 'submitted'}
+                                    className={`flex items-center justify-center gap-2 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan ${
                                         selectedTask.status === 'graded' || selectedTask.status === 'submitted'
-                                            ? 'px-4 py-3 rounded-full font-bold bg-slate-300 text-slate-500'
+                                            ? 'px-4 py-3 rounded-full font-bold bg-slate-300 dark:bg-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                             : 'btn-lip-action px-4 py-3'
                                     }`}
                                 >
-                                    <IconPlayerPlayFilled size={18} />
+                                    <IconPlayerPlayFilled size={18} aria-hidden="true" />
                                     {selectedTask.progress > 0 ? 'המשך' : 'התחל'}
                                 </button>
                             </div>
@@ -540,20 +591,30 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
             )}
 
             {/* --- BOTTOM NAV (Mobile) --- */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-wizdi-cloud p-4 pb-6 flex justify-around md:hidden z-40">
-                <button className="flex flex-col items-center gap-1 text-wizdi-royal">
-                    <IconBook className="w-6 h-6" />
+            <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-wizdi-cloud dark:border-slate-800 p-4 pb-6 flex justify-around md:hidden z-fixed" role="navigation" aria-label="ניווט ראשי">
+                <button
+                    className="flex flex-col items-center gap-1 text-wizdi-royal min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
+                    aria-current="page"
+                    aria-label="משימות - עמוד נוכחי"
+                >
+                    <IconBook className="w-6 h-6" aria-hidden="true" />
                     <span className="text-[10px] font-bold">משימות</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 text-slate-400 hover:text-wizdi-royal">
-                    <IconShoppingBag className="w-6 h-6" />
+                <button
+                    className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-wizdi-royal dark:hover:text-wizdi-cyan min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
+                    aria-label="חנות"
+                >
+                    <IconShoppingBag className="w-6 h-6" aria-hidden="true" />
                     <span className="text-[10px] font-bold">חנות</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 text-slate-400 hover:text-wizdi-royal">
-                    <IconShieldLock className="w-6 h-6" />
+                <button
+                    className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-wizdi-royal dark:hover:text-wizdi-cyan min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
+                    aria-label="פרופיל"
+                >
+                    <IconShieldLock className="w-6 h-6" aria-hidden="true" />
                     <span className="text-[10px] font-bold">פרופיל</span>
                 </button>
-            </div>
+            </nav>
 
         </div>
     );

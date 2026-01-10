@@ -7,7 +7,7 @@ import UnitEditor from './UnitEditor';
 import TeacherCockpit from './TeacherCockpit';
 import { IconEye, IconX } from '../icons';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks } from '../gemini';
 // import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -1108,7 +1108,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         if (nextUnitToGenerate) {
             const currentSubject = course.subject || "כללי";
 
-            generateFullUnitContent(
+            // Use the variant-enabled generator for adaptive content
+            generateFullUnitContentWithVariants(
                 nextUnitToGenerate.title,
                 course.title,
                 displayGrade,
@@ -1118,7 +1119,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 undefined, // taxonomy
                 true, // includeBot (default)
                 course.mode || 'learning', // Pass course mode
-                course.activityLength || 'medium'
+                course.activityLength || 'medium',
+                true // generateVariants - enable adaptive variants
             ).then((newBlocks: ActivityBlock[]) => {
                 if (newBlocks.length > 0) {
                     const backgroundSyllabus = newSyllabus.map((m: any) => ({

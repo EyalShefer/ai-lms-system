@@ -16,6 +16,16 @@ export { runE2EGenerationAgent } from './e2eGenerationAgent';
 export { runStudentActivityAgent, runActivitySession, validateScoringPolicy } from './studentActivityAgent';
 export { runAssessmentIntegrityAgent, validateCourseAssessment, validateScoringRules, ASSESSMENT_POLICY } from './assessmentIntegrityAgent';
 
+// Knowledge Base Integration Agent
+export {
+  runKnowledgeBaseQAAgent,
+  testKBSearchConnectivity,
+  testPedagogicalContextExtraction,
+  testPromptFormatting,
+  testContentGenerationWithKB,
+  testKBCoverage
+} from './knowledgeBaseQAAgent';
+
 // Auto-Fix Agent
 export {
   generateFixSuggestions,
@@ -57,6 +67,7 @@ import { runAIGenerationAgent } from './aiGenerationAgent';
 import { runE2EGenerationAgent } from './e2eGenerationAgent';
 import { runStudentActivityAgent } from './studentActivityAgent';
 import { runAssessmentIntegrityAgent } from './assessmentIntegrityAgent';
+import { runKnowledgeBaseQAAgent } from './knowledgeBaseQAAgent';
 import type { QAReport, QAAgentResult, TestSuite, TestResult } from '../../types/qa.types';
 
 export interface FullQARunOptions {
@@ -66,6 +77,7 @@ export interface FullQARunOptions {
   includeE2EGeneration?: boolean;  // E2E content generation testing
   includeStudentActivity?: boolean;  // Student activity/exam testing with scoring
   includeAssessmentIntegrity?: boolean;  // Assessment policy validation
+  includeKnowledgeBase?: boolean;  // Knowledge Base integration testing
   maxCourses?: number;
   saveReport?: boolean;
   userId?: string;
@@ -87,6 +99,7 @@ export async function runComprehensiveQA(options: FullQARunOptions = {}): Promis
     includeE2EGeneration = false, // Disabled by default (API costs)
     includeStudentActivity = false, // Disabled by default
     includeAssessmentIntegrity = false, // Disabled by default
+    includeKnowledgeBase = false, // Disabled by default
     maxCourses = 10,
     saveReport = true,
     userId
@@ -230,6 +243,28 @@ export async function runComprehensiveQA(options: FullQARunOptions = {}): Promis
       status: integrityResult.success ? 'passed' : 'failed'
     };
     report.suites.push(integritySuite);
+  }
+
+  // Run Knowledge Base Integration Agent (tests KB extraction and usage)
+  if (includeKnowledgeBase) {
+    console.log('\n📚 Running Knowledge Base QA Agent...');
+    const kbResult = await runKnowledgeBaseQAAgent(3); // Test 3 topics
+    agentResults.push(kbResult);
+
+    const kbSuite: TestSuite = {
+      id: 'suite_knowledge_base',
+      name: 'Knowledge Base Integration Tests',
+      nameHe: 'בדיקות אינטגרציית בסיס ידע',
+      category: 'knowledge-base',
+      tests: kbResult.allResults,
+      passedCount: kbResult.testsPassed,
+      failedCount: kbResult.testsFailed,
+      warningCount: kbResult.allResults.filter(t => t.status === 'warning').length,
+      skippedCount: 0,
+      duration: kbResult.duration,
+      status: kbResult.success ? 'passed' : 'failed'
+    };
+    report.suites.push(kbSuite);
   }
 
   // Recalculate summary

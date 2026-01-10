@@ -1107,7 +1107,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         if (!metadata?.media) return null;
         return (
             <div className="mb-4 relative rounded-xl overflow-hidden border border-gray-200">
-                {metadata.mediaType === 'video' ? <video src={metadata.media} controls className="w-full h-48 bg-black" /> : <img src={metadata.media} alt="מדיה" className="w-full h-48 object-cover bg-gray-50" />}
+                {metadata.mediaType === 'video' ? <video src={metadata.media} controls className="w-full h-48 bg-black" /> : <img src={metadata.media} alt="מדיה" className="w-full h-48 object-cover bg-gray-50" loading="lazy" decoding="async" />}
                 <button onClick={() => { const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId); if (block) updateBlock(blockId, block.content, { media: null, mediaType: null }); }} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-md border border-red-200" title="הסר מדיה"><IconTrash className="w-4 h-4" /></button>
             </div>
         );
@@ -1348,7 +1348,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     </div>
                                                 ) : (
                                                     <div className="relative">
-                                                        <img src={block.content} className="w-full h-64 object-cover rounded-xl shadow-md bg-gray-100" alt="Block Media" />
+                                                        <img src={block.content} className="w-full h-64 object-cover rounded-xl shadow-md bg-gray-100" alt="Block Media" loading="lazy" decoding="async" />
                                                         <button
                                                             onClick={() => updateBlock(block.id, '', { caption: null, mediaType: null, aiPrompt: null, uploadedFileUrl: null, fileName: null })}
                                                             className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-md border border-red-200"

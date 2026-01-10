@@ -181,7 +181,7 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
 
             {/* Header / Brand */}
             <div className="flex flex-col items-center animate-fade-in shrink-0" dir="rtl">
-                <img src="/WizdiLogo.png" alt="Wizdi" className="h-20 w-auto mb-4 object-contain" />
+                <img src="/WizdiLogo.png" alt="Wizdi" className="h-20 w-auto mb-4 object-contain" loading="eager" decoding="async" />
                 <h2 className="text-2xl md:text-3xl font-bold text-center px-4 leading-relaxed" style={{ color: '#0ea5e9' }}>
                     {loadingMessage}<br />בואו נשחק קצת...
                 </h2>

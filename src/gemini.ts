@@ -10,7 +10,8 @@ import { auth } from './firebase';
 import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
 import { detectInfographicType } from './utils/infographicDetector';
 import { generateInfographicHash, saveToFirebaseCache } from './utils/infographicCache';
-import { getKnowledgeContext, formatKnowledgeForPrompt } from './services/knowledgeBaseService';
+import { getKnowledgeContext, formatKnowledgeForPrompt, getMathPedagogicalContext, formatPedagogicalContextForPrompt } from './services/knowledgeBaseService';
+import { enrichBlockWithVariants } from './services/adaptiveContentService';
 
 /**
  * Maps grade level to age-appropriate character description for image generation
@@ -428,14 +429,68 @@ export const generateStepContent = async (
   gradeLevel: string,
   sourceText?: string,
   fileData?: any,
-  mode: 'learning' | 'exam' = 'learning'
+  mode: 'learning' | 'exam' = 'learning',
+  subject?: string
 ): Promise<StepContentResponse | null> => {
   const contextText = sourceText ? `Source Material:\n"""${sourceText.substring(0, 3000)}..."""` : `Topic: ${topic}`;
 
   // INJECT EXAM ENFORCER
   const examEnforcer = mode === 'exam' ? EXAM_MODE_SYSTEM_PROMPT : "";
 
+  // Fetch knowledge base context for math topics
+  let knowledgeBaseContext = '';
+  const isMathTopic = subject === 'math' ||
+    /מתמטיקה|חשבון|חיבור|חיסור|כפל|חילוק|שבר|אחוז|גיאומטריה|שטח|היקף|מספרים/.test(topic);
+
+  if (isMathTopic) {
+    try {
+      const gradeMatch = gradeLevel.match(/[א-ת]/);
+      const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+
+      console.log(`📚 Fetching KB context for step ${stepInfo.step_number}: "${stepInfo.title}", grade ${hebrewGrade}`);
+      const pedagogicalContext = await getMathPedagogicalContext(stepInfo.title || topic, hebrewGrade);
+
+      // Check for ANY useful content - not just rawContext
+      const hasUsefulContent = pedagogicalContext.rawContext ||
+        pedagogicalContext.exercises.length > 0 ||
+        pedagogicalContext.studentAddressing.length > 0 ||
+        pedagogicalContext.questionPhrasing.length > 0;
+
+      if (hasUsefulContent) {
+        knowledgeBaseContext = formatPedagogicalContextForPrompt(pedagogicalContext);
+        console.log(`✅ KB context added for step ${stepInfo.step_number}: ${pedagogicalContext.exercises.length} exercises, ${pedagogicalContext.studentAddressing.length} addressing patterns, ${pedagogicalContext.questionPhrasing.length} question patterns (${knowledgeBaseContext.length} chars)`);
+      } else {
+        console.log(`⚠️ No useful KB content found for step ${stepInfo.step_number}`);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch KB context for step:', error);
+    }
+  }
+
+  // Build textbook-style instructions if KB context exists - placed at the very beginning for maximum impact
+  const textbookStyleInstructions = knowledgeBaseContext ? `
+    ⚠️⚠️⚠️ CRITICAL INSTRUCTION - READ THIS FIRST ⚠️⚠️⚠️
+
+    אתה מייצר תוכן לספר לימוד מתמטיקה לילדים. חובה לעקוב אחרי הסגנון הזה:
+
+    ★★★ חובה להתחיל את teach_content במילים כמו: "נחשב יחד", "בואו נראה", "שים לב" ★★★
+    ★★★ השאלה חייבת להיות עם סיפור - לא שאלה יבשה! ★★★
+
+    דוגמאות נכונות מהספר:
+    ✅ teach_content: "בואו נלמד על מספרים! נחשב יחד כמה אצבעות יש לנו בשתי ידיים..."
+    ✅ question: "דני אסף 5 תפוחים ורותי אספה 3 תפוחים. כמה תפוחים יש להם ביחד?"
+
+    דוגמאות שגויות - אסור להשתמש!
+    ❌ teach_content: "מספרים הם כלי קסם..." (סגנון גנרי)
+    ❌ question: "מה התוצאה של 5+3?" (שאלה יבשה ללא סיפור)
+
+    ${knowledgeBaseContext}
+
+    ⚠️⚠️⚠️ END CRITICAL INSTRUCTION ⚠️⚠️⚠️
+` : '';
+
   const prompt = `
+    ${textbookStyleInstructions}
     ${contextText}
     ${examEnforcer}
 
@@ -467,7 +522,7 @@ export const generateStepContent = async (
        - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
        - ** OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
-       - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
+       - **TEXTBOOK STYLE:** If KB context was provided above, you MUST use its exact phrasing style, student addressing patterns, and question formats. Copy the TONE from the textbook examples!
        
     8. **PEDAGOGICAL SAFETY VALVE (BLOOM-PRESERVING FALLBACK):**
        - **Rule:** If the Source Text lacks the data structure required for the requested Interaction Type (e.g., requested "Ordering" but text has no clear sequence), you MUST trigger a Fallback.
@@ -499,8 +554,8 @@ export const generateStepContent = async (
     Output FORMAT (JSON ONLY):
     {
        "step_number": ${stepInfo.step_number},
-       "bloom_level": "${stepInfo.bloom_level}", 
-       "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
+       "bloom_level": "${stepInfo.bloom_level}",
+       "teach_content": ${mode === 'exam' ? "null" : `"${knowledgeBaseContext ? 'בואו נלמד! נחשב יחד...' : 'Full explanation text'} (MUST start with נחשב/בואו נראה/שים לב if math topic)"`},
        "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
           "progressive_hints": ["Hint 1", "Hint 2"],
@@ -2243,6 +2298,70 @@ export const generateFullUnitContent = async (
   }
 };
 
+/**
+ * Generates content WITH adaptive variants (scaffolding + enrichment).
+ * This should be used when creating new units to enable adaptive delivery.
+ *
+ * @param generateVariants - If true, generates 3 variants per question block (slower but enables adaptation)
+ */
+export const generateFullUnitContentWithVariants = async (
+  unitTitle: string,
+  courseTopic: string,
+  gradeLevel: string = "כללי",
+  fileData?: { base64: string; mimeType: string },
+  subject: string = "כללי",
+  sourceText?: string,
+  taxonomy?: { knowledge: number; application: number; evaluation: number },
+  includeBot: boolean = true,
+  mode: 'learning' | 'exam' = 'learning',
+  activityLength: 'short' | 'medium' | 'long' = 'medium',
+  generateVariants: boolean = true
+) => {
+  // First generate the base content
+  const baseBlocks = await generateFullUnitContent(
+    unitTitle,
+    courseTopic,
+    gradeLevel,
+    fileData,
+    subject,
+    sourceText,
+    taxonomy,
+    includeBot,
+    mode,
+    activityLength
+  );
+
+  if (!generateVariants || baseBlocks.length === 0) {
+    return baseBlocks;
+  }
+
+  // Enrich question blocks with variants
+  console.log(`🔄 Generating adaptive variants for ${baseBlocks.length} blocks...`);
+
+  const questionTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'true_false', 'categorization'];
+
+  const enrichedBlocks = await Promise.all(
+    baseBlocks.map(async (block) => {
+      // Only generate variants for question types
+      if (questionTypes.includes(block.type)) {
+        try {
+          const enrichedBlock = await enrichBlockWithVariants(block, courseTopic);
+          console.log(`✅ Generated variants for block ${block.id}: scaffolding=${!!enrichedBlock.metadata?.scaffolding_id}, enrichment=${!!enrichedBlock.metadata?.enrichment_id}`);
+          return enrichedBlock;
+        } catch (e) {
+          console.warn(`⚠️ Failed to generate variants for block ${block.id}:`, e);
+          return block;
+        }
+      }
+      return block;
+    })
+  );
+
+  console.log(`✅ Adaptive content generation complete. ${enrichedBlocks.filter(b => b.metadata?.has_variants).length} blocks have variants.`);
+
+  return enrichedBlocks;
+};
+
 export const refineContentWithPedagogy = async (content: string, instruction: string) => {
   const prompt = `
     Act as an expert pedagogical editor.
@@ -2367,6 +2486,7 @@ export const generateImagePromptBlock = async (context: string) => {
 
 /**
  * Helper function to fetch knowledge base context for math topics
+ * Uses the new pedagogical context extraction for better textbook-style content
  */
 const getKnowledgeBaseContext = async (topic: string, gradeLevel: string, subject?: string): Promise<string> => {
   // Check if this is a math topic
@@ -2382,12 +2502,28 @@ const getKnowledgeBaseContext = async (topic: string, gradeLevel: string, subjec
     const gradeMatch = gradeLevel.match(/[א-ת]/);
     const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
 
-    console.log(`📚 Fetching knowledge base context for: ${topic}, grade ${hebrewGrade}`);
-    const context = await getKnowledgeContext(topic, hebrewGrade);
+    console.log(`📚 Fetching pedagogical context for: ${topic}, grade ${hebrewGrade}`);
 
-    if (context) {
-      console.log(`✅ Found knowledge base context (${context.length} chars)`);
-      return formatKnowledgeForPrompt(context);
+    // Use the new pedagogical context extraction that includes:
+    // - Question phrasing patterns from textbook
+    // - Student addressing style ("נחשב", "בואו נראה", etc.)
+    // - Explanation patterns
+    // - Exercise examples
+    // - Common mistakes for distractors
+    const pedagogicalContext = await getMathPedagogicalContext(topic, hebrewGrade);
+
+    if (pedagogicalContext.rawContext || pedagogicalContext.exercises.length > 0) {
+      const formatted = formatPedagogicalContextForPrompt(pedagogicalContext);
+      console.log(`✅ Found pedagogical context: ${pedagogicalContext.exercises.length} exercises, ${pedagogicalContext.studentAddressing.length} addressing patterns, ${pedagogicalContext.questionPhrasing.length} question patterns`);
+      return formatted;
+    }
+
+    // Fallback to basic context if pedagogical extraction found nothing
+    console.log(`📚 Fallback to basic knowledge context for: ${topic}, grade ${hebrewGrade}`);
+    const basicContext = await getKnowledgeContext(topic, hebrewGrade);
+    if (basicContext) {
+      console.log(`✅ Found basic knowledge context (${basicContext.length} chars)`);
+      return formatKnowledgeForPrompt(basicContext);
     }
   } catch (error) {
     console.warn('Failed to fetch knowledge context:', error);
@@ -2746,7 +2882,29 @@ export const generateSingleMultipleChoiceQuestion = async (
     textSection = `${knowledgeContext}\n\n---\n\n${textSection}`;
   }
 
-  const prompt = `
+  // Build the prompt with emphasis on textbook style if KB context is available
+  const hasKBContext = knowledgeContext && knowledgeContext.length > 100;
+
+  const prompt = hasKBContext ? `
+צור שאלה אמריקאית אחת בעברית על בסיס התוכן הבא.
+
+${textSection}
+
+קהל יעד: ${gradeLevel}
+
+**הוראות קריטיות לניסוח:**
+1. פנה לתלמיד בסגנון הספר - השתמש ב"נחשב", "בואו נראה", "שים לב" וכו'
+2. נסח את השאלה בדיוק כמו בדוגמאות שמופיעות למעלה מהספר
+3. השתמש בשפה המתמטית והמונחים מהספר
+4. בנה מסיחים שמבוססים על טעויות נפוצות (אם צוינו)
+
+OUTPUT JSON:
+{
+  "question": "נוסח השאלה בסגנון הספר",
+  "options": ["תשובה א", "תשובה ב", "תשובה ג", "תשובה ד"],
+  "correct_answer": "התשובה הנכונה"
+}
+` : `
     Based on the following content, create a single Multiple Choice Question.
 
     ${textSection}
@@ -2810,7 +2968,28 @@ export const generateSingleOpenQuestion = async (
     textSection = `${knowledgeContext}\n\n---\n\n${textSection}`;
   }
 
-  const prompt = `
+  // Build the prompt with emphasis on textbook style if KB context is available
+  const hasKBContext = knowledgeContext && knowledgeContext.length > 100;
+
+  const prompt = hasKBContext ? `
+צור שאלה פתוחה אחת בעברית על בסיס התוכן הבא.
+
+${textSection}
+
+קהל יעד: ${gradeLevel}
+
+**הוראות קריטיות לניסוח:**
+1. פנה לתלמיד בסגנון הספר - השתמש ב"נחשב", "בואו נראה", "הסבר" וכו'
+2. נסח את השאלה בדיוק כמו בדוגמאות שמופיעות למעלה מהספר
+3. השתמש בשפה המתמטית והמונחים מהספר
+4. שאל שאלה שמעודדת חשיבה עמוקה
+
+OUTPUT JSON:
+{
+  "question": "נוסח השאלה בסגנון הספר",
+  "model_answer": "תשובה לדוגמה או נקודות עיקריות לחפש"
+}
+` : `
     Based on the following content, create a single Open-Ended Question.
 
     ${textSection}

@@ -237,9 +237,9 @@ const OpenQuestion = memo(function OpenQuestion({
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow" role="region" aria-labelledby={block.title ? 'open-question-title' : undefined}>
       {block.title && (
-        <h3 className="text-xl font-bold mb-4">{block.title}</h3>
+        <h3 id="open-question-title" className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{block.title}</h3>
       )}
 
       {renderQuestion()}
@@ -248,16 +248,18 @@ const OpenQuestion = memo(function OpenQuestion({
       {/* Validation feedback */}
       {validationResult && (
         <div
-          className={`mt-3 p-3 rounded-lg ${
+          role="alert"
+          aria-live="polite"
+          className={`mt-3 p-3 min-h-[44px] rounded-lg ${
             validationResult.isCorrect
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700'
+              : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700'
           }`}
         >
           {validationResult.isCorrect ? (
-            <span>✓ תשובה נכונה!</span>
+            <span><span aria-hidden="true">✓</span> תשובה נכונה!</span>
           ) : (
-            <span>✗ {validationResult.feedback || 'תשובה שגויה, נסה שוב'}</span>
+            <span><span aria-hidden="true">✗</span> {validationResult.feedback || 'תשובה שגויה, נסה שוב'}</span>
           )}
         </div>
       )}
@@ -266,7 +268,8 @@ const OpenQuestion = memo(function OpenQuestion({
       {!readOnly && (
         <button
           onClick={handleSubmit}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="שלח תשובה"
+          className="mt-4 px-6 py-2 min-h-[44px] bg-blue-600 dark:bg-wizdi-action text-white rounded-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
           disabled={!answer?.text?.trim()}
         >
           שלח תשובה
@@ -275,9 +278,9 @@ const OpenQuestion = memo(function OpenQuestion({
 
       {/* Teacher tip (if available and in exam review mode) */}
       {readOnly && block.metadata?.teacher_guidelines && (
-        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h4 className="font-medium text-yellow-800 mb-2">📝 הנחיות למורה:</h4>
-          <div className="text-sm text-yellow-700 whitespace-pre-wrap">
+        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+          <h4 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2"><span aria-hidden="true">📝</span> הנחיות למורה:</h4>
+          <div className="text-sm text-yellow-700 dark:text-yellow-200 whitespace-pre-wrap">
             {block.metadata.teacher_guidelines}
           </div>
         </div>

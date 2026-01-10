@@ -381,3 +381,77 @@ export interface TestResultWithFix extends TestResult {
   fixSuggestions?: FixSuggestion[];
   canAutoFix?: boolean;
 }
+
+// ===== KNOWLEDGE BASE QA AGENT =====
+
+export interface KBSearchTestResult {
+  success: boolean;
+  resultsCount: number;
+  avgSimilarity: number;
+  duration: number;
+  error?: string;
+}
+
+export interface KBExtractionCounts {
+  exercises: number;
+  commonMistakes: number;
+  progressionLevels: number;
+  mathLanguage: number;
+  examples: number;
+  questionPhrasing: number;
+  studentAddressing: number;
+  explanationPatterns: number;
+}
+
+export interface KBExtractionResult {
+  success: boolean;
+  extractedCounts: KBExtractionCounts;
+  hasRawContext: boolean;
+  rawContextLength: number;
+  duration: number;
+  sampleExtractions: {
+    exercises: string[];
+    questionPhrasing: string[];
+    studentAddressing: string[];
+  };
+  error?: string;
+}
+
+export interface KBPromptFormattingResult {
+  success: boolean;
+  promptLength: number;
+  hasSections: {
+    studentAddressing: boolean;
+    questionPhrasing: boolean;
+    explanationPatterns: boolean;
+    exercises: boolean;
+    commonMistakes: boolean;
+    criticalInstructions: boolean;
+  };
+  duration: number;
+  formattedPromptPreview: string;
+}
+
+export interface KBLanguageAnalysis {
+  usesHebrewTextbookStyle: boolean;
+  hasAppropriateAddressing: boolean;
+  matchesGradeLevel: boolean;
+  issues: string[];
+}
+
+export interface KBContentGenerationResult {
+  success: boolean;
+  hasKBContext: boolean;
+  generationDuration: number;
+  generatedContent: unknown;
+  languageAnalysis: KBLanguageAnalysis;
+  error?: string;
+}
+
+export interface KBCoverageResult {
+  totalBooks: number;
+  booksWithContent: string[];
+  gradesWithContent: string[];
+  coveragePercentage: number;
+  missingGrades: string[];
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getCourseAnalytics, type StudentAnalytics } from '../../services/analyticsService';
+import { getSmartCourseAnalytics, type StudentAnalytics } from '../../services/analyticsService';
 import { IconAlertTriangle, IconCheck, IconX, IconActivity } from '@tabler/icons-react';
 import { IconChevronLeft, IconBrain } from '../../icons'; // Reusing existing
 
@@ -107,7 +107,8 @@ export const AdaptiveDashboard = () => {
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
     useEffect(() => {
-        getCourseAnalytics('c1').then(setStudents);
+        // Uses real Firestore data when available, falls back to mock for dev
+        getSmartCourseAnalytics('c1').then(setStudents);
     }, []);
 
     const selectedStudent = students.find(s => s.id === selectedStudentId) || students[0];
@@ -208,17 +209,25 @@ export const AdaptiveDashboard = () => {
                             >
                                 {/* Avatar */}
                                 <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden shrink-0 border-2 border-white shadow-sm">
-                                    <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                                    <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                 </div>
 
                                 {/* Name + Risk */}
                                 <div className="w-24 shrink-0">
                                     <div className="font-bold text-slate-800 text-sm truncate">{s.name}</div>
-                                    <div className={`text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold uppercase mt-1
-                                        ${s.riskLevel === 'high' ? 'bg-red-50 text-red-600' :
-                                            s.riskLevel === 'medium' ? 'bg-orange-50 text-orange-600' : 'bg-lime-50 text-lime-700'}
-                                    `}>
-                                        {s.riskLevel === 'high' ? 'סיכון' : s.riskLevel === 'medium' ? 'בינוני' : 'מצוין'}
+                                    <div className="flex items-center gap-1 mt-1">
+                                        <span className={`text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold uppercase
+                                            ${s.riskLevel === 'high' ? 'bg-red-50 text-red-600' :
+                                                s.riskLevel === 'medium' ? 'bg-orange-50 text-orange-600' : 'bg-lime-50 text-lime-700'}
+                                        `}>
+                                            {s.riskLevel === 'high' ? 'סיכון' : s.riskLevel === 'medium' ? 'בינוני' : 'מצוין'}
+                                        </span>
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold
+                                            ${s.riskLevel === 'high' ? 'bg-blue-100 text-blue-700' :
+                                                s.riskLevel === 'low' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}
+                                        `}>
+                                            {s.riskLevel === 'high' ? '📚' : s.riskLevel === 'low' ? '🚀' : '📖'}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -252,7 +261,7 @@ export const AdaptiveDashboard = () => {
 
                                 <div className="flex flex-col md:flex-row items-start justify-between mb-8 gap-6">
                                     <div className="flex items-center gap-6">
-                                        <img src={selectedStudent.avatar} className="w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-white shadow-lg" />
+                                        <img src={selectedStudent.avatar} alt={selectedStudent.name} className="w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-white shadow-lg" loading="lazy" decoding="async" />
                                         <div>
                                             <h2 className="text-2xl md:text-3xl font-black text-slate-800">{selectedStudent.name}</h2>
                                             <div className="text-slate-500 flex flex-wrap items-center gap-3 mt-2 font-medium text-sm md:text-base">
@@ -285,6 +294,54 @@ export const AdaptiveDashboard = () => {
                                     </div>
                                 </div>
 
+                                {/* Performance Metrics */}
+                                {selectedStudent.performance && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                            <div className="text-2xl font-black text-emerald-600">
+                                                {Math.round(selectedStudent.performance.accuracy * 100)}%
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-bold uppercase">דיוק</div>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                            <div className="text-2xl font-black text-blue-600">
+                                                {selectedStudent.performance.avgResponseTime}s
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-bold uppercase">זמן תגובה</div>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                            <div className="text-2xl font-black text-purple-600">
+                                                {selectedStudent.performance.totalQuestions}
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-bold uppercase">שאלות</div>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                            <div className="text-2xl font-black text-amber-600">
+                                                {Math.round(selectedStudent.performance.hintDependency * 100)}%
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-bold uppercase">תלות ברמזים</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Error Patterns */}
+                                {selectedStudent.errorPatterns && Object.keys(selectedStudent.errorPatterns).length > 0 && (
+                                    <div className="mb-6 bg-red-50 border border-red-100 p-4 rounded-2xl">
+                                        <h4 className="text-red-800 font-bold mb-3 flex items-center gap-2">
+                                            <IconAlertTriangle className="w-5 h-5" />
+                                            דפוסי שגיאות נפוצים
+                                        </h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Object.entries(selectedStudent.errorPatterns).map(([pattern, count]) => (
+                                                <span key={pattern} className="bg-white px-3 py-1.5 rounded-full text-sm border border-red-200 flex items-center gap-2">
+                                                    <span className="font-medium text-red-700">{pattern}</span>
+                                                    <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* The Traces */}
                                 <JourneyTrace student={selectedStudent} />
 
@@ -294,10 +351,22 @@ export const AdaptiveDashboard = () => {
                                         <strong className="block text-lg font-bold mb-1 text-blue-800">תובנות המערכת (AI)</strong>
                                         <p className="leading-relaxed opacity-90 text-sm md:text-base">
                                             {selectedStudent.riskLevel === 'high'
-                                                ? "התלמיד מגלה קושי במשימות 'הסקת מסקנות'. לולאת חיזוק הופעלה פעמיים. מומלץ: תרגול ממוקד באיתור פרטים בטקסט."
-                                                : "התלמיד מתקדם בצורה אופטימלית. ביצע בהצלחה יחידות אתגר בנושא 'אוצר מילים והקשר'."
+                                                ? `התלמיד מגלה קושי (דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%). ${selectedStudent.performance?.hintDependency && selectedStudent.performance.hintDependency > 0.5 ? 'תלות גבוהה ברמזים.' : ''} מומלץ: תוכן מותאם עם פיגומים (📚 Scaffolding). ${Object.keys(selectedStudent.errorPatterns || {}).length > 0 ? `שגיאות נפוצות: ${Object.keys(selectedStudent.errorPatterns || {}).slice(0, 2).join(', ')}.` : ''}`
+                                                : selectedStudent.riskLevel === 'low'
+                                                    ? `התלמיד מצטיין! דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%, זמן תגובה מהיר (${selectedStudent.performance?.avgResponseTime || 0}s). מומלץ: תוכן מועשר (🚀 Enrichment) עם אתגרים נוספים.`
+                                                    : `התלמיד מתקדם בצורה יציבה (דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%). מקבל תוכן במסלול הסטנדרטי (📖 Original). ${selectedStudent.performance?.hintDependency && selectedStudent.performance.hintDependency > 0.3 ? 'שימוש מתון ברמזים.' : ''}`
                                             }
                                         </p>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <span className="text-xs font-bold text-blue-600">מסלול מומלץ:</span>
+                                            <span className={`text-xs px-2 py-1 rounded-full font-bold ${
+                                                selectedStudent.riskLevel === 'high' ? 'bg-blue-200 text-blue-800' :
+                                                selectedStudent.riskLevel === 'low' ? 'bg-purple-200 text-purple-800' : 'bg-slate-200 text-slate-700'
+                                            }`}>
+                                                {selectedStudent.riskLevel === 'high' ? '📚 Scaffolding' :
+                                                 selectedStudent.riskLevel === 'low' ? '🚀 Enrichment' : '📖 Original'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

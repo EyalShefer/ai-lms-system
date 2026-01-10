@@ -261,6 +261,8 @@ const YouTubeSearchModal: React.FC<YouTubeSearchModalProps> = ({
                                                 src={video.thumbnailUrl}
                                                 alt={video.title}
                                                 className="w-full h-full object-cover"
+                                                loading="lazy"
+                                                decoding="async"
                                             />
                                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
                                                 <div className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center">

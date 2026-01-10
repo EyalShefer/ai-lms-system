@@ -57,6 +57,8 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                             alt="Wizdi Studio"
                             className="h-20 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            loading="eager"
+                            decoding="async"
                         />
                     </div>
 

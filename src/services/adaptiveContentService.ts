@@ -103,6 +103,264 @@ export const enrichUnitBlocks = async (blocks: ActivityBlock[], topic: string): 
 import { v4 as uuidv4 } from 'uuid';
 
 /**
+ * Content Variants System
+ *
+ * Generates scaffolding (easier) and enrichment (harder) variants for question blocks.
+ * These are pre-generated during content creation and stored for adaptive delivery.
+ */
+
+export interface ContentVariants {
+    scaffolding?: ActivityBlock;   // Easier variant with hints, simpler options
+    enrichment?: ActivityBlock;    // Harder variant with extension challenges
+}
+
+/**
+ * Generates a scaffolding (easier) variant of a question block.
+ * - Adds more hints
+ * - Simplifies language
+ * - Provides worked examples
+ */
+export const generateScaffoldingVariant = async (
+    block: ActivityBlock,
+    topic: string
+): Promise<ActivityBlock | null> => {
+    if (!['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering'].includes(block.type)) {
+        return null; // Only for question types
+    }
+
+    const blockJson = JSON.stringify(block.content, null, 2);
+
+    const prompt = `
+    You are an expert Instructional Designer specializing in scaffolded learning.
+
+    TASK: Create an EASIER variant of this question for struggling students.
+
+    TOPIC: ${topic}
+    ORIGINAL QUESTION TYPE: ${block.type}
+    ORIGINAL CONTENT:
+    ${blockJson}
+
+    SCAFFOLDING STRATEGIES TO USE:
+    1. Simplify the language (shorter sentences, simpler vocabulary)
+    2. Add a concrete example or worked problem before the question
+    3. For multiple-choice: Make wrong answers more obviously wrong
+    4. Add 2-3 progressive hints that guide without giving away the answer
+    5. Break down complex questions into smaller steps
+
+    CRITICAL: Output MUST match the EXACT same content structure as the input.
+    The type "${block.type}" requires specific content fields.
+
+    OUTPUT JSON FORMAT:
+    {
+        "scaffolded_content": { ... same structure as original content, but easier ... },
+        "progressive_hints": ["First hint (very subtle)", "Second hint (more direct)", "Third hint (almost gives it away)"],
+        "pre_context": "A short example or explanation shown before the question (optional, max 50 words)"
+    }
+
+    Important: Keep the question type the same. If it's multiple-choice, keep 4 options.
+    Write in Hebrew if the original was in Hebrew.
+    `;
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: MODEL_NAME,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.5
+        });
+
+        const text = completion.choices[0].message.content || "{}";
+        const result = JSON.parse(text);
+
+        if (!result.scaffolded_content) {
+            console.warn("Scaffolding generation returned empty content");
+            return null;
+        }
+
+        const scaffoldedBlock: ActivityBlock = {
+            id: `${block.id}_scaffolding`,
+            type: block.type,
+            content: result.scaffolded_content,
+            metadata: {
+                ...block.metadata,
+                isVariant: true,
+                variantType: 'scaffolding',
+                originalBlockId: block.id,
+                progressiveHints: result.progressive_hints || [],
+                preContext: result.pre_context,
+                difficulty_level: Math.max(0, (block.metadata?.difficulty_level || 0.5) - 0.2)
+            }
+        };
+
+        return scaffoldedBlock;
+
+    } catch (e) {
+        console.error("Scaffolding Gen Failed:", e);
+        return null;
+    }
+};
+
+/**
+ * Generates an enrichment (harder) variant of a question block.
+ * - Adds complexity
+ * - Requires deeper thinking
+ * - Extends to related concepts
+ */
+export const generateEnrichmentVariant = async (
+    block: ActivityBlock,
+    topic: string
+): Promise<ActivityBlock | null> => {
+    if (!['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering'].includes(block.type)) {
+        return null;
+    }
+
+    const blockJson = JSON.stringify(block.content, null, 2);
+
+    const prompt = `
+    You are an expert Instructional Designer specializing in gifted education.
+
+    TASK: Create a MORE CHALLENGING variant of this question for advanced students.
+
+    TOPIC: ${topic}
+    ORIGINAL QUESTION TYPE: ${block.type}
+    ORIGINAL CONTENT:
+    ${blockJson}
+
+    ENRICHMENT STRATEGIES TO USE:
+    1. Increase cognitive complexity (move up Bloom's taxonomy)
+    2. Add real-world application or transfer questions
+    3. For multiple-choice: Make distractors more plausible, require deeper analysis
+    4. Add "why" or "how" elements to straightforward questions
+    5. Connect to related advanced concepts
+
+    CRITICAL: Output MUST match the EXACT same content structure as the input.
+    The type "${block.type}" requires specific content fields.
+
+    OUTPUT JSON FORMAT:
+    {
+        "enriched_content": { ... same structure as original content, but harder ... },
+        "extension_question": "An optional follow-up challenge question for those who want more",
+        "connection_note": "Brief note on how this connects to more advanced topics"
+    }
+
+    Important: Keep the question type the same. If it's multiple-choice, keep 4 options.
+    Write in Hebrew if the original was in Hebrew.
+    `;
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: MODEL_NAME,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.6
+        });
+
+        const text = completion.choices[0].message.content || "{}";
+        const result = JSON.parse(text);
+
+        if (!result.enriched_content) {
+            console.warn("Enrichment generation returned empty content");
+            return null;
+        }
+
+        const enrichedBlock: ActivityBlock = {
+            id: `${block.id}_enrichment`,
+            type: block.type,
+            content: result.enriched_content,
+            metadata: {
+                ...block.metadata,
+                isVariant: true,
+                variantType: 'enrichment',
+                originalBlockId: block.id,
+                extensionQuestion: result.extension_question,
+                connectionNote: result.connection_note,
+                difficulty_level: Math.min(1, (block.metadata?.difficulty_level || 0.5) + 0.2),
+                bloom_taxonomy: 'Analyze' // Enrichment typically requires higher-order thinking
+            }
+        };
+
+        return enrichedBlock;
+
+    } catch (e) {
+        console.error("Enrichment Gen Failed:", e);
+        return null;
+    }
+};
+
+/**
+ * Generates both scaffolding and enrichment variants for a block.
+ * Returns the variants to be stored in metadata for adaptive selection.
+ */
+export const generateContentVariants = async (
+    block: ActivityBlock,
+    topic: string
+): Promise<ContentVariants> => {
+    // Run both in parallel for efficiency
+    const [scaffolding, enrichment] = await Promise.all([
+        generateScaffoldingVariant(block, topic),
+        generateEnrichmentVariant(block, topic)
+    ]);
+
+    return { scaffolding, enrichment };
+};
+
+/**
+ * Enriches a block AND generates its variants in one pass.
+ * Call this during content creation to pre-generate adaptive versions.
+ */
+export const enrichBlockWithVariants = async (
+    block: ActivityBlock,
+    topic: string
+): Promise<ActivityBlock> => {
+    // First enrich the base block
+    const enrichedBlock = await enrichActivityBlock(block, topic);
+
+    // Then generate variants
+    const variants = await generateContentVariants(enrichedBlock, topic);
+
+    // Store variant IDs AND the full variant content in metadata for retrieval
+    // This ensures we can deliver the correct variant at runtime
+    return {
+        ...enrichedBlock,
+        metadata: {
+            ...enrichedBlock.metadata,
+            scaffolding_id: variants.scaffolding?.id,
+            enrichment_id: variants.enrichment?.id,
+            has_variants: !!(variants.scaffolding || variants.enrichment),
+            // Store the full variant blocks for runtime selection
+            scaffolding_variant: variants.scaffolding || null,
+            enrichment_variant: variants.enrichment || null
+        }
+    };
+};
+
+/**
+ * Selects the appropriate variant based on student state.
+ * Called by the adaptive policy when delivering content.
+ */
+export const selectBlockVariant = (
+    originalBlock: ActivityBlock,
+    variants: ContentVariants,
+    studentMastery: number,
+    recentAccuracy: number
+): ActivityBlock => {
+    // Use scaffolding for struggling students
+    if (studentMastery < 0.4 && recentAccuracy < 0.5 && variants.scaffolding) {
+        console.log(`📚 Selecting SCAFFOLDING variant for block ${originalBlock.id}`);
+        return variants.scaffolding;
+    }
+
+    // Use enrichment for excelling students
+    if (studentMastery > 0.8 && recentAccuracy > 0.9 && variants.enrichment) {
+        console.log(`🚀 Selecting ENRICHMENT variant for block ${originalBlock.id}`);
+        return variants.enrichment;
+    }
+
+    // Default to original
+    return originalBlock;
+};
+
+/**
  * Generates a "Bridge" content block to fix a specific misconception.
  * Triggered when BKT detects failure/remediation need.
  */

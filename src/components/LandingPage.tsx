@@ -35,7 +35,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             {/* Navbar */}
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-white/40 px-6 py-4 flex justify-between items-center shadow-glass">
                 <div className="flex items-center gap-2">
-                    <img src="/WizdiLogo.png" alt="Hebrew LMS" className="h-10 w-auto" />
+                    <img src="/WizdiLogo.png" alt="Hebrew LMS" className="h-10 w-auto" loading="eager" decoding="async" />
                     <span className="font-black text-xl tracking-tight text-wizdi-royal">Hebrew LMS</span>
                 </div>
                 <div className="flex items-center gap-4">
@@ -559,7 +559,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                     {/* Avatar & Level */}
                                     <div className="relative z-10 text-center mb-10 mt-6 w-full">
                                         <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-wizdi-royal to-purple-600 p-1 mx-auto mb-5 shadow-lg shadow-purple-600/30 relative">
-                                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Felix`} alt="Avatar" className="w-full h-full rounded-full bg-slate-900" />
+                                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Felix`} alt="Avatar" className="w-full h-full rounded-full bg-slate-900" loading="lazy" decoding="async" />
                                             <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-wizdi-lime text-slate-900 font-black px-4 py-1 rounded-full border-[3px] border-slate-900 text-sm shadow-lg whitespace-nowrap z-20">
                                                 LVL 5
                                             </div>

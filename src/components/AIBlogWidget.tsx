@@ -139,18 +139,18 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
                             <IconBulb className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg text-slate-800">תובנות AI למורים</h3>
-                            <p className="text-xs text-slate-500">מאמר השבוע • מתעדכן כל יום ראשון</p>
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white">תובנות AI למורים</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">מאמר השבוע • מתעדכן כל יום ראשון</p>
                         </div>
                     </div>
                 </div>
 
                 {articleToShow && (
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5">
+                    <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
                         {/* Category badge & meta */}
                         <div className="flex items-center justify-between mb-3">
                             <span className={`px-3 py-1 text-xs font-bold rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
@@ -175,13 +175,13 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                         {/* Key Points */}
                         {articleToShow.keyPoints && articleToShow.keyPoints.length > 0 && (
                             <div className="bg-white/80 rounded-xl p-4 mb-4">
-                                <h5 className="font-bold text-purple-700 text-sm mb-3 flex items-center gap-2">
+                                <h5 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
                                     📌 נקודות מפתח
                                 </h5>
                                 <ul className="space-y-2">
                                     {articleToShow.keyPoints.map((point, idx) => (
                                         <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                            <IconCheck className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                                            <IconCheck className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
                                             <span>{point}</span>
                                         </li>
                                     ))}
@@ -191,14 +191,14 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
 
                         {/* Classroom Tips */}
                         {articleToShow.classroomTips && articleToShow.classroomTips.length > 0 && (
-                            <div className="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-100">
-                                <h5 className="font-bold text-amber-700 text-sm mb-3 flex items-center gap-2">
+                            <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
+                                <h5 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
                                     💡 איך להשתמש בזה בכיתה
                                 </h5>
                                 <ul className="space-y-2">
                                     {articleToShow.classroomTips.map((tip, idx) => (
                                         <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                            <span className="text-amber-500 font-bold min-w-[20px]">{idx + 1}.</span>
+                                            <span className="text-slate-600 font-bold min-w-[20px]">{idx + 1}.</span>
                                             <span>{tip}</span>
                                         </li>
                                     ))}
@@ -207,7 +207,7 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                         )}
 
                         {/* Footer with source */}
-                        <div className="flex items-center justify-between pt-3 border-t border-purple-100">
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                             <span className="text-xs text-slate-500">
                                 מקור: <span className="font-medium">{articleToShow.sourceName}</span>
                             </span>
@@ -215,7 +215,7 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                                 href={articleToShow.originalUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors"
+                                className="flex items-center gap-2 bg-wizdi-royal text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
                             >
                                 קראו את המאמר המקורי
                                 <IconExternalLink className="w-4 h-4" />

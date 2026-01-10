@@ -175,24 +175,30 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     };
 
     return (
-        <div className="w-full mx-auto">
-            <h3 className="text-3xl font-black mb-8 text-white text-center drop-shadow-sm">סידור לפי קטגוריות</h3>
+        <div className="w-full mx-auto" role="region" aria-labelledby="categorization-title">
+            <h3 id="categorization-title" className="text-3xl font-black mb-8 text-white dark:text-white text-center drop-shadow-sm">סידור לפי קטגוריות</h3>
+            <p className="sr-only">גרור פריטים מהמחסן לקטגוריות המתאימות</p>
 
             {/* Item Bank */}
             <div
-                className="min-h-[100px] p-4 bg-gray-50 rounded-xl mb-8 border-2 border-dashed border-gray-200 flex flex-wrap gap-3 justify-center items-center transition-colors"
+                className="min-h-[100px] p-4 bg-gray-50 dark:bg-slate-800 rounded-xl mb-8 border-2 border-dashed border-gray-200 dark:border-slate-600 flex flex-wrap gap-3 justify-center items-center transition-colors"
                 onDrop={(e) => handleDrop(e, 'bank')}
                 onDragOver={handleDragOver}
+                role="list"
+                aria-label="מחסן פריטים - גרור מכאן לקטגוריות"
             >
-                {bankItems.length === 0 && !isSubmitted && <span className="text-gray-400 text-sm">המחסן ריק (גרור פריטים בחזרה אם טעית)</span>}
+                {bankItems.length === 0 && !isSubmitted && <span className="text-gray-400 dark:text-slate-500 text-sm">המחסן ריק (גרור פריטים בחזרה אם טעית)</span>}
                 {bankItems.map(item => (
                     <div
                         key={item.id}
-                        draggable={true}
+                        role="listitem"
+                        draggable={!isSubmitted}
                         onDragStart={(e) => handleDragStart(e, item.id, 'bank')}
-                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 hover:shadow-md select-none"
+                        tabIndex={isSubmitted ? -1 : 0}
+                        aria-label={`פריט: ${item.text}`}
+                        className="px-4 py-2 min-h-[44px] flex items-center bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-wizdi-cyan hover:shadow-md select-none transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
                     >
-                        {item.text}
+                        <span className="text-gray-700 dark:text-slate-200">{item.text}</span>
                     </div>
                 ))}
             </div>
@@ -205,34 +211,41 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                         <div
                             key={category}
                             className="flex flex-col h-full"
+                            role="group"
+                            aria-labelledby={`category-${category}`}
                         >
-                            <div className="bg-indigo-600 text-white py-2 px-4 rounded-t-xl font-bold text-center shadow-sm">
+                            <div id={`category-${category}`} className="bg-indigo-600 dark:bg-indigo-700 text-white py-2 px-4 min-h-[44px] flex items-center justify-center rounded-t-xl font-bold text-center shadow-sm">
                                 {category}
                             </div>
                             <div
-                                className={`flex-1 min-h-[200px] bg-slate-50 border-x border-b border-gray-200 rounded-b-xl p-3 flex flex-col gap-2 transition-colors
-                                    ${!isSubmitted && 'hover:bg-indigo-50/50'}
+                                className={`flex-1 min-h-[200px] bg-slate-50 dark:bg-slate-800 border-x border-b border-gray-200 dark:border-slate-600 rounded-b-xl p-3 flex flex-col gap-2 transition-colors
+                                    ${!isSubmitted && 'hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30'}
                                 `}
                                 onDrop={(e) => handleDrop(e, category)}
                                 onDragOver={handleDragOver}
+                                role="list"
+                                aria-label={`קטגוריה ${category} - שחרר פריטים כאן`}
                             >
                                 {bucketItems.map(item => (
                                     <div
                                         key={item.id}
-                                        draggable={true}
+                                        role="listitem"
+                                        draggable={!isSubmitted}
                                         onDragStart={(e) => handleDragStart(e, item.id, category)}
-                                        className={`px-3 py-2 rounded-lg text-sm font-medium shadow-sm border flex justify-between items-center bg-white border-gray-100
+                                        tabIndex={isSubmitted ? -1 : 0}
+                                        aria-label={`${item.text}${isSubmitted ? (item.category === category ? ', במקום נכון' : ', במקום שגוי') : ''}`}
+                                        className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium shadow-sm border flex justify-between items-center bg-white dark:bg-slate-700 border-gray-100 dark:border-slate-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
                                             ${isSubmitted
-                                                ? (item.category === category ? 'border-green-300 bg-green-50 text-green-800' : 'border-red-300 bg-red-50 text-red-800')
-                                                : 'cursor-grab active:cursor-grabbing'
+                                                ? (item.category === category ? 'border-green-300 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300')
+                                                : 'cursor-grab active:cursor-grabbing text-gray-700 dark:text-slate-200'
                                             }
                                         `}
                                     >
                                         <span>{item.text}</span>
                                         {isSubmitted && (
                                             item.category === category
-                                                ? <IconCheck className="w-4 h-4 text-green-600" />
-                                                : <IconX className="w-4 h-4 text-red-600" />
+                                                ? <IconCheck className="w-4 h-4 text-green-600 dark:text-green-400" aria-hidden="true" />
+                                                : <IconX className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
                                         )}
                                     </div>
                                 ))}
@@ -245,7 +258,8 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
             <div className="text-center">
                 <button
                     onClick={checkAnswers}
-                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
+                    aria-label={isSubmitted ? 'בדוק שוב' : 'בדיקת התשובות'}
+                    className="bg-blue-600 dark:bg-wizdi-action text-white px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
                 >
                     {isSubmitted ? 'בדוק שוב' : 'בדיקה'}
                 </button>

@@ -26,6 +26,7 @@ const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
 const QADashboard = React.lazy(() => import('./components/QADashboard'));
 const WizdiRoutes = React.lazy(() => import('./components/wizdi/WizdiRouter'));
 const KnowledgeBaseAdmin = React.lazy(() => import('./components/KnowledgeBaseAdmin'));
+const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionReviewPage'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -514,7 +515,7 @@ const AuthenticatedApp = () => {
     <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
       <header className={headerClass}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={handleBackToList}>
-          <img src="/WizdiLogo.png" alt="Wizdi Studio" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" />
+          <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" loading="lazy" decoding="async" />
         </div>
         <div className="flex items-center gap-4">
           {mode !== 'list' && !isStudentLink && (
@@ -624,7 +625,8 @@ const AuthenticatedApp = () => {
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
                 {mode === 'analytics' && <AdaptiveDashboard />}
                 {mode === 'qa-admin' && <QADashboard onBack={() => setMode('list')} />}
-                {mode === 'knowledge-base' && <KnowledgeBaseAdmin />}
+                {mode === 'knowledge-base' && <KnowledgeBaseAdmin onNavigateToReview={() => setMode('extraction-review')} />}
+                {mode === 'extraction-review' && <ExtractionReviewPage />}
               </>
             )}
           </Suspense>

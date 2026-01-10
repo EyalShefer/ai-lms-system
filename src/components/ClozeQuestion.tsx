@@ -215,10 +215,11 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
     const parts = sentence.split('_____');
 
     return (
-        <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-xl font-bold mb-6 text-gray-800">השלם את המשפט</h3>
+        <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700" role="region" aria-labelledby="cloze-title">
+            <h3 id="cloze-title" className="text-xl font-bold mb-6 text-gray-800 dark:text-white">השלם את המשפט</h3>
+            <p className="sr-only">גרור מילים מהמחסן למקומות הריקים או לחץ על מילה כדי למקם אותה</p>
 
-            <div className="mb-8 text-lg leading-loose text-center" dir="rtl">
+            <div className="mb-8 text-lg leading-loose text-center" dir="rtl" role="group" aria-label="משפט להשלמה">
                 {parts.map((part, i) => (
                     <React.Fragment key={i}>
                         {part.includes('$') || part.includes('\\') ? (
@@ -227,35 +228,39 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(part) }} />
                         )}
                         {i < parts.length - 1 && (
-                            <span
+                            <button
                                 onDrop={(e) => handleDrop(e, i)}
                                 onDragOver={handleDragOver}
                                 onClick={() => removeAnswer(i)}
-                                className={`inline-block min-w-[100px] mx-2 h-10 border-b-2 align-middle text-center px-2 cursor-pointer transition-colors
+                                type="button"
+                                aria-label={userAnswers[i] ? `תשובה ${i + 1}: ${userAnswers[i]}. לחץ להסרה` : `מקום ריק ${i + 1}. גרור מילה לכאן`}
+                                className={`inline-block min-w-[100px] min-h-[44px] mx-2 border-b-2 align-middle text-center px-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 rounded
                                     ${userAnswers[i]
                                         ? (isSubmitted
-                                            ? (userAnswers[i] === hidden_words[i] ? 'border-green-500 text-green-700 bg-green-50' : 'border-red-500 text-red-700 bg-red-50')
-                                            : 'border-blue-500 text-blue-700 bg-blue-50')
-                                        : 'border-gray-300 bg-gray-50'
+                                            ? (userAnswers[i] === hidden_words[i] ? 'border-green-500 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30' : 'border-red-500 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30')
+                                            : 'border-blue-500 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30')
+                                        : 'border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-slate-200'
                                     }
                                 `}
                             >
                                 {userAnswers[i] || (
-                                    <span className="text-gray-300 text-sm select-none">גרור לכאן</span>
+                                    <span className="text-gray-300 dark:text-slate-500 text-sm select-none">גרור לכאן</span>
                                 )}
-                            </span>
+                            </button>
                         )}
                     </React.Fragment>
                 ))}
             </div>
 
             {/* Word Bank */}
-            <div className="flex flex-wrap gap-3 justify-center mb-8 bg-gray-50 p-4 rounded-xl">
+            <div className="flex flex-wrap gap-3 justify-center mb-8 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-xl" role="list" aria-label="מחסן מילים">
                 {wordBank.map((word, i) => {
                     const isUsed = userAnswers.includes(word);
                     return (
-                        <div
+                        <button
                             key={i}
+                            type="button"
+                            role="listitem"
                             draggable={!isSubmitted && !isUsed}
                             onDragStart={(e) => handleDragStart(e, word)}
                             onClick={() => {
@@ -270,15 +275,17 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                                     });
                                 }
                             }}
-                            className={`px-4 py-2 rounded-lg font-medium shadow-sm border select-none transition-all
+                            disabled={isSubmitted || isUsed}
+                            aria-label={isUsed ? `${word} - כבר בשימוש` : `${word} - לחץ למיקום`}
+                            className={`px-4 py-2 min-h-[44px] rounded-lg font-medium shadow-sm border select-none transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
                                 ${isUsed
-                                    ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed'
-                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-95'
+                                    ? 'bg-gray-100 dark:bg-slate-600 text-gray-400 dark:text-slate-400 border-gray-100 dark:border-slate-500 cursor-not-allowed'
+                                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border-gray-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-wizdi-cyan hover:shadow-md cursor-pointer active:scale-95 motion-reduce:active:scale-100'
                                 }
                             `}
                         >
                             {word}
-                        </div>
+                        </button>
                     );
                 })}
             </div>
@@ -336,34 +343,35 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                 <div className="text-center">
                     <button
                         onClick={checkAnswers}
-                        className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
+                        aria-label="בדיקת התשובות"
+                        className="bg-blue-600 dark:bg-wizdi-action text-white px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition-transform active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
                     >
                         בדיקה
                     </button>
                     {userAnswers.some(a => a === null) && (
-                        <p className="text-xs text-gray-400 mt-2">ניתן לבדוק גם תשובות חלקיות</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">ניתן לבדוק גם תשובות חלקיות</p>
                     )}
                 </div>
             )}
 
             {isSubmitted && (
-                <div className="mt-6 text-center animate-fade-in">
+                <div className="mt-6 text-center animate-fade-in motion-reduce:animate-none" role="alert" aria-live="polite">
                     <div className="text-lg font-bold mb-4">
                         {userAnswers.every((a, i) => a === hidden_words[i]) ? (
-                            <span className="text-green-600 flex items-center justify-center gap-2">
-                                <IconCheck className="w-6 h-6" /> מעולה! כל התשובות נכונות
+                            <span className="text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
+                                <IconCheck className="w-6 h-6" aria-hidden="true" /> מעולה! כל התשובות נכונות
                             </span>
                         ) : (
                             <div className="flex flex-col items-center gap-2">
-                                <span className="text-red-500 flex items-center justify-center gap-2">
-                                    <IconX className="w-6 h-6" /> יש טעויות
+                                <span className="text-red-500 dark:text-red-400 flex items-center justify-center gap-2">
+                                    <IconX className="w-6 h-6" aria-hidden="true" /> יש טעויות
                                 </span>
                                 <button
                                     onClick={() => {
                                         setIsSubmitted(false);
                                         setUserAnswers(new Array(hidden_words.length).fill(null));
                                     }}
-                                    className="text-blue-600 text-sm hover:underline mt-2"
+                                    className="text-blue-600 dark:text-wizdi-cyan text-sm hover:underline mt-2 min-h-[44px] px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 rounded"
                                 >
                                     נסה שוב
                                 </button>

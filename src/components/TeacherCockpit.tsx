@@ -131,6 +131,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     // Interactive Preview State - shows questions as students see them
     const [previewBlockIds, setPreviewBlockIds] = useState<Set<string>>(new Set());
 
+    // Variant Preview Modal State
+    const [variantPreviewBlock, setVariantPreviewBlock] = useState<ActivityBlock | null>(null);
+
     // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
@@ -650,7 +653,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             }
             return (
                 <div className="relative group">
-                    <img src={block.content} className="w-full h-80 object-cover rounded-2xl shadow-md" alt="Lesson Visual" />
+                    <img src={block.content} className="w-full h-80 object-cover rounded-2xl shadow-md" alt="Lesson Visual" loading="lazy" decoding="async" />
                     {/* Control buttons - always visible */}
                     <div className="absolute top-2 right-2 flex gap-2">
                         <button
@@ -711,7 +714,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
             return (
                 <div className="relative group">
-                    <img src={infographicSrc} className="w-full rounded-2xl shadow-md" alt="אינפוגרפיקה" />
+                    <img src={infographicSrc} className="w-full rounded-2xl shadow-md" alt="אינפוגרפיקה" loading="lazy" decoding="async" />
                     {/* Type badge */}
                     {infographicType && (
                         <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-purple-700 shadow-sm">
@@ -1156,6 +1159,38 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
                                             {/* Block Title */}
                                             <h3 className="text-lg font-bold text-slate-800">{getBlockTitle(block)}</h3>
+
+                                            {/* Adaptive Variants Indicator - Clickable to Preview */}
+                                            {block.metadata?.has_variants && (
+                                                <div className="flex items-center gap-1.5">
+                                                    {/* Original (Middle) Badge */}
+                                                    <button
+                                                        onClick={() => setVariantPreviewBlock(block)}
+                                                        className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded-full flex items-center gap-1 hover:bg-blue-200 transition-colors cursor-pointer"
+                                                        title="צפייה ב-3 הגרסאות"
+                                                    >
+                                                        <span>📄</span> מקורית
+                                                    </button>
+                                                    {block.metadata?.scaffolding_variant && (
+                                                        <button
+                                                            onClick={() => setVariantPreviewBlock(block)}
+                                                            className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full flex items-center gap-1 hover:bg-emerald-200 transition-colors cursor-pointer"
+                                                            title="צפייה בגרסה הקלה"
+                                                        >
+                                                            <span>📚</span> קלה
+                                                        </button>
+                                                    )}
+                                                    {block.metadata?.enrichment_variant && (
+                                                        <button
+                                                            onClick={() => setVariantPreviewBlock(block)}
+                                                            className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 rounded-full flex items-center gap-1 hover:bg-purple-200 transition-colors cursor-pointer"
+                                                            title="צפייה בגרסה המאתגרת"
+                                                        >
+                                                            <span>🚀</span> מאתגרת
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             <button
                                                 onClick={() => setRefiningBlockId(block.id)}
@@ -1611,6 +1646,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                                     src={infographicPreview.imageUrl}
                                     alt="תצוגה מקדימה של אינפוגרפיקה"
                                     className="w-full h-auto rounded-lg shadow-lg"
+                                    loading="lazy"
+                                    decoding="async"
                                 />
                             </div>
                         </div>
@@ -1659,6 +1696,143 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                                 <IconCheck className="w-5 h-5" />
                                 הוסף לשיעור
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Variant Preview Modal */}
+            {variantPreviewBlock && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setVariantPreviewBlock(null)}>
+                    <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-2xl font-bold mb-1">תצוגת 3 רמות התוכן</h2>
+                                    <p className="text-white/80 text-sm">
+                                        המערכת בוחרת אוטומטית את הרמה המתאימה לכל תלמיד לפי הביצועים שלו
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setVariantPreviewBlock(null)}
+                                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                >
+                                    <IconX className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 3-Column Grid */}
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                            {/* Scaffolding (Easy) */}
+                            <div className="bg-emerald-50 rounded-xl border-2 border-emerald-200 overflow-hidden">
+                                <div className="bg-emerald-500 text-white p-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl">📚</span>
+                                        <div>
+                                            <h3 className="font-bold">גרסה קלה</h3>
+                                            <p className="text-xs text-white/80">לתלמידים שמתקשים (mastery &lt; 0.4)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    {variantPreviewBlock.metadata?.scaffolding_variant ? (
+                                        <div className="prose prose-sm max-w-none">
+                                            {/* Pre-context hint if available */}
+                                            {variantPreviewBlock.metadata?.scaffolding_variant?.metadata?.preContext && (
+                                                <div className="bg-emerald-100 p-3 rounded-lg mb-3 text-sm">
+                                                    <strong>💡 רמז:</strong> {variantPreviewBlock.metadata.scaffolding_variant.metadata.preContext}
+                                                </div>
+                                            )}
+                                            {/* Question content */}
+                                            <div className="text-slate-700">
+                                                {typeof variantPreviewBlock.metadata.scaffolding_variant.content === 'string'
+                                                    ? variantPreviewBlock.metadata.scaffolding_variant.content
+                                                    : JSON.stringify(variantPreviewBlock.metadata.scaffolding_variant.content, null, 2)}
+                                            </div>
+                                            {/* Progressive hints */}
+                                            {variantPreviewBlock.metadata?.scaffolding_variant?.metadata?.progressiveHints?.length > 0 && (
+                                                <div className="mt-3 space-y-2">
+                                                    <p className="text-xs font-bold text-emerald-700">רמזים מדורגים:</p>
+                                                    {variantPreviewBlock.metadata.scaffolding_variant.metadata.progressiveHints.map((hint: string, i: number) => (
+                                                        <div key={i} className="text-xs bg-white p-2 rounded border border-emerald-200">
+                                                            {i + 1}. {hint}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסה קלה</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Original (Middle) */}
+                            <div className="bg-blue-50 rounded-xl border-2 border-blue-300 overflow-hidden ring-2 ring-blue-400">
+                                <div className="bg-blue-500 text-white p-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl">📄</span>
+                                        <div>
+                                            <h3 className="font-bold">גרסה מקורית</h3>
+                                            <p className="text-xs text-white/80">ברירת מחדל (0.4 ≤ mastery ≤ 0.8)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    <div className="prose prose-sm max-w-none text-slate-700">
+                                        {typeof variantPreviewBlock.content === 'string'
+                                            ? variantPreviewBlock.content
+                                            : JSON.stringify(variantPreviewBlock.content, null, 2)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Enrichment (Hard) */}
+                            <div className="bg-purple-50 rounded-xl border-2 border-purple-200 overflow-hidden">
+                                <div className="bg-purple-500 text-white p-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🚀</span>
+                                        <div>
+                                            <h3 className="font-bold">גרסה מאתגרת</h3>
+                                            <p className="text-xs text-white/80">לתלמידים מצטיינים (mastery &gt; 0.8)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    {variantPreviewBlock.metadata?.enrichment_variant ? (
+                                        <div className="prose prose-sm max-w-none">
+                                            {/* Question content */}
+                                            <div className="text-slate-700">
+                                                {typeof variantPreviewBlock.metadata.enrichment_variant.content === 'string'
+                                                    ? variantPreviewBlock.metadata.enrichment_variant.content
+                                                    : JSON.stringify(variantPreviewBlock.metadata.enrichment_variant.content, null, 2)}
+                                            </div>
+                                            {/* Extension question */}
+                                            {variantPreviewBlock.metadata?.enrichment_variant?.metadata?.extensionQuestion && (
+                                                <div className="mt-3 bg-purple-100 p-3 rounded-lg text-sm">
+                                                    <strong>🎯 שאלת הרחבה:</strong> {variantPreviewBlock.metadata.enrichment_variant.metadata.extensionQuestion}
+                                                </div>
+                                            )}
+                                            {/* Connection note */}
+                                            {variantPreviewBlock.metadata?.enrichment_variant?.metadata?.connectionNote && (
+                                                <div className="mt-2 text-xs text-purple-600">
+                                                    <em>קישור לנושאים מתקדמים: {variantPreviewBlock.metadata.enrichment_variant.metadata.connectionNote}</em>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסה מאתגרת</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer with info */}
+                        <div className="bg-slate-100 p-4 text-center text-sm text-slate-600">
+                            <span className="font-semibold">איך זה עובד?</span> המערכת עוקבת אחרי ביצועי התלמיד ובוחרת אוטומטית את הגרסה המתאימה.
+                            תלמידים מתקשים מקבלים גרסה עם רמזים, תלמידים מצטיינים מקבלים אתגרים נוספים.
                         </div>
                     </div>
                 </div>

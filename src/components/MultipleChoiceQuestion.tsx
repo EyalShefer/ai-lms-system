@@ -86,8 +86,12 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
     };
 
     return (
-        <div className="mb-8 glass bg-white/80 p-6 rounded-2xl border border-white/50 shadow-sm">
-            <h3 className="text-xl font-bold mb-4">
+        <div
+            className="mb-8 glass bg-white/80 dark:bg-slate-800/80 p-6 rounded-2xl border border-white/50 dark:border-slate-700 shadow-sm"
+            role="group"
+            aria-labelledby={`question-${block.id}`}
+        >
+            <h3 id={`question-${block.id}`} className="text-xl font-bold mb-4 text-slate-800 dark:text-white">
                 {hasMath(block.content.question) ? (
                     <MathRenderer content={block.content.question} />
                 ) : (
@@ -95,23 +99,27 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                 )}
             </h3>
 
-            {/* Media rendering could be passed as prop or handled here if we duplicate logic, 
-                but for now let's focus on the question logic. Media is usually external in the CoursePlayer block.
-                Wait, in CoursePlayer the media was INSIDE the case block.
-                I should probably accept mediaSrc as a prop to keep it pure.
-            */}
-
-            <div className="space-y-3">
+            <div
+                className="space-y-3"
+                role="radiogroup"
+                aria-label="אפשרויות תשובה"
+            >
                 {block.content.options?.map((opt: any, i: number) => {
                     const optText = getOptionText(opt);
-                    let btnClass = "w-full text-right p-4 rounded-xl border transition-all ";
+                    const isSelected = selectedAnswer === optText;
+                    const isCorrect = optText === block.content.correctAnswer;
+                    const isWrong = isSelected && !isCorrect;
+
+                    let btnClass = "w-full text-right p-4 min-h-[44px] rounded-xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ";
 
                     if (showFeedback) {
-                        if (optText === block.content.correctAnswer) btnClass += "bg-green-50 border-green-500 text-green-900";
-                        else if (selectedAnswer === optText) btnClass += "bg-red-50 border-red-300 text-red-900";
-                        else btnClass += "opacity-50";
+                        if (isCorrect) btnClass += "bg-green-50 dark:bg-green-900/30 border-green-500 text-green-900 dark:text-green-200";
+                        else if (isWrong) btnClass += "bg-red-50 dark:bg-red-900/30 border-red-300 text-red-900 dark:text-red-200";
+                        else btnClass += "opacity-50 dark:opacity-40";
                     } else {
-                        btnClass += selectedAnswer === optText ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200" : "border-gray-200 hover:bg-gray-50";
+                        btnClass += isSelected
+                            ? "border-wizdi-action bg-wizdi-action-light dark:bg-wizdi-action/20 shadow-sm ring-1 ring-wizdi-action/30"
+                            : "border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200";
                     }
 
                     return (
@@ -119,12 +127,26 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                             key={i}
                             onClick={() => handleSelect(optText)}
                             className={btnClass}
-                            disabled={!!showFeedback && !isExamMode} // Disable only if feedback shown (practice mode)
+                            disabled={!!showFeedback && !isExamMode}
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-disabled={!!showFeedback && !isExamMode}
+                            aria-describedby={showFeedback ? `feedback-${block.id}-${i}` : undefined}
                         >
                             <div className="flex justify-between items-center">
                                 {renderText(optText)}
-                                {showFeedback && optText === block.content.correctAnswer && <IconCheck className="w-5 h-5 text-green-600" />}
-                                {showFeedback && selectedAnswer === optText && optText !== block.content.correctAnswer && <IconX className="w-5 h-5 text-red-600" />}
+                                {showFeedback && isCorrect && (
+                                    <>
+                                        <IconCheck className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+                                        <span id={`feedback-${block.id}-${i}`} className="sr-only">תשובה נכונה</span>
+                                    </>
+                                )}
+                                {showFeedback && isWrong && (
+                                    <>
+                                        <IconX className="w-5 h-5 text-red-600 dark:text-red-400" aria-hidden="true" />
+                                        <span id={`feedback-${block.id}-${i}`} className="sr-only">תשובה שגויה</span>
+                                    </>
+                                )}
                             </div>
                         </button>
                     );
@@ -135,7 +157,8 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                 <button
                     onClick={handleCheck}
                     disabled={!selectedAnswer}
-                    className="mt-4 text-sm bg-blue-600 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-disabled={!selectedAnswer}
+                    className="mt-4 text-sm btn-lip-action px-6 py-2 min-h-[44px] rounded-full font-bold disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
                 >
                     בדוק תשובה
                 </button>

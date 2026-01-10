@@ -1,44 +1,253 @@
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+
 @layer base {
+    /* Root variables for easy theming */
+    :root {
+        --wizdi-royal: #2B59C3;
+        --wizdi-cyan: #00C2FF;
+        --wizdi-action: #8B5CF6;
+        --wizdi-action-hover: #7C3AED;
+        --wizdi-action-dark: #5B21B6;
+        --wizdi-gold: #FFD500;
+        --wizdi-cloud: #F5F9FF;
+    }
+
     body {
         font-family: 'Rubik', sans-serif;
         @apply text-slate-700;
-        /* wizdi Soft Cloud Gradient */
         background: linear-gradient(135deg, #F5F9FF 0%, #E0F2FE 100%);
         background-attachment: fixed;
         min-height: 100vh;
     }
 
-    /* כותרות בצבע המותג הכהה */
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        color: #2B59C3 !important;
-        /* wizdi-royal */
+    /* Dark mode body */
+    .dark body,
+    body.dark {
+        @apply bg-slate-900 text-slate-100;
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+    }
+
+    /* Headings - brand color */
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--wizdi-royal);
+    }
+
+    .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+        @apply text-slate-100;
+    }
+
+    /* ==========================================================================
+       ACCESSIBILITY - Focus States
+       ========================================================================== */
+
+    /* Global focus-visible outline */
+    :focus-visible {
+        outline: 2px solid var(--wizdi-cyan);
+        outline-offset: 2px;
+    }
+
+    /* Remove default focus for mouse users */
+    :focus:not(:focus-visible) {
+        outline: none;
+    }
+
+    /* Enhanced focus for interactive elements */
+    button:focus-visible,
+    [role="button"]:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible {
+        outline: 2px solid var(--wizdi-cyan);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.2);
+    }
+
+    /* Skip link for keyboard navigation */
+    .skip-link {
+        @apply sr-only;
+    }
+
+    .skip-link:focus {
+        @apply not-sr-only fixed top-4 left-4 z-[9999] bg-wizdi-action text-white px-4 py-2 rounded-lg font-bold;
+    }
+
+    /* ==========================================================================
+       REDUCED MOTION - Accessibility
+       ========================================================================== */
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+
+        /* Disable all custom animations */
+        .animate-blob,
+        .animate-float,
+        .animate-bounce,
+        .animate-pulse,
+        .animate-wiggle,
+        .animate-fade-in,
+        .animate-fade-in-up,
+        .animate-pop,
+        .animate-shimmer,
+        .animate-bounce-slow,
+        .animate-progress {
+            animation: none !important;
+        }
+
+        /* Keep interactive feedback but make it instant */
+        .btn-lip-action:active:not(:disabled),
+        .btn-lip-primary:active:not(:disabled) {
+            transition: none !important;
+        }
+
+        /* Don't animate inputs */
+        input:focus,
+        textarea:focus,
+        select:focus {
+            transform: none !important;
+            transition: none !important;
+        }
     }
 }
 
+/* =============================================================================
+   COMPONENT STYLES
+   ============================================================================= */
+
 @layer components {
 
-    /* --- Magic Cards (Glass + Depth) - SCOPED --- */
+    /* =========================================================================
+       GLASS CARD
+       ========================================================================= */
+
     .card-glass {
-        background: rgba(255, 255, 255, 0.8) !important;
-        backdrop-filter: blur(12px) !important;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.4) !important;
-        box-shadow: 0 8px 32px 0 rgba(43, 89, 195, 0.05) !important;
-        border-radius: 24px !important;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 8px 32px 0 rgba(43, 89, 195, 0.08);
+        border-radius: 24px;
     }
 
-    /* --- Rounded Inputs --- */
+    .dark .card-glass {
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    /* =========================================================================
+       BUTTONS - "Lip" Design System
+       ========================================================================= */
+
+    /* Base button styles with accessibility */
+    .btn-base {
+        @apply inline-flex items-center justify-center gap-2;
+        @apply font-bold rounded-full;
+        @apply transition-all duration-150;
+        @apply min-h-touch; /* 44px touch target */
+        @apply px-6 py-3;
+        @apply cursor-pointer;
+        @apply select-none;
+    }
+
+    .btn-base:disabled {
+        @apply opacity-50 cursor-not-allowed;
+    }
+
+    /* PRIMARY ACTION BUTTON - VIOLET (NEW!) */
+    .btn-lip-action {
+        background: var(--wizdi-action);
+        color: white;
+        border: none;
+        border-bottom: 6px solid var(--wizdi-action-dark);
+        border-radius: 9999px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.1s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        min-height: 44px;
+    }
+
+    .btn-lip-action:hover:not(:disabled) {
+        background: var(--wizdi-action-hover);
+        filter: brightness(1.05);
+    }
+
+    .btn-lip-action:active:not(:disabled) {
+        transform: translateY(6px);
+        border-bottom-width: 0px;
+        margin-top: 6px;
+        box-shadow: none;
+    }
+
+    .btn-lip-action:focus-visible {
+        outline: 2px solid var(--wizdi-cyan);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.3);
+    }
+
+    /* ROYAL BLUE BUTTON - Secondary */
+    .btn-lip-primary {
+        background: var(--wizdi-royal);
+        color: white;
+        border: none;
+        border-bottom: 6px solid #1e40af;
+        border-radius: 9999px;
+        font-weight: 700;
+        transition: all 0.1s;
+        min-height: 44px;
+    }
+
+    .btn-lip-primary:hover:not(:disabled) {
+        background: #1e40af;
+    }
+
+    .btn-lip-primary:active:not(:disabled) {
+        transform: translateY(6px);
+        border-bottom-width: 0px;
+        margin-top: 6px;
+    }
+
+    .btn-lip-primary:focus-visible {
+        outline: 2px solid var(--wizdi-cyan);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.3);
+    }
+
+    /* GHOST BUTTON - Minimal */
+    .btn-ghost {
+        @apply bg-transparent text-wizdi-royal;
+        @apply hover:bg-wizdi-cloud;
+        @apply rounded-full px-4 py-2;
+        @apply min-h-touch;
+        @apply font-semibold;
+        @apply transition-colors;
+    }
+
+    .dark .btn-ghost {
+        @apply text-slate-200 hover:bg-slate-800;
+    }
+
+    /* =========================================================================
+       FORM INPUTS - Accessible
+       ========================================================================= */
+
     input,
     textarea,
     select {
@@ -47,142 +256,215 @@
         color: #2B59C3;
         border-radius: 16px;
         padding: 12px 16px;
+        min-height: 44px;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .dark input,
+    .dark textarea,
+    .dark select {
+        @apply bg-slate-800 border-slate-600 text-slate-100;
     }
 
     input:focus,
     textarea:focus,
     select:focus {
         background: #FFFFFF;
-        border-color: #00C2FF;
+        border-color: var(--wizdi-cyan);
         box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15);
         transform: translateY(-2px);
         outline: none;
     }
 
-    /* --- THE JUICY BUTTONS ("Lip" Design) --- */
-
-    /* .btn-lip-action (Hyper Lime) - For PRIMARY GO actions */
-    .btn-lip-action {
-        background: #8CE81C;
-        color: #0d4200;
-        border: none;
-        border-bottom: 6px solid #65a30d;
-        /* Thicker Lip */
-        border-radius: 9999px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        transition: all 0.1s;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    .dark input:focus,
+    .dark textarea:focus,
+    .dark select:focus {
+        @apply bg-slate-800;
     }
 
-    .btn-lip-action:active {
-        transform: translateY(6px);
-        /* Move down by border width */
-        border-bottom-width: 0px;
-        margin-top: 6px;
-        /* Maintain layout space */
-        box-shadow: none;
+    /* =========================================================================
+       BADGES - Accessible Colors
+       ========================================================================= */
+
+    .badge-action {
+        @apply inline-flex items-center gap-1;
+        @apply px-3 py-1.5 rounded-full;
+        @apply text-sm font-bold;
+        background: #EDE9FE;
+        color: #5B21B6; /* WCAG AA contrast: 7.1:1 */
     }
 
-    .btn-lip-action:hover {
-        background: #9ff038;
-        filter: brightness(1.05);
+    .badge-success {
+        @apply bg-green-100 text-green-800;
     }
 
-    /* .btn-lip-primary (Royal Blue) - For Navigation/Context */
-    .btn-lip-primary {
-        background: #2B59C3;
-        color: white;
-        border: none;
-        border-bottom: 6px solid #1e40af;
-        border-radius: 9999px;
-        font-weight: 700;
-        transition: all 0.1s;
+    .badge-warning {
+        @apply bg-amber-100 text-amber-800;
     }
 
-    .btn-lip-primary:active {
-        transform: translateY(6px);
-        border-bottom-width: 0px;
-        margin-top: 6px;
+    .badge-error {
+        @apply bg-red-100 text-red-800;
     }
 
-    /* Text Colors */
-    .text-brand-royal {
-        color: #2B59C3;
-    }
+    /* =========================================================================
+       SIDEBAR & HEADER - Glass Effect
+       ========================================================================= */
 
-    .text-brand-lime {
-        color: #8CE81C;
-    }
-
-
-    /* --- Micro-Interactions --- */
-    @keyframes wiggle {
-
-        0%,
-        100% {
-            transform: rotate(-3deg);
-        }
-
-        50% {
-            transform: rotate(3deg);
-        }
-    }
-
-    .animate-wiggle {
-        animation: wiggle 1s ease-in-out infinite;
-    }
-
-    @keyframes pop {
-        0% {
-            transform: scale(0.9);
-        }
-
-        50% {
-            transform: scale(1.05);
-        }
-
-        100% {
-            transform: scale(1);
-        }
-    }
-
-    .animate-pop {
-        animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    /* סרגל צד וניווט */
     aside,
     header {
-        background: rgba(255, 255, 255, 0.4) !important;
-        backdrop-filter: blur(16px) !important;
-        border: none !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .dark aside,
+    .dark header {
+        background: rgba(30, 41, 59, 0.8);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* =========================================================================
+       UTILITY CLASSES
+       ========================================================================= */
+
+    .text-brand-royal {
+        color: var(--wizdi-royal);
+    }
+
+    .text-brand-action {
+        color: var(--wizdi-action);
+    }
+
+    .glass {
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Touch target utility */
+    .touch-target {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Screen reader only */
+    .sr-only-focusable:not(:focus):not(:focus-within) {
+        @apply sr-only;
     }
 }
 
-/* אנימציות */
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
 @keyframes float {
-    0% {
-        transform: translateY(0px);
-    }
-
-    50% {
-        transform: translateY(-5px);
-    }
-
-    100% {
-        transform: translateY(0px);
-    }
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0px); }
 }
 
 .animate-float {
     animation: float 4s ease-in-out infinite;
+    will-change: transform;
 }
 
-/* סרגל גלילה ראשי */
+@keyframes blob {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.animate-blob {
+    animation: blob 7s infinite;
+    will-change: transform;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+    animation-delay: 4s;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.8s ease-out forwards;
+    will-change: opacity, transform;
+}
+
+@keyframes progress {
+    from { width: 0%; }
+    to { width: 66%; }
+}
+
+.animate-progress {
+    animation: progress 2s ease-out forwards;
+    will-change: width;
+}
+
+@keyframes bounceSlow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.animate-bounce-slow {
+    animation: bounceSlow 3s infinite ease-in-out;
+    will-change: transform;
+}
+
+@keyframes wiggle {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(3deg); }
+}
+
+.animate-wiggle {
+    animation: wiggle 1s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes pop {
+    0% { transform: scale(0.9); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.animate-pop {
+    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: transform;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.animate-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+    background-size: 200% 100%;
+    will-change: background-position;
+}
+
+.perspective-1000 {
+    perspective: 1000px;
+}
+
+/* =============================================================================
+   SCROLLBAR STYLES
+   ============================================================================= */
+
 ::-webkit-scrollbar {
     width: 12px;
 }
@@ -199,97 +481,15 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #2B59C3;
+    background-color: var(--wizdi-royal);
 }
 
-/* Landing Page Animations */
-@keyframes blob {
-    0% {
-        transform: translate(0px, 0px) scale(1);
-    }
-
-    33% {
-        transform: translate(30px, -50px) scale(1.1);
-    }
-
-    66% {
-        transform: translate(-20px, 20px) scale(0.9);
-    }
-
-    100% {
-        transform: translate(0px, 0px) scale(1);
-    }
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
 }
 
-.animate-blob {
-    animation: blob 7s infinite;
-}
-
-.animation-delay-2000 {
-    animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-    animation-delay: 4s;
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.animate-fade-in-up {
-    animation: fadeInUp 0.8s ease-out forwards;
-}
-
-@keyframes progress {
-    from {
-        width: 0%;
-    }
-
-    to {
-        width: 66%;
-    }
-}
-
-.animate-progress {
-    animation: progress 2s ease-out forwards;
-}
-
-@keyframes bounceSlow {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-.animate-bounce-slow {
-    animation: bounceSlow 3s infinite ease-in-out;
-}
-
-.perspective-1000 {
-    perspective: 1000px;
-}
-
-/* === תוספות עבור TeacherDashboard ו-Class Utilities ===
-   הפרדנו את זה מהבלוק הקודם כדי שזה יעבוד תקין
-*/
-
-.glass {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748B;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -300,8 +500,9 @@
     background: transparent;
 }
 
-
-/* === TEACHER LESSON STYLES (V2) === */
+/* =============================================================================
+   TEACHER LESSON STYLES
+   ============================================================================= */
 
 .lesson-section {
     @apply space-y-4 mb-4;
@@ -309,6 +510,10 @@
 
 .lesson-section h3 {
     @apply text-xl font-bold bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-3 text-slate-800;
+}
+
+.dark .lesson-section h3 {
+    @apply bg-slate-800 border-slate-700 text-slate-100;
 }
 
 .teacher-script {
@@ -320,24 +525,19 @@
 }
 
 .media-badge {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold border border-indigo-100 mt-2;
+    @apply inline-flex items-center gap-2 px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-sm font-bold border border-violet-100 mt-2;
 }
 
 .slide-card {
     @apply bg-white p-5 rounded-2xl border border-slate-200 shadow-sm my-4;
 }
 
-/* AI Generated Images Styles */
+.dark .slide-card {
+    @apply bg-slate-800 border-slate-700;
+}
+
 .generated-visual {
     @apply relative mt-4;
-}
-
-.generated-visual.group {
-    /* Tailwind group utility applied in JSX */
-}
-
-.generated-visual:hover {
-    @apply opacity-100;
 }
 
 .generated-visual img {
@@ -345,20 +545,19 @@
 }
 
 .generated-visual:hover img {
-    @apply shadow-2xl border-blue-200;
+    @apply shadow-2xl border-violet-200;
 }
 
-/* Image regeneration overlay */
 .image-regen-overlay {
     @apply absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-3;
 }
 
 .learning-objectives {
-    @apply bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-4;
+    @apply bg-violet-50/50 border border-violet-100 rounded-xl p-4 mb-4;
 }
 
 .learning-objectives ul {
-    @apply list-disc pr-5 space-y-1 text-blue-800;
+    @apply list-disc pr-5 space-y-1 text-violet-800;
 }
 
 .management-tip {
@@ -366,7 +565,7 @@
 }
 
 .timing-badge {
-    @apply inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2;
+    @apply inline-block bg-violet-50 text-violet-700 px-3 py-1 rounded-full text-xs font-bold mb-2;
 }
 
 .diff-note {
@@ -382,27 +581,21 @@
 }
 
 .facilitation-tips {
-    @apply bg-blue-50 border border-blue-200 rounded-xl p-4 mt-3;
+    @apply bg-violet-50 border border-violet-200 rounded-xl p-4 mt-3;
 }
 
 .facilitation-tips ul {
-    @apply list-disc pr-5 space-y-1 text-blue-800;
+    @apply list-disc pr-5 space-y-1 text-violet-800;
 }
 
 .homework {
     @apply bg-purple-50 border border-purple-200 rounded-xl p-4 mt-3 text-purple-900;
 }
 
-/* Visual placeholder during async loading */
 .visual-placeholder {
     @apply bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100 rounded-xl p-8 text-center text-slate-500 font-medium mt-4;
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
 }
 
 .slide-card h4 {
@@ -422,20 +615,23 @@
 }
 
 .wizdi-tool {
-    @apply bg-blue-600 text-white p-4 rounded-xl shadow-lg flex items-center justify-between font-bold;
+    @apply bg-violet-600 text-white p-4 rounded-xl shadow-lg flex items-center justify-between font-bold;
 }
 
 .takeaway {
-    @apply text-xl font-bold text-center text-wizdi-royal bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 mt-4 shadow-sm;
+    @apply text-xl font-bold text-center text-wizdi-royal bg-violet-50 p-6 rounded-2xl border-2 border-violet-100 mt-4 shadow-sm;
 }
 
-/* === Rich Text Editor Styles === */
+/* =============================================================================
+   RICH TEXT EDITOR STYLES
+   ============================================================================= */
+
 .rte-container {
     @apply bg-white border-2 border-[#E0F2FE] rounded-xl transition-all overflow-hidden;
 }
 
 .rte-container:focus-within {
-    border-color: #00C2FF;
+    border-color: var(--wizdi-cyan);
     box-shadow: 0 0 0 4px rgba(0, 194, 255, 0.15);
 }
 
@@ -444,11 +640,11 @@
 }
 
 .rte-toolbar-btn {
-    @apply p-2 rounded-lg text-slate-500 hover:bg-white hover:text-[#2B59C3] transition-all cursor-pointer;
+    @apply p-2 rounded-lg text-slate-500 hover:bg-white hover:text-wizdi-royal transition-all cursor-pointer min-w-[44px] min-h-[44px];
 }
 
 .rte-toolbar-btn.active {
-    @apply bg-[#00C2FF]/20 text-[#2B59C3];
+    @apply bg-violet-100 text-violet-700;
 }
 
 .rte-toolbar-btn:disabled {
@@ -467,12 +663,12 @@
 
 .ProseMirror h2 {
     @apply text-xl font-bold mb-3 mt-4;
-    color: #2B59C3 !important;
+    color: var(--wizdi-royal);
 }
 
 .ProseMirror h3 {
     @apply text-lg font-bold mb-2 mt-3;
-    color: #2B59C3 !important;
+    color: var(--wizdi-royal);
 }
 
 .ProseMirror ul {
@@ -492,7 +688,7 @@
 }
 
 .ProseMirror a {
-    @apply text-blue-600 underline hover:text-blue-800;
+    @apply text-violet-600 underline hover:text-violet-800;
 }
 
 /* Placeholder */

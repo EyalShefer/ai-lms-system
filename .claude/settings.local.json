@@ -43,7 +43,32 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Integrate MathKeyboard in AiTutor and InteractiveChatBlock\n\n- Add math symbol keyboard toggle button to AiTutor chat input\n- Add math symbol keyboard to InteractiveChatBlock  \n- Users can now easily insert math symbols \\(+, −, ×, ÷, fractions, etc.\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git rev-parse:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(node scripts/check-knowledge-base.cjs:*)",
+      "Bash(npx firebase:*)",
+      "Bash(npm search:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(node scripts/delete-student-books.cjs:*)",
+      "Bash(set GOOGLE_APPLICATION_CREDENTIALS=)",
+      "Bash(gcloud auth application-default print-access-token:*)",
+      "Bash(node scripts/test-kb-search.cjs:*)",
+      "Bash(dir:*)",
+      "Bash(firebase functions:secrets:access:*)",
+      "Bash(firebase functions:secrets:set:*)",
+      "Bash(firebase functions:delete:*)",
+      "Bash(firebase functions:log:*)",
+      "Bash(copy:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(curl:*)",
+      "Bash(node -e:*)",
+      "Bash(node scripts/check-podcast.cjs:*)",
+      "Bash(ls:*)",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\scripts\\\\debug-podcast.html\")",
+      "Bash(set GOOGLE_APPLICATION_CREDENTIALS:*)",
+      "Bash($env:GOOGLE_APPLICATION_CREDENTIALS=\"C:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\ai-lms-pro-firebase-adminsdk-fbsvc-0e6e4dfc5c.json\")",
+      "Bash(node scripts/adaptive-system-test.cjs:*)",
+      "Bash(npx firebase deploy --only firestore:indexes)"
     ]
   }
 }

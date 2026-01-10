@@ -136,12 +136,22 @@ export class EmbeddingService {
     queryEmbedding: number[],
     candidates: { id: string; embedding: number[] }[],
     limit: number = 5,
-    minSimilarity: number = 0.7
+    minSimilarity: number = 0.2 // Very low threshold for Hebrew math content
   ): { id: string; similarity: number }[] {
     const similarities = candidates.map(candidate => ({
       id: candidate.id,
       similarity: this.cosineSimilarity(queryEmbedding, candidate.embedding),
     }));
+
+    // Log similarity distribution for debugging
+    const sorted = [...similarities].sort((a, b) => b.similarity - a.similarity);
+    if (sorted.length > 0) {
+      const top5 = sorted.slice(0, 5).map(s => s.similarity.toFixed(3));
+      console.log(`📊 Top 5 similarities: [${top5.join(', ')}], threshold: ${minSimilarity}`);
+      console.log(`📊 Total candidates: ${candidates.length}, passing threshold: ${sorted.filter(s => s.similarity >= minSimilarity).length}`);
+    } else {
+      console.log(`⚠️ No candidates to compare against!`);
+    }
 
     return similarities
       .filter(s => s.similarity >= minSimilarity)

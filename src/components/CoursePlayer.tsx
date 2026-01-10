@@ -1061,7 +1061,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 if (!mediaSrc) return null;
                 return (
                     <div key={block.id} className="mb-8 p-1 bg-white border border-gray-100 rounded-2xl shadow-sm">
-                        <img src={mediaSrc} className="w-full rounded-xl" alt="תוכן שיעור" />
+                        <img src={mediaSrc} className="w-full rounded-xl" alt="תוכן שיעור" loading="lazy" decoding="async" />
                         {block.metadata?.caption && (
                             <div className="text-center text-sm text-gray-500 mt-2 pb-2 italic font-medium px-4">{block.metadata.caption}</div>
                         )}
@@ -1179,7 +1179,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden max-w-xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(mcMedia) :
-                                    <img src={mcMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={mcMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}
@@ -1234,7 +1234,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(getMediaSrc()!) :
-                                    <img src={getMediaSrc()!} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={getMediaSrc()!} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}
@@ -1356,7 +1356,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden max-w-xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(fibMedia) :
-                                    <img src={fibMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={fibMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}
@@ -1386,7 +1386,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden max-w-xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(ordMedia) :
-                                    <img src={ordMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={ordMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}
@@ -1427,7 +1427,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden max-w-2xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(catMedia) :
-                                    <img src={catMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={catMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}
@@ -1456,7 +1456,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <div className="mb-4 rounded-xl overflow-hidden max-w-3xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
                                     renderMediaElement(memMedia) :
-                                    <img src={memMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" />
+                                    <img src={memMedia} alt="מדיה לשאלה" className="w-full h-48 object-cover" loading="lazy" decoding="async" />
                                 }
                             </div>
                         )}

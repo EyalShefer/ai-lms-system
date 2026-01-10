@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+  <title>בדיקת סקירות</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-functions-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 500px; overflow: auto; }
+    .success { background: #d4edda; }
+    .error { background: #f8d7da; }
+  </style>
+</head>
+<body>
+  <h1>בדיקת סקירות חילוץ</h1>
+
+  <p>1. התחבר:</p>
+  <input type="email" id="email" placeholder="אימייל" value="eyal@bonus.co.il">
+  <input type="password" id="password" placeholder="סיסמה">
+  <button onclick="login()">התחבר</button>
+  <div id="authStatus"></div>
+
+  <hr>
+
+  <p>2. בדוק סקירות:</p>
+  <label>
+    <input type="checkbox" id="pendingOnly" checked>
+    רק ממתינים
+  </label>
+  <button onclick="getReviews()">טען סקירות</button>
+
+  <div id="result"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCHvS2AxBWXw0qpL2Bj8XKZY3l64x6jNhU",
+      authDomain: "ai-lms-pro.firebaseapp.com",
+      projectId: "ai-lms-pro",
+      storageBucket: "ai-lms-pro.firebasestorage.app",
+      messagingSenderId: "381294839259",
+      appId: "1:381294839259:web:b7fc0e61f5b0254cf5ca40"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const functions = firebase.functions();
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        document.getElementById('authStatus').textContent = '✅ מחובר: ' + email;
+      } catch (error) {
+        document.getElementById('authStatus').textContent = '❌ שגיאה: ' + error.message;
+      }
+    }
+
+    async function getReviews() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.textContent = 'טוען סקירות...';
+      resultDiv.className = '';
+
+      const pendingOnly = document.getElementById('pendingOnly').checked;
+
+      try {
+        const getReviewsFunc = functions.httpsCallable('getExtractionReviews');
+        const result = await getReviewsFunc({ pendingOnly });
+
+        resultDiv.className = 'success';
+        resultDiv.textContent = JSON.stringify(result.data, null, 2);
+      } catch (error) {
+        resultDiv.className = 'error';
+        resultDiv.textContent = 'שגיאה: ' + error.message + '\n\n' + JSON.stringify(error, null, 2);
+      }
+    }
+
+    // Check if already logged in
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById('authStatus').textContent = '✅ מחובר: ' + user.email;
+      }
+    });
+  </script>
+</body>
+</html>

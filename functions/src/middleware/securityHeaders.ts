@@ -33,6 +33,7 @@ const CSP_DIRECTIVES = {
     "'unsafe-eval'", // Required for some React features (remove in production if possible)
     'https://www.gstatic.com', // Firebase
     'https://apis.google.com',
+    'https://www.googletagmanager.com', // Google Analytics
   ],
   'style-src': [
     "'self'",
@@ -51,6 +52,7 @@ const CSP_DIRECTIVES = {
     'https://*.googleapis.com',
     'https://*.googleusercontent.com',
     'https://firebasestorage.googleapis.com',
+    'https://www.transparenttextures.com',
   ],
   'connect-src': [
     "'self'",
@@ -62,6 +64,7 @@ const CSP_DIRECTIVES = {
     'https://ai-lms-system.web.app',
     'https://generativelanguage.googleapis.com', // Gemini API
     'https://api.openai.com', // OpenAI API
+    'https://api.elevenlabs.io', // ElevenLabs TTS API
     'https://ipwho.is', // Geo-location APIs
     'https://ipapi.co',
     'https://ipinfo.io',
@@ -72,6 +75,11 @@ const CSP_DIRECTIVES = {
     "'self'",
     'https://www.youtube.com',
     'https://player.vimeo.com',
+  ],
+  'media-src': [
+    "'self'",
+    'blob:', // Required for ElevenLabs TTS audio playback
+    'https://api.elevenlabs.io',
   ],
   'frame-ancestors': FRAME_ANCESTORS,
   'object-src': ["'none'"],

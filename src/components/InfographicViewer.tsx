@@ -44,7 +44,7 @@ export const InfographicViewer: React.FC<InfographicViewerProps> = ({
                 )}
                 <div className="p-4 overflow-auto max-h-[500px] bg-white/50">
                     <div className="flex justify-center transition-transform" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center top' }}>
-                        <img src={src} alt={title || 'אינפוגרפיקה'} className="rounded-xl shadow-lg max-w-full cursor-pointer" onClick={() => setIsFullscreen(true)} />
+                        <img src={src} alt={title || 'אינפוגרפיקה'} className="rounded-xl shadow-lg max-w-full cursor-pointer" onClick={() => setIsFullscreen(true)} loading="lazy" decoding="async" />
                     </div>
                 </div>
                 {caption && <div className="p-3 bg-white/80 border-t border-blue-100 text-center"><p className="text-sm text-gray-600 italic">{caption}</p></div>}
@@ -52,7 +52,7 @@ export const InfographicViewer: React.FC<InfographicViewerProps> = ({
             {isFullscreen && (
                 <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4" onClick={() => setIsFullscreen(false)}>
                     <button onClick={() => setIsFullscreen(false)} className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-full text-white text-xl">✕</button>
-                    <img src={src} alt={title || 'אינפוגרפיקה'} className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                    <img src={src} alt={title || 'אינפוגרפיקה'} className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} loading="lazy" decoding="async" />
                 </div>
             )}
         </>

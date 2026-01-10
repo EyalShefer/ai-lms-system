@@ -52,7 +52,17 @@ export {
     searchKnowledge,
     getKnowledgeContext,
     getKnowledgeStats,
-    deleteKnowledgeDocument
+    deleteKnowledgeDocument,
+    getKnowledgeBooks,
+    deleteKnowledgeBook,
+    // Batch extraction continuation
+    continueKnowledgeExtraction,
+    // Extraction review functions
+    createReviewForExistingBook,
+    getExtractionReviews,
+    getExtractionReview,
+    correctPageExtraction,
+    approveExtractionReview
 } from './controllers/knowledgeController';
 
 // --- TYPES ---

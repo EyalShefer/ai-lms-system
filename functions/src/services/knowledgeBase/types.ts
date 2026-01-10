@@ -70,6 +70,65 @@ export interface KnowledgeUploadResponse {
   chaptersFound: string[];
   processingTimeMs: number;
   errors?: string[];
+  // Extraction quality metrics (for high-quality extraction)
+  extractionQuality?: {
+    method: string;
+    averageConfidence?: number;  // 0-1, higher is better
+    pagesNeedingReview?: number[];  // Page numbers that had low confidence
+  };
+  // ID of the extraction review document (for manual review)
+  extractionReviewId?: string;
+  // Progress info for batch processing of large PDFs
+  progress?: {
+    processedPages: number;
+    totalPages: number;
+    percentComplete: number;
+  };
+}
+
+/**
+ * Stored extraction result for manual review
+ * Allows admin to see original PDF pages alongside extracted text
+ */
+export interface ExtractionReview {
+  id: string;
+  documentId: string;  // Links to the upload
+  fileName: string;
+  storagePath: string;  // Path to original PDF in Storage
+  grade: string;
+  volume: number;
+  volumeType: 'student' | 'teacher';
+  subject: string;
+
+  // Page-level extraction results
+  pages: ExtractionReviewPage[];
+
+  // Overall stats
+  totalPages: number;
+  averageConfidence: number;
+  pagesNeedingReview: number[];
+
+  // Status
+  status: 'pending_review' | 'reviewed' | 'approved';
+  reviewedBy?: string;
+  reviewedAt?: FirebaseFirestore.Timestamp;
+
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.Timestamp;
+}
+
+export interface ExtractionReviewPage {
+  pageNumber: number;
+  extractedText: string;
+  verificationText?: string;  // Second pass extraction
+  confidence: 'high' | 'medium' | 'low';
+  agreementScore: number;
+  needsReview: boolean;
+
+  // Manual corrections
+  correctedText?: string;
+  correctedBy?: string;
+  correctedAt?: FirebaseFirestore.Timestamp;
 }
 
 export interface KnowledgeSearchRequest {

@@ -140,48 +140,76 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     };
 
     return (
-        <div className="w-full mx-auto">
-            <h3 className="text-3xl font-black mb-4 text-white text-center drop-shadow-sm">סידור לפי סדר</h3>
-            <p className="text-lg text-white/90 mb-8 text-center font-medium">{instruction}</p>
+        <div className="w-full mx-auto" role="region" aria-labelledby="ordering-title">
+            <h3 id="ordering-title" className="text-3xl font-black mb-4 text-white dark:text-white text-center drop-shadow-sm">סידור לפי סדר</h3>
+            <p className="text-lg text-white/90 mb-8 text-center font-medium" id="ordering-instruction">{instruction}</p>
 
-            <div className="space-y-3 mb-8">
-                {items.map((item, index) => (
-                    <div
-                        key={item} // Assuming unique items for now
-                        draggable={!isSubmitted}
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnter={(e) => handleDragEnter(e, index)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(e) => e.preventDefault()}
-                        className={`p-4 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 transition-all
-                            ${isSubmitted
-                                ? (items[index] === correct_order[index] ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50')
-                                : 'cursor-grab active:cursor-grabbing hover:border-blue-300 hover:shadow-md'
-                            }
-                        `}
-                    >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
-                            ${isSubmitted
-                                ? (items[index] === correct_order[index] ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700')
-                                : 'bg-gray-100 text-gray-500'
-                            }
-                        `}>
-                            {index + 1}
-                        </div>
-                        <div className="flex-1 font-medium text-gray-700 select-none">
-                            {item.includes('$') || item.includes('\\') ? (
-                                <MathRenderer content={item} className="inline" />
-                            ) : (
-                                item
+            <div
+                className="space-y-3 mb-8"
+                role="list"
+                aria-label="פריטים לסידור - גרור כדי לשנות סדר"
+                aria-describedby="ordering-instruction"
+            >
+                {items.map((item, index) => {
+                    const isCorrectPosition = items[index] === correct_order[index];
+
+                    return (
+                        <div
+                            key={item}
+                            draggable={!isSubmitted}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragEnter={(e) => handleDragEnter(e, index)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => e.preventDefault()}
+                            role="listitem"
+                            aria-grabbed={draggingItem.current === index}
+                            aria-label={`פריט ${index + 1}: ${item}${isSubmitted ? (isCorrectPosition ? ', במיקום נכון' : ', במיקום שגוי') : ''}`}
+                            tabIndex={isSubmitted ? -1 : 0}
+                            onKeyDown={(e) => {
+                                if (isSubmitted) return;
+                                if (e.key === 'ArrowUp' && index > 0) {
+                                    e.preventDefault();
+                                    const newItems = [...items];
+                                    [newItems[index], newItems[index - 1]] = [newItems[index - 1], newItems[index]];
+                                    setItems(newItems);
+                                } else if (e.key === 'ArrowDown' && index < items.length - 1) {
+                                    e.preventDefault();
+                                    const newItems = [...items];
+                                    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+                                    setItems(newItems);
+                                }
+                            }}
+                            className={`p-4 min-h-[44px] bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-xl shadow-sm flex items-center gap-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
+                                ${isSubmitted
+                                    ? (isCorrectPosition ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : 'border-red-300 bg-red-50 dark:bg-red-900/30')
+                                    : 'cursor-grab active:cursor-grabbing hover:border-wizdi-action hover:shadow-md'
+                                }
+                            `}
+                        >
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
+                                ${isSubmitted
+                                    ? (isCorrectPosition ? 'bg-green-200 text-green-700 dark:bg-green-800 dark:text-green-200' : 'bg-red-200 text-red-700 dark:bg-red-800 dark:text-red-200')
+                                    : 'bg-gray-100 text-gray-500 dark:bg-slate-600 dark:text-slate-300'
+                                }
+                            `} aria-hidden="true">
+                                {index + 1}
+                            </div>
+                            <div className="flex-1 font-medium text-gray-700 dark:text-slate-200 select-none">
+                                {item.includes('$') || item.includes('\\') ? (
+                                    <MathRenderer content={item} className="inline" />
+                                ) : (
+                                    item
+                                )}
+                            </div>
+
+                            {!isSubmitted && (
+                                <div className="text-gray-300 dark:text-slate-500 text-xl font-light" aria-hidden="true">≡</div>
                             )}
                         </div>
-
-                        {!isSubmitted && (
-                            <div className="text-gray-300 text-xl font-light">≡</div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
+            <p className="sr-only">השתמש בחצים למעלה ולמטה כדי לשנות את סדר הפריטים</p>
 
             {/* ✨ NEW: Progressive Hints Section */}
             {!isExamMode && hints.length > 0 && !isSubmitted && (

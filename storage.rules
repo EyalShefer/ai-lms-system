@@ -132,6 +132,21 @@ service firebase.storage {
       // Auto-cleanup: temp files older than 24h should be deleted by Cloud Function
     }
 
+    // ===== WIZARD UPLOADS =====
+    // User uploads from the content creation wizard
+    match /uploads/{userId}/{allPaths=**} {
+      // Read: Only owner can read their uploads
+      allow read: if isOwner(userId);
+
+      // Write: Only owner can write, with validation
+      allow write: if isOwner(userId)
+                   && isValidFileSize()
+                   && isValidFileType();
+
+      // Delete: Only owner can delete their files
+      allow delete: if isOwner(userId);
+    }
+
     // ===== DEFAULT DENY =====
     // Catch-all: deny everything else
     match /{document=**} {

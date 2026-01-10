@@ -127,6 +127,8 @@ export const QuestionRenderer = memo(function QuestionRenderer({
               src={block.imageUrl}
               alt={block.title || 'תמונה'}
               className="max-w-full rounded-lg shadow-lg"
+              loading="lazy"
+              decoding="async"
             />
             {block.caption && (
               <p className="mt-2 text-sm text-gray-600 text-center">{block.caption}</p>

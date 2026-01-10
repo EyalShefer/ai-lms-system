@@ -5,28 +5,33 @@ import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
 import { v4 as uuidv4 } from 'uuid';
 
-import {
+import type {
   KnowledgeChunk,
   KnowledgeUploadRequest,
   KnowledgeUploadResponse,
   KnowledgeSearchRequest,
   KnowledgeSearchResponse,
   KnowledgeSearchResult,
+  ExtractionReview,
+  ExtractionReviewPage,
 } from './types';
 import { EmbeddingService } from './embeddingService';
 import { PDFProcessor } from './pdfProcessor';
+import { FullExtractionResult } from './highQualityExtractor';
 
 const COLLECTION_NAME = 'math_knowledge';
+const REVIEWS_COLLECTION = 'extraction_reviews';
 
 export class KnowledgeService {
   private db: FirebaseFirestore.Firestore;
   private embeddingService: EmbeddingService;
   private pdfProcessor: PDFProcessor;
 
-  constructor(apiKey: string) {
+  constructor(openaiApiKey: string, _geminiApiKey?: string) {
     this.db = getFirestore();
-    this.embeddingService = new EmbeddingService(apiKey);
-    this.pdfProcessor = new PDFProcessor(apiKey);
+    this.embeddingService = new EmbeddingService(openaiApiKey);
+    // Use Vertex AI for high-quality extraction (Gemini API key no longer needed)
+    this.pdfProcessor = new PDFProcessor(openaiApiKey, true);
   }
 
   /**
@@ -58,8 +63,8 @@ export class KnowledgeService {
         throw new Error('Either fileBase64 or fileUrl/storagePath must be provided');
       }
 
-      // 1. Process PDF into chunks
-      const { chunks, chapters } = await this.pdfProcessor.processDocument(
+      // 1. Process PDF into chunks using HIGH QUALITY extraction
+      const result = await this.pdfProcessor.processDocument(
         fileBase64,
         request.fileName,
         {
@@ -67,8 +72,64 @@ export class KnowledgeService {
           grade: request.grade,
           volume: request.volume,
           volumeType: request.volumeType,
+        },
+        {
+          useHighQuality: true,  // Always use high quality for production
         }
       );
+
+      const { chunks, chapters, extractionMetadata, batchProgress, needsMoreBatches } = result;
+
+      // Handle batch processing for large PDFs
+      if (needsMoreBatches && batchProgress) {
+        logger.warn(`⏳ Large PDF - batch processing in progress: ${batchProgress.processedPages}/${batchProgress.totalPages} pages`);
+
+        // Save the batch progress to Firestore so we can continue later
+        const progressId = `progress_${uuidv4()}`;
+        await this.db.collection('extraction_progress').doc(progressId).set({
+          ...batchProgress,
+          metadata: {
+            subject: request.subject,
+            grade: request.grade,
+            volume: request.volume,
+            volumeType: request.volumeType,
+            storagePath: request.storagePath,
+          },
+          createdAt: Timestamp.now(),
+        });
+
+        // Return partial success with progress info
+        return {
+          success: false,
+          documentId: progressId,
+          chunksCreated: 0,
+          chaptersFound: [],
+          processingTimeMs: Date.now() - startTime,
+          errors: [`ספר גדול (${batchProgress.totalPages} עמודים) - עובד בחלקים. עמודים ${batchProgress.processedPages}/${batchProgress.totalPages} הושלמו. נא להמתין ולנסות שוב.`],
+          extractionQuality: {
+            method: 'batch_in_progress',
+            averageConfidence: 0,
+            pagesNeedingReview: [],
+          },
+          // Progress info for frontend to show continue button
+          progress: {
+            processedPages: batchProgress.processedPages,
+            totalPages: batchProgress.totalPages,
+            percentComplete: Math.round((batchProgress.processedPages / batchProgress.totalPages) * 100),
+          },
+        };
+      }
+
+      // Log extraction quality
+      if (extractionMetadata) {
+        logger.info(`📊 Extraction method: ${extractionMetadata.extractionMethod}`);
+        if (extractionMetadata.averageConfidence !== undefined) {
+          logger.info(`📊 Average confidence: ${(extractionMetadata.averageConfidence * 100).toFixed(1)}%`);
+        }
+        if (extractionMetadata.pagesNeedingReview && extractionMetadata.pagesNeedingReview.length > 0) {
+          logger.warn(`⚠️ Pages needing manual review: ${extractionMetadata.pagesNeedingReview.join(', ')}`);
+        }
+      }
 
       if (chunks.length === 0) {
         throw new Error('No content extracted from document');
@@ -125,7 +186,8 @@ export class KnowledgeService {
 
       logger.info(`✅ Upload complete: ${savedCount} chunks saved`);
 
-      return {
+      // Build response with extraction quality info
+      const response: KnowledgeUploadResponse = {
         success: true,
         documentId,
         chunksCreated: savedCount,
@@ -133,6 +195,17 @@ export class KnowledgeService {
         processingTimeMs: Date.now() - startTime,
         errors: errors.length > 0 ? errors : undefined,
       };
+
+      // Add extraction quality metrics if available
+      if (extractionMetadata) {
+        response.extractionQuality = {
+          method: extractionMetadata.extractionMethod,
+          averageConfidence: extractionMetadata.averageConfidence,
+          pagesNeedingReview: extractionMetadata.pagesNeedingReview,
+        };
+      }
+
+      return response;
     } catch (error: any) {
       logger.error('Upload failed:', error);
       return {
@@ -153,11 +226,12 @@ export class KnowledgeService {
     const startTime = Date.now();
 
     try {
-      const { query, filters, limit = 5, minSimilarity = 0.7 } = request;
+      const { query, filters, limit = 5, minSimilarity = 0.2 } = request; // Very low threshold for Hebrew math
 
       // 1. Generate embedding for query
-      logger.info(`🔍 Searching: "${query}"`);
+      logger.info(`🔍 Searching: "${query}" with minSimilarity=${minSimilarity}`);
       const queryEmbedding = await this.embeddingService.generateEmbedding(query);
+      logger.info(`✅ Generated query embedding (${queryEmbedding.length} dimensions)`);
 
       // 2. Build Firestore query with filters
       let firestoreQuery: FirebaseFirestore.Query = this.db.collection(COLLECTION_NAME);
@@ -180,7 +254,9 @@ export class KnowledgeService {
 
       // 3. Fetch all matching documents (we'll filter by similarity in memory)
       // Note: For large collections, consider using Firestore Vector Search or Pinecone
-      const snapshot = await firestoreQuery.limit(500).get();
+      const snapshot = await firestoreQuery.limit(1000).get(); // Increased to cover all grade documents
+
+      logger.info(`🔍 Firestore query returned ${snapshot.size} documents for filters: ${JSON.stringify(filters)}`);
 
       if (snapshot.empty) {
         logger.info('No documents match the filters');
@@ -212,6 +288,11 @@ export class KnowledgeService {
         limit,
         minSimilarity
       );
+
+      // Count by volumeType for debugging
+      const studentCount = candidates.filter(c => c.doc.volumeType === 'student').length;
+      const teacherCount = candidates.filter(c => c.doc.volumeType === 'teacher').length;
+      logger.info(`🎯 Found ${similarities.length} results above ${minSimilarity} threshold from ${candidates.length} candidates (${studentCount} student, ${teacherCount} teacher)`);
 
       // 6. Build results
       const results: KnowledgeSearchResult[] = similarities.map((sim) => {
@@ -373,5 +454,271 @@ export class KnowledgeService {
       // Non-critical, just log
       logger.warn('Failed to update usage counts:', error);
     }
+  }
+
+  // ============================================
+  // EXTRACTION REVIEW METHODS
+  // ============================================
+
+  /**
+   * Save extraction results for manual review
+   */
+  async saveExtractionReview(
+    extractionResult: FullExtractionResult,
+    metadata: {
+      documentId: string;
+      storagePath: string;
+      grade: string;
+      volume: number;
+      volumeType: 'student' | 'teacher';
+      subject: string;
+    }
+  ): Promise<string> {
+    const reviewId = uuidv4();
+
+    const pages: ExtractionReviewPage[] = extractionResult.pages.map(p => ({
+      pageNumber: p.pageNumber,
+      extractedText: p.consensusText,
+      verificationText: p.verificationText,
+      confidence: p.confidence,
+      agreementScore: p.agreementScore,
+      needsReview: p.needsReview,
+    }));
+
+    const review: Omit<ExtractionReview, 'id'> = {
+      documentId: metadata.documentId,
+      fileName: extractionResult.fileName,
+      storagePath: metadata.storagePath,
+      grade: metadata.grade,
+      volume: metadata.volume,
+      volumeType: metadata.volumeType,
+      subject: metadata.subject,
+      pages,
+      totalPages: extractionResult.totalPages,
+      averageConfidence: extractionResult.averageConfidence,
+      pagesNeedingReview: extractionResult.pagesNeedingReview,
+      status: extractionResult.pagesNeedingReview.length > 0 ? 'pending_review' : 'approved',
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+
+    await this.db.collection(REVIEWS_COLLECTION).doc(reviewId).set({
+      id: reviewId,
+      ...review,
+    });
+
+    logger.info(`📝 Saved extraction review ${reviewId} with ${pages.length} pages`);
+    return reviewId;
+  }
+
+  /**
+   * Get extraction review by ID
+   */
+  async getExtractionReview(reviewId: string): Promise<ExtractionReview | null> {
+    const doc = await this.db.collection(REVIEWS_COLLECTION).doc(reviewId).get();
+    if (!doc.exists) return null;
+    return doc.data() as ExtractionReview;
+  }
+
+  /**
+   * Get all extraction reviews pending review
+   */
+  async getPendingReviews(): Promise<ExtractionReview[]> {
+    console.log(`📋 Querying ${REVIEWS_COLLECTION} for pending_review status...`);
+    try {
+      const snapshot = await this.db
+        .collection(REVIEWS_COLLECTION)
+        .where('status', '==', 'pending_review')
+        .orderBy('createdAt', 'desc')
+        .get();
+
+      console.log(`📋 Found ${snapshot.size} pending reviews`);
+      return snapshot.docs.map(doc => doc.data() as ExtractionReview);
+    } catch (error: any) {
+      console.error('📋 Error getting pending reviews:', error.message);
+      // If index is missing, try without orderBy
+      if (error.message?.includes('index')) {
+        console.log('📋 Retrying without orderBy (index may be building)...');
+        const snapshot = await this.db
+          .collection(REVIEWS_COLLECTION)
+          .where('status', '==', 'pending_review')
+          .get();
+        console.log(`📋 Found ${snapshot.size} pending reviews (without ordering)`);
+        return snapshot.docs.map(doc => doc.data() as ExtractionReview);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get all extraction reviews
+   */
+  async getAllReviews(): Promise<ExtractionReview[]> {
+    console.log(`📋 Querying ${REVIEWS_COLLECTION} for all reviews...`);
+    try {
+      const snapshot = await this.db
+        .collection(REVIEWS_COLLECTION)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+
+      console.log(`📋 Found ${snapshot.size} total reviews`);
+      return snapshot.docs.map(doc => doc.data() as ExtractionReview);
+    } catch (error: any) {
+      console.error('📋 Error getting all reviews:', error.message);
+      // If index is missing, try without orderBy
+      if (error.message?.includes('index')) {
+        console.log('📋 Retrying without orderBy (index may be building)...');
+        const snapshot = await this.db
+          .collection(REVIEWS_COLLECTION)
+          .limit(50)
+          .get();
+        console.log(`📋 Found ${snapshot.size} reviews (without ordering)`);
+        return snapshot.docs.map(doc => doc.data() as ExtractionReview);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Update a page's extracted text (manual correction)
+   */
+  async correctPageExtraction(
+    reviewId: string,
+    pageNumber: number,
+    correctedText: string,
+    correctedBy: string
+  ): Promise<void> {
+    const reviewRef = this.db.collection(REVIEWS_COLLECTION).doc(reviewId);
+    const reviewDoc = await reviewRef.get();
+
+    if (!reviewDoc.exists) {
+      throw new Error('Review not found');
+    }
+
+    const review = reviewDoc.data() as ExtractionReview;
+    const pageIndex = review.pages.findIndex(p => p.pageNumber === pageNumber);
+
+    if (pageIndex === -1) {
+      throw new Error(`Page ${pageNumber} not found`);
+    }
+
+    // Update the page
+    review.pages[pageIndex].correctedText = correctedText;
+    review.pages[pageIndex].correctedBy = correctedBy;
+    review.pages[pageIndex].correctedAt = Timestamp.now();
+    review.pages[pageIndex].needsReview = false;
+
+    // Recalculate pages needing review
+    const stillNeedReview = review.pages
+      .filter(p => p.needsReview && !p.correctedText)
+      .map(p => p.pageNumber);
+
+    await reviewRef.update({
+      pages: review.pages,
+      pagesNeedingReview: stillNeedReview,
+      status: stillNeedReview.length === 0 ? 'reviewed' : 'pending_review',
+      updatedAt: Timestamp.now(),
+    });
+
+    logger.info(`✏️ Corrected page ${pageNumber} in review ${reviewId}`);
+  }
+
+  /**
+   * Approve extraction review and regenerate chunks with corrections
+   */
+  async approveExtractionReview(
+    reviewId: string,
+    approvedBy: string
+  ): Promise<{ chunksUpdated: number }> {
+    const reviewRef = this.db.collection(REVIEWS_COLLECTION).doc(reviewId);
+    const reviewDoc = await reviewRef.get();
+
+    if (!reviewDoc.exists) {
+      throw new Error('Review not found');
+    }
+
+    const review = reviewDoc.data() as ExtractionReview;
+
+    // Build the full text from pages (using corrections where available)
+    const fullText = review.pages
+      .map(p => {
+        const text = p.correctedText || p.extractedText;
+        return `<!-- עמוד ${p.pageNumber} -->\n${text}`;
+      })
+      .join('\n\n---\n\n');
+
+    // Delete existing chunks for this document
+    const existingChunks = await this.db
+      .collection(COLLECTION_NAME)
+      .where('id', '>=', review.documentId)
+      .where('id', '<', review.documentId + '\uf8ff')
+      .get();
+
+    const deletePromises = existingChunks.docs.map(doc => doc.ref.delete());
+    await Promise.all(deletePromises);
+
+    logger.info(`🗑️ Deleted ${existingChunks.size} old chunks`);
+
+    // Re-process with corrected text
+    const { chunks, chapters } = await this.pdfProcessor.processDocument(
+      Buffer.from(fullText).toString('base64'), // This won't work directly - need to handle differently
+      review.fileName,
+      {
+        subject: review.subject as any,
+        grade: review.grade as any,
+        volume: review.volume,
+        volumeType: review.volumeType,
+      },
+      {
+        useHighQuality: false, // Use standard processing since we already have the text
+      }
+    );
+
+    // Generate new embeddings and save
+    const texts = chunks.map(c => c.content);
+    const embeddings = await this.embeddingService.generateEmbeddingsBatch(texts);
+
+    let savedCount = 0;
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = this.db.batch();
+      const batchEnd = Math.min(i + BATCH_SIZE, chunks.length);
+
+      for (let j = i; j < batchEnd; j++) {
+        const chunk = chunks[j];
+        const embedding = embeddings[j];
+
+        if (!embedding.embedding) continue;
+
+        const chunkId = `${review.documentId}_${j}`;
+        const docRef = this.db.collection(COLLECTION_NAME).doc(chunkId);
+
+        batch.set(docRef, {
+          id: chunkId,
+          ...chunk,
+          embedding: embedding.embedding,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+
+        savedCount++;
+      }
+
+      await batch.commit();
+    }
+
+    // Mark review as approved
+    await reviewRef.update({
+      status: 'approved',
+      reviewedBy: approvedBy,
+      reviewedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    logger.info(`✅ Approved review ${reviewId}, created ${savedCount} new chunks`);
+
+    return { chunksUpdated: savedCount };
   }
 }

@@ -16,6 +16,9 @@ import { generateRemedialBlock } from '../services/adaptiveContentService';
 import { checkOpenQuestionAnswer } from '../services/ai/geminiApi';
 import ThinkingOverlay from './ThinkingOverlay';
 import { syncProgress, checkDailyStreak, DEFAULT_GAMIFICATION_PROFILE } from '../services/gamificationService';
+import { onSessionComplete, updateProficiencyVector, updateErrorFingerprint } from '../services/profileService';
+import { useStudentTelemetry } from '../hooks/useStudentTelemetry';
+import { makeAdaptiveDecision, applyPolicyDecision, selectVariant, getInitialStudentState, type BKTAction } from '../services/adaptivePolicyService';
 import ShopModal from './ShopModal';
 import SuccessModal from './SuccessModal';
 import type { GamificationProfile } from '../shared/types/courseTypes';
@@ -150,7 +153,29 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [showFloater, setShowFloater] = useState<{ id: number, amount: number } | null>(null);
     const [isShopOpen, setIsShopOpen] = useState(false);
 
-    // Initial Load & Streak Check
+    // --- ADAPTIVE: Student Telemetry Hook ---
+    const lessonId = course?.syllabus?.[0]?.learningUnits?.[0]?.id || 'unknown_lesson';
+    const telemetry = useStudentTelemetry(currentUser?.uid || 'guest', lessonId);
+
+    // --- ADAPTIVE: Collected Error Tags for Error Fingerprint ---
+    const [sessionErrorTags, setSessionErrorTags] = useState<string[]>([]);
+
+    // --- ADAPTIVE: Toast for Challenge/Mastery notifications ---
+    const [adaptiveToast, setAdaptiveToast] = useState<{
+        show: boolean;
+        type: 'success' | 'info' | 'challenge';
+        title: string;
+        description: string;
+    } | null>(null);
+
+    // --- ADAPTIVE: Current mastery level and accuracy (for variant selection) ---
+    const [currentMastery, setCurrentMastery] = useState(0.5);
+    const [recentAccuracy, setRecentAccuracy] = useState(0.5);
+
+    // --- ADAPTIVE: Track which variant is being shown for each block ---
+    const [activeVariants, setActiveVariants] = useState<Record<string, 'original' | 'scaffolding' | 'enrichment'>>({});
+
+    // Initial Load & Streak Check + Profile-based Starting Level
     useEffect(() => {
         if (currentUser?.uid) {
             checkDailyStreak(currentUser.uid).then(result => {
@@ -161,16 +186,106 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 }));
                 // Could toast message if streak was frozen/reset
             });
-            // Initial Sync/Fetch could be here if we want to get fresh "gems" count too
-            // syncProgress(currentUser.uid, 0, 0).then(p => p && setGamificationProfile(p));
+
+            // --- ADAPTIVE: Load existing profile to set personalized starting level ---
+            const currentTopicId = playbackQueue[0]?.metadata?.tags?.[0] ||
+                                   playbackQueue[0]?.metadata?.topic ||
+                                   'general';
+
+            getInitialStudentState(currentUser.uid, currentTopicId).then(({ mastery, accuracy }) => {
+                setCurrentMastery(mastery);
+                setRecentAccuracy(accuracy);
+
+                if (mastery !== 0.5 || accuracy !== 0.5) {
+                    console.log(`📊 Loaded profile: Starting with mastery=${mastery.toFixed(2)}, accuracy=${accuracy.toFixed(2)}`);
+
+                    // Show toast if starting from non-default level
+                    if (mastery > 0.7) {
+                        setAdaptiveToast({
+                            show: true,
+                            type: 'challenge',
+                            title: '⭐ נתוני פרופיל נטענו',
+                            description: 'מתחילים מרמה מתקדמת על בסיס הביצועים הקודמים שלך!'
+                        });
+                        setTimeout(() => setAdaptiveToast(null), 3000);
+                    } else if (mastery < 0.35) {
+                        setAdaptiveToast({
+                            show: true,
+                            type: 'info',
+                            title: '📚 נתוני פרופיל נטענו',
+                            description: 'מתחילים עם תוכן מותאם כדי לחזק את הבסיס'
+                        });
+                        setTimeout(() => setAdaptiveToast(null), 3000);
+                    }
+                }
+            });
         }
-    }, [currentUser]);
+    }, [currentUser, playbackQueue]);
 
 
     // Reset or Restore status when moving to new block
     // Also: Auto-skip redundant text blocks if they will be shown in split-view with the next question
     useEffect(() => {
         if (!currentBlock) return;
+
+        // --- ADAPTIVE: Select appropriate variant based on student performance ---
+        const questionTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering'];
+        if (questionTypes.includes(currentBlock.type) && !activeVariants[currentBlock.id]) {
+            // Check if this block has variants available
+            const hasScaffolding = !!currentBlock.metadata?.scaffolding_id;
+            const hasEnrichment = !!currentBlock.metadata?.enrichment_id;
+
+            if (hasScaffolding || hasEnrichment) {
+                // Select variant based on current mastery and accuracy
+                const selectedVariant = selectVariant(currentBlock, currentMastery, recentAccuracy);
+
+                if (selectedVariant !== 'original') {
+                    // Get the variant block from metadata (where it's stored during generation)
+                    const variantBlock = selectedVariant === 'scaffolding'
+                        ? currentBlock.metadata?.scaffolding_variant
+                        : currentBlock.metadata?.enrichment_variant;
+
+                    if (variantBlock) {
+                        // Update the queue with the variant block
+                        const newQueue = [...playbackQueue];
+                        newQueue[currentIndex] = variantBlock;
+                        setPlaybackQueue(newQueue);
+
+                        // Track which variant is active
+                        setActiveVariants(prev => ({ ...prev, [currentBlock.id]: selectedVariant }));
+
+                        console.log(`🎯 Adaptive: Selected ${selectedVariant} variant for block ${currentBlock.id}`);
+                        console.log(`   Original content:`, currentBlock.content);
+                        console.log(`   Variant content:`, variantBlock.content);
+
+                        // Show subtle toast for variant selection
+                        if (selectedVariant === 'scaffolding') {
+                            setAdaptiveToast({
+                                show: true,
+                                type: 'info',
+                                title: '📚 תוכן מותאם',
+                                description: 'הותאם לך תוכן עם דוגמאות נוספות'
+                            });
+                            setTimeout(() => setAdaptiveToast(null), 2500);
+                        } else if (selectedVariant === 'enrichment') {
+                            setAdaptiveToast({
+                                show: true,
+                                type: 'challenge',
+                                title: '🚀 אתגר!',
+                                description: 'קיבלת שאלה ברמה מתקדמת'
+                            });
+                            setTimeout(() => setAdaptiveToast(null), 2500);
+                        }
+                    } else {
+                        console.warn(`⚠️ Variant ${selectedVariant} selected but variant block not found in metadata`);
+                        setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'original' }));
+                    }
+                } else {
+                    setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'original' }));
+                }
+            }
+        }
+        // --- END VARIANT SELECTION ---
 
         // --- AUTO-SKIP LOGIC ---
         // If current block is passive text/pdf AND next block is interactive (question),
@@ -211,8 +326,14 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             setFeedbackMsg(null);
             // Hint Reset for new un-attempted blocks (just in case of ID collision or zombie state)
             setHintsVisible(prev => ({ ...prev, [currentBlock.id]: 0 }));
+
+            // --- ADAPTIVE: Start telemetry tracking for interactive blocks ---
+            const interactiveTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed'];
+            if (interactiveTypes.includes(currentBlock.type)) {
+                telemetry.onQuestionStart(currentBlock.id, currentBlock.type);
+            }
         }
-    }, [currentIndex, currentBlock?.id, playbackQueue]); // Only when ID changes, not necessarily stepResults deep change
+    }, [currentIndex, currentBlock?.id, playbackQueue, telemetry]); // Only when ID changes, not necessarily stepResults deep change
     // Note: Removed stepResults dependency to avoid loop, we only check on mount of new index.
 
 
@@ -221,6 +342,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const handleShowHint = (blockId: string) => {
         const newLevel = (hintsVisible[blockId] || 0) + 1;
         setHintsVisible(prev => ({ ...prev, [blockId]: newLevel }));
+
+        // --- ADAPTIVE: Track hint usage for profile ---
+        telemetry.onHintRequested();
     };
 
     // 1. Selection (User Interact)
@@ -347,6 +471,20 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         const hintsUsed = hintsVisible[currentBlock.id] || 0;
         const prevAttempts = stepResults[currentBlock.id] ? 1 : 0; // If already attempted, it's at least attempt #2
 
+        // --- ADAPTIVE: Track telemetry for profile ---
+        telemetry.onAnswerSubmitted(isCorrect, prevAttempts + 1);
+
+        // --- ADAPTIVE: Collect error tags for Error Fingerprint ---
+        if (!isCorrect && currentBlock.metadata?.adaptive_analysis?.distractor_analysis) {
+            const selectedAnswer = userAnswers[currentBlock.id];
+            const distractor = currentBlock.metadata.adaptive_analysis.distractor_analysis.find(
+                (d: any) => d.option_text === selectedAnswer
+            );
+            if (distractor?.error_tag) {
+                setSessionErrorTags(prev => [...prev, distractor.error_tag]);
+            }
+        }
+
         const score = calculateQuestionScore({
             isCorrect,
             attempts: prevAttempts + 1,
@@ -442,7 +580,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (data) {
                         console.log("🧠 BKT Update:", data);
 
-                        // --- FACTORY: REAL-TIME REMEDIATION ---
+                        // --- ADAPTIVE: Update Proficiency Vector with new mastery ---
+                        if (data.mastery !== undefined && user) {
+                            const topicId = currentBlock.metadata?.tags?.[0] ||
+                                course?.syllabus?.[0]?.learningUnits?.[0]?.title ||
+                                'general';
+                            updateProficiencyVector(user.uid, topicId, data.mastery).catch(e =>
+                                console.error("Proficiency Vector update failed:", e)
+                            );
+
+                            // --- ADAPTIVE: Update local mastery for variant selection ---
+                            setCurrentMastery(data.mastery);
+                        }
+
+                        // --- ADAPTIVE: Update recent accuracy for variant selection ---
+                        const recentResults = Object.values(stepResults).slice(-5);
+                        const successCount = recentResults.filter(r => r === 'success').length;
+                        const newAccuracy = recentResults.length > 0 ? successCount / recentResults.length : 0.5;
+                        setRecentAccuracy(newAccuracy);
+
+                        // --- POLICY ENGINE: Act on BKT recommendations ---
                         if (data.action === 'remediate') {
                             // Trigger "Thinking" Overlay
                             setIsRemediating(true);
@@ -468,6 +625,63 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 console.error("Factory Error:", genErr);
                             } finally {
                                 setIsRemediating(false); // Hide Overlay
+                            }
+                        } else if (data.action === 'challenge' || data.action === 'mastered') {
+                            // --- ADAPTIVE POLICY: Challenge Mode & Mastery Skip ---
+                            try {
+                                const decision = await makeAdaptiveDecision(
+                                    data.action as BKTAction,
+                                    data.mastery || 0,
+                                    playbackQueue,
+                                    currentIndex,
+                                    currentBlock,
+                                    user.uid
+                                );
+
+                                console.log(`🧠 Adaptive Decision: ${decision.action}`, decision);
+
+                                if (decision.action === 'skip' || decision.action === 'skip_to_topic') {
+                                    // Show toast notification
+                                    if (decision.toast) {
+                                        setAdaptiveToast({
+                                            show: true,
+                                            ...decision.toast
+                                        });
+                                        // Auto-hide after 3 seconds
+                                        setTimeout(() => setAdaptiveToast(null), 3000);
+                                    }
+
+                                    // Apply the skip after a brief delay for UX
+                                    setTimeout(() => {
+                                        const newIndex = applyPolicyDecision(
+                                            decision,
+                                            currentIndex,
+                                            playbackQueue.length
+                                        );
+                                        setHistoryStack(prev => [...prev, currentIndex]);
+                                        setCurrentIndex(newIndex);
+                                    }, 1500);
+
+                                    setFeedbackMsg(decision.message || "");
+                                } else {
+                                    // Just show feedback, no skip
+                                    if (decision.toast) {
+                                        setAdaptiveToast({
+                                            show: true,
+                                            ...decision.toast
+                                        });
+                                        setTimeout(() => setAdaptiveToast(null), 3000);
+                                    }
+                                    setFeedbackMsg(prev => (prev || "") + "\n" + (decision.message || ""));
+                                }
+                            } catch (policyErr) {
+                                console.error("Policy decision error:", policyErr);
+                                // Fallback to simple messages
+                                if (data.action === 'challenge') {
+                                    setFeedbackMsg(prev => (prev || "") + "\n🌟 מצוין! המערכת מזהה שליטה גבוהה.");
+                                } else {
+                                    setFeedbackMsg(prev => (prev || "") + "\n🏆 שליטה מלאה! מוכנים לאתגר הבא.");
+                                }
                             }
                         }
                     }
@@ -579,6 +793,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (data) {
                         console.log("🧠 BKT Update:", data);
 
+                        // --- ADAPTIVE: Update Proficiency Vector with new mastery ---
+                        if (data.mastery !== undefined && user) {
+                            const topicId = currentBlock.metadata?.tags?.[0] ||
+                                course?.syllabus?.[0]?.learningUnits?.[0]?.title ||
+                                'general';
+                            updateProficiencyVector(user.uid, topicId, data.mastery).catch(e =>
+                                console.error("Proficiency Vector update failed:", e)
+                            );
+
+                            // --- ADAPTIVE: Update local mastery for variant selection ---
+                            setCurrentMastery(data.mastery);
+                        }
+
+                        // --- ADAPTIVE: Update recent accuracy for variant selection ---
+                        const recentResults = Object.values(stepResults).slice(-5);
+                        const successCount = recentResults.filter(r => r === 'success').length;
+                        const newAccuracy = recentResults.length > 0 ? successCount / recentResults.length : 0.5;
+                        setRecentAccuracy(newAccuracy);
+
+                        // --- POLICY ENGINE: Act on BKT recommendations ---
                         if (data.action === 'remediate') {
                             setIsRemediating(true);
                             setFeedbackMsg(prev => (prev || "") + "\n🤖 המערכת מזהה קושי. מנתח פערים...");
@@ -602,6 +836,44 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 console.error("Factory Error:", genErr);
                             } finally {
                                 setIsRemediating(false);
+                            }
+                        } else if (data.action === 'challenge' || data.action === 'mastered') {
+                            // --- ADAPTIVE POLICY: Challenge Mode & Mastery Skip ---
+                            try {
+                                const decision = await makeAdaptiveDecision(
+                                    data.action as BKTAction,
+                                    data.mastery || 0,
+                                    playbackQueue,
+                                    currentIndex,
+                                    currentBlock,
+                                    user.uid
+                                );
+
+                                console.log(`🧠 Adaptive Decision (Complex): ${decision.action}`, decision);
+
+                                if (decision.action === 'skip' || decision.action === 'skip_to_topic') {
+                                    if (decision.toast) {
+                                        setAdaptiveToast({ show: true, ...decision.toast });
+                                        setTimeout(() => setAdaptiveToast(null), 3000);
+                                    }
+
+                                    setTimeout(() => {
+                                        const newIndex = applyPolicyDecision(decision, currentIndex, playbackQueue.length);
+                                        setHistoryStack(prev => [...prev, currentIndex]);
+                                        setCurrentIndex(newIndex);
+                                    }, 1500);
+
+                                    setFeedbackMsg(decision.message || "");
+                                } else {
+                                    if (decision.toast) {
+                                        setAdaptiveToast({ show: true, ...decision.toast });
+                                        setTimeout(() => setAdaptiveToast(null), 3000);
+                                    }
+                                    setFeedbackMsg(prev => (prev || "") + "\n" + (decision.message || ""));
+                                }
+                            } catch (policyErr) {
+                                console.error("Policy decision error:", policyErr);
+                                setFeedbackMsg(prev => (prev || "") + "\n🌟 מצוין!");
                             }
                         }
                     }
@@ -874,6 +1146,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             src={currentBlock.content}
                             alt="Lesson Content"
                             className="rounded-2xl shadow-md max-h-[50vh] object-contain"
+                            loading="lazy"
+                            decoding="async"
                         />
                     </div>
                 );
@@ -1040,16 +1314,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
     };
 
-    // --- Loading State ---
-    if (!currentBlock) return <div className="h-screen w-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">טוען שיעור...</div>;
-
-
     // --- Teacher Cockpit Mode ---
-    // Detect if this is a Teacher Lesson Plan
+    // Detect if this is a Teacher Lesson Plan or Podcast
+    // IMPORTANT: Check productType BEFORE loading state to handle podcast/lesson without activityBlocks
     const productType = (course as any)?.wizardData?.settings?.productType;
-    console.log("🕵️ SequentialCoursePlayer: Detected Product Type:", productType);
+    const isCourseLoading = !course || course.id === 'loading';
+    console.log("🕵️ SequentialCoursePlayer: courseId:", course?.id, "productType:", productType, "isCourseLoading:", isCourseLoading);
 
-    if (productType === 'lesson' && !forceExam && !inspectorMode) {
+    // If course is still loading from Firestore (id === 'loading'), wait
+    // This prevents showing the wrong view while data is still being fetched
+    if (isCourseLoading) {
+        console.log("🕵️ SequentialCoursePlayer: Course still loading from Firestore...");
+        return <div className="h-screen w-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">טוען שיעור...</div>;
+    }
+
+    if ((productType === 'lesson' || productType === 'podcast') && !forceExam && !inspectorMode) {
         // Use the first unit found (Standard for current generation flow)
         const unit = course?.syllabus?.[0]?.learningUnits?.[0];
         if (unit) {
@@ -1068,6 +1347,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             return <TeacherCockpit unit={unit as any} courseId={course?.id} onExit={handleExit} onEdit={onEdit} />;
         }
     }
+
+    // --- Loading State ---
+    // Only show loading for regular student content (not lesson/podcast which use TeacherCockpit)
+    if (!currentBlock) return <div className="h-screen w-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">טוען שיעור...</div>;
 
     // --- Student Player (Default) ---
     return (
@@ -1316,7 +1599,35 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             {/* Success Modal Overlay */}
             {showSuccessModal && (
                 <SuccessModal
-                    onContinue={() => {
+                    onContinue={async () => {
+                        // --- ADAPTIVE: Save Session to Profile ---
+                        if (currentUser?.uid && !simulateGuest) {
+                            try {
+                                const sessionData = telemetry.getSessionSummary();
+                                const topicId = course?.syllabus?.[0]?.learningUnits?.[0]?.title || course?.title || 'general';
+
+                                console.log('📊 Saving session to profile:', {
+                                    userId: currentUser.uid,
+                                    lessonId,
+                                    questions: sessionData.summary.total_questions,
+                                    correct: sessionData.summary.correct_answers,
+                                    hintsUsed: sessionData.summary.total_hints_used,
+                                    errorTags: sessionErrorTags.length
+                                });
+
+                                await onSessionComplete(
+                                    currentUser.uid,
+                                    sessionData,
+                                    topicId,
+                                    sessionErrorTags
+                                );
+
+                                console.log('✅ Profile updated successfully');
+                            } catch (error) {
+                                console.error('❌ Failed to save session to profile:', error);
+                            }
+                        }
+
                         setShowSuccessModal(false);
                         onExit && onExit();
                     }}
@@ -1324,8 +1635,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         setShowSuccessModal(false);
                         // Stay on page
                     }}
-                    xpGained={50} // Dynamic later
-                    gemsGained={2}
+                    xpGained={gamificationProfile.xp} // Dynamic from actual session
+                    gemsGained={gamificationProfile.gems}
                 />
             )}
 
@@ -1398,6 +1709,27 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
             {/* 4. Overlays */}
             {isRemediating && <ThinkingOverlay />}
+
+            {/* Adaptive Toast Notification (Challenge Mode / Mastery Skip) */}
+            {adaptiveToast?.show && (
+                <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top-5 fade-in duration-500">
+                    <div className={`px-6 py-4 rounded-2xl shadow-2xl border-2 flex items-center gap-4 min-w-[300px] ${
+                        adaptiveToast.type === 'challenge'
+                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600 border-purple-300 text-white'
+                            : adaptiveToast.type === 'success'
+                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 border-green-300 text-white'
+                                : 'bg-gradient-to-r from-blue-500 to-cyan-600 border-blue-300 text-white'
+                    }`}>
+                        <span className="text-3xl">
+                            {adaptiveToast.type === 'challenge' ? '🚀' : adaptiveToast.type === 'success' ? '🏆' : 'ℹ️'}
+                        </span>
+                        <div className="flex-1">
+                            <h4 className="font-black text-lg">{adaptiveToast.title}</h4>
+                            <p className="text-sm opacity-90">{adaptiveToast.description}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <ShopModal
                 isOpen={isShopOpen}

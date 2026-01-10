@@ -14,6 +14,7 @@ import {
   runE2EGenerationAgent,
   runStudentActivityAgent,
   runAssessmentIntegrityAgent,
+  runKnowledgeBaseQAAgent,
   generateFixSuggestions,
   executeFix,
   executeFixBatch,
@@ -456,7 +457,8 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
     aiGeneration: false,
     e2eGeneration: false,
     studentActivity: false,
-    assessmentIntegrity: false
+    assessmentIntegrity: false,
+    knowledgeBase: false
   });
 
   // Fix state
@@ -492,6 +494,7 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
         includeE2EGeneration: selectedAgents.e2eGeneration,
         includeStudentActivity: selectedAgents.studentActivity,
         includeAssessmentIntegrity: selectedAgents.assessmentIntegrity,
+        includeKnowledgeBase: selectedAgents.knowledgeBase,
         maxCourses: 10,
         saveReport: true,
         userId: currentUser?.uid
@@ -508,7 +511,7 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
     }
   };
 
-  const handleRunSingleAgent = async (agentType: 'content' | 'simulation' | 'ai' | 'e2e' | 'activity' | 'integrity') => {
+  const handleRunSingleAgent = async (agentType: 'content' | 'simulation' | 'ai' | 'e2e' | 'activity' | 'integrity' | 'knowledge-base') => {
     setIsRunning(true);
     setRunProgress(`מריץ סוכן...`);
     setFixResults(new Map());
@@ -548,6 +551,11 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
           result = await runAssessmentIntegrityAgent(10);
           agentNameHe = 'אינטגריטי הערכה';
           categoryName = 'assessment-integrity';
+          break;
+        case 'knowledge-base':
+          result = await runKnowledgeBaseQAAgent(3);
+          agentNameHe = 'אינטגרציית בסיס ידע';
+          categoryName = 'knowledge-base';
           break;
       }
 
@@ -885,6 +893,15 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
             />
             ⚖️ אינטגריטי הערכה
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedAgents.knowledgeBase}
+              onChange={e => setSelectedAgents(prev => ({ ...prev, knowledgeBase: e.target.checked }))}
+              className="w-4 h-4"
+            />
+            📚 אינטגרציית בסיס ידע
+          </label>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -930,6 +947,13 @@ const QADashboard: React.FC<QADashboardProps> = ({ onBack }) => {
             className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 transition disabled:opacity-50"
           >
             ⚖️ אינטגריטי
+          </button>
+          <button
+            onClick={() => handleRunSingleAgent('knowledge-base')}
+            disabled={isRunning}
+            className="px-3 py-1 text-xs rounded bg-purple-700 hover:bg-purple-600 transition disabled:opacity-50"
+          >
+            📚 בסיס ידע
           </button>
         </div>
       </div>
