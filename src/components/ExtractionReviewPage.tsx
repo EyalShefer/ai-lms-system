@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { functions, storage } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -68,6 +68,9 @@ export default function ExtractionReviewPage() {
 
   // Error state
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // PDF fix state
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   // Load reviews list
   const loadReviews = useCallback(async () => {
@@ -202,6 +205,39 @@ export default function ExtractionReviewPage() {
       alert('שגיאה באישור: ' + error.message);
     } finally {
       setApproving(false);
+    }
+  };
+
+  // Upload PDF to fix broken path
+  const handleUploadPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedReview || !currentUser) return;
+
+    setUploadingPdf(true);
+    try {
+      // Upload to storage
+      const timestamp = Date.now();
+      const storagePath = `knowledge-base/${currentUser.uid}/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, file);
+
+      // Update review with new path
+      const updateFunc = httpsCallable(functions, 'updateReviewStoragePath');
+      await updateFunc({
+        reviewId: selectedReview.id,
+        storagePath,
+      });
+
+      // Reload PDF
+      const url = await getDownloadURL(storageRef);
+      setPdfUrl(url);
+
+      alert('PDF הועלה בהצלחה!');
+    } catch (error: any) {
+      console.error('Failed to upload PDF:', error);
+      alert('שגיאה בהעלאת PDF: ' + error.message);
+    } finally {
+      setUploadingPdf(false);
     }
   };
 
@@ -393,8 +429,23 @@ export default function ExtractionReviewPage() {
               title="PDF Viewer"
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              לא ניתן לטעון PDF
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
+              <p>לא ניתן לטעון PDF</p>
+              <p className="text-sm">קובץ ה-PDF לא נמצא. ניתן להעלות את הקובץ:</p>
+              <label className={`px-4 py-2 rounded-md cursor-pointer ${
+                uploadingPdf
+                  ? 'bg-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}>
+                {uploadingPdf ? 'מעלה...' : '📁 העלה PDF'}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleUploadPdf}
+                  disabled={uploadingPdf}
+                  className="hidden"
+                />
+              </label>
             </div>
           )}
         </div>

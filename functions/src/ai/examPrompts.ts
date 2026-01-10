@@ -304,6 +304,137 @@ CRITICAL RULES:
 `;
 
 /**
+ * STAGE 1B: EXAM ARCHITECT PROMPT WITH DNA TEMPLATE
+ *
+ * Role: Strategic Test Planner with Reference Template
+ * Goal: Create an exam skeleton that follows the structure of a reference exam
+ * The DNA provides: question count, type distribution, difficulty, Bloom levels
+ */
+export const getExamArchitectPromptWithDNA = (
+    contextPart: string,
+    gradeLevel: string,
+    stepCount: number,
+    bloomSteps: string[],
+    structureGuide: string,
+    examDna: {
+        questionCount: number;
+        totalPoints: number;
+        estimatedDurationMinutes: number;
+        questionTypeDistribution: Record<string, number>;
+        bloomDistribution: Record<string, number>;
+        difficultyDistribution: Record<string, number>;
+        linguisticStyle: {
+            averageQuestionLengthWords: number;
+            usesRealWorldContext: boolean;
+            usesVisualElements: boolean;
+            formalityLevel: string;
+        };
+    }
+) => `
+Role: Senior Assessment Designer (Exam Architect) - TEMPLATE-BASED MODE.
+Task: Create a "Test Plan" (Exam Skeleton) that MATCHES the structure of a reference exam.
+
+${contextPart}
+Target Audience: ${gradeLevel}.
+Count: Exactly ${examDna.questionCount} assessment items (from reference exam).
+Language: Hebrew.
+Temperature: LOW (0.3) - Deterministic output required.
+
+🧬 REFERENCE EXAM DNA (MUST FOLLOW THIS STRUCTURE):
+
+**General Structure:**
+- Total Questions: ${examDna.questionCount}
+- Total Points: ${examDna.totalPoints}
+- Estimated Duration: ${examDna.estimatedDurationMinutes} minutes
+
+**Question Type Distribution (Percentages - FOLLOW THIS):**
+${Object.entries(examDna.questionTypeDistribution)
+    .filter(([_, pct]) => pct > 0)
+    .map(([type, pct]) => `- ${type}: ${pct}%`)
+    .join('\n')}
+
+**Bloom Taxonomy Distribution (Percentages - FOLLOW THIS):**
+${Object.entries(examDna.bloomDistribution)
+    .filter(([_, pct]) => pct > 0)
+    .map(([level, pct]) => `- ${level}: ${pct}%`)
+    .join('\n')}
+
+**Difficulty Distribution (Percentages - FOLLOW THIS):**
+${Object.entries(examDna.difficultyDistribution)
+    .filter(([_, pct]) => pct > 0)
+    .map(([level, pct]) => `- ${level}: ${pct}%`)
+    .join('\n')}
+
+**Linguistic Style (MATCH THIS):**
+- Average question length: ~${examDna.linguisticStyle.averageQuestionLengthWords} words
+- Uses real-world context: ${examDna.linguisticStyle.usesRealWorldContext ? 'Yes' : 'No'}
+- Uses visual elements: ${examDna.linguisticStyle.usesVisualElements ? 'Yes' : 'No'}
+- Formality level: ${examDna.linguisticStyle.formalityLevel}
+
+MISSION:
+1. **Follow the DNA Structure:**
+   - Create exactly ${examDna.questionCount} questions matching the distributions above.
+   - Distribute question types proportionally (e.g., 40% MC = ${Math.round(examDna.questionCount * 0.4)} questions).
+   - Match the Bloom and difficulty distributions.
+
+2. **Content from Source Material:**
+   - Questions must be based ONLY on the provided source material.
+   - Create NEW questions - do NOT copy from reference exam.
+   - Each question tests a specific concept from the content.
+
+3. **EXAM-ONLY POLICY:**
+   - Questions ONLY. No introduction, no explanations.
+   - Neutral, Objective, Formal tone (Examiner voice).
+   - NO: Teaching blocks, hints, scaffolding.
+
+4. **Topic Policing:**
+   - For each question, define:
+     * **assessment_focus:** What specific knowledge/skill is being tested?
+     * **forbidden_topics:** What must NOT appear in this question?
+
+5. **IMPORTANT: Create NEW Content:**
+   - The DNA is a TEMPLATE for structure, not content.
+   - Generate completely new questions based on the source material.
+   - Match the style and difficulty, but use fresh examples and wording.
+
+6. **Structure Guide:**
+   ${structureGuide}
+
+Output JSON Structure (STRICT):
+{
+  "exam_title": "String (concise exam title)",
+  "total_points": ${examDna.totalPoints},
+  "estimated_duration_minutes": ${examDna.estimatedDurationMinutes},
+  "coverage_matrix": {
+    "topic_name": {
+      "question_numbers": [1, 2],
+      "bloom_levels": ["Remember", "Apply"],
+      "total_points": number
+    }
+  },
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Question 1 Title",
+      "assessment_focus": "What is being tested",
+      "forbidden_topics": ["Concept B"],
+      "bloom_level": "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create",
+      "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question",
+      "points": number,
+      "estimated_time_minutes": number,
+      "difficulty_level": "easy" | "medium" | "hard"
+    }
+  ]
+}
+
+CRITICAL RULES:
+- Match the DNA distributions as closely as possible
+- NO "teach_content" in output
+- NO "progressive_hints" in output
+- Create NEW questions, don't copy from reference
+`;
+
+/**
  * STAGE 2: EXAM GENERATOR PROMPT
  *
  * Role: Question Writer (The Hands)

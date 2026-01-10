@@ -3,9 +3,11 @@ import { useDropzone } from 'react-dropzone';
 import {
     IconBrain, IconArrowBack, IconSparkles,
     IconCheck, IconX, IconBook, IconWand, IconCloudUpload, IconVideo,
-    IconHeadphones, IconTarget, IconJoystick
+    IconHeadphones, IconTarget, IconJoystick, IconLibrary
 } from '../icons';
 import { MultimodalService, TRANSCRIPTION_ERROR_CODES } from '../services/multimodalService';
+import TextbookSelector from './TextbookSelector';
+import type { TextbookSelection } from '../services/textbookService';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -254,10 +256,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Step 1: Source
-    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | 'multimodal' | null>(null);
+    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | 'multimodal' | 'textbook' | null>(null);
     const [topic, setTopic] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [pastedText, setPastedText] = useState('');
+    const [textbookSelection, setTextbookSelection] = useState<TextbookSelection | null>(null);
     // const [subMode, setSubMode] = useState<'youtube' | 'audio' | null>(null);
 
     // Step 2: Product - use initialProduct if provided
@@ -399,7 +402,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 (mode === 'topic' && topic) ||
                 (mode === 'upload' && file) ||
                 (mode === 'text' && pastedText) ||
-                (mode === 'multimodal' && pastedText)
+                (mode === 'multimodal' && pastedText) ||
+                (mode === 'textbook' && textbookSelection && textbookSelection.selectedTocEntries.length > 0)
             );
         }
         if (step === 2) {
@@ -417,6 +421,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 suggestedTitle = topic;
             } else if (mode === 'text' && pastedText) {
                 suggestedTitle = topic || "פעילות טקסט חופשי";
+            } else if (mode === 'textbook' && textbookSelection) {
+                const chapters = textbookSelection.selectedTocEntries.map(e => e.title).join(', ');
+                suggestedTitle = `${textbookSelection.textbookTitle} - ${chapters}`.substring(0, 100);
             }
         }
         setCustomTitle(suggestedTitle);
@@ -444,6 +451,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 pastedText,
                 title: customTitle || topic || config.defaultTitleName,
                 originalTopic: topic,
+                // Textbook alignment data (when mode === 'textbook')
+                textbookSelection: mode === 'textbook' ? textbookSelection : null,
                 settings: {
                     subject: subject || "כללי",
                     grade: grade,
@@ -486,7 +495,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div>
                             <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
                                 <IconSparkles className="w-8 h-8 text-wizdi-lime animate-wiggle" />
-                                {step === 3 ? config.headerLabel : "יצירת פעילות חדשה"}
+                                {config.headerLabel}
                             </h2>
                             <p className="text-blue-100/80 font-medium text-lg">
                                 {step === 1 && "בואו נתחיל! איך תרצו להזין את התוכן?"}
@@ -514,7 +523,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                     {/* Step 1: Input Selection */}
                     {step === 1 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 animate-slide-up">
                             {(() => {
                                 const dropzoneProps = getRootProps();
 
@@ -574,6 +583,20 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 onClick={() => setMode('topic')}
                             >
                                 מחולל AI חופשי
+                            </SourceCard>
+
+                            <SourceCard
+                                id="textbook"
+                                label="מספר הלימוד"
+                                icon={IconLibrary}
+                                color="indigo"
+                                isActive={mode === 'textbook'}
+                                onClick={() => setMode('textbook')}
+                            >
+                                {textbookSelection
+                                    ? <span className="text-indigo-600 font-bold">{textbookSelection.selectedTocEntries.length} פרקים נבחרו</span>
+                                    : "בחירה מספר שהועלה"
+                                }
                             </SourceCard>
 
                             {/* Additional Inputs based on selection */}
@@ -705,6 +728,35 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             </button>
                                         </div>
                                         {pastedText && <div className="text-green-600 text-sm font-bold flex items-center gap-2 animate-bounce"><IconCheck className="w-4 h-4" /> התמלול התקבל בהצלחה ({pastedText.length} תווים)</div>}
+                                    </div>
+                                )}
+
+                                {mode === 'textbook' && (
+                                    <div className="animate-fade-in">
+                                        <TextbookSelector
+                                            onSelect={(selection) => {
+                                                setTextbookSelection(selection);
+                                                // Auto-set grade from textbook
+                                                if (selection.grade) {
+                                                    const gradeMap: Record<string, string> = {
+                                                        'א': "כיתה א׳", 'ב': "כיתה ב׳", 'ג': "כיתה ג׳",
+                                                        'ד': "כיתה ד׳", 'ה': "כיתה ה׳", 'ו': "כיתה ו׳",
+                                                        'ז': "כיתה ז׳", 'ח': "כיתה ח׳", 'ט': "כיתה ט׳",
+                                                        'י': "כיתה י׳", 'יא': "כיתה י״א", 'יב': "כיתה י״ב"
+                                                    };
+                                                    const mappedGrade = gradeMap[selection.grade];
+                                                    if (mappedGrade) {
+                                                        setGrade(mappedGrade);
+                                                    }
+                                                }
+                                            }}
+                                            onClear={() => {
+                                                setMode(null);
+                                                setTextbookSelection(null);
+                                            }}
+                                            selectedValue={textbookSelection}
+                                            compact={false}
+                                        />
                                     </div>
                                 )}
                             </div>

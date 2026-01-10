@@ -62,8 +62,32 @@ export {
     getExtractionReviews,
     getExtractionReview,
     correctPageExtraction,
-    approveExtractionReview
+    approveExtractionReview,
+    updateReviewStoragePath
 } from './controllers/knowledgeController';
+
+// --- TEXTBOOK MANAGEMENT (Textbook-Aligned Content Generation) ---
+export {
+    getTextbooks,
+    getTextbookDetails,
+    getChapterContent,
+    searchWithinTextbook,
+    getTextbookContext,
+    createTextbookFromDocument,
+    deleteTextbook,
+    migrateKnowledgeBooksToTextbooks
+} from './controllers/textbookController';
+
+// --- REFERENCE EXAMS (Exam DNA Templates) ---
+export {
+    uploadReferenceExam,
+    getReferenceExam,
+    listReferenceExams,
+    deleteReferenceExam,
+    findMatchingReferenceExams,
+    getReferenceExamStats,
+    getAvailableTextbooks
+} from './controllers/referenceExamController';
 
 // --- TYPES ---
 // --- TYPES REMOVED (Imported from Shared) ---

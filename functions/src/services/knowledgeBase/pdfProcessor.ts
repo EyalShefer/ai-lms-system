@@ -218,6 +218,79 @@ ${rawText.substring(0, 15000)}
   }
 
   /**
+   * Extract text from PDF using Vision AI directly (without parsing PDF structure)
+   * Used as fallback when PDF structure is invalid but the content is readable as images
+   */
+  async extractWithVisionOnly(
+    pdfBase64: string,
+    fileName: string
+  ): Promise<ProcessedPDF> {
+    logger.info(`🔍 Using Vision-only extraction for: ${fileName} (PDF structure invalid)`);
+
+    try {
+      // Send the entire PDF to GPT-4o Vision
+      // GPT-4o can handle PDFs directly and extract text even if structure is corrupted
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `זהו ספר לימוד בעברית. הקובץ עלול להיות פגום במבנה שלו, אבל התוכן הוויזואלי קריא.
+
+המשימה שלך היא לחלץ את כל הטקסט מהמסמך הזה.
+
+כללים חשובים:
+1. חלץ את כל הטקסט בדיוק כפי שהוא מופיע - תרגילים, הסברים, כותרות
+2. סמן כותרות פרקים ונושאים בבירור
+3. לכל תרגיל, כתוב את מספר התרגיל ואת התוכן המלא שלו
+4. אם יש תמונות או איורים, תאר אותם בקצרה בסוגריים מרובעים [תמונה: ...]
+5. שמור על מספרים מדויקים
+6. הפרד בין עמודים עם שורת "---"
+
+החזר את כל הטקסט המחולץ בעברית.`,
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${pdfBase64}`,
+                  detail: 'high',
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 16000,
+        temperature: 0,
+      });
+
+      const extractedText = response.choices[0]?.message?.content || '';
+      logger.info(`✅ Vision-only extraction complete: ${extractedText.length} characters`);
+
+      if (!extractedText || extractedText.trim().length < 50) {
+        throw new Error('לא ניתן היה לחלץ טקסט מהמסמך');
+      }
+
+      // Parse chapters from extracted text
+      const chapters = this.parseChaptersFromText(extractedText);
+
+      return {
+        fullText: extractedText,
+        chapters,
+        metadata: {
+          pageCount: undefined, // Unknown since we couldn't parse the PDF
+          extractionMethod: 'vision',
+        },
+      };
+    } catch (error: any) {
+      logger.error('Vision-only extraction failed:', error.message);
+      throw new Error(`חילוץ Vision נכשל: ${error.message}`);
+    }
+  }
+
+  /**
    * HIGH QUALITY EXTRACTION - Use this for production!
    * Extracts text using Gemini with multi-pass verification
    * This is a ONE-TIME process per book that serves hundreds of thousands of queries
@@ -330,6 +403,23 @@ ${rawText.substring(0, 15000)}
       };
     } catch (error: any) {
       logger.error('High quality extraction failed:', error.message);
+
+      // Check if this is a PDF structure error
+      const isStructureError = error.message?.includes('Invalid PDF') ||
+                               error.message?.includes('PDF structure') ||
+                               error.message?.includes('Failed to parse');
+
+      if (isStructureError) {
+        logger.warn('⚠️ PDF structure is invalid - attempting Vision-only extraction...');
+        try {
+          // Use Vision AI directly without trying to parse PDF structure
+          return await this.extractWithVisionOnly(pdfBase64, fileName);
+        } catch (visionError: any) {
+          logger.error('Vision-only extraction also failed:', visionError.message);
+          throw new Error(`מבנה PDF לא תקין ולא ניתן לחלץ טקסט. נסה להמיר את הקובץ ל-PDF חדש או סרוק מחדש. שגיאה: ${error.message}`);
+        }
+      }
+
       logger.warn('Falling back to standard extraction...');
       return this.extractTextFromPDF(pdfBase64, fileName, true);
     }

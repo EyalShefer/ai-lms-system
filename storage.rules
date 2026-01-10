@@ -122,6 +122,21 @@ service firebase.storage {
                    && request.resource.contentType.matches('application/pdf');
     }
 
+    // ===== REFERENCE EXAMS =====
+    // Reference exam PDFs for DNA extraction
+    match /reference-exams/{userId}/{allPaths=**} {
+      // Read: Authenticated users can read
+      allow read: if isAuthenticated();
+
+      // Write: Authenticated users can upload PDFs up to 100MB
+      allow write: if isOwner(userId)
+                   && request.resource.size < 100 * 1024 * 1024
+                   && request.resource.contentType.matches('application/pdf');
+
+      // Delete: Only owner can delete
+      allow delete: if isOwner(userId);
+    }
+
     // ===== TEMPORARY UPLOADS =====
     // For processing uploads before moving to final location
     match /temp/{userId}/{fileName} {

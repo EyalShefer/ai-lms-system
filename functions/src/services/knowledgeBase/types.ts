@@ -1,5 +1,86 @@
 // types.ts - Knowledge Base Types for Math RAG System
 
+// ============================================
+// Textbook Types - For Textbook-Aligned Content Generation
+// ============================================
+
+/**
+ * Represents a textbook in the knowledge base
+ * Enables teachers to browse, select chapters, and generate aligned content
+ */
+export interface Textbook {
+  id: string;
+  title: string;                    // "מתמטיקה לכיתה ב׳ כרך 1"
+  subject: 'math' | 'hebrew' | 'english' | 'science' | 'history' | 'other';
+  grade: 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב';
+  volume: number;
+  volumeType: 'student' | 'teacher';
+  publisher?: string;               // "מטח" / "יעל"
+  coverImageUrl?: string;           // Thumbnail from first page
+
+  // Hierarchical structure extracted from PDF
+  tableOfContents: TocEntry[];
+
+  // Links to math_knowledge chunks
+  documentId: string;               // Links to original upload
+  totalChunks: number;
+  totalPages: number;
+
+  // Metadata
+  uploadedBy: string;               // teacherId who uploaded
+  uploadedAt: FirebaseFirestore.Timestamp;
+  isPublic: boolean;                // Visible to all teachers (always true per design)
+  usageCount: number;
+}
+
+/**
+ * Table of Contents entry for textbook browsing
+ * Supports 3 levels: פרק > נושא > תת-נושא
+ */
+export interface TocEntry {
+  id: string;
+  level: 1 | 2 | 3;                 // 1 = פרק, 2 = נושא, 3 = תת-נושא
+  title: string;                    // "פרק א׳: חיבור עד 100"
+  pageStart: number;
+  pageEnd?: number;
+  chunkIds: string[];               // Links to math_knowledge chunk IDs
+  children?: TocEntry[];
+
+  // For topic search within chapter
+  keywords: string[];
+  summary?: string;                 // AI-generated summary of this section
+}
+
+/**
+ * Request parameters for textbook-aligned content generation
+ */
+export interface TextbookAlignment {
+  textbookId: string;
+  selectedTocEntryIds: string[];
+  alignmentLevel: 'flexible' | 'strict';  // flexible = inspiration, strict = only textbook content
+  useTextbookStyle: boolean;              // Mimic pedagogical style
+  includeTextbookExercises: boolean;      // Adapt exercises from book
+}
+
+/**
+ * Response for textbook context retrieval
+ */
+export interface TextbookContextResponse {
+  context: string;
+  sources: {
+    chunkId: string;
+    page: number;
+    chapter: string;
+    contentType: string;
+  }[];
+  textbookTitle: string;
+  selectedChapters: string[];
+}
+
+// ============================================
+// Knowledge Chunk Types
+// ============================================
+
 export interface KnowledgeChunk {
   id: string;
 
@@ -36,6 +117,11 @@ export interface KnowledgeChunk {
   // Search optimization
   keywords: string[];  // מילות מפתח לחיפוש
   relatedTopics: string[];  // נושאים קשורים
+
+  // Textbook linking (for textbook-aligned generation)
+  textbookId?: string;      // Link back to parent textbook
+  tocEntryId?: string;      // Link to specific ToC entry
+  pageNumber?: number;      // Specific page number (not range)
 }
 
 export interface KnowledgeUploadRequest {
@@ -203,3 +289,146 @@ export const GRADE_TOPICS: Record<string, string[]> = {
   'ה': ['מספרים עשרוניים', 'אחוזים', 'שברים מורכבים', 'נפח', 'ממוצע', 'גרפים'],
   'ו': ['מספרים שליליים', 'יחס ופרופורציה', 'אחוזים מתקדם', 'גיאומטריה', 'משוואות פשוטות'],
 };
+
+// ============================================
+// Reference Exam Types - For Exam DNA Extraction
+// ============================================
+
+/**
+ * Document type for Knowledge Base entries
+ */
+export type DocumentType = 'textbook' | 'teacher_guide' | 'reference_exam';
+
+/**
+ * Type of reference exam
+ */
+export type ExamType = 'unit_exam' | 'midterm' | 'final' | 'quiz';
+
+/**
+ * Subject type (reusable)
+ */
+export type Subject = KnowledgeChunk['subject'];
+
+/**
+ * Grade type (reusable)
+ */
+export type Grade = KnowledgeChunk['grade'];
+
+/**
+ * ExamDNA - The extracted "DNA" from a reference exam
+ * Contains structural and pedagogical information for exam generation
+ * Note: Does NOT store actual questions, only distributions and patterns
+ */
+export interface ExamDNA {
+  // General structure
+  questionCount: number;
+  totalPoints: number;
+  estimatedDurationMinutes: number;
+
+  // Question type distribution (percentages, sum = 100)
+  questionTypeDistribution: {
+    multiple_choice: number;
+    true_false: number;
+    open_question: number;
+    fill_in_blanks: number;
+    ordering: number;
+    categorization: number;
+  };
+
+  // Bloom taxonomy distribution (percentages, sum = 100)
+  bloomDistribution: {
+    remember: number;
+    understand: number;
+    apply: number;
+    analyze: number;
+    evaluate: number;
+    create: number;
+  };
+
+  // Difficulty distribution (percentages, sum = 100)
+  difficultyDistribution: {
+    easy: number;
+    medium: number;
+    hard: number;
+  };
+
+  // Linguistic style patterns
+  linguisticStyle: {
+    averageQuestionLengthWords: number;
+    usesRealWorldContext: boolean;
+    usesVisualElements: boolean;
+    formalityLevel: 'low' | 'medium' | 'high';
+  };
+
+  // Metadata
+  extractedAt: FirebaseFirestore.Timestamp;
+  extractionConfidence: number; // 0-1
+}
+
+/**
+ * Reference Exam document stored in Firestore
+ * Represents an uploaded exam that serves as a template for generating new exams
+ */
+export interface ReferenceExam {
+  id: string;
+  documentType: 'reference_exam';
+
+  // Link to textbook
+  linkedTextbookId: string;
+  linkedTextbookName: string; // For display purposes
+  chapters: number[]; // Chapter numbers covered by this exam
+
+  // Metadata
+  subject: Subject;
+  grade: Grade;
+  examType: ExamType;
+  fileName: string;
+  storagePath: string;
+
+  // The extracted DNA (structure only, no questions)
+  examDna: ExamDNA;
+
+  // Optional source info
+  source?: string; // "מדריך למורה", "משרד החינוך", etc.
+  year?: number;
+
+  // Tracking
+  uploadedBy: string;
+  uploadedAt: FirebaseFirestore.Timestamp;
+  usageCount: number;
+}
+
+/**
+ * Request to upload a reference exam
+ */
+export interface ReferenceExamUploadRequest {
+  // File data (one of these is required)
+  fileBase64?: string;
+  fileUrl?: string;
+  storagePath?: string;
+  mimeType: 'application/pdf';
+  fileName: string;
+
+  // Required metadata
+  subject: Subject;
+  grade: Grade;
+  linkedTextbookId: string;
+  chapters: number[];
+  examType: ExamType;
+
+  // Optional metadata
+  source?: string;
+  year?: number;
+}
+
+/**
+ * Response from reference exam upload
+ */
+export interface ReferenceExamUploadResponse {
+  success: boolean;
+  examId: string;
+  examDna: ExamDNA | null;
+  linkedTextbookName: string;
+  processingTimeMs: number;
+  errors?: string[];
+}

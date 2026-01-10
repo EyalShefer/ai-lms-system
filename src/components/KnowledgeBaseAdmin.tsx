@@ -6,6 +6,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { functions, storage, db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { ReferenceExamUpload, ReferenceExamsList } from './referenceExams';
 
 interface UploadResponse {
   success: boolean;
@@ -102,8 +103,12 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
   const [deletingBook, setDeletingBook] = useState<string | null>(null);
   const [deleteResult, setDeleteResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Migration state
+  const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Active tab
-  const [activeTab, setActiveTab] = useState<'upload' | 'search' | 'stats'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'search' | 'stats' | 'reference_exams'>('upload');
 
   // Load stats, books, and pending progress on mount
   useEffect(() => {
@@ -350,6 +355,44 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
     }
   };
 
+  // Migrate knowledge books to textbooks
+  const handleMigrateToTextbooks = async () => {
+    if (!window.confirm('האם לסנכרן את כל הספרים מבסיס הידע למערכת הספרים?\n\nפעולה זו תיצור רשומות ספר עבור כל הספרים שקיימים בבסיס הידע.')) {
+      return;
+    }
+
+    setMigrating(true);
+    setMigrationResult(null);
+
+    try {
+      const migrateFunc = httpsCallable(functions, 'migrateKnowledgeBooksToTextbooks', { timeout: 540000 });
+      const result = await migrateFunc({});
+      const data = result.data as {
+        success: boolean;
+        totalBooks: number;
+        created: number;
+        failed: number;
+        results: Array<{ key: string; success: boolean; error?: string }>;
+      };
+
+      setMigrationResult({
+        success: data.success,
+        message: `סנכרון הושלם!\nנמצאו ${data.totalBooks} ספרים\nנוצרו ${data.created} רשומות חדשות\nנכשלו ${data.failed}`,
+      });
+
+      // Refresh books list
+      loadBooks();
+    } catch (error: any) {
+      console.error('Migration failed:', error);
+      setMigrationResult({
+        success: false,
+        message: error.message || 'שגיאה בסנכרון',
+      });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   // Create review for a book
   const [creatingReview, setCreatingReview] = useState<string | null>(null);
 
@@ -434,6 +477,16 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
             }`}
           >
             סטטיסטיקות
+          </button>
+          <button
+            onClick={() => setActiveTab('reference_exams')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'reference_exams'
+                ? 'border-b-2 border-purple-500 text-purple-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            מבחני ייחוס
           </button>
         </div>
 
@@ -899,14 +952,52 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
             <div className="mt-8 pt-6 border-t border-gray-200">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">ספרים בבסיס הידע</h3>
-                <button
-                  onClick={loadBooks}
-                  disabled={loadingBooks}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
-                >
-                  {loadingBooks ? 'טוען...' : 'רענן'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleMigrateToTextbooks}
+                    disabled={migrating}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                      migrating
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {migrating ? (
+                      <span className="flex items-center gap-1">
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        מסנכרן...
+                      </span>
+                    ) : (
+                      '🔄 סנכרן למערכת ספרים'
+                    )}
+                  </button>
+                  <button
+                    onClick={loadBooks}
+                    disabled={loadingBooks}
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    {loadingBooks ? 'טוען...' : 'רענן'}
+                  </button>
+                </div>
               </div>
+
+              {/* Migration Result */}
+              {migrationResult && (
+                <div
+                  className={`mb-4 p-3 rounded-md whitespace-pre-line ${
+                    migrationResult.success
+                      ? 'bg-green-100 border border-green-300'
+                      : 'bg-red-100 border border-red-300'
+                  }`}
+                >
+                  <p className={migrationResult.success ? 'text-green-800' : 'text-red-800'}>
+                    {migrationResult.message}
+                  </p>
+                </div>
+              )}
 
               {/* Delete Result */}
               {deleteResult && (
@@ -1006,6 +1097,30 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Reference Exams Tab */}
+        {activeTab === 'reference_exams' && (
+          <div className="space-y-6">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-purple-800 mb-2">מבחני ייחוס</h3>
+              <p className="text-purple-700 text-sm">
+                מבחני ייחוס הם מבחנים קיימים (מדריכי מורה, משרד החינוך) שמשמשים כתבניות ליצירת מבחנים חדשים.
+                המערכת מחלצת את ה-DNA של המבחן (מבנה, סוגי שאלות, רמות קושי) ומשתמשת בו לייצר מבחנים עם אותו
+                מבנה אבל שאלות חדשות מתוכן הספר.
+              </p>
+            </div>
+
+            {/* Upload Form */}
+            <ReferenceExamUpload
+              onUploadComplete={() => {
+                // Refresh the list after successful upload
+              }}
+            />
+
+            {/* Existing Exams List */}
+            <ReferenceExamsList />
           </div>
         )}
       </div>

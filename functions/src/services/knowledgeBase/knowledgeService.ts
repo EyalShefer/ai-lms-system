@@ -163,9 +163,10 @@ export class KnowledgeService {
           const chunkId = `${documentId}_${i}`;
           const docRef = this.db.collection(COLLECTION_NAME).doc(chunkId);
 
-          const fullChunk: KnowledgeChunk = {
+          const fullChunk: KnowledgeChunk & { storagePath?: string } = {
             id: chunkId,
             ...chunk,
+            storagePath: request.storagePath, // Save the original PDF path for review
             embedding: embeddingResult.embedding,
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
@@ -660,20 +661,14 @@ export class KnowledgeService {
 
     logger.info(`🗑️ Deleted ${existingChunks.size} old chunks`);
 
-    // Re-process with corrected text
-    const { chunks, chapters } = await this.pdfProcessor.processDocument(
-      Buffer.from(fullText).toString('base64'), // This won't work directly - need to handle differently
-      review.fileName,
-      {
-        subject: review.subject as any,
-        grade: review.grade as any,
-        volume: review.volume,
-        volumeType: review.volumeType,
-      },
-      {
-        useHighQuality: false, // Use standard processing since we already have the text
-      }
-    );
+    // Create chunks directly from the corrected text (no PDF parsing needed)
+    const chunks = this.createChunksFromText(fullText, {
+      subject: review.subject as any,
+      grade: review.grade as any,
+      volume: review.volume,
+      volumeType: review.volumeType,
+      source: review.fileName,
+    });
 
     // Generate new embeddings and save
     const texts = chunks.map(c => c.content);
@@ -720,5 +715,152 @@ export class KnowledgeService {
     logger.info(`✅ Approved review ${reviewId}, created ${savedCount} new chunks`);
 
     return { chunksUpdated: savedCount };
+  }
+
+  /**
+   * Create chunks directly from text (for approved reviews - no PDF parsing needed)
+   */
+  private createChunksFromText(
+    fullText: string,
+    metadata: {
+      subject: string;
+      grade: string;
+      volume: number;
+      volumeType: 'student' | 'teacher';
+      source: string;
+    }
+  ): Omit<KnowledgeChunk, 'id' | 'embedding' | 'createdAt' | 'updatedAt'>[] {
+    const CHUNK_CONFIG = {
+      maxTokens: 500,
+      minChunkLength: 100,
+    };
+
+    const estimateTokens = (text: string) => Math.ceil(text.length / 3);
+
+    // Parse chapters from text
+    const chapters = this.parseChaptersFromText(fullText);
+    const chunks: Omit<KnowledgeChunk, 'id' | 'embedding' | 'createdAt' | 'updatedAt'>[] = [];
+
+    for (const chapter of chapters) {
+      const paragraphs = chapter.content.split(/\n\n+/);
+      let currentChunk = '';
+      let currentTokens = 0;
+
+      for (const paragraph of paragraphs) {
+        const paragraphTokens = estimateTokens(paragraph);
+
+        if (currentTokens + paragraphTokens > CHUNK_CONFIG.maxTokens && currentChunk.length >= CHUNK_CONFIG.minChunkLength) {
+          chunks.push({
+            subject: metadata.subject as any,
+            grade: metadata.grade as any,
+            volume: metadata.volume,
+            volumeType: metadata.volumeType,
+            chapter: chapter.name,
+            chapterNumber: chapter.chapterNumber,
+            content: currentChunk.trim(),
+            contentType: 'explanation',
+            source: metadata.source,
+            sourceType: 'pdf',
+            keywords: [],
+            relatedTopics: [],
+            usageCount: 0,
+          });
+
+          const sentences = currentChunk.split(/[.!?。]/);
+          const overlapText = sentences.length > 2 ? sentences.slice(-2).join('. ') : sentences[sentences.length - 1] || '';
+          currentChunk = overlapText + '\n\n' + paragraph;
+          currentTokens = estimateTokens(currentChunk);
+        } else {
+          currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+          currentTokens += paragraphTokens;
+        }
+      }
+
+      if (currentChunk.length >= CHUNK_CONFIG.minChunkLength) {
+        chunks.push({
+          subject: metadata.subject as any,
+          grade: metadata.grade as any,
+          volume: metadata.volume,
+          volumeType: metadata.volumeType,
+          chapter: chapter.name,
+          chapterNumber: chapter.chapterNumber,
+          content: currentChunk.trim(),
+          contentType: 'explanation',
+          source: metadata.source,
+          sourceType: 'pdf',
+          keywords: [],
+          relatedTopics: [],
+          usageCount: 0,
+        });
+      }
+    }
+
+    logger.info(`📚 Created ${chunks.length} chunks from corrected text`);
+    return chunks;
+  }
+
+  /**
+   * Parse chapters from text (helper for createChunksFromText)
+   */
+  private parseChaptersFromText(fullText: string): { name: string; content: string; chapterNumber: number }[] {
+    const chapters: { name: string; content: string; chapterNumber: number }[] = [];
+
+    const chapterPatterns = [
+      /^(פרק\s+[\u05d0-\u05ea\d]+)/gm,
+      /^(יחידה\s+[\u05d0-\u05ea\d]+)/gm,
+      /^(נושא\s*:?\s*[\u05d0-\u05ea\d]+)/gm,
+    ];
+
+    let chapterBoundaries: { index: number; name: string }[] = [];
+
+    for (const pattern of chapterPatterns) {
+      let match;
+      while ((match = pattern.exec(fullText)) !== null) {
+        chapterBoundaries.push({
+          index: match.index,
+          name: match[1].trim(),
+        });
+      }
+    }
+
+    chapterBoundaries.sort((a, b) => a.index - b.index);
+    chapterBoundaries = chapterBoundaries.filter((boundary, i) => {
+      if (i === 0) return true;
+      return boundary.index - chapterBoundaries[i - 1].index > 100;
+    });
+
+    if (chapterBoundaries.length > 0) {
+      for (let i = 0; i < chapterBoundaries.length; i++) {
+        const start = chapterBoundaries[i].index;
+        const end = i < chapterBoundaries.length - 1 ? chapterBoundaries[i + 1].index : fullText.length;
+        const chapterContent = fullText.substring(start, end).trim();
+
+        if (chapterContent.length > 50) {
+          chapters.push({
+            name: chapterBoundaries[i].name,
+            content: chapterContent,
+            chapterNumber: i + 1,
+          });
+        }
+      }
+
+      if (chapterBoundaries[0].index > 200) {
+        chapters.unshift({
+          name: 'מבוא',
+          content: fullText.substring(0, chapterBoundaries[0].index).trim(),
+          chapterNumber: 0,
+        });
+      }
+    }
+
+    if (chapters.length === 0) {
+      chapters.push({
+        name: 'תוכן הספר',
+        content: fullText,
+        chapterNumber: 1,
+      });
+    }
+
+    return chapters;
   }
 }

@@ -872,3 +872,160 @@ export const getLinguisticConstraintsByGrade = (gradeLevel: string): string => {
 **Analogies:** Use for complex concepts to aid understanding
 `;
 };
+
+// ============================================
+// TEXTBOOK-ALIGNED GENERATION PROMPTS
+// ============================================
+
+/**
+ * Generate a prompt for textbook-aligned content generation
+ * Uses exact textbook content, language, and pedagogical style
+ */
+export const getTextbookAlignedPrompt = (
+  textbookContent: string,
+  textbookMetadata: {
+    title: string;
+    selectedChapters: string[];
+    grade: string;
+    subject: string;
+  },
+  alignmentLevel: 'flexible' | 'strict'
+) => {
+  const strictRules = alignmentLevel === 'strict' ? `
+**STRICT ALIGNMENT MODE - CRITICAL RULES:**
+1. Use ONLY concepts, examples, and exercises that appear in the textbook content below
+2. Do NOT introduce ANY external information, examples, or explanations
+3. If the textbook uses a specific term (e.g., "חיבור אנכי"), use EXACTLY that term - not synonyms
+4. Follow the textbook's exact progression and difficulty level
+5. Adapt exercises directly from the textbook patterns - do not create new formats
+` : `
+**FLEXIBLE ALIGNMENT MODE:**
+1. Use the textbook as PRIMARY inspiration and reference
+2. Match the textbook's pedagogical style and language level
+3. You may extend with similar examples in the same style
+4. Maintain consistency with the textbook's terminology
+5. New content should feel like it belongs in the same textbook
+`;
+
+  return `
+# TEXTBOOK-ALIGNED CONTENT GENERATION
+
+You are generating educational content that must be TIGHTLY ALIGNED with a specific textbook.
+
+## SOURCE TEXTBOOK INFORMATION:
+- **Title:** ${textbookMetadata.title}
+- **Grade Level:** ${textbookMetadata.grade}
+- **Subject:** ${textbookMetadata.subject}
+- **Selected Chapters:** ${textbookMetadata.selectedChapters.join(', ')}
+
+${strictRules}
+
+## TEXTBOOK CONTENT (PRIMARY SOURCE):
+"""
+${textbookContent}
+"""
+
+## ALIGNMENT REQUIREMENTS:
+
+### 1. LANGUAGE & TERMINOLOGY
+- Copy the textbook's exact mathematical/subject vocabulary
+- If textbook says "מחסר" don't use "חיסור"; if it says "סכום" use "סכום"
+- Match sentence structure and formality level
+- Use the same Hebrew register (formal/informal) as the textbook
+
+### 2. PEDAGOGICAL STYLE
+- Follow the textbook's teaching approach:
+  * If it explains concepts before examples → do the same
+  * If it uses visual representations → reference similar visuals
+  * If it builds concepts gradually → maintain that progression
+- Match the textbook's balance of explanation vs. practice
+
+### 3. EXAMPLES & EXERCISES
+- Create examples similar to those in the textbook:
+  * Same number ranges (if textbook uses 1-20, stay in that range)
+  * Same context types (if textbook uses שקלים, use שקלים)
+  * Same difficulty progression
+- For exercises, mirror the textbook's:
+  * Question formats (word problems vs. pure computation)
+  * Scaffolding approach (guided → independent)
+
+### 4. COMMON MISTAKES & TIPS
+- If textbook highlights specific common mistakes, address those
+- Use the textbook's pedagogical guidance for teachers (if available)
+
+### 5. PAGE REFERENCES
+- When possible, include source references: "ראה עמ' X בספר"
+- This helps teachers locate related content
+
+## OUTPUT FORMAT:
+Generate content following the requested format, but ensure every element
+(explanations, questions, examples, hints) is aligned with the textbook style.
+`;
+};
+
+/**
+ * Get a textbook-style explanation prompt
+ */
+export const getTextbookExplanationPrompt = (
+  topic: string,
+  textbookContent: string,
+  grade: string
+) => `
+נא להסביר את הנושא "${topic}" בסגנון ספר הלימוד.
+
+**תוכן מספר הלימוד להתבסס עליו:**
+${textbookContent}
+
+**הנחיות:**
+1. השתמש באותה שפה ומונחים כמו בספר
+2. התאם את רמת ההסבר לכיתה ${grade}
+3. אם יש בספר דוגמאות דומות - התבסס עליהן
+4. שמור על הסגנון הפדגוגי של הספר (צורת הפנייה לתלמיד, רמת הפירוט)
+
+**פלט:** הסבר בעברית בסגנון ספר הלימוד
+`;
+
+/**
+ * Get a textbook-style exercise generation prompt
+ */
+export const getTextbookExercisePrompt = (
+  topic: string,
+  textbookExamples: string,
+  exerciseType: string,
+  count: number,
+  grade: string
+) => `
+צור ${count} תרגילים מסוג "${exerciseType}" בנושא "${topic}" בסגנון ספר הלימוד.
+
+**דוגמאות מהספר להתבסס עליהן:**
+${textbookExamples}
+
+**הנחיות:**
+1. חקה את מבנה התרגילים בספר
+2. השתמש בטווחי מספרים דומים לאלה בספר
+3. השתמש בהקשרים דומים (אם הספר משתמש בפירות - השתמש בפירות)
+4. התאם את רמת הקושי לכיתה ${grade}
+5. כלול תרגילים בקושי עולה אם זה הסגנון בספר
+
+**פלט:** JSON עם מערך של תרגילים
+`;
+
+/**
+ * Get context injection template for textbook-aligned generation
+ */
+export const getTextbookContextInjection = (
+  textbookContext: string,
+  textbookTitle: string,
+  selectedChapters: string[]
+) => `
+**מקור מרכזי - ספר הלימוד:**
+${textbookTitle}
+פרקים נבחרים: ${selectedChapters.join(', ')}
+
+---
+${textbookContext}
+---
+
+**חשוב:** התוכן שנוצר חייב להתבסס על חומר הספר לעיל.
+השתמש באותה שפה, מונחים ודוגמאות.
+`;

@@ -11,6 +11,7 @@ import {
   KnowledgeUploadRequest,
   KnowledgeSearchRequest,
 } from '../services/knowledgeBase';
+import { TextbookService } from '../services/textbook/textbookService';
 
 const openAiApiKey = defineSecret('OPENAI_API_KEY');
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
@@ -95,6 +96,28 @@ export const uploadKnowledge = onCall(
         volume,
         volumeType,
       });
+
+      // Auto-create textbook record after successful upload
+      if (result.success && result.documentId) {
+        try {
+          logger.info(`📚 Auto-creating textbook record for ${result.documentId}`);
+          const textbookService = new TextbookService(openAiApiKey.value());
+          await textbookService.createTextbookFromUpload(result.documentId, {
+            grade,
+            volume,
+            volumeType,
+            subject,
+            fileName,
+            storagePath,
+            uploadedBy: request.auth!.uid,
+            totalPages: result.progress?.totalPages,
+          });
+          logger.info(`📚 Textbook record created successfully`);
+        } catch (textbookError: any) {
+          // Log but don't fail the upload
+          logger.warn(`⚠️ Failed to create textbook record: ${textbookError.message}`);
+        }
+      }
 
       return result;
     } catch (error: any) {
@@ -843,9 +866,13 @@ export const createReviewForExistingBook = onCall(
         });
       }
 
-      // Get document ID from first chunk
+      // Get document ID and storagePath from first chunk
       const firstChunk = chunksSnapshot.docs[0].data();
       const documentId = firstChunk.id?.split('_')[0] || `book-${grade}-${volume}-${volumeType}`;
+
+      // Get the actual storagePath from the chunk (where the PDF was uploaded)
+      const actualStoragePath = firstChunk.storagePath || `knowledge_pdfs/${documentId}.pdf`;
+      logger.info(`📁 Using storagePath from chunk: ${actualStoragePath}`);
 
       // Create review document
       const { v4: uuidv4 } = await import('uuid');
@@ -856,7 +883,7 @@ export const createReviewForExistingBook = onCall(
         id: reviewId,
         documentId,
         fileName: `ספר ${volumeType === 'teacher' ? 'מורה' : 'תלמיד'} כיתה ${grade} כרך ${volume}.pdf`,
-        storagePath: `knowledge_pdfs/${documentId}.pdf`,
+        storagePath: actualStoragePath,
         grade,
         volume,
         volumeType,
@@ -1035,8 +1062,8 @@ export const approveExtractionReview = onCall(
   {
     cors: true,
     secrets: [openAiApiKey],
-    memory: '1GiB',
-    timeoutSeconds: 300,
+    memory: '2GiB',
+    timeoutSeconds: 540, // 9 minutes - max allowed for large documents with many pages
   },
   async (request) => {
     if (!request.auth) {
@@ -1066,6 +1093,54 @@ export const approveExtractionReview = onCall(
       };
     } catch (error: any) {
       logger.error('Approve review failed:', error);
+      throw new HttpsError('internal', error.message);
+    }
+  }
+);
+
+/**
+ * Update the storagePath for an existing review (for fixing broken PDF paths)
+ * Admin only
+ */
+export const updateReviewStoragePath = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const isUserAdmin = await isAdmin(request.auth.uid);
+    if (!isUserAdmin) {
+      throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל');
+    }
+
+    const { reviewId, storagePath } = request.data;
+
+    if (!reviewId || !storagePath) {
+      throw new HttpsError('invalid-argument', 'נדרש reviewId ו-storagePath');
+    }
+
+    logger.info(`📁 Updating review ${reviewId} storagePath to: ${storagePath}`);
+
+    try {
+      const { Timestamp } = await import('firebase-admin/firestore');
+
+      await db.collection('extraction_reviews').doc(reviewId).update({
+        storagePath,
+        updatedAt: Timestamp.now(),
+      });
+
+      logger.info(`✅ Updated storagePath for review ${reviewId}`);
+
+      return {
+        success: true,
+        reviewId,
+        storagePath,
+      };
+    } catch (error: any) {
+      logger.error('Update storagePath failed:', error);
       throw new HttpsError('internal', error.message);
     }
   }

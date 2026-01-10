@@ -17,11 +17,13 @@ import * as logger from "firebase-functions/logger";
 import { cleanJsonString } from '../shared/utils/geminiParsers';
 import {
     getExamArchitectPrompt,
+    getExamArchitectPromptWithDNA,
     getExamStructureGuide,
     getExamBloomSteps,
     calculateQuestionPoints,
     estimateQuestionTime
 } from '../ai/examPrompts';
+import type { ExamDNA } from './knowledgeBase/types';
 
 export interface ExamSkeletonStep {
     step_number: number;
@@ -57,6 +59,8 @@ export interface ExamArchitectContext {
     activityLength: 'short' | 'medium' | 'long';
     sourceText?: string;
     taxonomy?: { knowledge: number; application: number; evaluation: number };
+    // NEW: Reference Exam DNA for template-based generation
+    referenceExamDna?: ExamDNA;
 }
 
 /**
@@ -69,10 +73,17 @@ export async function runExamArchitect(
     openai: OpenAI,
     context: ExamArchitectContext
 ): Promise<ExamSkeleton | null> {
-    // Determine question count based on length
+    // Determine question count based on length or DNA
     let stepCount = 5;
-    if (context.activityLength === 'short') stepCount = 3;
-    else if (context.activityLength === 'long') stepCount = 7;
+    if (context.referenceExamDna) {
+        // Use DNA's question count as base
+        stepCount = context.referenceExamDna.questionCount;
+        logger.info(`🧬 Using Reference Exam DNA: ${stepCount} questions`);
+    } else if (context.activityLength === 'short') {
+        stepCount = 3;
+    } else if (context.activityLength === 'long') {
+        stepCount = 7;
+    }
 
     // Get structure guide and Bloom steps
     const structureGuide = getExamStructureGuide(stepCount);
@@ -83,14 +94,26 @@ export async function runExamArchitect(
         ? `BASE EXAM ON THIS TEXT ONLY:\n"""${context.sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
         : `Topic: "${context.topic}"`;
 
-    // Generate the prompt
-    const systemPrompt = getExamArchitectPrompt(
-        contextPart,
-        context.gradeLevel,
-        stepCount,
-        bloomSteps,
-        structureGuide
-    );
+    // Generate the prompt - use DNA-enhanced prompt if available
+    let systemPrompt: string;
+    if (context.referenceExamDna) {
+        systemPrompt = getExamArchitectPromptWithDNA(
+            contextPart,
+            context.gradeLevel,
+            stepCount,
+            bloomSteps,
+            structureGuide,
+            context.referenceExamDna
+        );
+    } else {
+        systemPrompt = getExamArchitectPrompt(
+            contextPart,
+            context.gradeLevel,
+            stepCount,
+            bloomSteps,
+            structureGuide
+        );
+    }
 
     // Prepare user content (text + optional image)
     const userContent: any[] = [{ type: "text", text: `Create exam skeleton for: ${context.topic}` }];
