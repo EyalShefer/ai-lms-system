@@ -1256,9 +1256,7 @@ export const debugKnowledgeBase = onCall(
             grades: data.grades,
             subject: data.subject,
             chapter: data.chapter?.substring(0, 50),
-            source: data.source?.substring(0, 60),
-            // Include content sample for debugging
-            contentSample: data.content?.substring(0, 500)
+            source: data.source?.substring(0, 60)
           });
         }
 
