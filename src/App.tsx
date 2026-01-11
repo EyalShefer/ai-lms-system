@@ -31,6 +31,7 @@ const QADashboard = React.lazy(() => import('./components/QADashboard'));
 const WizdiRoutes = React.lazy(() => import('./components/wizdi/WizdiRouter'));
 const KnowledgeBaseAdmin = React.lazy(() => import('./components/KnowledgeBaseAdmin'));
 const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionReviewPage'));
+const TeachingAgentsLibrary = React.lazy(() => import('./components/TeachingAgentsLibrary'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -594,7 +595,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -619,6 +620,11 @@ const AuthenticatedApp = () => {
                 )}
                 {mode === 'prompts' && (
                   <PromptsLibrary
+                    onBack={() => setMode('list')}
+                  />
+                )}
+                {mode === 'agents' && (
+                  <TeachingAgentsLibrary
                     onBack={() => setMode('list')}
                   />
                 )}

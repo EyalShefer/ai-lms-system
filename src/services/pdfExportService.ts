@@ -1,8 +1,7 @@
-import html2pdf from 'html2pdf.js';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 
 /**
- * Exports a Teacher Lesson Plan to a formatted PDF document
+ * Exports a Teacher Lesson Plan to PDF via print dialog
  *
  * Features:
  * - Full Hebrew/RTL support
@@ -11,39 +10,53 @@ import type { TeacherLessonPlan } from '../shared/types/gemini.types';
  * - Page breaks for readability
  *
  * @param lessonPlan - The lesson plan to export
- * @returns Promise<Blob> - PDF blob for download
  */
-export const exportLessonPlanToPDF = async (lessonPlan: TeacherLessonPlan): Promise<Blob> => {
+export const exportLessonPlanToPDF = async (lessonPlan: TeacherLessonPlan): Promise<void> => {
   const html = generateLessonPlanHTML(lessonPlan);
 
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
-
-  const options = {
-    margin: 10,
-    filename: `${lessonPlan.lesson_metadata.title}.pdf`,
-    image: { type: 'jpeg' as const, quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      letterRendering: true
-    },
-    jsPDF: {
-      unit: 'mm' as const,
-      format: 'a4' as const,
-      orientation: 'portrait' as const
-    }
-  };
-
-  try {
-    const blob = await html2pdf().set(options).from(container).outputPdf('blob');
-    return blob;
-  } finally {
-    document.body.removeChild(container);
+  // Open a new window for printing
+  const printWindow = window.open('', '_blank', 'width=800,height=600');
+  if (!printWindow) {
+    alert('אנא אפשר חלונות קופצים כדי להדפיס');
+    return;
   }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+      <meta charset="UTF-8">
+      <title>${escapeHtml(lessonPlan.lesson_metadata.title)} - מערך שיעור</title>
+      <style>
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .page-break { page-break-before: always; }
+        }
+        body {
+          font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+          direction: rtl;
+          text-align: right;
+          margin: 0;
+          padding: 20px;
+          color: #333;
+          background: white;
+        }
+      </style>
+    </head>
+    <body>
+      ${html}
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+            window.onafterprint = function() { window.close(); };
+          }, 250);
+        };
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 };
 
 /**
@@ -234,17 +247,11 @@ const escapeHtml = (text: string): string => {
 };
 
 /**
- * Downloads the lesson plan as a PDF file
+ * Opens print dialog to save the lesson plan as PDF
  *
  * @param lessonPlan - The lesson plan to export
- * @param filename - Optional custom filename (defaults to lesson title)
+ * @param _filename - Optional custom filename (not used, kept for API compatibility)
  */
-export const downloadLessonPlanPDF = async (lessonPlan: TeacherLessonPlan, filename?: string) => {
-  const blob = await exportLessonPlanToPDF(lessonPlan);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename || `${lessonPlan.lesson_metadata.title}.pdf`;
-  link.click();
-  URL.revokeObjectURL(url);
+export const downloadLessonPlanPDF = async (lessonPlan: TeacherLessonPlan, _filename?: string) => {
+  await exportLessonPlanToPDF(lessonPlan);
 };

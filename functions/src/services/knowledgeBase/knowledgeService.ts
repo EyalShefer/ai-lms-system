@@ -63,6 +63,39 @@ export class KnowledgeService {
         throw new Error('Either fileBase64 or fileUrl/storagePath must be provided');
       }
 
+      // Create a progress document ID for real-time updates
+      const progressId = `progress_${uuidv4()}`;
+      let progressDocCreated = false;
+
+      // Callback to update Firestore with real-time progress
+      const onProgress = async (status: import('./highQualityExtractor').PageExtractionStatus) => {
+        try {
+          if (!progressDocCreated) {
+            // Create initial progress document
+            await this.db.collection('extraction_progress').doc(progressId).set({
+              fileName: request.fileName,
+              totalPages: 0,
+              processedPages: 0,
+              currentPage: status.pageNumber,
+              status: 'processing',
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            });
+            progressDocCreated = true;
+          } else {
+            // Update progress
+            await this.db.collection('extraction_progress').doc(progressId).update({
+              currentPage: status.pageNumber,
+              status: status.status,
+              updatedAt: Timestamp.now(),
+            });
+          }
+        } catch (err) {
+          // Don't fail the extraction if progress update fails
+          logger.warn(`Failed to update progress: ${err}`);
+        }
+      };
+
       // 1. Process PDF into chunks using HIGH QUALITY extraction
       const result = await this.pdfProcessor.processDocument(
         fileBase64,
@@ -70,11 +103,14 @@ export class KnowledgeService {
         {
           subject: request.subject,
           grade: request.grade,
-          volume: request.volume,
+          volume: request.volumeType === 'curriculum' ? 0 : request.volume, // Curriculum doesn't use volume
           volumeType: request.volumeType,
+          // For curriculum, pass the grades array
+          grades: request.grades,
         },
         {
           useHighQuality: true,  // Always use high quality for production
+          onProgress,
         }
       );
 
@@ -84,8 +120,7 @@ export class KnowledgeService {
       if (needsMoreBatches && batchProgress) {
         logger.warn(`⏳ Large PDF - batch processing in progress: ${batchProgress.processedPages}/${batchProgress.totalPages} pages`);
 
-        // Save the batch progress to Firestore so we can continue later
-        const progressId = `progress_${uuidv4()}`;
+        // Update or create the batch progress document in Firestore
         await this.db.collection('extraction_progress').doc(progressId).set({
           ...batchProgress,
           metadata: {
@@ -186,6 +221,16 @@ export class KnowledgeService {
       }
 
       logger.info(`✅ Upload complete: ${savedCount} chunks saved`);
+
+      // Clean up progress document if it was created
+      if (progressDocCreated) {
+        try {
+          await this.db.collection('extraction_progress').doc(progressId).delete();
+          logger.info(`🧹 Cleaned up progress document: ${progressId}`);
+        } catch (err) {
+          logger.warn(`Failed to clean up progress document: ${err}`);
+        }
+      }
 
       // Build response with extraction quality info
       const response: KnowledgeUploadResponse = {
@@ -293,7 +338,8 @@ export class KnowledgeService {
       // Count by volumeType for debugging
       const studentCount = candidates.filter(c => c.doc.volumeType === 'student').length;
       const teacherCount = candidates.filter(c => c.doc.volumeType === 'teacher').length;
-      logger.info(`🎯 Found ${similarities.length} results above ${minSimilarity} threshold from ${candidates.length} candidates (${studentCount} student, ${teacherCount} teacher)`);
+      const curriculumCount = candidates.filter(c => c.doc.volumeType === 'curriculum').length;
+      logger.info(`🎯 Found ${similarities.length} results above ${minSimilarity} threshold from ${candidates.length} candidates (${studentCount} student, ${teacherCount} teacher, ${curriculumCount} curriculum)`);
 
       // 6. Build results
       const results: KnowledgeSearchResult[] = similarities.map((sim) => {
@@ -323,6 +369,109 @@ export class KnowledgeService {
   }
 
   /**
+   * Search curriculum documents, including those that span multiple grades
+   * Curriculum documents can have a 'grades' array field that lists all applicable grades
+   */
+  async searchCurriculum(request: {
+    query: string;
+    grade: KnowledgeChunk['grade'];
+    limit?: number;
+    minSimilarity?: number;
+  }): Promise<KnowledgeSearchResponse> {
+    const startTime = Date.now();
+    const { query, grade, limit = 5, minSimilarity = 0.2 } = request;
+
+    try {
+      logger.info(`🔍 Searching curriculum for grade ${grade}: "${query}"`);
+
+      // Generate embedding for query
+      const queryEmbedding = await this.embeddingService.generateEmbedding(query);
+
+      // Query 1: Documents with exact grade match (legacy)
+      const exactGradeQuery = this.db.collection(COLLECTION_NAME)
+        .where('volumeType', '==', 'curriculum')
+        .where('grade', '==', grade);
+
+      // Query 2: Documents where this grade is in the grades array
+      const gradesArrayQuery = this.db.collection(COLLECTION_NAME)
+        .where('volumeType', '==', 'curriculum')
+        .where('grades', 'array-contains', grade);
+
+      // Execute both queries
+      const [exactSnapshot, arraySnapshot] = await Promise.all([
+        exactGradeQuery.limit(500).get(),
+        gradesArrayQuery.limit(500).get(),
+      ]);
+
+      // Combine results (remove duplicates by ID)
+      const documentMap = new Map<string, FirebaseFirestore.DocumentData>();
+
+      exactSnapshot.forEach((doc) => {
+        documentMap.set(doc.id, doc.data());
+      });
+
+      arraySnapshot.forEach((doc) => {
+        if (!documentMap.has(doc.id)) {
+          documentMap.set(doc.id, doc.data());
+        }
+      });
+
+      logger.info(`🔍 Found ${documentMap.size} curriculum documents for grade ${grade} (${exactSnapshot.size} exact, ${arraySnapshot.size} from array)`);
+
+      if (documentMap.size === 0) {
+        return {
+          results: [],
+          query,
+          processingTimeMs: Date.now() - startTime,
+        };
+      }
+
+      // Calculate similarities
+      const candidates: { id: string; embedding: number[]; doc: FirebaseFirestore.DocumentData }[] = [];
+
+      documentMap.forEach((data, id) => {
+        if (data.embedding && Array.isArray(data.embedding)) {
+          candidates.push({
+            id,
+            embedding: data.embedding,
+            doc: data,
+          });
+        }
+      });
+
+      // Find most similar
+      const similarities = EmbeddingService.findMostSimilar(
+        queryEmbedding,
+        candidates,
+        limit,
+        minSimilarity
+      );
+
+      // Build results
+      const results: KnowledgeSearchResult[] = similarities.map((sim) => {
+        const candidate = candidates.find((c) => c.id === sim.id)!;
+        const { embedding, ...chunkWithoutEmbedding } = candidate.doc as KnowledgeChunk;
+
+        return {
+          chunk: chunkWithoutEmbedding,
+          similarity: sim.similarity,
+        };
+      });
+
+      logger.info(`✅ Found ${results.length} curriculum results for grade ${grade}`);
+
+      return {
+        results,
+        query,
+        processingTimeMs: Date.now() - startTime,
+      };
+    } catch (error: any) {
+      logger.error('Curriculum search failed:', error);
+      throw new Error(`Curriculum search failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Search with automatic context building for AI prompts
    */
   async searchForPromptContext(
@@ -330,10 +479,38 @@ export class KnowledgeService {
     grade: KnowledgeChunk['grade'],
     options?: {
       includeTeacherGuide?: boolean;
+      includeCurriculum?: boolean;
       maxChunks?: number;
     }
   ): Promise<string> {
-    const { includeTeacherGuide = true, maxChunks = 5 } = options || {};
+    const { includeTeacherGuide = true, includeCurriculum = true, maxChunks = 5 } = options || {};
+
+    logger.info(`\n${'='.repeat(60)}`);
+    logger.info(`📚 KNOWLEDGE BASE SEARCH - DEBUG LOG`);
+    logger.info(`${'='.repeat(60)}`);
+    logger.info(`🔍 Topic: "${topic}"`);
+    logger.info(`🎓 Grade: ${grade}`);
+    logger.info(`⚙️ Options: includeCurriculum=${includeCurriculum}, includeTeacherGuide=${includeTeacherGuide}, maxChunks=${maxChunks}`);
+
+    // Search for curriculum content FIRST (highest priority - defines what's allowed)
+    // For curriculum, also search documents that have this grade in their grades array
+    let curriculumResults: KnowledgeSearchResponse = { results: [], query: topic, processingTimeMs: 0 };
+    if (includeCurriculum) {
+      curriculumResults = await this.searchCurriculum({
+        query: topic,
+        grade,
+        limit: Math.ceil(maxChunks * 0.3), // 30% from curriculum
+      });
+      logger.info(`\n📋 CURRICULUM RESULTS: ${curriculumResults.results.length} chunks found`);
+      if (curriculumResults.results.length > 0) {
+        curriculumResults.results.forEach((r, i) => {
+          logger.info(`   [${i + 1}] Chapter: "${r.chunk.chapter}" | Similarity: ${(r.similarity * 100).toFixed(1)}%`);
+          logger.info(`       Content preview: "${r.chunk.content.substring(0, 100)}..."`);
+        });
+      } else {
+        logger.warn(`   ⚠️ NO CURRICULUM FOUND for grade ${grade}! Activity will be generated WITHOUT curriculum boundaries.`);
+      }
+    }
 
     // Search for student content
     const studentResults = await this.search({
@@ -343,8 +520,17 @@ export class KnowledgeService {
         grade,
         volumeType: 'student',
       },
-      limit: Math.ceil(maxChunks * 0.6), // 60% from student book
+      limit: Math.ceil(maxChunks * 0.4), // 40% from student book
     });
+    logger.info(`\n📖 STUDENT BOOK RESULTS: ${studentResults.results.length} chunks found`);
+    if (studentResults.results.length > 0) {
+      studentResults.results.forEach((r, i) => {
+        logger.info(`   [${i + 1}] Chapter: "${r.chunk.chapter}" | Similarity: ${(r.similarity * 100).toFixed(1)}%`);
+        logger.info(`       Content preview: "${r.chunk.content.substring(0, 100)}..."`);
+      });
+    } else {
+      logger.warn(`   ⚠️ NO STUDENT BOOK FOUND for grade ${grade}!`);
+    }
 
     // Search for teacher guide content
     let teacherResults: KnowledgeSearchResponse = { results: [], query: topic, processingTimeMs: 0 };
@@ -356,15 +542,39 @@ export class KnowledgeService {
           grade,
           volumeType: 'teacher',
         },
-        limit: Math.ceil(maxChunks * 0.4), // 40% from teacher guide
+        limit: Math.ceil(maxChunks * 0.3), // 30% from teacher guide
       });
+      logger.info(`\n👨‍🏫 TEACHER GUIDE RESULTS: ${teacherResults.results.length} chunks found`);
+      if (teacherResults.results.length > 0) {
+        teacherResults.results.forEach((r, i) => {
+          logger.info(`   [${i + 1}] Chapter: "${r.chunk.chapter}" | Similarity: ${(r.similarity * 100).toFixed(1)}%`);
+          logger.info(`       Content preview: "${r.chunk.content.substring(0, 100)}..."`);
+        });
+      } else {
+        logger.warn(`   ⚠️ NO TEACHER GUIDE FOUND for grade ${grade}!`);
+      }
     }
 
-    // Build context string
+    // Summary
+    logger.info(`\n${'─'.repeat(60)}`);
+    logger.info(`📊 SEARCH SUMMARY:`);
+    logger.info(`   📋 Curriculum: ${curriculumResults.results.length} chunks ${curriculumResults.results.length === 0 ? '❌ MISSING!' : '✅'}`);
+    logger.info(`   📖 Student Book: ${studentResults.results.length} chunks ${studentResults.results.length === 0 ? '❌ MISSING!' : '✅'}`);
+    logger.info(`   👨‍🏫 Teacher Guide: ${teacherResults.results.length} chunks ${teacherResults.results.length === 0 ? '⚠️ missing' : '✅'}`);
+    logger.info(`${'─'.repeat(60)}\n`);
+
+    // Build context string - Curriculum FIRST as it defines boundaries
     let context = '';
 
+    if (curriculumResults.results.length > 0) {
+      context += '### תוכנית הלימודים (גבולות הגזרה - חובה לעקוב!):\n';
+      for (const result of curriculumResults.results) {
+        context += `[${result.chunk.chapter}]\n${result.chunk.content}\n\n`;
+      }
+    }
+
     if (studentResults.results.length > 0) {
-      context += '### מספר התלמיד:\n';
+      context += '\n### מספר התלמיד:\n';
       for (const result of studentResults.results) {
         context += `[${result.chunk.chapter}]\n${result.chunk.content}\n\n`;
       }
@@ -375,6 +585,13 @@ export class KnowledgeService {
       for (const result of teacherResults.results) {
         context += `[${result.chunk.chapter}]\n${result.chunk.content}\n\n`;
       }
+    }
+
+    // Final context log
+    if (context) {
+      logger.info(`✅ FINAL CONTEXT LENGTH: ${context.length} characters`);
+    } else {
+      logger.error(`❌ NO CONTEXT BUILT! Activity will be generated with NO knowledge base grounding.`);
     }
 
     return context;
@@ -726,7 +943,7 @@ export class KnowledgeService {
       subject: string;
       grade: string;
       volume: number;
-      volumeType: 'student' | 'teacher';
+      volumeType: 'student' | 'teacher' | 'curriculum';
       source: string;
     }
   ): Omit<KnowledgeChunk, 'id' | 'embedding' | 'createdAt' | 'updatedAt'>[] {

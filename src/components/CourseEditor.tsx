@@ -316,8 +316,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 );
 
                 if (skeleton && skeleton.steps) {
+                    const totalSteps = skeleton.steps.length;
                     const stepPromises = skeleton.steps.map(async (step: any) => {
-                        const content = await generateStepContent(unit.title, step, course.gradeLevel || "General", course.fullBookContent);
+                        const content = await generateStepContent(unit.title, step, course.gradeLevel || "General", course.fullBookContent, undefined, 'learning', undefined, totalSteps);
                         return mapSystemItemToBlock(content);
                     });
                     const newBlocksRaw = await Promise.all(stepPromises);
@@ -660,8 +661,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 );
 
                 if (skeleton && skeleton.steps) {
-
-
+                    const totalSteps = skeleton.steps.length;
 
                     const stepPromises = skeleton.steps.map(async (step: any) => {
 
@@ -669,7 +669,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                             unit.title,
                             step,
                             grade,
-                            sourceText
+                            sourceText,
+                            undefined,
+                            'learning',
+                            undefined,
+                            totalSteps
                         );
 
 
@@ -1022,13 +1026,17 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
                     if (skeleton && skeleton.steps) {
                         // 2. HANDS: Generate Step Content (Parallel)
+                        const totalSteps = skeleton.steps.length;
                         const stepPromises = skeleton.steps.map(async (step: any) => {
                             const stepContent = await generateStepContent(
                                 firstUnit.title,
                                 step, // Pass the skeleton step info
                                 extractedGrade,
                                 processedSourceText || updatedCourseState.fullBookContent,
-                                processedFileData // Images if any
+                                processedFileData, // Images if any
+                                'learning',
+                                undefined,
+                                totalSteps // For scaffolding
                             );
 
                             // 3. NORMALIZE: Map to UI Block
@@ -1081,10 +1089,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         console.log('[handleSaveUnit] Called with unit:', updatedUnit.id, updatedUnit.title);
         console.log('[handleSaveUnit] isGenerating:', isGenerating);
         console.log('[handleSaveUnit] activityBlocks:', updatedUnit.activityBlocks?.length);
-        if (isGenerating) {
-            console.log('[handleSaveUnit] Blocked by isGenerating!');
-            return;
-        }
+
+        // Note: We no longer block on isGenerating to allow manual block additions
+        // during AI generation. Only automatic next-unit generation is blocked.
 
         const newSyllabus = course.syllabus.map((mod: any) => ({
             ...mod,
@@ -1094,15 +1101,18 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         let nextUnitToGenerate = null;
         let foundCurrent = false;
 
-        for (const mod of newSyllabus) {
-            for (const unit of mod.learningUnits) {
-                if (foundCurrent && (!unit.activityBlocks || unit.activityBlocks.length === 0)) {
-                    nextUnitToGenerate = unit;
-                    break;
+        // Only look for next unit to auto-generate if not currently generating
+        if (!isGenerating) {
+            for (const mod of newSyllabus) {
+                for (const unit of mod.learningUnits) {
+                    if (foundCurrent && (!unit.activityBlocks || unit.activityBlocks.length === 0)) {
+                        nextUnitToGenerate = unit;
+                        break;
+                    }
+                    if (unit.id === updatedUnit.id) foundCurrent = true;
                 }
-                if (unit.id === updatedUnit.id) foundCurrent = true;
+                if (nextUnitToGenerate) break;
             }
-            if (nextUnitToGenerate) break;
         }
 
         if (nextUnitToGenerate) {
@@ -1220,6 +1230,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 window.location.href = '/';
                             }
                         }}
+                        onUnitUpdate={handleSaveUnit}
                         onUpdateBlock={async (blockId: string, content: any) => {
                             // Handle AI Refinement Updates from Cockpit
                             const updatedUnit = {

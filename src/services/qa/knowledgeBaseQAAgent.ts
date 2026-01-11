@@ -433,7 +433,7 @@ async function testActualOutputQuality(
 
     const gradeLevel = `כיתה ${grade}`;
     const result = await Promise.race([
-      generateStepContent(topic, testStep, gradeLevel, undefined, undefined, 'learning', 'math'),
+      generateStepContent(topic, testStep, gradeLevel, undefined, undefined, 'learning', 'math', 5), // 5 is the default for QA testing
       timeoutPromise
     ]);
 

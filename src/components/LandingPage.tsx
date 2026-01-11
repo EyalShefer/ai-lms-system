@@ -392,7 +392,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                             </div>
                             <h3 className="text-2xl font-bold text-wizdi-royal mb-3">הצופה השקט</h3>
                             <p className="text-slate-600 text-lg leading-relaxed">
-                                המערכת לומדת איך התלמיד לומד. היא מזהה מתי הוא מהסס, מתי הוא מנחש, וכמה הוא תלוי ברמזים - ומייצרת דוח תובנות למורה.
+                                המערכת עוקבת אחר התקדמות התלמיד, מזהה נושאים שצריכים חיזוק, ומציגה למורה נתוני ביצועים ברורים.
                             </p>
                         </div>
 

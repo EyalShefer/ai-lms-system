@@ -790,7 +790,9 @@ ${rawText.substring(0, 15000)}
       subject: KnowledgeChunk['subject'];
       grade: KnowledgeChunk['grade'];
       volume: number;
-      volumeType: 'student' | 'teacher';
+      volumeType: 'student' | 'teacher' | 'curriculum';
+      // For curriculum documents - can span multiple grades
+      grades?: KnowledgeChunk['grade'][];
     },
     options?: {
       useHighQuality?: boolean;  // Default: true
@@ -833,7 +835,7 @@ ${rawText.substring(0, 15000)}
       const textChunks = this.chunkText(chapter.content, chapter.name);
 
       for (const chunkText of textChunks) {
-        chunks.push({
+        const chunk: Omit<KnowledgeChunk, 'id' | 'embedding' | 'createdAt' | 'updatedAt'> = {
           subject: metadata.subject,
           grade: metadata.grade,
           volume: metadata.volume,
@@ -849,7 +851,14 @@ ${rawText.substring(0, 15000)}
           relatedTopics: [],
           usageCount: 0,
           quality: undefined,
-        });
+        };
+
+        // For curriculum documents, add the grades array
+        if (metadata.volumeType === 'curriculum' && metadata.grades && metadata.grades.length > 0) {
+          chunk.grades = metadata.grades;
+        }
+
+        chunks.push(chunk);
       }
     }
 

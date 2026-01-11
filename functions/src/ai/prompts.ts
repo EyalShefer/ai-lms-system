@@ -170,6 +170,19 @@ export const getStepContentPrompt = (
     - Treat this step as "Chapter ${stepInfo.step_number}". Do not repeat definitions from previous chapters.
       ${mode === 'exam' ? '- **EXAM MODE:** TONE must be objective, examiner tone. No "Wizdi-Bot" persona.' : ''}
 
+    **HEBREW WRITING QUALITY RULES (CRITICAL):**
+    - **Word Order:** Follow natural Hebrew word order. Subject first, then verb, then object.
+      * WRONG: "נחשב ט״ו בשבט הוא יום מיוחד" (starts with predicate)
+      * CORRECT: "ט״ו בשבט נחשב ליום מיוחד" OR "ט״ו בשבט הוא יום מיוחד"
+    - **No Dangling Subjects:** The subject of the sentence must be clear from the start.
+      * WRONG: "נחשב הספר הזה לחשוב"
+      * CORRECT: "הספר הזה נחשב לחשוב"
+    - **Avoid Passive Ambiguity:** When using passive voice, ensure the sentence flows naturally.
+    - **Opening Sentences:** NEVER start an explanation with a predicate or adjective. Start with the topic itself.
+      * WRONG: "נחשב לאחד מהחגים החשובים ביותר..."
+      * CORRECT: "ט״ו בשבט הוא אחד מהחגים החשובים ביותר..."
+    - **Proofread for Flow:** Read each sentence aloud (mentally). If it sounds awkward, rewrite it.
+
   6. ** Logic & Interaction Rules:**
        - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
        - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
@@ -332,11 +345,60 @@ export const getTutorPrompt = (mode: string, sourceText: string, question: strin
 `;
 
 export const getRefinementPrompt = (content: string, instruction: string) => `
-    Act as an expert pedagogical editor.
-    Original text: "${content}"
-    Instruction: ${instruction}
-    Output language: Hebrew.
-      Goal: Improve clarity, accuracy, and engagement.
+אתה עורך פדגוגי מומחה. עליך לשפר את התוכן החינוכי לפי ההוראה שתקבל.
+
+## קלט - JSON מקורי:
+${content}
+
+## הוראת המשתמש:
+${instruction}
+
+## כללים קריטיים:
+1. **שמור על מבנה ה-JSON בדיוק** - החזר את אותם שדות בדיוק כמו בקלט
+2. **שנה רק את מה שההוראה מבקשת** - אל תשנה שדות אחרים
+3. **שפת הפלט: עברית** (אלא אם ההוראה מבקשת אחרת)
+4. **החזר JSON תקין בלבד** - ללא טקסט נוסף, ללא markdown
+
+## הנחיות מיוחדות לשיפור פתיחות שיעור (HOOKS):
+
+אם ההוראה מבקשת לשפר/לשנות פתיחה או "hook", אתה חייב ליצור פתיחה **יצירתית ומרתקת**.
+
+**אסור בתכלית האיסור:**
+- "שאלו את התלמידים מה הם יודעים על..."
+- "התחילו בדיון פתוח"
+- "הציגו את הנושא"
+- כל פתיחה גנרית ומשעממת
+
+**חובה לבחור אחד מהסוגים הבאים:**
+
+**Type A: Visual Hook (תמונה/סרטון)**
+- הצגת תמונה מפתיעה או סרטון קצר (30-60 שניות)
+- דוגמה: "הציגו תמונה של [משהו מפתיע] ושאלו: 'מה קורה כאן? למה?'"
+
+**Type B: Mystery/Riddle Hook (חידה/תעלומה)**
+- חידה, תעלומה או שאלה מסקרנת
+- דוגמה: "הנה עובדה מוזרה: [עובדה]. איך זה יכול להיות?"
+
+**Type C: Quick Game/Challenge (משחקון מהיר)**
+- משחק של 2-3 דקות או אתגר
+- דוגמה: "משחק אסוציאציות: כתבו 3 מילים שקשורות ל[נושא] תוך 30 שניות"
+
+**Type D: Provocation/Dilemma Hook (פרובוקציה/דילמה)**
+- טענה מעוררת מחשבה או דילמה מוסרית
+- דוגמה: "אני טוען ש[טענה מפתיעה]. מי מסכים? מי מתנגד?"
+
+**Type E: Hands-On Hook (חוויה מעשית)**
+- פעילות מעשית קצרה או הדגמה
+- דוגמה: "כל אחד מקבל [חומר]. יש לכם דקה ל[משימה]"
+
+**Type F: Personal Connection Hook (חיבור אישי)**
+- חיבור לחיי התלמידים עם twist מפתיע
+- דוגמה: "מי מכם [עשה משהו]? אתם יודעים ש[עובדה מפתיעה]?"
+
+הפתיחה חייבת לכלול תסריט מדויק למורה - מה בדיוק לומר/לעשות.
+
+## פלט:
+החזר את ה-JSON המשופר בלבד, ללא הסברים.
 `;
 
 export const getCategorizationPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
@@ -417,27 +479,32 @@ Language: Hebrew.
 `;
 
 export const getStudentAnalysisPrompt = (studentName: string, courseTopic: string, submissionData: string) => `
-Role: Educational Psychologist & Data Analyst.
-  Task: Analyze student performance based on telemetry data.
-    Student: ${studentName}.
+Role: Educational Data Analyst.
+Task: Analyze student performance based on learning data.
+Student: ${studentName}.
 Topic: ${courseTopic}.
 
 DATA:
-    ${submissionData}
+${submissionData}
 
-    METRICS TO ANALYZE:
-1. ** Time per Question:** (Fast = Impulsive ? / Slow = Struggling or Deep Thinker?)
-2. ** Attempts:** (Many attempts = Persistence or Guessing ?)
-3. ** Hints:** (Usage of hints = Resourcefulness or Dependency ?)
-4. ** Mistakes:** (Pattern recognition - e.g. "struggles with ordering").
+METRICS TO ANALYZE:
+1. Time per Question: Calculate average time spent
+2. Attempts: Count average attempts per question
+3. Hints: Calculate hint usage rate
+4. Mistakes: Identify specific topics or skills with repeated errors
 
-    OUTPUT FORMAT(JSON ONLY):
+OUTPUT FORMAT (JSON ONLY):
 {
-  "strengths": ["List 2-3 specific strengths"],
-    "weaknesses": ["List 2-3 specific weaknesses"],
-      "psychologicalProfile": "Impulsive" | "Persistent" | "Deep Thinker" | "Hesitant",
-        "recommendedFocus": "Specific sub-topic to review...",
-          "engagementScore": 0 - 100(Based on completion and effort)
+  "strengths": ["List 2-3 specific skills the student demonstrated well"],
+  "weaknesses": ["List 2-3 specific topics that need more practice"],
+  "recommendedFocus": "Specific topic or skill to practice next",
+  "engagementScore": 0-100,
+  "learningMetrics": {
+    "averageTimePerQuestion": 0,
+    "hintUsageRate": 0.0,
+    "attemptsPerQuestion": 0,
+    "completionRate": 0.0
+  }
 }
 `;
 

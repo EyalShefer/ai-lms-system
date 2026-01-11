@@ -5,7 +5,7 @@ import {
     IconChart,
     IconList
 } from '../icons';
-import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2 } from '@tabler/icons-react';
 import AIBlogWidget from './AIBlogWidget';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -19,7 +19,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -228,12 +228,9 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 </div>
             </section>
 
-            {/* Main Section - Studio + Prompts */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8" aria-label="כלי יצירה">
-
-                {/* Card 1: Create Learning Content - With 4 Sub-buttons */}
-                <div className="lg:col-span-2">
-                    <div className="card-glass rounded-3xl p-8 h-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800/80">
+            {/* Main Section - Content Creation Studio */}
+            <section className="mb-8" aria-label="סטודיו יצירת תוכן">
+                    <div className="card-glass rounded-3xl p-8 border border-slate-200 dark:border-slate-700 dark:bg-slate-800/80">
                         <div className="flex flex-col h-full">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
@@ -336,37 +333,142 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             </div>
                         </div>
                     </div>
-                </div>
+            </section>
 
-                {/* Prompts Library Card - Priority #2 */}
-                <div className="lg:col-span-1">
-                    <button
-                        onClick={() => handleCardClick("Prompts Library", () => onNavigateToPrompts?.())}
-                        className="group cursor-pointer h-full w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 rounded-3xl"
-                        aria-label="כניסה למאגר פרומפטים AI"
-                    >
-                        <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none">
-                            <div className="flex flex-col h-full">
-                                <div className="w-12 h-12 min-w-[44px] min-h-[44px] bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                    <IconBulb className="w-6 h-6 text-white" />
+            {/* Teaching Agents & Prompts - Equal Priority Grid */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" aria-label="כלי הוראה מוכנים">
+                {/* Teaching Agents Card */}
+                <button
+                    onClick={() => handleCardClick("Teaching Agents", () => onNavigateToAgents?.())}
+                    className="group cursor-pointer w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 rounded-3xl"
+                    aria-label="כניסה למאגר סוכני הוראה"
+                >
+                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none h-full">
+                        <div className="flex flex-col h-full">
+                            {/* Header */}
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
+                                    <IconRobot className="w-7 h-7 text-white" />
                                 </div>
-
-                                <h2 className="text-xl font-black mb-2 text-slate-800 dark:text-white">
-                                    מאגר פרומפטים AI
-                                </h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 flex-grow">
-                                    פרומפטים מוכנים לכל צורך הוראתי - בדיקת עבודות, יצירת תוכן, משוב לתלמידים ועוד
-                                </p>
-
-                                <div className="flex items-center gap-2 font-bold text-violet-600 dark:text-violet-400 text-sm group-hover:translate-x-[-4px] transition-transform motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                    כניסה למאגר
-                                    <IconChevronLeft className="w-4 h-4" />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-full">
+                                            חדש
+                                        </span>
+                                    </div>
+                                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                                        מאגר סוכני הוראה
+                                    </h2>
                                 </div>
                             </div>
-                        </div>
-                    </button>
-                </div>
 
+                            {/* Description */}
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                                עוזרי AI מותאמים לנושאים ספציפיים. התלמידים מתרגלים, הסוכן עוזר צעד אחר צעד.
+                            </p>
+
+                            {/* Preview Agents */}
+                            <div className="flex-grow">
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-cyan/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMath className="w-4 h-4 text-wizdi-cyan" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">עוזר שברים</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconLanguage className="w-4 h-4 text-wizdi-royal" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">English Buddy</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-action/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMath className="w-4 h-4 text-wizdi-action" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">מורה לאלגברה</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-amber-500/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconBook className="w-4 h-4 text-amber-600" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">חברותא לתנ"ך</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="flex items-center gap-2 font-bold text-cyan-600 dark:text-cyan-400 text-sm group-hover:translate-x-[-4px] transition-transform motion-reduce:group-hover:transform-none">
+                                כניסה למאגר
+                                <IconChevronLeft className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </div>
+                </button>
+
+                {/* Prompts Library Card */}
+                <button
+                    onClick={() => handleCardClick("Prompts Library", () => onNavigateToPrompts?.())}
+                    className="group cursor-pointer w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 rounded-3xl"
+                    aria-label="כניסה למאגר פרומפטים AI"
+                >
+                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none h-full">
+                        <div className="flex flex-col h-full">
+                            {/* Header */}
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
+                                    <IconBulb className="w-7 h-7 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                                        מאגר פרומפטים
+                                    </h2>
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                                פרומפטים מוכנים לכל צורך הוראתי - בדיקת עבודות, יצירת תוכן, משוב לתלמידים ועוד.
+                            </p>
+
+                            {/* Preview Categories */}
+                            <div className="flex-grow">
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-cyan/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconClipboardCheck className="w-4 h-4 text-wizdi-cyan" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">יצירת מבחנים</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMessage className="w-4 h-4 text-wizdi-royal" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">משוב לתלמידים</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-action/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconSchool className="w-4 h-4 text-wizdi-action" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">הכנת שיעורים</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-lime/30 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconDeviceGamepad2 className="w-4 h-4 text-wizdi-lime" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">משחקים</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="flex items-center gap-2 font-bold text-violet-600 dark:text-violet-400 text-sm group-hover:translate-x-[-4px] transition-transform motion-reduce:group-hover:transform-none">
+                                כניסה למאגר
+                                <IconChevronLeft className="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+                </button>
             </section>
 
             {/* Secondary Section - Recent Activities + Dashboard */}

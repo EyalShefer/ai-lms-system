@@ -328,6 +328,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Extraction progress - for batch PDF processing status
+    match /extraction_progress/{progressId} {
+      // Authenticated users can read extraction progress
+      allow read: if isAuthenticated();
+
+      // Only Cloud Functions can write (via Admin SDK)
+      allow write: if false;
+    }
+
     // ============================================
     // WIZDI INTEGRATION COLLECTIONS
     // ============================================

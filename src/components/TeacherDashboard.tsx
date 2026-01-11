@@ -86,7 +86,7 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                 <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-6 text-white flex justify-between items-center">
                     <div>
                         <h3 className="text-2xl font-bold flex items-center gap-2">
-                            <IconBrain className="w-8 h-8 opacity-80" /> תובנות פסיכו-פדגוגיות
+                            <IconBrain className="w-8 h-8 opacity-80" /> ניתוח ביצועים
                         </h3>
                         <p className="opacity-80 text-sm mt-1">ניתוח עבור: {student.name}</p>
                     </div>
@@ -94,21 +94,28 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                 </div>
 
                 <div className="p-4 md:p-8 max-h-[70vh] overflow-y-auto">
-                    {/* Header Chips */}
+                    {/* Header Chips - Learning Metrics */}
                     <div className="flex gap-4 mb-8 flex-wrap">
-                        <div className="bg-wizdi-cyan/10 text-wizdi-cyan px-4 py-2 rounded-xl font-bold border border-wizdi-cyan/20 flex items-center gap-2">
-                            🎭 פרופיל: {analytics.psychologicalProfile}
-                        </div>
                         <div className="bg-wizdi-royal/10 text-wizdi-royal px-4 py-2 rounded-xl font-bold border border-wizdi-royal/20 flex items-center gap-2">
-                            ⚡ מעורבות: {analytics.engagementScore}%
+                            מעורבות: {analytics.engagementScore}%
                         </div>
+                        {analytics.learningMetrics && (
+                            <>
+                                <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
+                                    שימוש ברמזים: {Math.round((analytics.learningMetrics.hintUsageRate || 0) * 100)}%
+                                </div>
+                                <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
+                                    השלמה: {Math.round((analytics.learningMetrics.completionRate || 0) * 100)}%
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         {/* Strengths */}
                         <div className="bg-wizdi-lime/10 p-6 rounded-3xl border border-wizdi-lime/20">
                             <h4 className="text-wizdi-lime font-bold mb-4 flex items-center gap-2 text-lg">
-                                <IconCheck className="w-5 h-5" /> חוזקות זוהו
+                                <IconCheck className="w-5 h-5" /> מיומנויות חזקות
                             </h4>
                             <ul className="space-y-3">
                                 {analytics.strengths.map((s, i) => (
@@ -121,14 +128,14 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                         </div>
 
                         {/* Weaknesses */}
-                        <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-                            <h4 className="text-red-600 font-bold mb-4 flex items-center gap-2 text-lg">
-                                <IconFlag className="w-5 h-5" /> נקודות לשיפור
+                        <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100">
+                            <h4 className="text-amber-600 font-bold mb-4 flex items-center gap-2 text-lg">
+                                <IconFlag className="w-5 h-5" /> נושאים לחיזוק
                             </h4>
                             <ul className="space-y-3">
                                 {analytics.weaknesses.map((w, i) => (
                                     <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
-                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-2 shrink-0" />
+                                        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-2 shrink-0" />
                                         {w}
                                     </li>
                                 ))}
@@ -142,7 +149,7 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                             <IconSparkles className="w-6 h-6" />
                         </div>
                         <div>
-                            <h4 className="text-wizdi-royal font-bold text-lg mb-1">המלצה להמשך</h4>
+                            <h4 className="text-wizdi-royal font-bold text-lg mb-1">נושא מומלץ לתרגול</h4>
                             <p className="text-slate-700 leading-relaxed opacity-90">
                                 {analytics.recommendedFocus}
                             </p>

@@ -87,18 +87,55 @@ Source Material: """${(sourceText || "").substring(0, 10000)}"""
 
 Part 1: Pedagogical Processing Instructions
 You must structure the lesson based on the "5E Model" or standard Direct Instruction flow:
-1. Hook (Opening)
+1. Hook (Opening) - MUST BE CREATIVE AND ENGAGING!
 2. Knowledge (Body)
 3. Guided Practice
 4. Independent Practice
 5. Closure (Assessment)
+
+**CRITICAL - CREATIVE HOOK GUIDELINES (Part 1.5):**
+The opening/hook is the MOST IMPORTANT part of the lesson. It MUST capture students' attention immediately.
+
+NEVER use boring openings like "שאלו את התלמידים מה הם יודעים על..." or "התחילו בדיון פתוח".
+
+INSTEAD, choose ONE of these creative hook types (REQUIRED - pick the most fitting):
+
+**Type A: Visual Hook (תמונה/סרטון)**
+- Show a surprising image or short video clip (30-60 sec)
+- Ask: "מה אתם רואים? מה קורה כאן? למה זה קרה?"
+- Example for ט"ו בשבט: "הציגו תמונה של עץ יבש לצד עץ פורח - 'מה ההבדל? למה?'"
+
+**Type B: Mystery/Riddle Hook (חידה/תעלומה)**
+- Present a riddle, mystery, or brain teaser related to the topic
+- Example: "יש לי שורשים אבל אני לא צמח. יש לי עלים אבל אני לא ספר. מי אני?"
+- Or: "הנה עובדה מוזרה: [fact]. איך זה יכול להיות?"
+
+**Type C: Quick Game/Challenge (משחקון)**
+- 2-3 minute interactive game or challenge
+- Example: "משחק אסוציאציות: אני אומר 'עץ' - כל אחד כותב 3 מילים תוך 30 שניות"
+- Or: "חידון בזק: 5 שאלות נכון/לא נכון על [נושא] - מי מקבל הכי הרבה?"
+
+**Type D: Provocation/Dilemma Hook (פרובוקציה/דילמה)**
+- Make a controversial statement or present a moral dilemma
+- Example: "אני טוען ש[טענה מפתיעה]. מי מסכים? מי מתנגד? למה?"
+- Or: "דמיינו שאתם [סיטואציה]... מה הייתם עושים?"
+
+**Type E: Hands-On Hook (חוויה מעשית)**
+- Start with a quick hands-on activity or demonstration
+- Example: "כל אחד מקבל [חומר]. יש לכם דקה לבנות/לעשות [משימה]"
+- Or: "צפו בניסוי הזה... [הדגמה] - מה קרה? למה?"
+
+**Type F: Personal Connection Hook (חיבור אישי)**
+- Connect to students' lives with a surprising twist
+- Example: "מי אכל [משהו] השבוע? אתם יודעים מאיפה זה מגיע? בואו נגלה..."
+- Or: "העלו את היד אם [שאלה אישית רלוונטית]..."
 
 The Bridge to System Tools (Crucial):
 - When the lesson reaches the Practice phase, you must explicitly prompt the teacher to launch the "Interactive Activity".
 - When the lesson reaches the Assessment phase, prompt the teacher to launch the "Test Generator".
 
 Part 3: Media Guidelines
-- Hook (Opening): Suggest a YouTube video search query if relevant to engage students.
+- Hook (Opening): Suggest a YouTube video search query OR image search query if relevant.
 - Direct Instruction: No media needed (teacher-led).
 - Practice: No media needed (activity-focused).
 - Summary/Closure: ONE infographic to visually summarize the lesson.
@@ -120,6 +157,7 @@ Generate a JSON object with the following structure. Strict JSON.
   },
   "media_plan": {
       "hook_video_query": "search query for YouTube (or null if not needed)",
+      "hook_image_query": "search query for image (or null if not needed)",
       "summary_infographic_type": "flowchart | timeline | comparison | cycle",
       "summary_infographic_description": "Brief description of what the infographic should show"
   },
@@ -129,7 +167,9 @@ Generate a JSON object with the following structure. Strict JSON.
           "title": "פתיחה וגירוי",
           "duration": "0-5 min",
           "type": "frontal",
-          "teacher_instructions": "Detailed script for the teacher...",
+          "hook_type": "visual | mystery | game | provocation | hands_on | personal",
+          "teacher_instructions": "DETAILED creative opening script - NOT a generic 'ask students what they know' - include the EXACT activity/question/riddle/challenge with specific wording",
+          "materials_needed": ["list of materials if any"],
           "system_tool": null
       },
       {
@@ -181,12 +221,16 @@ Generate a JSON object with the following structure. Strict JSON.
                 title: `${s.title} (${s.duration})`,
                 type: s.type === 'interactive' ? 'interactive' : (s.type === 'assessment' ? 'quiz' : 'text'),
                 description: s.teacher_instructions,
-                system_tool: s.system_tool
+                system_tool: s.system_tool,
+                // New fields for creative hooks
+                hook_type: s.hook_type || null,
+                materials_needed: s.materials_needed || []
             }));
 
             // Extract media plan (new feature)
             const mediaPlan = architectJson.media_plan || {
                 hook_video_query: null,
+                hook_image_query: null,
                 summary_infographic_type: 'flowchart',
                 summary_infographic_description: `סיכום ויזואלי של ${architectJson.title}`
             };
@@ -325,9 +369,15 @@ Generate a JSON object with the following structure. Strict JSON.
         if (sourceText) {
             contextPart = `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`;
         } else if (knowledgeBaseContext) {
-            contextPart = `Topic: "${topic}"\n\n**CURRICULUM REFERENCE MATERIAL (from Knowledge Base):**\n${knowledgeBaseContext}\n\n**IMPORTANT:** Use the above curriculum material as your PRIMARY source. Generate content that aligns with how this topic is taught at this grade level.`;
+            contextPart = `Topic: "${topic}"\n\n**STRICT CURRICULUM MODE - MANDATORY CONSTRAINTS:**\n${knowledgeBaseContext}\n\n**CRITICAL RULES (HARD CONSTRAINTS):**
+1. Use ONLY concepts, methods, and difficulty levels that appear in the curriculum/textbook material above.
+2. Do NOT introduce ANY external concepts, advanced topics, or methods not explicitly shown in the material.
+3. Match the EXACT difficulty level shown in the examples provided.
+4. If the curriculum defines boundaries (e.g., "up to 100", "without fractions") - respect them strictly.
+5. When in doubt, use SIMPLER content rather than more advanced content.`;
         } else {
             contextPart = `Topic: "${topic}"`;
+            logger.warn(`⚠️ No Knowledge Base content found for topic "${topic}" at grade ${gradeLevel} - generating without curriculum constraints`);
         }
 
         const bloomSteps = getBloomDistribution(stepCount, bloomPreferences);
@@ -453,9 +503,13 @@ Generate a JSON object with the following structure. Strict JSON.
         if (sourceText) {
             contextText = `Source: ${sourceText.substring(0, 3000)}...`;
         } else if (knowledgeBaseContext) {
-            contextText = `Topic: ${topic}\n\n**CURRICULUM REFERENCE (from Knowledge Base):**\n${knowledgeBaseContext}\n\n**Use this material as the basis for generating age-appropriate content.**`;
+            contextText = `Topic: ${topic}\n\n**STRICT CURRICULUM MODE - MANDATORY:**\n${knowledgeBaseContext}\n\n**HARD CONSTRAINTS:**
+- Generate ONLY content that matches the curriculum/textbook material above.
+- Do NOT exceed the difficulty level shown in the examples.
+- Do NOT introduce concepts not present in the material.`;
         } else {
             contextText = `Topic: ${topic}`;
+            logger.warn(`⚠️ Step content: No KB content for topic "${topic}" at grade - generating without curriculum constraints`);
         }
 
         const prompt = getStepContentPrompt(

@@ -489,8 +489,10 @@ export async function isTeacherRecommended(odUseri: string): Promise<boolean> {
 export function fillPromptTemplate(template: string, fieldValues: Record<string, string>): string {
   let result = template;
   for (const [key, value] of Object.entries(fieldValues)) {
-    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    result = result.replace(regex, value || '___');
+    // Escape special regex characters in the key
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\{\\{${escapedKey}\\}\\}`, 'g');
+    result = result.replace(regex, value || `{{${key}}}`);
   }
   return result;
 }

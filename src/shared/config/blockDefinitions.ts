@@ -11,28 +11,48 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
 
     switch (type) {
         case 'multiple-choice':
-            content = { question: '', options: ['', '', '', ''], correctAnswer: '' };
+            content = {
+                question: 'לחצו כאן כדי לערוך את השאלה',
+                options: ['תשובה א׳', 'תשובה ב׳', 'תשובה ג׳', 'תשובה ד׳'],
+                correctAnswer: 'תשובה א׳'
+            };
             break;
         case 'open-question':
-            content = { question: '' };
+            content = { question: 'לחצו כאן כדי לערוך את השאלה' };
             break;
         case 'interactive-chat':
             content = { title: personaData.name, description: 'צ\'אט...' };
             break;
         case 'fill_in_blanks':
-            content = "השלימו את המשפט: [מילה] חסרה.";
+            content = { text: "השלימו את המשפט: ה[שמש] זורחת במזרח ושוקעת ב[מערב]." };
             break;
         case 'ordering':
-            content = { instruction: 'סדרו את ...', correct_order: ['פריט 1', 'פריט 2', 'פריט 3'] };
+            content = {
+                instruction: 'סדרו את השלבים בסדר הנכון:',
+                correct_order: ['שלב ראשון', 'שלב שני', 'שלב שלישי']
+            };
             break;
         case 'categorization':
-            content = { question: 'מיינו לקטגוריות...', categories: ['קטגוריה 1', 'קטגוריה 2'], items: [{ text: 'פריט 1', category: 'קטגוריה 1' }] };
+            content = {
+                question: 'מיינו את הפריטים לקטגוריות המתאימות:',
+                categories: ['קטגוריה א׳', 'קטגוריה ב׳'],
+                items: [
+                    { text: 'פריט 1', category: 'קטגוריה א׳' },
+                    { text: 'פריט 2', category: 'קטגוריה ב׳' }
+                ]
+            };
             break;
         case 'memory_game':
-            content = { pairs: [{ card_a: 'חתול', card_b: 'Cat' }, { card_a: 'כלב', card_b: 'Dog' }] };
+            content = {
+                pairs: [
+                    { card_a: 'מושג 1', card_b: 'הגדרה 1' },
+                    { card_a: 'מושג 2', card_b: 'הגדרה 2' },
+                    { card_a: 'מושג 3', card_b: 'הגדרה 3' }
+                ]
+            };
             break;
         case 'true_false_speed':
-            content = { statement: 'השמיים כחולים', answer: true };
+            content = { statement: 'לחצו כאן כדי לערוך את הטענה', answer: true };
             break;
         case 'podcast':
             content = { title: 'פודקאסט AI', audioUrl: null, script: null, description: 'פרק האזנה' };
@@ -100,6 +120,9 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
                 caption: '',
                 visualType: 'flowchart' // 'flowchart' | 'timeline' | 'comparison' | 'cycle'
             };
+            break;
+        case 'text':
+            content = '<h3>כותרת</h3><p>לחצו כאן כדי לערוך את התוכן...</p>';
             break;
         default:
             content = '';

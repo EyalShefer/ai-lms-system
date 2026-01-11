@@ -14,7 +14,7 @@ export interface Textbook {
   subject: 'math' | 'hebrew' | 'english' | 'science' | 'history' | 'other';
   grade: 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב';
   volume: number;
-  volumeType: 'student' | 'teacher';
+  volumeType: 'student' | 'teacher' | 'curriculum';
   publisher?: string;               // "מטח" / "יעל"
   coverImageUrl?: string;           // Thumbnail from first page
 
@@ -87,8 +87,11 @@ export interface KnowledgeChunk {
   // Location in curriculum
   subject: 'math' | 'hebrew' | 'english' | 'science' | 'history' | 'other';
   grade: 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב';
-  volume: number;  // כרך (1, 2, 3, 4...)
-  volumeType: 'student' | 'teacher';  // ספר תלמיד או מדריך למורה
+  volume: number;  // כרך (1, 2, 3, 4...) - not used for curriculum type
+  volumeType: 'student' | 'teacher' | 'curriculum';  // ספר תלמיד, מדריך למורה, או תוכנית לימודים
+
+  // For curriculum documents - can span multiple grades (e.g., "כיתות א-ג")
+  grades?: ('א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב')[];
 
   // Location in book
   chapter: string;  // שם הפרק
@@ -138,7 +141,11 @@ export interface KnowledgeUploadRequest {
   subject: KnowledgeChunk['subject'];
   grade: KnowledgeChunk['grade'];
   volume: number;
-  volumeType: 'student' | 'teacher';
+  volumeType: 'student' | 'teacher' | 'curriculum';
+
+  // For curriculum documents - can span multiple grades (e.g., "כיתות א-ג")
+  // When volumeType is 'curriculum', this overrides the single 'grade' field
+  grades?: KnowledgeChunk['grade'][];
 
   // Optional overrides
   chapterOverrides?: {
@@ -183,7 +190,7 @@ export interface ExtractionReview {
   storagePath: string;  // Path to original PDF in Storage
   grade: string;
   volume: number;
-  volumeType: 'student' | 'teacher';
+  volumeType: 'student' | 'teacher' | 'curriculum';
   subject: string;
 
   // Page-level extraction results
@@ -223,7 +230,7 @@ export interface KnowledgeSearchRequest {
     subject?: KnowledgeChunk['subject'];
     grade?: KnowledgeChunk['grade'];
     volume?: number;
-    volumeType?: 'student' | 'teacher';
+    volumeType?: 'student' | 'teacher' | 'curriculum';
     contentType?: KnowledgeChunk['contentType'];
   };
   limit?: number;  // default 5

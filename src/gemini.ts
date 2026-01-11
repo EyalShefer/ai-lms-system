@@ -179,7 +179,119 @@ const getBloomDistribution = (count: number, requestedDistribution?: Record<stri
   return distribution.slice(0, count).sort(); // Sort isn't pedagogical sorting, the skeleton generation does that
 };
 
+/**
+ * Helper: Get explicit scaffolding instructions based on Bloom level and step position.
+ * This ensures progressive difficulty - starting easy and building up complexity.
+ *
+ * @param bloomLevel - The Bloom taxonomy level for this step
+ * @param stepNumber - Current step number (1-indexed)
+ * @param totalSteps - Total number of steps in the unit
+ * @returns Scaffolding instructions string for the prompt
+ */
+const getScaffoldingInstructions = (bloomLevel: string, stepNumber: number, totalSteps: number): string => {
+  // Normalize bloom level (handle variations like "Remember (Foundation)")
+  const normalizedBloom = bloomLevel.toLowerCase().split(' ')[0].split('(')[0].trim();
 
+  // Calculate position in unit (beginning, middle, end)
+  const positionRatio = stepNumber / totalSteps;
+  const positionLabel = positionRatio <= 0.33 ? 'התחלה (בסיס)' : positionRatio <= 0.66 ? 'אמצע (התפתחות)' : 'סיום (מיצוי)';
+
+  // Define difficulty parameters per Bloom level
+  const bloomDifficultyMap: Record<string, {
+    complexity: string;
+    questionTypes: string;
+    cognitiveLoad: string;
+    examples: { good: string; bad: string };
+  }> = {
+    'remember': {
+      complexity: 'פשוט מאוד - זיהוי וזכירה בסיסית',
+      questionTypes: 'בחירה מרובה פשוטה, נכון/לא נכון, השלמה ישירה',
+      cognitiveLoad: 'נמוך - תשובה אחת נכונה ברורה, ללא הסחות מורכבות',
+      examples: {
+        good: 'כמה זה 3 + 2? (תשובה ישירה, מספרים קטנים)',
+        bad: 'אם לדני יש 47 תפוחים והוא נתן 23 לחברו, כמה נשאר? (מורכב מדי לזכירה)'
+      }
+    },
+    'understand': {
+      complexity: 'פשוט - הבנה והסבר בסיסי',
+      questionTypes: 'בחירה מרובה עם הסברים, התאמה בין מושגים',
+      cognitiveLoad: 'נמוך-בינוני - דורש הבנה אך לא ניתוח',
+      examples: {
+        good: 'איזו פעולה מתאימה? יש לנו 5 תפוחים ומוסיפים עוד 3 (חיבור/חיסור)',
+        bad: 'נתח את ההבדל בין חיבור וחיסור מבחינה מתמטית (ניתוח - לא הבנה)'
+      }
+    },
+    'apply': {
+      complexity: 'בינוני - יישום בהקשר חדש',
+      questionTypes: 'בעיות מילוליות פשוטות, מיון לקטגוריות',
+      cognitiveLoad: 'בינוני - דורש העברה של ידע למצב חדש',
+      examples: {
+        good: 'בספרייה יש 12 ספרים על המדף. הספרנית הוסיפה עוד 5. כמה ספרים יש עכשיו?',
+        bad: 'כמה זה 12 + 5? (זיהוי ישיר - לא יישום)'
+      }
+    },
+    'analyze': {
+      complexity: 'מורכב יותר - ניתוח ופירוק',
+      questionTypes: 'מיון מורכב, סידור לפי קריטריון, מציאת דפוס',
+      cognitiveLoad: 'בינוני-גבוה - דורש חשיבה על מספר רכיבים',
+      examples: {
+        good: 'סדר את התרגילים הבאים מהקל לקשה: 3+2, 15+8, 7+4 (ניתוח קושי)',
+        bad: 'כמה זה 3+2? (חישוב פשוט - לא ניתוח)'
+      }
+    },
+    'evaluate': {
+      complexity: 'מורכב - הערכה ושיפוט',
+      questionTypes: 'בדיקת נכונות, מציאת שגיאות, הערכת פתרונות',
+      cognitiveLoad: 'גבוה - דורש שיפוט על סמך קריטריונים',
+      examples: {
+        good: 'דני פתר: 8+7=14. האם הוא צודק? הסבר למה.',
+        bad: 'כמה זה 8+7? (חישוב - לא הערכה)'
+      }
+    },
+    'create': {
+      complexity: 'הכי מורכב - יצירה וסינתזה',
+      questionTypes: 'שאלה פתוחה, יצירת תרגיל, הסבר בשפה שלך',
+      cognitiveLoad: 'גבוה מאוד - דורש חשיבה יצירתית ומקורית',
+      examples: {
+        good: 'כתוב תרגיל חיבור משלך עם סיפור על בעלי חיים',
+        bad: 'פתור: 5+3 (חישוב - לא יצירה)'
+      }
+    }
+  };
+
+  const bloomInfo = bloomDifficultyMap[normalizedBloom] || bloomDifficultyMap['apply'];
+
+  return `
+📊 SCAFFOLDING - דירוג קושי (שלב ${stepNumber} מתוך ${totalSteps}):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 מיקום ביחידה: ${positionLabel}
+🎯 רמת בלום: ${bloomLevel}
+📈 רמת מורכבות: ${bloomInfo.complexity}
+
+⚙️ סוגי שאלות מתאימים: ${bloomInfo.questionTypes}
+🧠 עומס קוגניטיבי: ${bloomInfo.cognitiveLoad}
+
+✅ דוגמה נכונה לרמה זו:
+   "${bloomInfo.examples.good}"
+
+❌ דוגמה לא מתאימה (קשה/קלה מדי):
+   "${bloomInfo.examples.bad}"
+
+⚠️ חוקים לשלב זה:
+${stepNumber === 1 ? `   - זה השלב הראשון! חייב להיות קל ומזמין
+   - השתמש במספרים קטנים וסיפורים פשוטים
+   - אל תניח ידע קודם - התחל מאפס` : ''}
+${stepNumber === totalSteps ? `   - זה השלב האחרון! יכול להיות המורכב ביותר
+   - שלב כישורים משלבים קודמים
+   - אפשר שאלות פתוחות ויצירתיות` : ''}
+${stepNumber > 1 && stepNumber < totalSteps ? `   - שלב ביניים - בנה על השלבים הקודמים
+   - הגדל מורכבות בהדרגה
+   - אל תדלג על רמות - התקדם בצעדים` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+};
 
 /**
  * Maps the raw, chaotic JSON returned by AI into a strict, UI-ready Content Block.
@@ -413,14 +525,17 @@ const getLinguisticConstraints = (gradeLevel: string): string => {
 
 /**
  * 2. Generate Single Step Content (The "Hands")
- * 
+ *
  * Generates the full learning content for a single step based on the Skeleton.
- * 
+ *
  * @param topic - The overall course topic.
  * @param stepInfo - The specific skeleton step to expand.
  * @param gradeLevel - Target audience grade.
  * @param sourceText - (Optional) The grounded text to base content on.
  * @param fileData - (Optional) Associated image data.
+ * @param mode - 'learning' or 'exam' mode.
+ * @param subject - Subject area (e.g., 'math').
+ * @param totalSteps - Total number of steps in the unit (for scaffolding).
  * @returns {Promise<StepContentResponse | null>} Strict JSON response or null on failure.
  */
 export const generateStepContent = async (
@@ -430,7 +545,8 @@ export const generateStepContent = async (
   sourceText?: string,
   fileData?: any,
   mode: 'learning' | 'exam' = 'learning',
-  subject?: string
+  subject?: string,
+  totalSteps: number = 5
 ): Promise<StepContentResponse | null> => {
   const contextText = sourceText ? `Source Material:\n"""${sourceText.substring(0, 3000)}..."""` : `Topic: ${topic}`;
 
@@ -444,8 +560,24 @@ export const generateStepContent = async (
 
   if (isMathTopic) {
     try {
-      const gradeMatch = gradeLevel.match(/[א-ת]/);
-      const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+      // Extract grade letter - handle formats like "כיתה ב", "כיתה ב׳", "ב", "2", etc.
+      // First try to match "כיתה X" pattern, then fall back to single letter
+      const classPattern = gradeLevel.match(/כיתה\s*([א-יב]{1,2})/);
+      const singleLetterPattern = gradeLevel.match(/^([א-יב]{1,2})['׳]?$/);
+      const numberPattern = gradeLevel.match(/(\d{1,2})/);
+
+      let hebrewGrade = 'ב'; // default
+      if (classPattern) {
+        hebrewGrade = classPattern[1];
+      } else if (singleLetterPattern) {
+        hebrewGrade = singleLetterPattern[1];
+      } else if (numberPattern) {
+        const numToHebrew: Record<string, string> = {
+          '1': 'א', '2': 'ב', '3': 'ג', '4': 'ד', '5': 'ה', '6': 'ו',
+          '7': 'ז', '8': 'ח', '9': 'ט', '10': 'י', '11': 'יא', '12': 'יב'
+        };
+        hebrewGrade = numToHebrew[numberPattern[1]] || 'ב';
+      }
 
       console.log(`📚 Fetching KB context for step ${stepInfo.step_number}: "${stepInfo.title}", grade ${hebrewGrade}`);
       const pedagogicalContext = await getMathPedagogicalContext(stepInfo.title || topic, hebrewGrade);
@@ -466,6 +598,63 @@ export const generateStepContent = async (
       console.warn('Failed to fetch KB context for step:', error);
     }
   }
+
+  // Build topic constraint - MOST IMPORTANT
+  // Works for both topic-based and source-text-based generation
+  const topicDescription = topic || stepInfo.title || 'הנושא מהמסמך';
+  const hasSourceDocument = !!sourceText;
+
+  // Math operation restrictions only apply when teacher CHOSE a specific topic (not uploaded document)
+  // If teacher uploaded a document, allow all operations that appear in the document
+  const getMathRestrictions = () => {
+    // No restrictions if teacher uploaded a document - use whatever is in the document
+    if (hasSourceDocument) return '';
+
+    // Only restrict if topic mentions specific operations WITHOUT others
+    if (/חיבור|חיסור/.test(topicDescription) && !/כפל|חילוק/.test(topicDescription)) {
+      return `
+📐 הנושא הוא חיבור/חיסור בלבד - הגבלות מיוחדות:
+✅ מותר: שאלות חיבור (כמה זה X + Y?)
+✅ מותר: שאלות חיסור (כמה זה X - Y?)
+❌ אסור: שאלות כפל (כמה זה X × Y?) - לא הנושא!
+❌ אסור: שאלות חילוק (כמה זה X ÷ Y?) - לא הנושא!
+`;
+    }
+    if (/כפל/.test(topicDescription) && !/חיבור|חיסור|חילוק/.test(topicDescription)) {
+      return `
+📐 הנושא הוא כפל בלבד - הגבלות מיוחדות:
+✅ מותר: שאלות כפל (כמה זה X × Y?)
+❌ אסור: שאלות חילוק, חיבור, חיסור - אלא אם קשורות ישירות לכפל
+`;
+    }
+    if (/חילוק/.test(topicDescription) && !/חיבור|חיסור|כפל/.test(topicDescription)) {
+      return `
+📐 הנושא הוא חילוק בלבד - הגבלות מיוחדות:
+✅ מותר: שאלות חילוק (כמה זה X ÷ Y?)
+❌ אסור: שאלות כפל, חיבור, חיסור - אלא אם קשורות ישירות לחילוק
+`;
+    }
+    return '';
+  };
+
+  const topicConstraint = `
+🚨🚨🚨 TOPIC BOUNDARY - ABSOLUTE RESTRICTION 🚨🚨🚨
+
+${hasSourceDocument
+    ? `📄 המורה העלה מסמך/טקסט מקור.
+הנושא של השלב הנוכחי הוא: "${stepInfo.title}"
+
+⛔ חובה: השתמש רק במידע מהמסמך שהועלה - אל תמציא מידע!
+⛔ כל השאלות חייבות להתבסס על התוכן במסמך!
+✅ מותר: כל סוגי השאלות והפעולות שמופיעות במסמך`
+    : `📝 המורה בחר נושא ספציפי: "${topic}"
+
+⛔ חובה מוחלטת: כל התוכן חייב להיות רלוונטי רק לנושא "${topic}"!
+⛔ אסור בהחלט ליצור תוכן על נושאים אחרים!
+${getMathRestrictions()}`}
+
+🚨🚨🚨 END TOPIC BOUNDARY 🚨🚨🚨
+`;
 
   // Build textbook-style instructions if KB context exists - placed at the very beginning for maximum impact
   const textbookStyleInstructions = knowledgeBaseContext ? `
@@ -489,13 +678,22 @@ export const generateStepContent = async (
     ⚠️⚠️⚠️ END CRITICAL INSTRUCTION ⚠️⚠️⚠️
 ` : '';
 
+  // Generate scaffolding instructions for progressive difficulty
+  const scaffoldingInstructions = getScaffoldingInstructions(
+    stepInfo.bloom_level || 'Apply',
+    stepInfo.step_number || 1,
+    totalSteps
+  );
+
   const prompt = `
+    ${topicConstraint}
+    ${scaffoldingInstructions}
     ${textbookStyleInstructions}
     ${contextText}
     ${examEnforcer}
 
     MANDATORY REQUIREMENTS:
-  1. ** Pedagogy:** Strictly follow the Bloom Level(${stepInfo.bloom_level}) and Interaction Type(${stepInfo.suggested_interaction_type}).
+  1. ** Pedagogy:** Strictly follow the Bloom Level(${stepInfo.bloom_level}) and Interaction Type(${stepInfo.suggested_interaction_type}). USE THE SCAFFOLDING INSTRUCTIONS ABOVE to determine difficulty!
     2. ** ZERO - TEXT - WALL RULE(V4 Anti - Batching):**
        - ** CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
        - ** Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
@@ -1085,9 +1283,23 @@ export const generateInteractiveBlocks = async (
   let knowledgeContext = '';
   if (isMathTopic) {
     try {
-      // Extract Hebrew grade letter from gradeLevel
-      const gradeMatch = gradeLevel.match(/[א-ת]/);
-      const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+      // Extract grade letter - handle formats like "כיתה ב", "כיתה ב׳", "ב", "2", etc.
+      const classPattern = gradeLevel.match(/כיתה\s*([א-יב]{1,2})/);
+      const singleLetterPattern = gradeLevel.match(/^([א-יב]{1,2})['׳]?$/);
+      const numberPattern = gradeLevel.match(/(\d{1,2})/);
+
+      let hebrewGrade = 'ב'; // default
+      if (classPattern) {
+        hebrewGrade = classPattern[1];
+      } else if (singleLetterPattern) {
+        hebrewGrade = singleLetterPattern[1];
+      } else if (numberPattern) {
+        const numToHebrew: Record<string, string> = {
+          '1': 'א', '2': 'ב', '3': 'ג', '4': 'ד', '5': 'ה', '6': 'ו',
+          '7': 'ז', '8': 'ח', '9': 'ט', '10': 'י', '11': 'יא', '12': 'יב'
+        };
+        hebrewGrade = numToHebrew[numberPattern[1]] || 'ב';
+      }
 
       console.log(`📚 Fetching knowledge base context for math: ${topic}, grade ${hebrewGrade}`);
       knowledgeContext = await getKnowledgeContext(topic, hebrewGrade);
@@ -2498,9 +2710,23 @@ const getKnowledgeBaseContext = async (topic: string, gradeLevel: string, subjec
   }
 
   try {
-    // Extract Hebrew grade letter from gradeLevel
-    const gradeMatch = gradeLevel.match(/[א-ת]/);
-    const hebrewGrade = gradeMatch ? gradeMatch[0] : 'ב';
+    // Extract grade letter - handle formats like "כיתה ב", "כיתה ב׳", "ב", "2", etc.
+    const classPattern = gradeLevel.match(/כיתה\s*([א-יב]{1,2})/);
+    const singleLetterPattern = gradeLevel.match(/^([א-יב]{1,2})['׳]?$/);
+    const numberPattern = gradeLevel.match(/(\d{1,2})/);
+
+    let hebrewGrade = 'ב'; // default
+    if (classPattern) {
+      hebrewGrade = classPattern[1];
+    } else if (singleLetterPattern) {
+      hebrewGrade = singleLetterPattern[1];
+    } else if (numberPattern) {
+      const numToHebrew: Record<string, string> = {
+        '1': 'א', '2': 'ב', '3': 'ג', '4': 'ד', '5': 'ה', '6': 'ו',
+        '7': 'ז', '8': 'ח', '9': 'ט', '10': 'י', '11': 'יא', '12': 'יב'
+      };
+      hebrewGrade = numToHebrew[numberPattern[1]] || 'ב';
+    }
 
     console.log(`📚 Fetching pedagogical context for: ${topic}, grade ${hebrewGrade}`);
 
@@ -2536,29 +2762,35 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
   // Fetch knowledge base context for math topics
   const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
 
-  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+  // Check if sourceText is non-empty (not just truthy check)
+  const hasSourceText = sourceText && sourceText.trim().length > 0;
+  let grounding = hasSourceText
+    ? `**CRITICAL: BASE YOUR CONTENT ONLY ON THIS SOURCE TEXT:**\n"""${sourceText.substring(0, 3000)}"""\n\n**IMPORTANT:** You MUST extract actual concepts, terms and items from the source text above. DO NOT use generic examples.`
+    : `Topic: "${topic}"`;
 
   // Add knowledge base context if available
   if (knowledgeContext) {
     grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
   }
   const prompt = `
-    Create a detailed Categorization Activity.
+    Create a detailed Categorization Activity in Hebrew.
       ${grounding}
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
 
-      Task: Create 2 Mutually Exclusive Categories and 6 - 8 items.
-        Rules:
-    1. Categories must be distinct(e.g., "True/False", "Cause/Effect", "Before/After").
-    2. If exact categories aren't found, categorize by "General Concept" vs "Specific Detail".
-    3. Output JSON MUST be valid.
+    Task: Create 2 Mutually Exclusive Categories and 6-8 items FROM THE SOURCE TEXT.
 
-    JSON Output Example:
+    **CRITICAL RULES:**
+    1. Categories and items MUST be extracted from the source text
+    2. DO NOT use generic examples - use actual content from the text
+    3. Categories must be distinct (e.g., "סיבות/תוצאות", "לפני/אחרי", "יתרונות/חסרונות")
+    4. All items must be directly mentioned or clearly derived from the source text
+
+    JSON Output (Hebrew):
     {
-      "question": "Sort the following items:",
-        "categories": ["Mammals", "Reptiles"],
-          "items": [{ "text": "Dog", "category": "Mammals" }, { "text": "Snake", "category": "Reptiles" }]
+      "question": "מיינו את הפריטים הבאים לקטגוריות:",
+      "categories": ["[קטגוריה מהטקסט]", "[קטגוריה מהטקסט]"],
+      "items": [{ "text": "[פריט מהטקסט]", "category": "[קטגוריה מהטקסט]" }]
     }
     `;
   try {
@@ -2575,27 +2807,36 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
   // Fetch knowledge base context for math topics
   const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
 
-  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+  // Check if sourceText is non-empty (not just truthy check)
+  const hasSourceText = sourceText && sourceText.trim().length > 0;
+  let grounding = hasSourceText
+    ? `**CRITICAL: BASE YOUR CONTENT ONLY ON THIS SOURCE TEXT:**\n"""${sourceText.substring(0, 3000)}"""\n\n**IMPORTANT:** You MUST extract the actual sequence/steps from the source text above. DO NOT use generic placeholders like "Step 1", "Step 2". Use the REAL content from the text.`
+    : `Topic: "${topic}"`;
 
   // Add knowledge base context if available
   if (knowledgeContext) {
     grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
   }
   const prompt = `
-    Create an Ordering / Sequencing Activity.
+    Create an Ordering / Sequencing Activity in Hebrew.
       ${grounding}
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
 
-      Task: Extract a logical sequence.
-        Rules:
-    1. If no Chronological Sequence exists, order by "Priority", "Complexity", or "Logical Steps".
-    2. Items must be concise strings.
+    Task: Extract a logical sequence FROM THE SOURCE TEXT.
 
-    JSON Output Example:
+    **CRITICAL RULES:**
+    1. Each item in correct_order MUST be actual content extracted from the source text
+    2. DO NOT use generic labels like "שלב ראשון", "שלב שני" - use the REAL steps/events from the text
+    3. If the text describes a historical process - use the actual historical events
+    4. If the text describes a procedure - use the actual procedure steps
+    5. If no clear sequence exists, order items by logical progression found in the text
+    6. Items should be concise but specific to the content
+
+    JSON Output (Hebrew):
     {
-      "instruction": "Order the steps of the process:",
-        "correct_order": ["Step 1: Initiation", "Step 2: Planning", "Step 3: Execution"]
+      "instruction": "סדרו את [האירועים/השלבים] בסדר הנכון:",
+      "correct_order": ["[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]"]
     }
     `;
   try {
@@ -2611,27 +2852,34 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
   // Fetch knowledge base context for math topics
   const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
 
-  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+  // Check if sourceText is non-empty (not just truthy check)
+  const hasSourceText = sourceText && sourceText.trim().length > 0;
+  let grounding = hasSourceText
+    ? `**CRITICAL: BASE YOUR CONTENT ONLY ON THIS SOURCE TEXT:**\n"""${sourceText.substring(0, 3000)}"""\n\n**IMPORTANT:** Create a fill-in-the-blanks exercise using actual content from this source text. The hidden words must be key terms that appear in the source.`
+    : `Topic: "${topic}"`;
 
   // Add knowledge base context if available
   if (knowledgeContext) {
     grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
   }
   const prompt = `
-    Create a Fill -in -the - Blanks(Cloze) Text.
+    Create a Fill-in-the-Blanks (Cloze) Text in Hebrew.
       ${grounding}
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
 
-      Task: Write a summary paragraph about "${topic}".
-        Rules:
-    1. Use[brackets] to hide key concepts.
-    2. MUST have at least 3 hidden words.
-    3. Context MUST make the hidden word guessable.
+    Task: Write a summary paragraph based on the source text.
 
-    JSON Output Example:
+    **CRITICAL RULES:**
+    1. Use [brackets] to hide key concepts FROM THE SOURCE TEXT
+    2. The hidden words must be actual terms/concepts from the source
+    3. MUST have at least 3 hidden words
+    4. Context MUST make the hidden word guessable
+    5. DO NOT use generic examples - use actual content from the provided text
+
+    JSON Output (Hebrew):
     {
-      "text": "The capital of [France] is [Paris]."
+      "text": "[משפט בעברית עם [מילה מוסתרת מהטקסט] ותוכן רלוונטי]"
     }
     `;
   try {
@@ -2647,28 +2895,34 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
   // Fetch knowledge base context for math topics
   const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
 
-  let grounding = sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`;
+  // Check if sourceText is non-empty (not just truthy check)
+  const hasSourceText = sourceText && sourceText.trim().length > 0;
+  let grounding = hasSourceText
+    ? `**CRITICAL: BASE YOUR CONTENT ONLY ON THIS SOURCE TEXT:**\n"""${sourceText.substring(0, 3000)}"""\n\n**IMPORTANT:** Create matching pairs using actual terms, concepts, events or definitions from this source text. DO NOT use generic examples.`
+    : `Topic: "${topic}"`;
 
   // Add knowledge base context if available
   if (knowledgeContext) {
     grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
   }
   const prompt = `
-    Create a Memory Game(Matching Pairs).
+    Create a Memory Game (Matching Pairs) in Hebrew.
       ${grounding}
     Target Audience: ${gradeLevel}.
     Language: Hebrew.
 
-      Task: Create 6 matching pairs.
-        Rules:
-    1. If no detailed definitions exist, match "Term" to "Category" or "Event" to "Date".
-    2. JSON must generally valid.
-    
-    JSON Output Example:
+    Task: Create 6 matching pairs FROM THE SOURCE TEXT.
+
+    **CRITICAL RULES:**
+    1. All pairs MUST be extracted from the source text
+    2. DO NOT use generic examples - use actual content from the text
+    3. Match types: Term↔Definition, Event↔Date, Cause↔Effect, Person↔Achievement
+    4. Both card_a and card_b must contain content from the source
+
+    JSON Output (Hebrew):
     {
       "pairs": [
-        { "card_a": "Sun", "card_b": "Star" },
-        { "card_a": "Moon", "card_b": "Satellite" }
+        { "card_a": "[מונח/אירוע מהטקסט]", "card_b": "[הגדרה/תאריך מהטקסט]" }
       ]
     }
     `;
@@ -2677,6 +2931,51 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.pairs || result.pairs.length < 3) return null;
+    return result;
+  } catch { return null; }
+};
+
+export const generateTrueFalseQuestion = async (topic: string, gradeLevel: string, sourceText?: string, subject?: string) => {
+  // Fetch knowledge base context for math topics
+  const knowledgeContext = await getKnowledgeBaseContext(topic, gradeLevel, subject);
+
+  const hasSourceText = sourceText && sourceText.trim().length > 0;
+  let grounding = hasSourceText
+    ? `**CRITICAL: BASE YOUR CONTENT ONLY ON THIS SOURCE TEXT:**\n"""${sourceText.substring(0, 3000)}"""\n\n**IMPORTANT:** Create a true/false statement based on actual facts from this source text.`
+    : `Topic: "${topic}"`;
+
+  if (knowledgeContext) {
+    grounding = `${knowledgeContext}\n\n---\n\n${grounding}`;
+  }
+
+  const prompt = `
+    Create a True/False question in Hebrew.
+    ${grounding}
+    Target Audience: ${gradeLevel}.
+    Language: Hebrew.
+
+    **RULES:**
+    1. Create a clear, unambiguous statement
+    2. The statement must be definitively true OR definitively false
+    3. Base it on actual content from the source text
+    4. Avoid trick questions or overly technical language
+
+    JSON Output:
+    {
+      "statement": "טענה בעברית",
+      "answer": true,
+      "explanation": "הסבר קצר למה זה נכון/לא נכון"
+    }
+  `;
+
+  try {
+    const res = await (await getOpenAIClient()).chat.completions.create({
+      model: MODEL_NAME,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+    const result = JSON.parse(res.choices[0].message.content || "{}");
+    if (!result.statement || result.answer === undefined) return null;
     return result;
   } catch { return null; }
 };
@@ -2778,12 +3077,12 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string | null> =
 // --- פונקציה 3: מנתח נתוני תלמידים (Smart Analytics) ---
 export const generateStudentAnalysis = async (
   studentName: string,
-  submissionData: any, // Contains answers with telemetry
+  submissionData: any,
   courseTopic: string
 ) => {
   const prompt = `
-    Role: Educational Psychologist & Data Analyst.
-    Task: Analyze student performance based on telemetry data.
+    Role: Educational Data Analyst.
+    Task: Analyze student performance based on learning data.
     Student: ${studentName}.
     Topic: ${courseTopic}.
 
@@ -2791,18 +3090,23 @@ export const generateStudentAnalysis = async (
     ${JSON.stringify(submissionData, null, 2)}
 
     METRICS TO ANALYZE:
-    1. **Time per Question:** (Fast = Impulsive? / Slow = Struggling or Deep Thinker?)
-    2. **Attempts:** (Many attempts = Persistence or Guessing?)
-    3. **Hints:** (Usage of hints = Resourcefulness or Dependency?)
-    4. **Mistakes:** (Pattern recognition - e.g. "struggles with ordering").
+    1. Time per Question: Calculate average time spent
+    2. Attempts: Count average attempts per question
+    3. Hints: Calculate hint usage rate
+    4. Mistakes: Identify specific topics or skills with repeated errors
 
     OUTPUT FORMAT (JSON ONLY):
     {
-      "strengths": ["List 2-3 specific strengths"],
-      "weaknesses": ["List 2-3 specific weaknesses"],
-      "psychologicalProfile": "Impulsive" | "Persistent" | "Deep Thinker" | "Hesitant",
-      "recommendedFocus": "Specific sub-topic to review...",
-      "engagementScore": 0-100 (Based on completion and effort)
+      "strengths": ["List 2-3 specific skills the student demonstrated well"],
+      "weaknesses": ["List 2-3 specific topics that need more practice"],
+      "recommendedFocus": "Specific topic or skill to practice next",
+      "engagementScore": 0-100,
+      "learningMetrics": {
+        "averageTimePerQuestion": 0,
+        "hintUsageRate": 0.0,
+        "attemptsPerQuestion": 0,
+        "completionRate": 0.0
+      }
     }
   `;
 
@@ -2825,25 +3129,25 @@ export const generateStudentAnalysis = async (
 // --- פונקציה 4: ניתוח כיתתי (Class Analytics) ---
 export const generateClassAnalysis = async (students: any[]) => {
   const prompt = `
-    Role: Senior Educational Consultant.
+    Role: Educational Data Analyst.
     Task: Analyze CLASS performance based on aggregated student data.
     Count: ${students.length} students.
 
-    DATA SAMPLES (Anonymized):
-    ${JSON.stringify(students.map(s => ({ score: s.score, analytics: s.analytics || "No profile" })).slice(0, 15), null, 2)}
+    DATA SAMPLES:
+    ${JSON.stringify(students.map(s => ({ score: s.score, analytics: s.analytics || null })).slice(0, 15), null, 2)}
 
     MISSION:
-    Identify PATTERNS in the class.
-    1. Are they generally impulsive or hesitant?
-    2. Is there a specific topic they all struggle with?
-    3. What is the emotional state of the class (Engagement)?
+    Identify learning patterns in the class:
+    1. What skills does the class excel at?
+    2. What specific topics need more practice?
+    3. Which students might need extra support?
 
     OUTPUT FORMAT (JSON ONLY):
     {
       "strongSkills": ["List 2-3 skills the CLASS excels at"],
       "weakSkills": ["List 2-3 skills the CLASS struggles with"],
-      "actionItems": ["List 2 practical teaching strategies for tomorrow"],
-      "classVibe": "Competitive" | "Collaborative" | "Struggling" | "Curious"
+      "actionItems": ["List 2 practical teaching strategies for the next lesson"],
+      "studentsNeedingAttention": ["List student names who scored below average or show low engagement"]
     }
   `;
 

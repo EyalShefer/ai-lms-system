@@ -690,17 +690,17 @@ This section documents ALL AI agents in the system, their locations, purposes, a
 - **Function:** `generateGrading()`
 - **Output:** JSON with grades (0-100) + constructive feedback in Hebrew
 
-## 19.6 Analytics & Profiling Agents
+## 19.6 Analytics Agents
 
 ### 19.6.1 Student Analysis Agent
 - **File:** `src/services/ai/geminiApi.ts`
 - **Function:** `generateStudentAnalysis()`
-- **Output:** Strengths, weaknesses, psychological profile, engagement score
+- **Output:** Strengths, weaknesses, recommended focus, engagement score, learning metrics
 
 ### 19.6.2 Class Analysis Agent
 - **File:** `src/services/ai/geminiApi.ts`
 - **Function:** `generateClassAnalysis()`
-- **Output:** Class strengths, weak skills, teaching strategies, class vibe
+- **Output:** Class strengths, weak skills, teaching strategies, students needing attention
 
 ### 19.6.3 Student Report Generator
 - **File:** `src/services/ai/geminiApi.ts`

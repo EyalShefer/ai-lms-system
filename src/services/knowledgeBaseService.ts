@@ -8,7 +8,7 @@ export interface KnowledgeSearchResult {
     id: string;
     grade: string;
     volume: number;
-    volumeType: 'student' | 'teacher';
+    volumeType: 'student' | 'teacher' | 'curriculum';
     chapter: string;
     content: string;
     contentType: string;
@@ -32,7 +32,7 @@ export async function searchKnowledge(
   filters?: {
     subject?: string;
     grade?: string;
-    volumeType?: 'student' | 'teacher';
+    volumeType?: 'student' | 'teacher' | 'curriculum';
     contentType?: string;
   },
   limit: number = 5
@@ -167,18 +167,50 @@ export async function getMathPedagogicalContext(
   };
 
   try {
-    // Search for relevant content
-    const searchResults = await searchKnowledge(topic, { grade }, 10);
+    // Search SEPARATELY for each source type to ensure we get curriculum!
+    // This is critical - curriculum defines the boundaries of what's allowed
+    console.log(`📚 Searching KB for topic "${topic}" grade ${grade} - querying all 3 source types...`);
+
+    const [curriculumResults, studentResults, teacherResults] = await Promise.all([
+      // Curriculum - HIGHEST PRIORITY (defines what's in scope)
+      searchKnowledge(topic, { grade, volumeType: 'curriculum' }, 3),
+      // Student book - main content examples
+      searchKnowledge(topic, { grade, volumeType: 'student' }, 4),
+      // Teacher guide - pedagogical guidance
+      searchKnowledge(topic, { grade, volumeType: 'teacher' }, 3),
+    ]);
+
+    // Combine results - curriculum first!
+    const searchResults = [...curriculumResults, ...studentResults, ...teacherResults];
 
     if (searchResults.length === 0) {
       console.log(`📚 No knowledge base results for "${topic}" grade ${grade}`);
       return result;
     }
 
+    // Log what we found from each source type
+    console.log(`📚 KB results: curriculum=${curriculumResults.length}, student=${studentResults.length}, teacher=${teacherResults.length}`);
+
     // Process each result to extract specific elements
     for (const res of searchResults) {
       const content = res.chunk.content;
-      result.rawContext += `[${res.chunk.chapter}]\n${content}\n\n`;
+      const sourceLabel = res.chunk.volumeType === 'curriculum' ? 'תכנית לימודים' :
+                          res.chunk.volumeType === 'teacher' ? 'מדריך למורה' : 'ספר תלמיד';
+      result.rawContext += `[${sourceLabel} - ${res.chunk.chapter}]\n${content}\n\n`;
+
+      // Extract curriculum boundaries (from curriculum docs) - HIGHEST PRIORITY
+      if (res.chunk.volumeType === 'curriculum') {
+        // Extract scope/boundary definitions
+        const boundaryPatterns = content.match(/(?:עד|בטווח|בתחום|מ-|עד ל-|לא יותר מ)[^\n]+/g);
+        if (boundaryPatterns) {
+          result.progressionLevels.push(...boundaryPatterns);
+        }
+        // Extract required topics
+        const requiredPatterns = content.match(/(?:חובה|נדרש|יש ללמד|התלמיד יידע|יוכל)[^\n]+/g);
+        if (requiredPatterns) {
+          result.mathLanguage.push(...requiredPatterns);
+        }
+      }
 
       // Extract exercises (look for numbered patterns or exercise keywords)
       const exercisePatterns = content.match(/(?:תרגיל|תרגול|פתור|חשב|מצא)[^\n]+(?:\n[^\n]+)?/g);
@@ -241,7 +273,7 @@ export async function getMathPedagogicalContext(
     result.studentAddressing = [...new Set(result.studentAddressing)].slice(0, 5);
     result.explanationPatterns = [...new Set(result.explanationPatterns)].slice(0, 5);
 
-    console.log(`📚 Extracted from KB: ${result.exercises.length} exercises, ${result.commonMistakes.length} mistakes, ${result.questionPhrasing.length} question patterns, ${result.studentAddressing.length} addressing patterns`);
+    console.log(`📚 Extracted from KB: ${result.exercises.length} exercises, ${result.commonMistakes.length} mistakes, ${result.questionPhrasing.length} question patterns, ${result.studentAddressing.length} addressing patterns, ${result.progressionLevels.length} progression levels (from curriculum)`);
 
   } catch (error) {
     console.warn('Failed to get math pedagogical context:', error);

@@ -6,6 +6,7 @@ import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
     generateCategorizationQuestion, generateOrderingQuestion, generateFillInBlanksQuestion, generateMemoryGame,
+    generateTrueFalseQuestion,
     generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent
 } from '../gemini';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
@@ -374,8 +375,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 console.log("⚡ Triggering Parallel Step Generation...");
 
                 // Fire all requests at once (or batch if needed)
+                const totalSteps = skeleton.steps.length;
                 const promises = skeleton.steps.map(async (step: any) => {
-                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined, course.mode || 'learning'); // Pass sourceText
+                    const stepContent = await generateStepContent(unit.title, step, gradeLevel, sourceText, undefined, course.mode || 'learning', undefined, totalSteps); // Pass sourceText & totalSteps for scaffolding
 
                     console.log(`📦 AI Response for Step ${step.step_number}:`, Object.keys(stepContent || {}));
                     if (stepContent?.teach_content) console.log(`   📝 Found Teach Content for Step ${step.step_number}`);
@@ -564,7 +566,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return `${baseInfo}\n${specificInstructions}\n${safetyProtocol}`;
     };
 
-    const addBlockAtIndex = (type: string, index: number) => {
+    const addBlockAtIndex = async (type: string, index: number) => {
         // Use course default persona if available, otherwise Socratic
         const initialPersonaId = course.botPersona || 'socratic';
 
@@ -576,6 +578,34 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
         setIsDirty(true);
         setActiveInsertIndex(null);
+
+        // AUTO-GENERATE: For interactive block types, immediately generate content in unit context
+        const autoGenerateTypes = ['fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'multiple-choice', 'true_false_speed'];
+        if (autoGenerateTypes.includes(type)) {
+            // Trigger auto-generation after block is added
+            setTimeout(() => {
+                switch (type) {
+                    case 'fill_in_blanks':
+                        handleAutoGenerateFillInBlanks(newBlock.id);
+                        break;
+                    case 'ordering':
+                        handleAutoGenerateOrdering(newBlock.id);
+                        break;
+                    case 'categorization':
+                        handleAutoGenerateCategorization(newBlock.id);
+                        break;
+                    case 'memory_game':
+                        handleAutoGenerateMemoryGame(newBlock.id);
+                        break;
+                    case 'multiple-choice':
+                        handleAutoGenerateMCQuestion(newBlock.id);
+                        break;
+                    case 'true_false_speed':
+                        handleAutoGenerateTrueFalseQuestion(newBlock.id);
+                        break;
+                }
+            }, 100);
+        }
     };
 
     const deleteBlock = (blockId: string) => {
@@ -710,6 +740,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         try {
             const sourceText = course.fullBookContent || "";
             const result = await generateMemoryGame(editedUnit.title, gradeLevel, sourceText, subject);
+            if (result) updateBlock(blockId, result);
+        } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
+    };
+    const handleAutoGenerateTrueFalseQuestion = async (blockId: string) => {
+        setLoadingBlockId(blockId);
+        try {
+            const sourceText = course.fullBookContent || "";
+            // Generate a true/false statement based on unit content
+            const result = await generateTrueFalseQuestion(editedUnit.title, gradeLevel, sourceText, subject);
             if (result) updateBlock(blockId, result);
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };

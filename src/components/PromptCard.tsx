@@ -46,14 +46,14 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
   const [ratingComment, setRatingComment] = useState('');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
-  // Initialize field values with empty strings
+  // Initialize field values with empty strings only when prompt changes
   useEffect(() => {
     const initialValues: Record<string, string> = {};
     prompt.fields.forEach(field => {
       initialValues[field.id] = '';
     });
     setFieldValues(initialValues);
-  }, [prompt.fields]);
+  }, [prompt.id]); // Only reset when switching to a different prompt
 
   // Check if creator is recommended
   useEffect(() => {

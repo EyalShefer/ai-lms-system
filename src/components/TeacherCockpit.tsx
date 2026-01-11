@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye } from '../icons';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
+import {
+    generateSingleMultipleChoiceQuestion,
+    generateSingleOpenQuestion,
+    generateCategorizationQuestion,
+    generateOrderingQuestion,
+    generateFillInBlanksQuestion,
+    generateMemoryGame
+} from '../gemini';
 import { detectInfographicType, analyzeInfographicSuitability } from '../utils/infographicDetector';
 import { PEDAGOGICAL_PHASES, getPedagogicalPhase } from '../utils/pedagogicalIcons';
 import { createBlock } from '../shared/config/blockDefinitions';
@@ -134,6 +142,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     // Variant Preview Modal State
     const [variantPreviewBlock, setVariantPreviewBlock] = useState<ActivityBlock | null>(null);
 
+    // AI Block Generation State
+    const [generatingBlockIndex, setGeneratingBlockIndex] = useState<number | null>(null);
+
     // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
@@ -175,15 +186,75 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         }
     };
 
-    const addBlockAtIndex = (type: string, index: number) => {
+    const addBlockAtIndex = async (type: string, index: number) => {
         console.log('[addBlockAtIndex] Adding block:', type, 'at index:', index);
         console.log('[addBlockAtIndex] onUnitUpdate exists:', !!onUnitUpdate);
+
+        // Get context from unit for AI generation
+        const topic = unit.title || 'נושא כללי';
+        const gradeLevel = unit.metadata?.gradeLevel || 'כיתה ו׳';
+        const subject = unit.metadata?.subject || 'כללי';
+
+        // Get source text from existing text blocks
+        const sourceText = unit.activityBlocks
+            ?.filter(b => b.type === 'text')
+            .map(b => typeof b.content === 'string' ? b.content : (b.content?.text || b.content?.teach_content || ''))
+            .join('\n')
+            .substring(0, 2000) || '';
+
+        // Create placeholder block with loading state
         const newBlock = createBlock(type, 'socratic');
         const newBlocks = [...(unit.activityBlocks || [])];
         newBlocks.splice(index, 0, newBlock);
-        console.log('[addBlockAtIndex] newBlocks length:', newBlocks.length);
         updateUnitBlocks(newBlocks);
         setActiveInsertIndex(null);
+        setGeneratingBlockIndex(index);
+
+        // For types that need AI generation, call the appropriate function
+        const aiGeneratableTypes = ['multiple-choice', 'open-question', 'categorization', 'ordering', 'fill_in_blanks', 'memory_game'];
+
+        if (aiGeneratableTypes.includes(type)) {
+            try {
+                let generatedContent: any = null;
+
+                switch (type) {
+                    case 'multiple-choice':
+                        generatedContent = await generateSingleMultipleChoiceQuestion(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'open-question':
+                        generatedContent = await generateSingleOpenQuestion(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'categorization':
+                        generatedContent = await generateCategorizationQuestion(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'ordering':
+                        generatedContent = await generateOrderingQuestion(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'fill_in_blanks':
+                        generatedContent = await generateFillInBlanksQuestion(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'memory_game':
+                        generatedContent = await generateMemoryGame(topic, gradeLevel, sourceText, subject);
+                        break;
+                }
+
+                if (generatedContent) {
+                    console.log('[addBlockAtIndex] AI generated content:', generatedContent);
+                    // Update the block with generated content
+                    const updatedBlocks = [...(unit.activityBlocks || [])];
+                    const blockIndex = updatedBlocks.findIndex(b => b.id === newBlock.id);
+                    if (blockIndex !== -1) {
+                        updatedBlocks[blockIndex] = { ...updatedBlocks[blockIndex], content: generatedContent };
+                        updateUnitBlocks(updatedBlocks);
+                    }
+                }
+            } catch (error) {
+                console.error('[addBlockAtIndex] AI generation failed:', error);
+                // Block already added with default content, so no need to do anything
+            }
+        }
+
+        setGeneratingBlockIndex(null);
         if (type === 'text') setEditingBlockId(newBlock.id);
     };
 
@@ -252,7 +323,58 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     };
 
     const handleExportPDF = async () => {
-        // Use the stored lesson plan from metadata, or create a basic one from available data
+        // Helper to extract text content from a block
+        const extractTextContent = (block: ActivityBlock): string => {
+            if (block.type === 'text') {
+                const content = block.content;
+                if (typeof content === 'string') return content;
+                if (content && typeof content === 'object') {
+                    return (content as any).teach_content || (content as any).text || '';
+                }
+            }
+            return '';
+        };
+
+        // Helper to strip HTML tags for plain text
+        const stripHtml = (html: string): string => {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
+        };
+
+        // Build slides from text blocks
+        const textBlocks = unit.activityBlocks.filter(b => b.type === 'text');
+        const slides = textBlocks.map((block, index) => {
+            const content = extractTextContent(block);
+            const title = getBlockTitle(block) || `חלק ${index + 1}`;
+            // Extract bullet points from content (split by newlines or list items)
+            const plainText = stripHtml(content);
+            const lines = plainText.split(/\n+/).filter(l => l.trim());
+            const bulletPoints = lines.slice(0, 5); // First 5 lines as bullet points
+
+            return {
+                slide_title: title,
+                bullet_points_for_board: bulletPoints.length > 0 ? bulletPoints : [plainText.slice(0, 200) + '...'],
+                script_to_say: plainText,
+                timing_estimate: '5 דקות'
+            };
+        });
+
+        // Extract questions for discussion from question blocks
+        const questionBlocks = unit.activityBlocks.filter(b =>
+            ['multiple-choice', 'open-question'].includes(b.type)
+        );
+        const discussionQuestions = questionBlocks.slice(0, 5).map(b => {
+            if (b.type === 'multiple-choice' && b.content && typeof b.content === 'object') {
+                return (b.content as any).question || '';
+            }
+            if (b.type === 'open-question' && b.content && typeof b.content === 'object') {
+                return (b.content as any).question || '';
+            }
+            return '';
+        }).filter(q => q);
+
+        // Use the stored lesson plan from metadata, or create a rich one from available data
         const lessonPlan: TeacherLessonPlan = unit.metadata?.lessonPlan || {
             lesson_metadata: {
                 title: unit.title,
@@ -262,10 +384,15 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                 learning_objectives: unit.goals || []
             },
             hook: {
-                script_for_teacher: unit.baseContent || 'תוכן מערך השיעור',
+                script_for_teacher: unit.baseContent || stripHtml(extractTextContent(textBlocks[0]) || 'תוכן מערך השיעור'),
             },
             direct_instruction: {
-                slides: []
+                slides: slides.length > 0 ? slides : [{
+                    slide_title: unit.title,
+                    bullet_points_for_board: unit.goals || ['תוכן השיעור'],
+                    script_to_say: unit.baseContent || 'תוכן מערך השיעור',
+                    timing_estimate: '10 דקות'
+                }]
             },
             guided_practice: {
                 teacher_facilitation_script: 'השתמשו בפעילויות האינטראקטיביות המצורפות כדי לתרגל את הנושא בכיתה. הנחו את התלמידים בצורה מדורגת.',
@@ -273,7 +400,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                     .filter(b => ['multiple-choice', 'memory_game', 'fill_in_blanks', 'ordering', 'categorization', 'drag_and_drop', 'hotspot', 'open-question'].includes(b.type))
                     .map(b => ({
                         activity_type: b.type,
-                        description: `פעילות ${b.type} לתרגול`,
+                        description: `פעילות ${BLOCK_TYPE_MAPPING[b.type] || b.type} לתרגול`,
                         facilitation_tip: 'תנו לתלמידים זמן לעבודה עצמאית ואז דונו בתשובות'
                     })),
                 differentiation_strategies: {
@@ -293,7 +420,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                 estimated_duration: '10-15 דקות'
             },
             discussion: {
-                questions: []
+                questions: discussionQuestions.length > 0 ? discussionQuestions : ['מה למדנו היום?', 'איך נוכל ליישם את הנלמד?']
             },
             summary: {
                 takeaway_sentence: `סיכום: ${unit.title}`
@@ -527,7 +654,12 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                 <div className="w-full border-t border-dashed border-slate-300"></div>
             </div>
             <div className="relative bg-[#f0f4f8] px-4">
-                {activeInsertIndex === index ? (
+                {generatingBlockIndex === index ? (
+                    <div className="glass border border-indigo-200 shadow-xl rounded-2xl p-4 flex items-center gap-3 animate-pulse backdrop-blur-xl bg-indigo-50/95 ring-4 ring-indigo-100/50">
+                        <IconSparkles className="w-5 h-5 text-indigo-600 animate-spin" />
+                        <span className="text-sm font-bold text-indigo-700">מייצר תוכן עם AI...</span>
+                    </div>
+                ) : activeInsertIndex === index ? (
                     <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto" onClick={(e) => e.stopPropagation()}>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
@@ -939,7 +1071,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                         className="absolute -top-2 -left-2 z-20 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-bold shadow-lg hover:bg-indigo-700 transition-all"
                     >
                         <IconEye className="w-3.5 h-3.5" />
-                        תצוגת תלמיד
+                        להקרנה על הלוח
                     </button>
                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
                         {block.type === 'multiple-choice' && (
@@ -1031,7 +1163,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                         )}
                         <p className="text-xs text-slate-400 mt-4 flex items-center gap-1">
                             <IconEye className="w-3 h-3" />
-                            לחצו על "תצוגת תלמיד" לראות איך השאלה תיראה לתלמידים
+                            לחצו על "להקרנה על הלוח" לראות איך השאלה תיראה לתלמידים
                         </p>
                     </div>
                 </div>

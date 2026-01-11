@@ -109,6 +109,15 @@ ${instruction}
 3. **שפת הפלט: עברית** (אלא אם ההוראה מבקשת אחרת)
 4. **החזר JSON תקין בלבד** - ללא טקסט נוסף, ללא markdown
 
+## כללי כתיבה נכונה בעברית (קריטי!):
+- **סדר מילים:** הנושא קודם, אחר כך הפועל. לא להתחיל משפט עם נשוא או תואר.
+  * שגוי: "נחשב ט״ו בשבט הוא יום מיוחד"
+  * נכון: "ט״ו בשבט נחשב ליום מיוחד" או "ט״ו בשבט הוא יום מיוחד"
+- **פתיחת משפטים:** לעולם לא להתחיל הסבר עם "נחשב", "מהווה", "נקרא" וכדומה ללא נושא ברור.
+  * שגוי: "נחשב לאחד מהחגים החשובים..."
+  * נכון: "ט״ו בשבט הוא אחד מהחגים החשובים..."
+- **זרימה טבעית:** קרא כל משפט בקול רם (מנטלית). אם זה נשמע מגושם - שכתב.
+
 ## דוגמאות למבני JSON נפוצים:
 
 ### שאלת רב-ברירה (multiple-choice):
@@ -157,6 +166,44 @@ ${instruction}
 {
   "text": "התוכן הטקסטואלי"
 }
+
+## הנחיות מיוחדות לשיפור פתיחות שיעור (HOOKS):
+
+אם ההוראה מבקשת לשפר/לשנות פתיחה או "hook", אתה חייב ליצור פתיחה **יצירתית ומרתקת**.
+
+**אסור בתכלית האיסור:**
+- "שאלו את התלמידים מה הם יודעים על..."
+- "התחילו בדיון פתוח"
+- "הציגו את הנושא"
+- כל פתיחה גנרית ומשעממת
+
+**חובה לבחור אחד מהסוגים הבאים:**
+
+**Type A: Visual Hook (תמונה/סרטון)**
+- הצגת תמונה מפתיעה או סרטון קצר (30-60 שניות)
+- דוגמה: "הציגו תמונה של [משהו מפתיע] ושאלו: 'מה קורה כאן? למה?'"
+
+**Type B: Mystery/Riddle Hook (חידה/תעלומה)**
+- חידה, תעלומה או שאלה מסקרנת
+- דוגמה: "הנה עובדה מוזרה: [עובדה]. איך זה יכול להיות?"
+
+**Type C: Quick Game/Challenge (משחקון מהיר)**
+- משחק של 2-3 דקות או אתגר
+- דוגמה: "משחק אסוציאציות: כתבו 3 מילים שקשורות ל[נושא] תוך 30 שניות"
+
+**Type D: Provocation/Dilemma Hook (פרובוקציה/דילמה)**
+- טענה מעוררת מחשבה או דילמה מוסרית
+- דוגמה: "אני טוען ש[טענה מפתיעה]. מי מסכים? מי מתנגד?"
+
+**Type E: Hands-On Hook (חוויה מעשית)**
+- פעילות מעשית קצרה או הדגמה
+- דוגמה: "כל אחד מקבל [חומר]. יש לכם דקה ל[משימה]"
+
+**Type F: Personal Connection Hook (חיבור אישי)**
+- חיבור לחיי התלמידים עם twist מפתיע
+- דוגמה: "מי מכם [עשה משהו]? אתם יודעים ש[עובדה מפתיעה]?"
+
+הפתיחה חייבת לכלול תסריט מדויק למורה - מה בדיוק לומר/לעשות.
 
 ## פלט:
 החזר את ה-JSON המשופר בלבד, ללא הסברים.
@@ -240,27 +287,32 @@ Language: Hebrew.
 `;
 
 export const getStudentAnalysisPrompt = (studentName: string, courseTopic: string, submissionData: string) => `
-Role: Educational Psychologist & Data Analyst.
-  Task: Analyze student performance based on telemetry data.
-    Student: ${studentName}.
+Role: Educational Data Analyst.
+Task: Analyze student performance based on learning data.
+Student: ${studentName}.
 Topic: ${courseTopic}.
 
 DATA:
-    ${submissionData}
+${submissionData}
 
-    METRICS TO ANALYZE:
-1. ** Time per Question:** (Fast = Impulsive ? / Slow = Struggling or Deep Thinker?)
-2. ** Attempts:** (Many attempts = Persistence or Guessing ?)
-3. ** Hints:** (Usage of hints = Resourcefulness or Dependency ?)
-4. ** Mistakes:** (Pattern recognition - e.g. "struggles with ordering").
+METRICS TO ANALYZE:
+1. Time per Question: Calculate average time spent
+2. Attempts: Count average attempts per question
+3. Hints: Calculate hint usage rate
+4. Mistakes: Identify specific topics or skills with repeated errors
 
-    OUTPUT FORMAT(JSON ONLY):
+OUTPUT FORMAT (JSON ONLY):
 {
-  "strengths": ["List 2-3 specific strengths"],
-    "weaknesses": ["List 2-3 specific weaknesses"],
-      "psychologicalProfile": "Impulsive" | "Persistent" | "Deep Thinker" | "Hesitant",
-        "recommendedFocus": "Specific sub-topic to review...",
-          "engagementScore": 0 - 100(Based on completion and effort)
+  "strengths": ["List 2-3 specific skills the student demonstrated well"],
+  "weaknesses": ["List 2-3 specific topics that need more practice"],
+  "recommendedFocus": "Specific topic or skill to practice next",
+  "engagementScore": 0-100,
+  "learningMetrics": {
+    "averageTimePerQuestion": 0,
+    "hintUsageRate": 0.0,
+    "attemptsPerQuestion": 0,
+    "completionRate": 0.0
+  }
 }
 `;
 

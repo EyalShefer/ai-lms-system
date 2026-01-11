@@ -228,21 +228,27 @@ export interface Assignment {
 }
 
 export interface StudentAnalyticsProfile {
-    studentId?: string; // or name
-    strengths: string[];
-    weaknesses: string[];
-    psychologicalProfile: 'Impulsive' | 'Persistent' | 'Deep Thinker' | 'Hesitant';
-    recommendedFocus: string; // What topic to review
-    engagementScore: number; // calculated from hints/time
+    studentId?: string;
+    strengths: string[];          // מיומנויות חזקות
+    weaknesses: string[];         // נושאים לחיזוק
+    recommendedFocus: string;     // נושא מומלץ לתרגול
+    engagementScore: number;      // ציון מעורבות (0-100)
 
-    // Pedagogical Personality System
+    // מדדי למידה
+    learningMetrics?: {
+        averageTimePerQuestion: number;  // זמן ממוצע לשאלה (שניות)
+        hintUsageRate: number;           // אחוז שימוש ברמזים (0-1)
+        attemptsPerQuestion: number;     // ניסיונות ממוצע לשאלה
+        completionRate: number;          // אחוז השלמה (0-1)
+    };
+
+    // העדפות למידה
     learningPreferences?: {
-        visual: number; // 0-1 confidence
+        visual: number;      // 0-1
         textual: number;
         gamified: number;
         scaffolded: number;
     };
-    confirmedTraits?: string[]; // e.g. ["Visual Learner", "Competitive"]
 }
 
 // --- Validation Types ---

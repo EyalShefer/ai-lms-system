@@ -63,7 +63,9 @@ export {
     getExtractionReview,
     correctPageExtraction,
     approveExtractionReview,
-    updateReviewStoragePath
+    updateReviewStoragePath,
+    // Debug function (temporary)
+    debugKnowledgeBase
 } from './controllers/knowledgeController';
 
 // --- TEXTBOOK MANAGEMENT (Textbook-Aligned Content Generation) ---

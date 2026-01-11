@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, onSnapshot } from 'firebase/firestore';
 import { functions, storage, db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { ReferenceExamUpload, ReferenceExamsList } from './referenceExams';
@@ -33,7 +33,7 @@ interface SearchResult {
     id: string;
     grade: string;
     volume: number;
-    volumeType: 'student' | 'teacher';
+    volumeType: 'student' | 'teacher' | 'curriculum';
     chapter: string;
     content: string;
     contentType: string;
@@ -73,11 +73,18 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
   const [subject, setSubject] = useState('math');
   const [grade, setGrade] = useState('ב');
   const [volume, setVolume] = useState(1);
-  const [volumeType, setVolumeType] = useState<'student' | 'teacher'>('student');
+  const [volumeType, setVolumeType] = useState<'student' | 'teacher' | 'curriculum'>('student');
+  const [selectedGrades, setSelectedGrades] = useState<string[]>(['ב']); // For curriculum - multiple grades
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [batchProgressId, setBatchProgressId] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
+  const [liveProgress, setLiveProgress] = useState<{
+    processedPages: number;
+    totalPages: number;
+    currentPage?: number;
+    status?: string;
+  } | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,6 +105,7 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
     subject: string;
     chunksCount: number;
     source?: string;
+    grades?: string[]; // For curriculum - multiple grades
   }>>([]);
   const [loadingBooks, setLoadingBooks] = useState(false);
   const [deletingBook, setDeletingBook] = useState<string | null>(null);
@@ -116,6 +124,31 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
     loadBooks();
     loadPendingProgress();
   }, []);
+
+  // Real-time progress listener
+  useEffect(() => {
+    if (!batchProgressId) {
+      setLiveProgress(null);
+      return;
+    }
+
+    const progressRef = doc(db, 'extraction_progress', batchProgressId);
+    const unsubscribe = onSnapshot(progressRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setLiveProgress({
+          processedPages: data.processedPages || 0,
+          totalPages: data.totalPages || 0,
+          currentPage: data.currentPage,
+          status: data.status,
+        });
+      }
+    }, (error) => {
+      console.error('Progress listener error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [batchProgressId]);
 
   // Load any pending extraction progress from Firestore
   const loadPendingProgress = async () => {
@@ -212,9 +245,11 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
         mimeType: file.type,
         fileName: file.name,
         subject,
-        grade,
-        volume,
+        grade: volumeType === 'curriculum' ? selectedGrades[0] : grade, // For curriculum, use first selected grade as primary
+        volume: volumeType === 'curriculum' ? 0 : volume, // Curriculum doesn't use volume
         volumeType,
+        // For curriculum, pass all selected grades
+        ...(volumeType === 'curriculum' && { grades: selectedGrades }),
       });
 
       const response = result.data as UploadResponse;
@@ -406,6 +441,8 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
         grade: book.grade,
         volume: book.volume,
         volumeType: book.volumeType,
+        // For curriculum, pass the grades array
+        ...(book.volumeType === 'curriculum' && book.grades && { grades: book.grades }),
       });
       const data = result.data as { success: boolean; reviewId: string; totalPages: number };
 
@@ -540,49 +577,95 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    כיתה
-                  </label>
-                  <select
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  >
-                    {GRADES.map((g) => (
-                      <option key={g} value={g}>
-                        כיתה {g}׳
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    כרך
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={volume}
-                    onChange={(e) => setVolume(parseInt(e.target.value) || 1)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     סוג
                   </label>
                   <select
                     value={volumeType}
-                    onChange={(e) => setVolumeType(e.target.value as 'student' | 'teacher')}
+                    onChange={(e) => setVolumeType(e.target.value as 'student' | 'teacher' | 'curriculum')}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   >
                     <option value="student">ספר תלמיד</option>
                     <option value="teacher">מדריך למורה</option>
+                    <option value="curriculum">תוכנית לימודים</option>
                   </select>
                 </div>
+
+                {/* For textbooks: single grade + volume */}
+                {volumeType !== 'curriculum' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        כיתה
+                      </label>
+                      <select
+                        value={grade}
+                        onChange={(e) => setGrade(e.target.value)}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        {GRADES.map((g) => (
+                          <option key={g} value={g}>
+                            כיתה {g}׳
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        כרך
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={volume}
+                        onChange={(e) => setVolume(parseInt(e.target.value) || 1)}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* For curriculum: multi-grade selection */}
+              {volumeType === 'curriculum' && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <label className="block text-sm font-medium text-green-800 mb-2">
+                    שכבות (ניתן לבחור מספר כיתות)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {GRADES.map((g) => {
+                      const isSelected = selectedGrades.includes(g);
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              // Don't allow deselecting if it's the last one
+                              if (selectedGrades.length > 1) {
+                                setSelectedGrades(selectedGrades.filter(sg => sg !== g));
+                              }
+                            } else {
+                              setSelectedGrades([...selectedGrades, g]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            isSelected
+                              ? 'bg-green-600 text-white'
+                              : 'bg-white text-green-700 border border-green-300 hover:bg-green-100'
+                          }`}
+                        >
+                          {g}׳
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-green-600">
+                    נבחרו: {selectedGrades.sort((a, b) => GRADES.indexOf(a) - GRADES.indexOf(b)).map(g => `${g}׳`).join(', ')}
+                  </p>
+                </div>
+              )}
 
               {/* Upload Button */}
               <button
@@ -618,6 +701,31 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                   'העלה וארגן'
                 )}
               </button>
+
+              {/* Real-time Progress Bar */}
+              {(uploading || continuing) && liveProgress && liveProgress.totalPages > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-800">
+                      מעבד עמוד {liveProgress.currentPage || liveProgress.processedPages} מתוך {liveProgress.totalPages}
+                    </span>
+                    <span className="text-sm font-bold text-blue-600">
+                      {Math.round((liveProgress.processedPages / liveProgress.totalPages) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-blue-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${(liveProgress.processedPages / liveProgress.totalPages) * 100}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-blue-600">
+                    {liveProgress.status === 'processing' ? 'מחלץ טקסט עם AI...' :
+                     liveProgress.status === 'saving' ? 'שומר לבסיס הנתונים...' :
+                     'מעבד...'}
+                  </p>
+                </div>
+              )}
 
               {/* Upload Result */}
               {uploadResult && (
@@ -831,6 +939,7 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                   <option value="">כל הסוגים</option>
                   <option value="student">ספר תלמיד</option>
                   <option value="teacher">מדריך למורה</option>
+                  <option value="curriculum">תוכנית לימודים</option>
                 </select>
               </div>
 
@@ -851,7 +960,7 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                           <span className="font-medium">{result.chunk.chapter}</span>
                           <span className="text-sm text-gray-500 mr-2">
                             (כיתה {result.chunk.grade}׳, כרך {result.chunk.volume},
-                            {result.chunk.volumeType === 'teacher' ? ' מדריך למורה' : ' ספר תלמיד'})
+                            {result.chunk.volumeType === 'teacher' ? ' מדריך למורה' : result.chunk.volumeType === 'curriculum' ? ' תוכנית לימודים' : ' ספר תלמיד'})
                           </span>
                         </div>
                         <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
@@ -935,7 +1044,7 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                   <div className="mt-2 space-y-1">
                     {Object.entries(stats.byVolumeType).map(([type, count]) => (
                       <div key={type} className="flex justify-between text-sm">
-                        <span>{type === 'student' ? 'ספר תלמיד' : type === 'teacher' ? 'מדריך למורה' : type}</span>
+                        <span>{type === 'student' ? 'ספר תלמיד' : type === 'teacher' ? 'מדריך למורה' : type === 'curriculum' ? 'תוכנית לימודים' : type}</span>
                         <span className="font-medium">{count}</span>
                       </div>
                     ))}
@@ -1023,9 +1132,9 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                   {books.map((book) => {
                     const bookKey = `${book.grade}-${book.volume}-${book.volumeType}`;
                     const isDeleting = deletingBook === bookKey;
-                    const bookName = book.volumeType === 'teacher' ? 'מדריך למורה' : 'ספר תלמיד';
-                    const bgColor = book.volumeType === 'teacher' ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200';
-                    const textColor = book.volumeType === 'teacher' ? 'text-purple-700' : 'text-blue-700';
+                    const bookName = book.volumeType === 'teacher' ? 'מדריך למורה' : book.volumeType === 'curriculum' ? 'תוכנית לימודים' : 'ספר תלמיד';
+                    const bgColor = book.volumeType === 'teacher' ? 'bg-purple-50 border-purple-200' : book.volumeType === 'curriculum' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200';
+                    const textColor = book.volumeType === 'teacher' ? 'text-purple-700' : book.volumeType === 'curriculum' ? 'text-green-700' : 'text-blue-700';
 
                     return (
                       <div
@@ -1034,11 +1143,15 @@ export default function KnowledgeBaseAdmin({ onNavigateToReview }: KnowledgeBase
                       >
                         <div className="flex items-center gap-4">
                           <span className="text-2xl">
-                            {book.volumeType === 'teacher' ? '👨‍🏫' : '📖'}
+                            {book.volumeType === 'teacher' ? '👨‍🏫' : book.volumeType === 'curriculum' ? '📋' : '📖'}
                           </span>
                           <div>
                             <div className={`font-medium ${textColor}`}>
-                              {bookName} - כיתה {book.grade}׳ כרך {book.volume}
+                              {book.volumeType === 'curriculum'
+                                ? `${bookName} - ${book.grades && book.grades.length > 0
+                                    ? `כיתות ${book.grades.join('׳, ')}׳`
+                                    : `כיתה ${book.grade}׳`}`
+                                : `${bookName} - כיתה ${book.grade}׳ כרך ${book.volume}`}
                             </div>
                             <div className="text-sm text-gray-500">
                               {book.chunksCount} קטעים

@@ -41,7 +41,7 @@ export class TextbookService {
     metadata: {
       grade: string;
       volume: number;
-      volumeType: 'student' | 'teacher';
+      volumeType: 'student' | 'teacher' | 'curriculum';
       subject: string;
       fileName: string;
       storagePath?: string;
@@ -113,7 +113,7 @@ export class TextbookService {
   async getTextbooks(filters?: {
     subject?: string;
     grade?: string;
-    volumeType?: 'student' | 'teacher';
+    volumeType?: 'student' | 'teacher' | 'curriculum';
   }): Promise<Omit<Textbook, 'tableOfContents'>[]> {
     logger.info(`📚 getTextbooks called with filters:`, filters);
 

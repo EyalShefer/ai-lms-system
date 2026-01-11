@@ -4,7 +4,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { defineSecret } from 'firebase-functions/params';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 import {
   KnowledgeService,
@@ -63,6 +63,7 @@ export const uploadKnowledge = onCall(
       grade,
       volume,
       volumeType,
+      grades, // For curriculum - multiple grades
     } = request.data as KnowledgeUploadRequest;
 
     // Either base64 or Storage URL must be provided
@@ -73,7 +74,9 @@ export const uploadKnowledge = onCall(
       throw new HttpsError('invalid-argument', 'חסר שם קובץ');
     }
 
-    if (!subject || !grade || !volume || !volumeType) {
+    // For curriculum, volume can be 0; for other types, volume is required
+    const isVolumeValid = volumeType === 'curriculum' ? volume !== undefined : !!volume;
+    if (!subject || !grade || !isVolumeValid || !volumeType) {
       throw new HttpsError('invalid-argument', 'חסרים פרטי מטא-דאטה');
     }
 
@@ -95,6 +98,8 @@ export const uploadKnowledge = onCall(
         grade,
         volume,
         volumeType,
+        // For curriculum, pass the grades array
+        grades,
       });
 
       // Auto-create textbook record after successful upload
@@ -304,7 +309,30 @@ export const getKnowledgeBooks = onCall(
     try {
       const snapshot = await db.collection('math_knowledge').get();
 
+      // DEBUG: Log volume type distribution and curriculum details
+      const volumeTypeCounts: Record<string, number> = {};
+      const curriculumDetails: Array<{grade: string, grades?: string[], source?: string}> = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const vt = data.volumeType || 'unknown';
+        volumeTypeCounts[vt] = (volumeTypeCounts[vt] || 0) + 1;
+
+        // Collect curriculum details (first 5)
+        if (vt === 'curriculum' && curriculumDetails.length < 5) {
+          curriculumDetails.push({
+            grade: data.grade,
+            grades: data.grades,
+            source: data.source?.substring(0, 50)
+          });
+        }
+      });
+      logger.info(`📊 KB Volume Type Distribution: ${JSON.stringify(volumeTypeCounts)}`);
+      if (curriculumDetails.length > 0) {
+        logger.info(`📋 Curriculum samples: ${JSON.stringify(curriculumDetails)}`);
+      }
+
       // Group by unique book (grade + volume + volumeType)
+      // For curriculum, also group by grades array
       const booksMap = new Map<string, {
         grade: string;
         volume: number;
@@ -312,11 +340,16 @@ export const getKnowledgeBooks = onCall(
         subject: string;
         chunksCount: number;
         source?: string;
+        grades?: string[]; // For curriculum - multiple grades
       }>();
 
       snapshot.forEach(doc => {
         const data = doc.data();
-        const key = `${data.grade}-${data.volume}-${data.volumeType}`;
+        // For curriculum with grades array, use grades as part of key
+        const gradesKey = data.volumeType === 'curriculum' && data.grades
+          ? data.grades.sort().join('-')
+          : '';
+        const key = `${data.grade}-${data.volume}-${data.volumeType}-${gradesKey}`;
 
         if (booksMap.has(key)) {
           const existing = booksMap.get(key)!;
@@ -324,11 +357,13 @@ export const getKnowledgeBooks = onCall(
         } else {
           booksMap.set(key, {
             grade: data.grade,
-            volume: data.volume || 1,
+            volume: data.volume || (data.volumeType === 'curriculum' ? 0 : 1),
             volumeType: data.volumeType,
             subject: data.subject || 'math',
             chunksCount: 1,
             source: data.source,
+            // Include grades array for curriculum
+            ...(data.volumeType === 'curriculum' && data.grades && { grades: data.grades }),
           });
         }
       });
@@ -482,13 +517,27 @@ export const continueKnowledgeExtraction = onCall(
 
       logger.info(`📥 Downloaded PDF, continuing from page ${batchProgress.lastProcessedPage + 1}`);
 
-      // Continue processing
+      // Continue processing with real-time progress updates
       const { PDFProcessor } = await import('../services/knowledgeBase/pdfProcessor');
       const pdfProcessor = new PDFProcessor(openAiApiKey.value(), true);
 
+      // Callback to update Firestore with real-time progress
+      const onProgress = async (status: { pageNumber: number; status: string }) => {
+        try {
+          await db.collection('extraction_progress').doc(progressId).update({
+            currentPage: status.pageNumber,
+            status: status.status,
+            updatedAt: Timestamp.now(),
+          });
+        } catch (err) {
+          logger.warn(`Failed to update progress: ${err}`);
+        }
+      };
+
       const result = await pdfProcessor.continueBatchExtraction(
         pdfBase64,
-        batchProgress
+        batchProgress,
+        onProgress
       );
 
       if (result.needsMoreBatches && result.batchProgress) {
@@ -565,7 +614,7 @@ export const continueKnowledgeExtraction = onCall(
 
       // Save to Firestore
       const { v4: uuidv4 } = await import('uuid');
-      const { Timestamp } = await import('firebase-admin/firestore');
+      // Timestamp already imported at top of file
       const documentId = uuidv4();
       const BATCH_SIZE = 10;
       let savedCount = 0;
@@ -811,19 +860,41 @@ export const createReviewForExistingBook = onCall(
       throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל');
     }
 
-    const { grade, volume, volumeType } = request.data;
+    const { grade, volume, volumeType, grades } = request.data;
 
-    logger.info(`📝 Creating review for existing book: grade=${grade}, volume=${volume}, type=${volumeType}`);
+    logger.info(`📝 Creating review for existing book: grade=${grade}, volume=${volume}, type=${volumeType}, grades=${grades}`);
 
     try {
       // Get all chunks for the specified book
-      const chunksSnapshot = await db.collection('math_knowledge')
-        .where('grade', '==', grade)
-        .where('volume', '==', volume)
-        .where('volumeType', '==', volumeType)
-        .get();
+      let chunksSnapshot;
 
-      if (chunksSnapshot.empty) {
+      if (volumeType === 'curriculum') {
+        // For curriculum, search by volumeType and either grade or grades array
+        // First try with grades array if provided
+        if (grades && grades.length > 0) {
+          chunksSnapshot = await db.collection('math_knowledge')
+            .where('volumeType', '==', 'curriculum')
+            .where('grades', 'array-contains', grades[0])
+            .get();
+        }
+
+        // If no results, try by grade field
+        if (!chunksSnapshot || chunksSnapshot.empty) {
+          chunksSnapshot = await db.collection('math_knowledge')
+            .where('volumeType', '==', 'curriculum')
+            .where('grade', '==', grade)
+            .get();
+        }
+      } else {
+        // For student/teacher books, use the original query
+        chunksSnapshot = await db.collection('math_knowledge')
+          .where('grade', '==', grade)
+          .where('volume', '==', volume)
+          .where('volumeType', '==', volumeType)
+          .get();
+      }
+
+      if (!chunksSnapshot || chunksSnapshot.empty) {
         throw new HttpsError('not-found', 'לא נמצאו קטעים לספר זה');
       }
 
@@ -876,7 +947,7 @@ export const createReviewForExistingBook = onCall(
 
       // Create review document
       const { v4: uuidv4 } = await import('uuid');
-      const { Timestamp } = await import('firebase-admin/firestore');
+      // Timestamp already imported at top of file
       const reviewId = uuidv4();
 
       const review = {
@@ -1125,7 +1196,7 @@ export const updateReviewStoragePath = onCall(
     logger.info(`📁 Updating review ${reviewId} storagePath to: ${storagePath}`);
 
     try {
-      const { Timestamp } = await import('firebase-admin/firestore');
+      // Timestamp already imported at top of file
 
       await db.collection('extraction_reviews').doc(reviewId).update({
         storagePath,
@@ -1141,6 +1212,74 @@ export const updateReviewStoragePath = onCall(
       };
     } catch (error: any) {
       logger.error('Update storagePath failed:', error);
+      throw new HttpsError('internal', error.message);
+    }
+  }
+);
+
+/**
+ * Debug function to check curriculum data structure
+ * Temporary - for debugging purposes
+ */
+export const debugKnowledgeBase = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    // No auth required for debugging - REMOVE IN PRODUCTION
+    try {
+      const snapshot = await db.collection('math_knowledge').get();
+
+      // Count by volumeType
+      const counts: Record<string, number> = { student: 0, teacher: 0, curriculum: 0, unknown: 0 };
+      const curriculumDocs: Array<{
+        id: string;
+        grade: string;
+        grades?: string[];
+        subject: string;
+        chapter: string;
+        source: string;
+      }> = [];
+
+      // Count grade 'ב' specifically
+      const gradeB: Record<string, number> = { student: 0, teacher: 0, curriculum: 0 };
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const vt = data.volumeType || 'unknown';
+        counts[vt] = (counts[vt] || 0) + 1;
+
+        if (vt === 'curriculum' && curriculumDocs.length < 10) {
+          curriculumDocs.push({
+            id: doc.id,
+            grade: data.grade,
+            grades: data.grades,
+            subject: data.subject,
+            chapter: data.chapter?.substring(0, 50),
+            source: data.source?.substring(0, 60),
+            // Include content sample for debugging
+            contentSample: data.content?.substring(0, 500)
+          });
+        }
+
+        // Count grade 'ב' documents
+        if (data.grade === 'ב' || (data.grades && data.grades.includes('ב'))) {
+          gradeB[data.volumeType] = (gradeB[data.volumeType] || 0) + 1;
+        }
+      });
+
+      logger.info(`📊 Debug KB: ${JSON.stringify(counts)}`);
+      logger.info(`📋 Curriculum: ${JSON.stringify(curriculumDocs)}`);
+      logger.info(`🎓 Grade ב: ${JSON.stringify(gradeB)}`);
+
+      return {
+        total: snapshot.size,
+        byVolumeType: counts,
+        gradeB,
+        curriculumSamples: curriculumDocs
+      };
+    } catch (error: any) {
+      logger.error('Debug failed:', error);
       throw new HttpsError('internal', error.message);
     }
   }
