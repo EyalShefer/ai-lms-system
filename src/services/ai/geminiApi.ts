@@ -58,7 +58,7 @@ export const generateUnitSkeleton = async (
     sourceText?: string,
     mode: 'learning' | 'exam' = 'learning',
     bloomPreferences?: Record<string, number>,
-    productType: 'lesson' | 'game' | 'exam' = 'lesson',
+    productType: 'lesson' | 'activity' | 'exam' = 'lesson',
     studentProfile?: any
 ): Promise<UnitSkeleton | null> => {
     // VAULT MIGRATION: Logic moved to Backend (Fixed Split Brain)
@@ -112,7 +112,7 @@ export const generateTeacherLessonPlan = async (
     activityLength: 'short' | 'medium' | 'long',
     sourceText?: string,
     mode: 'learning' | 'exam' = 'learning',
-    productType: 'lesson' | 'game' | 'exam' = 'lesson'
+    productType: 'lesson' | 'activity' | 'exam' = 'lesson'
 ): Promise<any | null> => {
     // New Teacher Flow
     try {
@@ -376,7 +376,7 @@ export const generateInfographicFromText = async (
     visualType: InfographicType,
     topic?: string,
     skipCache: boolean = false,
-    preferredMethod: 'gemini3' | 'code-to-image' | 'dall-e' | 'auto' = 'gemini3'
+    preferredMethod: 'gemini3' | 'code-to-image' | 'dall-e' | 'auto' = 'code-to-image'
 ): Promise<Blob | null> => {
     // Import cache utilities dynamically
     const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
@@ -512,36 +512,12 @@ export const generateInfographicFromText = async (
         let usedProvider: 'gemini3' | 'code-to-image' | 'dall-e' | 'imagen' = 'dall-e';
         let actualCost = 0.040;
 
-        // STRATEGY: Gemini 3 → Code-to-Image → DALL-E fallback chain
-        if (preferredMethod === 'gemini3' || preferredMethod === 'auto') {
-            console.log('🎯 Trying Gemini 3 Pro Image (Preview)...');
-            imageBlob = await generateGemini3InfographicFromText(truncatedText, visualType, topic);
+        // STRATEGY: Code-to-Image first (best Hebrew support) → Gemini 3 → DALL-E fallback
 
-            if (imageBlob) {
-                usedProvider = 'gemini3';
-                actualCost = 0.015; // Estimated
-                console.log('✅ Gemini 3 Pro Image successful!');
-            } else {
-                console.warn('⚠️ Gemini 3 Pro Image failed, trying Code-to-Image fallback...');
-            }
-        }
-
-        // Fallback 1: DALL-E 3 (best quality for Hebrew infographics)
-        // Skip Code-to-Image as it produces basic results - go straight to DALL-E for quality
-        if (!imageBlob) {
-            console.log('🎯 Using DALL-E 3 for high-quality Hebrew infographic...');
-            imageBlob = await generateAiImage(enhancedPrompt);
-            if (imageBlob) {
-                usedProvider = 'dall-e';
-                actualCost = 0.040;
-                console.log('✅ DALL-E 3 infographic generated successfully!');
-            }
-        }
-
-        // Fallback 2: Code-to-Image (only if DALL-E also fails)
-        if (!imageBlob && preferredMethod === 'code-to-image') {
+        // PRIMARY: Code-to-Image (HTML/CSS) - Perfect Hebrew RTL support, clean design
+        if (preferredMethod === 'code-to-image' || preferredMethod === 'auto') {
             try {
-                console.log('🎯 Trying Code-to-Image (HTML/CSS) as last resort...');
+                console.log('🎯 Using Code-to-Image (HTML/CSS) for perfect Hebrew support...');
                 const { getInfographicHTMLPrompt } = await import('../../utils/infographicHTMLTemplates');
                 const { convertHTMLToImage } = await import('../../utils/htmlToImage');
 
@@ -550,10 +526,18 @@ export const generateInfographicFromText = async (
                 const response = await openaiClient.chat.completions.create({
                     model: MODEL_NAME,
                     messages: [
-                        { role: "system", content: "You are an expert HTML/CSS developer. Output ONLY valid HTML code." },
+                        { role: "system", content: `You are an expert HTML/CSS developer specializing in Hebrew educational infographics.
+
+CRITICAL RULES:
+1. Output ONLY valid HTML code - no explanations, no markdown code blocks
+2. All text MUST be in Hebrew with dir="rtl"
+3. Keep the design SIMPLE and CLEAN - maximum 4-5 main elements
+4. Use large, readable fonts (minimum 24px for body text, 48px for titles)
+5. High contrast colors on gradient backgrounds
+6. The output will be rendered at exactly 1024x1024px` },
                         { role: "user", content: htmlPrompt }
                     ],
-                    temperature: 0.7
+                    temperature: 0.5
                 });
 
                 const htmlCode = response.choices[0].message.content
@@ -566,11 +550,36 @@ export const generateInfographicFromText = async (
                     if (imageBlob) {
                         usedProvider = 'code-to-image';
                         actualCost = 0.001; // LLM only
-                        console.log('✅ Code-to-Image successful!');
+                        console.log('✅ Code-to-Image successful with perfect Hebrew support!');
                     }
                 }
             } catch (codeToImageError) {
                 console.warn('⚠️ Code-to-Image failed:', codeToImageError);
+            }
+        }
+
+        // FALLBACK 1: Gemini 3 Pro Image (if code-to-image fails)
+        if (!imageBlob && (preferredMethod === 'gemini3' || preferredMethod === 'auto')) {
+            console.log('🎯 Trying Gemini 3 Pro Image as fallback...');
+            imageBlob = await generateGemini3InfographicFromText(truncatedText, visualType, topic);
+
+            if (imageBlob) {
+                usedProvider = 'gemini3';
+                actualCost = 0.015;
+                console.log('✅ Gemini 3 Pro Image successful!');
+            } else {
+                console.warn('⚠️ Gemini 3 Pro Image failed, trying DALL-E...');
+            }
+        }
+
+        // FALLBACK 2: DALL-E 3 (last resort)
+        if (!imageBlob) {
+            console.log('🎯 Using DALL-E 3 as final fallback...');
+            imageBlob = await generateAiImage(enhancedPrompt);
+            if (imageBlob) {
+                usedProvider = 'dall-e';
+                actualCost = 0.040;
+                console.log('✅ DALL-E 3 infographic generated!');
             }
         }
 
@@ -781,22 +790,42 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string | null> =
 };
 
 export const refineBlockContent = async (_blockType: string, content: any, instruction: string) => {
-    const prompt = getRefinementPrompt(JSON.stringify(content, null, 2), instruction);
+    // For text blocks with string content, wrap in object for consistent handling
+    const isStringContent = typeof content === 'string';
+    const contentForPrompt = isStringContent
+        ? { text: content }  // Wrap string in object
+        : content;
+
+    const prompt = getRefinementPrompt(JSON.stringify(contentForPrompt, null, 2), instruction);
     try {
         console.log(`🎯 AI Refine - Block type: ${_blockType}, Instruction: ${instruction}`);
+        console.log(`📝 Original content type: ${typeof content}, isString: ${isStringContent}`);
+
         const res = await openaiClient.chat.completions.create({
             model: MODEL_NAME,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" }
         });
         const rawResponse = res.choices[0].message.content || "{}";
-        console.log(`✅ AI Refine Response:`, rawResponse.substring(0, 200) + '...');
+        console.log(`✅ AI Refine Response:`, rawResponse.substring(0, 300) + '...');
         const parsed = JSON.parse(rawResponse);
+
         // Validate that we got back a proper object, not an empty one
         if (Object.keys(parsed).length === 0) {
             console.warn('⚠️ AI returned empty object, keeping original content');
             return content;
         }
+
+        // If original was string, extract the text back from the response
+        if (isStringContent && _blockType === 'text') {
+            // Try to extract text from various possible response formats
+            const extractedText = parsed.text || parsed.content || parsed.teach_content;
+            if (extractedText && typeof extractedText === 'string') {
+                console.log(`✅ Extracted text content from response`);
+                return extractedText;
+            }
+        }
+
         return parsed;
     } catch (e) {
         console.error('❌ AI Refine Error:', e);

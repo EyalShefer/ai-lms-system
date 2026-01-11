@@ -195,6 +195,22 @@ export interface DirectInstructionSection {
  */
 export interface GuidedPracticeSection {
     teacher_facilitation_script: string; // How to introduce and guide the practice
+
+    // NEW: Specific example questions for the teacher to ask in class
+    example_questions: {
+        question_text: string; // The actual question to ask
+        expected_answer: string; // What a correct answer should include
+        common_mistakes?: string[]; // Typical wrong answers to watch for
+        follow_up_prompt?: string; // How to probe deeper
+    }[];
+
+    // NEW: Worked example to demonstrate on the board
+    worked_example?: {
+        problem: string; // The problem/scenario to solve
+        solution_steps: string[]; // Step-by-step solution
+        key_points: string[]; // Important things to emphasize
+    };
+
     suggested_activities: {
         activity_type: string; // e.g., "multiple-choice", "memory_game"
         description: string; // What this activity should assess

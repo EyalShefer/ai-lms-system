@@ -65,7 +65,7 @@ interface CourseAggregation {
     completionRate: number; // הוספנו אחוז השלמה
     atRiskCount: number;
     createdAt?: any;
-    type: 'test' | 'activity'; // Added type
+    productType: 'lesson' | 'activity' | 'exam' | 'podcast' | null; // Product type from wizard
     mode?: 'learning' | 'exam' | 'lesson'; // Added mode
     submittedCount: number; // New field for submitted count
 }
@@ -161,6 +161,47 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
     );
 };
 
+// Helper function to get product type label and color
+const getProductTypeDisplay = (productType: string | null | undefined, mode?: string) => {
+    // Determine the actual type based on productType or mode fallback
+    const actualType = productType || (mode === 'lesson' ? 'lesson' : mode === 'exam' ? 'exam' : 'activity');
+
+    const labels: Record<string, string> = {
+        'lesson': 'מערך שיעור',
+        'exam': 'מבחן',
+        'activity': 'פעילות',
+        'podcast': 'פודקאסט'
+    };
+
+    const colors: Record<string, string> = {
+        'lesson': 'bg-emerald-100 text-emerald-700',
+        'exam': 'bg-wizdi-cyan/20 text-wizdi-cyan',
+        'activity': 'bg-wizdi-royal/10 text-wizdi-royal',
+        'podcast': 'bg-orange-100 text-orange-700'
+    };
+
+    const headerColors: Record<string, string> = {
+        'lesson': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+        'exam': 'text-wizdi-cyan bg-wizdi-cyan/10 border-wizdi-cyan/20',
+        'activity': 'text-wizdi-royal bg-wizdi-royal/10 border-wizdi-royal/20',
+        'podcast': 'text-orange-600 bg-orange-50 border-orange-200'
+    };
+
+    const cardColors: Record<string, string> = {
+        'lesson': 'bg-wizdi-lime text-green-900 border-wizdi-lime/50',
+        'exam': 'bg-wizdi-cyan/80 text-white border-wizdi-cyan/50',
+        'activity': 'bg-wizdi-gold text-amber-900 border-wizdi-gold/50',
+        'podcast': 'bg-orange-400 text-white border-orange-500/50'
+    };
+
+    return {
+        label: labels[actualType] || 'פעילות',
+        color: colors[actualType] || colors['activity'],
+        headerColor: headerColors[actualType] || headerColors['activity'],
+        cardColor: cardColors[actualType] || cardColors['activity']
+    };
+};
+
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights, onNavigateToAnalytics }) => {
     // --- Auth ---
     const { currentUser } = useAuth();
@@ -169,7 +210,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [rawStudents, setRawStudents] = useState<any[]>([]);
     const [rawSubmissions, setRawSubmissions] = useState<any[]>([]);
     const [safetyAlerts, setSafetyAlerts] = useState<any[]>([]); // New State
-    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, mode?: string, syllabus?: any[] }>>({});
+    const [coursesMap, setCoursesMap] = useState<Record<string, { subject: string, grade: string, title: string, createdAt?: any, mode?: string, syllabus?: any[], wizardData?: any }>>({});
     const [isCoursesLoaded, setIsCoursesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -207,6 +248,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [viewingTestStudent, setViewingTestStudent] = useState<StudentStat | null>(null);
     const [reportStudent, setReportStudent] = useState<any>(null);
     const [viewingInsightStudent, setViewingInsightStudent] = useState<StudentStat | null>(null); // New State
+    const [viewingLessonPlan, setViewingLessonPlan] = useState<string | null>(null); // View lesson plan modal
     const [aiInsight, setAiInsight] = useState<any>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
@@ -290,7 +332,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                         title: data.title || "ללא שם",
                         createdAt: data.createdAt,
                         mode: data.mode, // Store mode
-                        syllabus: data.syllabus // Store syllabus
+                        syllabus: data.syllabus, // Store syllabus
+                        wizardData: data.wizardData // Store wizardData for productType
                     };
                 });
                 setCoursesMap(map);
@@ -484,11 +527,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             const normFilterSubject = normalizeText(filterSubject);
             const normFilterGrade = normalizeText(filterGrade);
 
-            // Type Filtering Logic
-            const hasTest = meta.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => u.type === 'test'));
+            // Type Filtering Logic - based on productType from wizardData
+            const productType = meta.wizardData?.settings?.productType || null;
+            const isLesson = productType === 'lesson' || meta.mode === 'lesson';
+            const isExam = productType === 'exam' || meta.mode === 'exam';
+            const isActivity = productType === 'activity' || (!isLesson && !isExam && productType !== 'podcast');
+            const isPodcast = productType === 'podcast';
+
             const matchType = filterType === 'all' ||
-                (filterType === 'test' && hasTest) ||
-                (filterType === 'activity' && !hasTest);
+                (filterType === 'lesson' && isLesson) ||
+                (filterType === 'test' && isExam) ||
+                (filterType === 'activity' && isActivity);
 
             const matchSubject = filterSubject === 'all' || normMetaSubject.includes(normFilterSubject);
             const matchGrade = filterGrade === 'all' || normMetaGrade.includes(normFilterGrade);
@@ -514,7 +563,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     atRiskCount: 0,
                     createdAt: meta.createdAt,
                     nextDueDate: nextDue, // New Field
-                    type: hasTest ? 'test' : 'activity',
+                    productType: productType,
                     mode: meta.mode as any,
                     submittedCount: 0
                 };
@@ -679,6 +728,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     const handleEditClick = (e: React.MouseEvent, courseId: string) => {
         e.stopPropagation();
+        console.log('[TeacherDashboard] handleEditClick called with courseId:', courseId);
         if (onEditCourse) {
             onEditCourse(courseId);
         }
@@ -737,9 +787,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                             {selectedCourseId ? (
                                 <div className="flex items-center gap-3 animate-slide-in-right">
                                     <h2 className="text-3xl font-black text-wizdi-royal tracking-tight text-right line-clamp-1 max-w-[600px] drop-shadow-sm" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
-                                        <span className="text-wizdi-cyan font-bold ml-2 text-lg uppercase tracking-wider bg-wizdi-cyan/10 px-2 py-1 rounded-lg border border-wizdi-cyan/20">
-                                            {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.type === 'test' ? 'מבחן' : 'פעילות'}
-                                        </span>
+                                        {(() => {
+                                            const course = aggregatedCourses.find(c => c.courseId === selectedCourseId);
+                                            const display = getProductTypeDisplay(course?.productType, course?.mode);
+                                            return (
+                                                <span className={`font-bold ml-2 text-lg uppercase tracking-wider px-2 py-1 rounded-lg border ${display.headerColor}`}>
+                                                    {display.label}
+                                                </span>
+                                            );
+                                        })()}
                                         {aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title || "קורס נבחר"}
                                     </h2>
                                 </div>
@@ -769,6 +825,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         title="מחק פעילות/מבחן"
                                     >
                                         <IconTrash className="w-5 h-5 opacity-70 group-hover:opacity-100" /> מחיקה
+                                    </button>
+                                    <button
+                                        onClick={() => setViewingLessonPlan(selectedCourseId)}
+                                        className="px-5 py-2.5 bg-wizdi-cyan/10 hover:bg-wizdi-cyan/20 text-wizdi-cyan rounded-2xl transition-all font-bold flex items-center gap-2 text-sm border border-wizdi-cyan/30"
+                                        title="צפה במערך השיעור"
+                                    >
+                                        <IconEye className="w-5 h-5" /> צפה במערך
                                     </button>
                                     <button
                                         onClick={() => { setSelectedCourseId(null); setAiInsight(null); setSearchTerm(''); setFilterSubject('all'); setFilterGrade('all'); setShowOnlyAlerts(false); }}
@@ -821,6 +884,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     <option value="all">סוג: הכל</option>
                                                     <option value="test">מבחנים</option>
                                                     <option value="activity">פעילויות</option>
+                                                    <option value="lesson">מערכי שיעור</option>
                                                 </select>
                                             </div>
 
@@ -929,23 +993,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             >
                                                 {/* Header Color Splash */}
                                                 <div className={`h-32 p-6 relative overflow-hidden transition-colors duration-500
-                                                    ${c.type === 'test'
+                                                    ${c.productType === 'exam'
                                                         ? 'bg-gradient-to-br from-wizdi-cyan to-wizdi-royal'
-                                                        : 'bg-gradient-to-br from-wizdi-royal to-wizdi-cyan'}
+                                                        : c.productType === 'lesson'
+                                                            ? 'bg-gradient-to-br from-emerald-500 to-emerald-700'
+                                                            : c.productType === 'podcast'
+                                                                ? 'bg-gradient-to-br from-orange-400 to-orange-600'
+                                                                : 'bg-gradient-to-br from-wizdi-royal to-wizdi-cyan'}
                                                 `}>
                                                     {/* Background Pattern */}
                                                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
                                                     <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
                                                     <div className="relative z-10 flex justify-between items-start">
-                                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm
-                                                            ${c.mode === 'lesson'
-                                                                ? 'bg-wizdi-cyan/80 text-white border-wizdi-cyan/50'
-                                                                : c.type === 'test'
-                                                                    ? 'bg-wizdi-gold text-amber-900 border-wizdi-gold/50'
-                                                                    : 'bg-wizdi-lime text-green-900 border-wizdi-lime/50'}
-                                                        `}>
-                                                            {c.mode === 'lesson' ? 'מערך שיעור' : c.type === 'test' ? 'מבחן' : 'פעילות'}
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm ${getProductTypeDisplay(c.productType, c.mode).cardColor}`}>
+                                                            {getProductTypeDisplay(c.productType, c.mode).label}
                                                         </span>
                                                         <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
                                                             <IconArrowBack className="w-5 h-5 text-white rotate-180" />
@@ -1081,8 +1143,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                                 <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
                                                             </td>
                                                             <td className="p-4">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${c.type === 'test' ? 'bg-wizdi-cyan/20 text-wizdi-cyan' : 'bg-wizdi-royal/10 text-wizdi-royal'}`}>
-                                                                    {c.type === 'test' ? 'מבחן' : 'פעילות'}
+                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
+                                                                    {getProductTypeDisplay(c.productType, c.mode).label}
                                                                 </span>
                                                             </td>
                                                             <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
@@ -1459,6 +1521,26 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 {
                     viewingInsightStudent && (
                         <StudentInsightsModal student={viewingInsightStudent} onClose={() => setViewingInsightStudent(null)} />
+                    )
+                }
+
+                {/* Lesson Plan Viewer Modal */}
+                {
+                    viewingLessonPlan && (
+                        <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
+                            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-wizdi-royal font-bold">טוען את המערך...</div>}>
+                                <CoursePlayer
+                                    reviewMode={true}
+                                    hideReviewHeader={true}
+                                    assignment={{
+                                        ...coursesMap[viewingLessonPlan],
+                                        id: viewingLessonPlan,
+                                        courseId: viewingLessonPlan
+                                    }}
+                                    onExitReview={() => setViewingLessonPlan(null)}
+                                />
+                            </React.Suspense>
+                        </div>
                     )
                 }
 

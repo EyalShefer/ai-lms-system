@@ -306,7 +306,6 @@ OUTPUT FORMAT (JSON ONLY):
   "strengths": ["List 2-3 specific skills the student demonstrated well"],
   "weaknesses": ["List 2-3 specific topics that need more practice"],
   "recommendedFocus": "Specific topic or skill to practice next",
-  "engagementScore": 0-100,
   "learningMetrics": {
     "averageTimePerQuestion": 0,
     "hintUsageRate": 0.0,
@@ -364,14 +363,12 @@ MISSION:
     Identify PATTERNS in the class.
 1. Are they generally impulsive or hesitant ?
   2. Is there a specific topic they all struggle with?
-    3. What is the emotional state of the class (Engagement) ?
 
       OUTPUT FORMAT(JSON ONLY):
 {
   "strongSkills": ["List 2-3 skills the CLASS excels at"],
     "weakSkills": ["List 2-3 skills the CLASS struggles with"],
-      "actionItems": ["List 2 practical teaching strategies for tomorrow"],
-        "classVibe": "Competitive" | "Collaborative" | "Struggling" | "Curious"
+      "actionItems": ["List 2 practical teaching strategies for tomorrow"]
 }
 `;
 
@@ -520,12 +517,7 @@ export const getMathQuestionPrompt = (
   ]
 }
 
-### 4. הנחיות למורה (חובה לכל שאלה):
-{
-  "teacher_guidelines": "🎯 מה לבדוק: [מה התלמיד צריך להבין]\\n❌ טעויות נפוצות: [טעויות טיפוסיות]\\n💡 רמז לתלמיד מתקשה: [איך לעזור]"
-}
-
-### 5. דוגמאות לפי כיתה:
+### 4. דוגמאות לפי כיתה:
 
 **כיתה ב' - חיבור:**
 "בסל יש 15 תפוחים. אמא הוסיפה עוד 8 תפוחים. כמה תפוחים יש עכשיו בסל?"
@@ -563,8 +555,7 @@ export const getMathWordProblemPrompt = (gradeLevel: string, operation: string) 
   "answer": number,
   "unit": "יחידה (אם רלוונטי)",
   "solution_steps": ["שלב 1", "שלב 2"],
-  "difficulty": "easy" | "medium" | "hard",
-  "teacher_tip": "טיפ קצר למורה"
+  "difficulty": "easy" | "medium" | "hard"
 }
 
 ## דוגמאות לפעולות:

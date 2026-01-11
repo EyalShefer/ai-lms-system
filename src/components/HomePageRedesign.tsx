@@ -19,7 +19,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void }) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -133,21 +133,9 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                         <h1 id="hero-title" className="text-4xl lg:text-5xl font-black text-slate-800 dark:text-white mb-4 leading-tight">
                             {getTimeBasedGreeting()}, {firstName}!
                         </h1>
-                        <p className="text-lg text-slate-500 dark:text-slate-300 mb-8 max-w-md mx-auto lg:mx-0">
+                        <p className="text-lg text-slate-500 dark:text-slate-300 max-w-md mx-auto lg:mx-0">
                             צרו תכנים לימודיים מדהימים בעזרת AI - שיעורים, מבחנים ופעילויות אינטראקטיביות
                         </p>
-
-                        {/* Primary CTA - 44px min touch target */}
-                        <button
-                            onClick={() => handleCardClick("Main CTA", () => onCreateNew('learning'))}
-                            className="btn-lip-action text-lg px-8 py-4 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
-                            aria-label="התחילו ליצור תוכן לימודי חדש"
-                        >
-                            <span className="flex items-center gap-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                                התחילו ליצור עכשיו
-                            </span>
-                        </button>
                     </div>
 
                     {/* Illustration */}
@@ -156,7 +144,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             <div className="absolute -top-4 -right-4 w-20 h-20 bg-wizdi-royal/20 rounded-2xl rotate-12 animate-float motion-reduce:animate-none"></div>
                             <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-wizdi-royal/15 rounded-full animate-float animation-delay-2000 motion-reduce:animate-none"></div>
 
-                            <div className="card-glass rounded-3xl p-8 shadow-xl relative z-10 dark:bg-slate-800/80">
+                            <div className="rounded-3xl p-8 relative z-10">
                                 <div className="flex items-center justify-center">
                                     {/* Modular blocks grid with AI sparkle */}
                                     <div className="relative w-36 h-36">
@@ -183,48 +171,31 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-center text-slate-500 dark:text-slate-400 mt-6 text-sm">יצירת תוכן לימודי בלחיצה אחת</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Quick Actions Pills */}
-            <section className="mb-12" aria-label="יצירה מהירה">
-                <div className="flex flex-wrap gap-3 justify-center lg:justify-start" role="group" aria-label="אפשרויות יצירה מהירה">
-                    <button
-                        onClick={() => handleCardClick("Video", () => onCreateNew('learning'))}
-                        className="flex items-center gap-2 px-6 py-3.5 min-h-[44px] rounded-full font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 hover:border-wizdi-cyan hover:bg-wizdi-cloud dark:hover:bg-slate-700 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
-                        aria-label="יצירה מסרטון"
-                    >
+            {/* Quick Actions Pills - Decorative only */}
+            <section className="mb-12" aria-label="סוגי תוכן זמינים">
+                <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
+                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
                         <IconVideo className="w-5 h-5 text-wizdi-cyan" aria-hidden="true" />
                         מסרטון
-                    </button>
-                    <button
-                        onClick={() => handleCardClick("File", () => onCreateNew('learning'))}
-                        className="flex items-center gap-2 px-6 py-3.5 min-h-[44px] rounded-full font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 hover:border-wizdi-royal hover:bg-wizdi-cloud dark:hover:bg-slate-700 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2"
-                        aria-label="יצירה מקובץ"
-                    >
+                    </div>
+                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
                         <IconFileText className="w-5 h-5 text-wizdi-royal" aria-hidden="true" />
                         מקובץ
-                    </button>
-                    <button
-                        onClick={() => handleCardClick("Text", () => onCreateNew('learning'))}
-                        className="flex items-center gap-2 px-6 py-3.5 min-h-[44px] rounded-full font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 hover:border-wizdi-action hover:bg-wizdi-cloud dark:hover:bg-slate-700 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-action focus-visible:ring-offset-2"
-                        aria-label="יצירה מטקסט"
-                    >
+                    </div>
+                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
                         <IconPencil className="w-5 h-5 text-wizdi-action" aria-hidden="true" />
                         מטקסט
-                    </button>
-                    <button
-                        onClick={() => handleCardClick("Topic", () => onCreateNew('learning'))}
-                        className="flex items-center gap-2 px-6 py-3.5 min-h-[44px] rounded-full font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 hover:border-wizdi-gold hover:bg-wizdi-cloud dark:hover:bg-slate-700 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-gold focus-visible:ring-offset-2"
-                        aria-label="יצירה מנושא"
-                    >
+                    </div>
+                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
                         <IconFlask className="w-5 h-5 text-amber-500" aria-hidden="true" />
                         מנושא
-                    </button>
+                    </div>
                 </div>
             </section>
 
@@ -291,7 +262,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
 
                                 {/* פעילות לתלמיד */}
                                 <button
-                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning', 'game'))}
+                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning', 'activity'))}
                                     className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
                                     aria-label="יצירת פעילות לתלמיד - פעילות אינטראקטיבית"
                                 >

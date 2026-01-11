@@ -72,7 +72,7 @@ export const ResponsiveSequentialCoursePlayer: React.FC<SequentialPlayerProps> =
  * Renders mobile or desktop teacher home page based on screen size.
  */
 interface HomePageProps {
-    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void;
+    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
     onNavigateToPrompts?: () => void;

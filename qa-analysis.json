@@ -1,0 +1,3913 @@
+{
+  "totalCourses": 462,
+  "emptyCourses": [
+    {
+      "id": "0LGCl8dDtVHPmAsHZtRV",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T17:11:34.767Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "0YfoBKdnZkRDhSfvpOUI",
+      "title": "הרשות לחדשנות",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T15:00:02.013Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "0ZVbtClGEwNkPqZHaeZj",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-01T16:32:07.150Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "0raujKNF4kER94XKfp3a",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-06T19:12:08.314Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "0xpxqeJZrVdEOamhXJIQ",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-06T16:58:36.174Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "19zUkI6LYlUi34lPwCn3",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:19:28.546Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "1R6D5B4uZeOanZ0onYsX",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T11:03:42.305Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "1SmfVpS3BFwjfditIonm",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-06T13:57:09.253Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "1qq0Wo4eaobKRB7ahymv",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "2hvYSAyyyYPWSUGZkD5p",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T16:51:47.826Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "3eEBTqs5vatJJikVSKRM",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T13:39:30.349Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "3gsC75SCgDPDAu0Pa53j",
+      "title": "הרשות לתחרות והכלים העומדים לרשותה ",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T16:04:55.681Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "41xyG5xSGPzcA40Tfpfv",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T22:54:49.502Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "4ACr4x5ZRzJhzVK1GniP",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T15:39:18.609Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "4JE24NCzODQfmunOMeLo",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-22T12:12:12.655Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "4uVlPlJFEbsBtDbCXtSc",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T09:12:38.782Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "5LAIhCMs3FrW4jn4ngbL",
+      "title": "הסיבות למלחמת העולם השניייה ",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "5mg9LKlxcbRFLqSHwjrA",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "6iT0bKJGXLkHyhaiqt7v",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T13:58:16.943Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "7LKJ7Hu7VM7nV03covd5",
+      "title": "- טקסט בלבד - המגוון הביולוגי בסכנה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "WBtCB1FkUDPvnYaBpDVffjZaznl1"
+    },
+    {
+      "id": "7R961XlMt1JlIttrjQ8z",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "7eNQbuTg8YVClh0nUeM3",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T18:42:45.674Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "7z1KQN2c2L46lt5y0GIR",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T17:48:37.265Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "80xxlHKTD1PT4vd8XFaX",
+      "title": "מלחמת העולם השלישית והאחרונה?",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T11:09:08.916Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "87i6ppYUl0YTHSnc2Dke",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T13:32:20.455Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "892IYKsnLONKG5YLiy8x",
+      "title": "בית הספר בעידן שלפני המבול",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "8Nzroew3VUASAFrQyP2P",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T22:13:23.715Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "8fzQxzerUwZsPb0WStJA",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:14:49.187Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "96hGSqJzUM0e2Ja6esE4",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T14:18:43.447Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "9eP861FAjsMlVIz2Ompx",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "A98hrWcqL4nHdWvKzXtM",
+      "title": "רכיבה טיפולית מחקרים",
+      "status": "unknown",
+      "totalUnits": 21,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T15:14:32.325Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "AH0vKNGSiuDUyeUrKiCU",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T23:27:53.756Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "ASRiHHwSF9D7hlrmO1Oa",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "AZxkcqQNLqJG0OJw8AOW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T16:51:32.114Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Ab7vI6r9g3X3REu8hP9j",
+      "title": "העלייה השנייה לישראל ",
+      "status": "unknown",
+      "totalUnits": 10,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T16:46:08.043Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "C312Jri1VgLSkvDUX5Gd",
+      "title": "הרשות לתחרות",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T16:48:08.794Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "CrBQx1kfbjlM5TcKSISM",
+      "title": "תעשיית התרופות ובינה מלאכותית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-14T14:29:47.186Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "CzT83ISIcv2HFjNKgmaK",
+      "title": "ההמנון ",
+      "status": "unknown",
+      "totalUnits": 18,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:30:58.925Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "DNSIKJfUz4cmlj9DlU2S",
+      "title": "מהפכת הדפוס",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T20:06:41.134Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "DgJURihSVxOmZke08FIF",
+      "title": "General Topic",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T10:44:21.751Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "EVkavJ8zwck3dpAbzjZ2",
+      "title": "טיפול בפסולת",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "WBtCB1FkUDPvnYaBpDVffjZaznl1"
+    },
+    {
+      "id": "Ex0gKfXgo7RZsVQF7ChW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T15:24:55.551Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "F7DTeXde3aM6E7Wxe9JQ",
+      "title": "החור באוזון ",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T13:54:45.853Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "F7RbF11wXtoFmHEcU7or",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "FXVpSViGAQAFpIVhcMYH",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T12:35:28.183Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "FagusEuf9McraxpxZ47Q",
+      "title": "תעשיית התרופות בעידן ה AI",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-14T12:58:52.983Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "FeZ6BZ2UdgkZRQxtoORP",
+      "title": "הברירה הטבעית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T16:55:17.589Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "G6icMZ8uIVgd975q4tbT",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T07:47:16.911Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "HLv1xmJYD9wu1vdAEPrA",
+      "title": "המהפכה הצרפתית וההשלכות",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T14:28:53.133Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "HPZLmLZcsTkH3zAryV2D",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T13:08:15.277Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Hkn4FBqZjxzR6JokqL2Z",
+      "title": "הרשות לחדשנות בישראל",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T14:59:05.490Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "HqWcvRJaRHbsJ1Uepprj",
+      "title": "בית הספר בעידן שלפני המבול",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "I4UBIdLsBByVGH4KBvI4",
+      "title": "פוטוסינתזה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T21:55:01.547Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "I6CHKghQlqFfyFnlB9kV",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T21:37:42.139Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "IKazmhJlTEfHLZpPF39a",
+      "title": "תרופות ובינה מלאכותית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-14T14:37:36.275Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "IQyp08HkSIAjcAsrycbk",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T21:28:38.501Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Iy9lPFRtKMFCgeZ05IGs",
+      "title": "העלייה השנייה",
+      "status": "unknown",
+      "totalUnits": 7,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T16:47:05.619Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "JAzYA0rsCxdNfsXyPpDX",
+      "title": "הרשות לחדשנות בישראל",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T14:55:11.656Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "JKl2GplX6ZJ0sGnAzX4a",
+      "title": "תעשיית התרופות ובינה מלאכותית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-14T14:33:48.909Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Jy8nTqcAR3u7dugD0QFK",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "K9NIO5xzA2PGkF73Kz2d",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T11:34:11.838Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "KHY1XLV6vYz7CLKwnujx",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "KLxwou3o6Xj9pA9vVhb5",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T09:20:44.606Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "KynbBhqk5oLnEcKk9fhi",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-01T18:03:12.422Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "LjvRczTPoAylTZE1VDdw",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "LrdW7ibrpF2nSlDlt3zy",
+      "title": "מהפכת הדפוס",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T19:55:59.234Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "MLEjkVaLy53wffZ4cOSu",
+      "title": "העלייה השניה לישראל",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-20T20:51:23.976Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "MLmDisyF5SOgM4B5QJUY",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:28:54.849Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "MQFNkKqeTzFLHNuEfbAV",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "MS3dh9ws6sSMuPO6Ou2t",
+      "title": "ט\"ו בשבט",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-25T16:37:53.597Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "MTHDQqMmUZOf0iMUe3Kj",
+      "title": "תהליך הפוטוסינתזה:",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "N2WhKkcrikxvffDUUC9k",
+      "title": "פוטוסינטזה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-07T17:42:41.324Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "NTgqV6cf2dYrp0ysWTRc",
+      "title": "פוטוסינטזה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-07T12:37:05.902Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "NUoT3NvnY9f8PtlL87T0",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T23:26:37.115Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "NZbskvNOqsqzuddyNSij",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T11:04:37.152Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "NmwNSWciGkkoAeQQE7GZ",
+      "title": "העלייה השנייה לישראל",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-22T11:39:37.308Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "OLmtY6VnJaxNI8vNVMsY",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T15:35:36.864Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "ONkeRhEU7lFFTSFCjbge",
+      "title": "מהפכת הדפוס",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T20:09:50.811Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PF0vyLXGg6KGBR1Bsl6u",
+      "title": "סטיבן הוקינג הגאון - ניצחון הנפש על הגוף",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-03T16:12:23.773Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PKBrbBCL3qVbaebs8T7u",
+      "title": "העלייה הראשונה לישראל",
+      "status": "unknown",
+      "totalUnits": 15,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:02:02.193Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PKSGnocSpPOvHRz6n7m2",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:50:39.675Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PUyl9DMVIgwRWpuck5Ez",
+      "title": "הרשות לתחרות בשנים 2026",
+      "status": "unknown",
+      "totalUnits": 7,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T16:48:45.221Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PYtHt7o0zR9kt6ytExGU",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T12:42:42.448Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Px83GfV6i3DhCpbXxUsX",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "PzndBkEOhSuxN3aHVaWe",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T07:28:32.310Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Q1iRZFrnlfVn5Oym82cl",
+      "title": "הפלישה לנורמונדי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T23:52:52.031Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "QfD49enoid5iKo2Jvyjv",
+      "title": "המהפכה הצרפתית עם טוויסט לענין צרפת וההגירה",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T15:26:45.343Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "QmDL9k00M4LFXyVOQv8e",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T12:54:53.017Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "RBMohYu6YrCP142dmneb",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:54:49.034Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "RQkoB5BcMe3kxS3xuLGv",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "RURffi9i3COEDhmbuUR7",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T12:46:55.476Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "RopWX3tXHCgjznvYwvfI",
+      "title": "מנהיגות",
+      "status": "unknown",
+      "totalUnits": 8,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-07T08:03:22.322Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "S1uOEpkG36KPbGTfxJkA",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T13:19:43.984Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "S2zYrH2fn0gHLhXUE7D5",
+      "title": "המהפכה הצרפתית ",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T11:47:26.945Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "S76bRvsXa5wmEG2GYZ1W",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "SC2PufQVScS7ytdCMQ2Q",
+      "title": "בית הספר בעידן שלפני המבול",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "SFNLZ57OoPPM2zC1Vm5h",
+      "title": "מלחמת העולם השנייה - הטריגרים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T14:56:28.547Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "SJW4ii2QkTOTU9AaK0B8",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T11:05:58.268Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "SYt4SvCe6Rvj9nLAMvgI",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T15:46:38.500Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "V0GGmC3tkYVTAUYhIHAP",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "VCgBOhFlO2tvLMQ1MJJW",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-22T13:22:37.743Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "VRm86NRupi1HGcDY2mKK",
+      "title": "חיסוני קורונה",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T17:11:02.265Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "VvNJaV6L9uOpKz8AzrwQ",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T12:30:24.368Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "W9lruHPzvz2EjCr5iNeu",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T13:37:30.098Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "WLpti2eVXHXAoRZ0OoFi",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "WoJDWMnRN5WSvwdRj4XT",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-07T20:06:41.004Z",
+      "teacherId": "ccA0JgZC52X5xesyOjYYESvoRca2"
+    },
+    {
+      "id": "WvjZ2KNi2ZDuFrURISfA",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T14:45:26.777Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "XCMstACiMwuVVmcFgXrN",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T11:24:11.799Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Y1Qeqt3ZkSn2YaBSUMfs",
+      "title": "- טקסט בלבד - המגוון הביולוגי בסכנה",
+      "status": "unknown",
+      "totalUnits": 7,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-09T15:39:54.070Z",
+      "teacherId": "WBtCB1FkUDPvnYaBpDVffjZaznl1"
+    },
+    {
+      "id": "Y67NvmavfdOR9cYNPOYj",
+      "title": "העליה הראשונה ",
+      "status": "unknown",
+      "totalUnits": 17,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:05:28.069Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "YsuMCnex1Xob3DBNVkl4",
+      "title": "חג החנוכה ",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T16:55:12.010Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "YyJEb6yhz50br5VWAJVz",
+      "title": "פוטוסינטזה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-07T18:14:03.101Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "Z9EZhYi1eJibcyJE6eUe",
+      "title": "צבא לבנון ",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T17:02:16.611Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "ZgSM3JoGgRLUaqQChGFy",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T08:59:27.198Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "atWZfsU6s6yTziJyFNMW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T13:47:12.328Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "bCLUTuM33Dxwn7vRrjcF",
+      "title": "הוֹרוּת בָּרַוָּקוּת (A4)",
+      "status": "unknown",
+      "totalUnits": 7,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T13:35:03.755Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "bV08pP2KoOnfeZwVzNQL",
+      "title": "תקופת הסזון בישראל",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T10:14:36.097Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "bWItr6nlW18G09DN2Riw",
+      "title": "פוטוסינטזה שימושים בחלל ",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-25T10:19:18.241Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "bgkGXKqACDfucYfyg8Y3",
+      "title": "בינה בעולם התרופות",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T16:59:01.930Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "c1OZi7rexENywIMcl5Hl",
+      "title": "מלחמת העולם השניייה ",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-17T16:30:20.204Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "cSmhlu1C4pItJ1Z1ctge",
+      "title": "שמואל ב פרק יא",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-05T19:13:23.593Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "cozjyzVxofQGu6QkX511",
+      "title": "מערך שיעור חדש",
+      "status": "unknown",
+      "totalUnits": 8,
+      "totalBlocks": 0,
+      "createdAt": {
+        "seconds": 1764578255,
+        "nanoseconds": 509000000,
+        "type": "firestore/timestamp/1.0"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "d22Q7PpvLWtMjhUerzUL",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T12:27:29.540Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "dIbofmgZyUCfFTixsmOG",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "due8GvXUu7yg7sOgkfOD",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-04T21:48:15.456Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "e32xjap4MPwbsqAW89mg",
+      "title": "פוטוסינטזה ואיך היא משפיעה על מחזור המים באלקסה והקוטב הצפוני. אני רוצה להדגיש את הצמחים שגדלים דווקא שם.",
+      "status": "unknown",
+      "totalUnits": 12,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-10T15:14:51.058Z",
+      "teacherId": "tKVneE0uOfbPDNlv9oyXipCamlm2"
+    },
+    {
+      "id": "eSZ8f3CCnlMYZNf4cVXs",
+      "title": "פוטוסינטזה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-07T17:52:34.577Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "eWuYXrt7fzDZJqnsdCeZ",
+      "title": "רחפני קטל בעידן המודרני",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T13:28:45.579Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "eYsNzeE5gSSKwi0Ff1y2",
+      "title": "כלבי נחייה לטיפול בנכי צהל",
+      "status": "unknown",
+      "totalUnits": 4,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T15:28:10.212Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "echKjdfiPGbP7qVT2ZLw",
+      "title": "מלחמת העולם השלישית - אפוקליפסה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T15:03:25.013Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "fMxncZ0JuSKGlDVDm2gg",
+      "title": "מלחמת העולם הראשונה ",
+      "status": "unknown",
+      "totalUnits": 40,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:24:06.945Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "faHcn5sSNayLbRC65GMy",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T15:05:46.842Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "fqIlvGzibK9k077LotAJ",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T14:31:08.442Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "h23q07OiP9pJ3Azlr4pm",
+      "title": "בית הספר בעידן שלפני המבול",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "hHSuRffkuD7cnxyYiaBT",
+      "title": "הבחירות לארהב 2025",
+      "status": "unknown",
+      "totalUnits": 23,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:13:37.374Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "hUaq3qbZJQBHWIZn5Zyp",
+      "title": "כלבי נחייה כטיפולים",
+      "status": "unknown",
+      "totalUnits": 17,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T15:21:09.741Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "iCZQK60TQwIfNA9pyVCU",
+      "title": "מה אוכלים בחלל - טקסט.pdf",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T09:42:26.006Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "iDMXGHD9lXAnEzxK5oV1",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "iEld7vCOnN0IzUWOsYJ5",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "inczEbA99OoWPZzICI5i",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "j8xoSXZilXvtp1NBOdL7",
+      "title": "יסודות הפיזיקה",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T11:08:32.512Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "jFrLS3dZn5Ct52FhbhHK",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T22:01:43.448Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "jZa7R87oSkjtUAZoA8zb",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 6,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T23:07:16.580Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "k8q1OXWRglrQfbrZ3Esk",
+      "title": "הרשות לחדשנות 2025 ישראל",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-15T14:50:34.165Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "k9ajpRd3NTrHW3B2CaA7",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T08:04:59.421Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "khM1jGyNARpSrQjfe6Kx",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "ksR6yzXYHVkbcfK4nWhB",
+      "title": "מהפכת הדפוס",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T23:32:50.470Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "kywUxumWFdyYU8dCysVz",
+      "title": "אסטרונומיה בזעיר אנפין",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-04T11:14:15.514Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "lC11WvwRA4lEBVrnCjdt",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-06T19:59:10.131Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "lRO5guJhby654GsvlB2N",
+      "title": "כיצד התפתחה הטכנולוגיה",
+      "status": "unknown",
+      "totalUnits": 8,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-07T07:49:17.603Z",
+      "teacherId": "WBtCB1FkUDPvnYaBpDVffjZaznl1"
+    },
+    {
+      "id": "mWv7AiGvMFLnul6Tv7fY",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-06T20:08:54.086Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "mXTI7FnkJLPO6yS2Q9cB",
+      "title": "תקשורת בעולם של אימוג'ים",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-25T16:32:28.143Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "meKxBBvlJU7Y6fBt1dvL",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-30T07:44:28.469Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "nuQfq7b4DTTj0XPe4vSl",
+      "title": "מלחמת אירן ישראל 12 הימים",
+      "status": "unknown",
+      "totalUnits": 24,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:19:57.628Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "o79AV3bYvsMIdSdaJxJ1",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T13:41:27.395Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "oTKX35QKY0C5gkvPEXv2",
+      "title": "בריאת העולם",
+      "status": "unknown",
+      "totalUnits": 19,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T17:34:41.758Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "pRYbvNpLjG1v00pyoHrG",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-29T22:02:14.753Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "pqeNt6Ify8NuRzPO5CZu",
+      "title": "העלייה הראשונה לישראל",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-22T14:02:20.677Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "qAbzquBuAZdX0YDgfHIF",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-02T22:43:21.954Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "rGCbW3KGqzcnNGCJBDC8",
+      "title": "בינה מלאכותית במערב מול המזרח וסין",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T14:45:54.337Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "rwTCJa3wWyYiFMWwjcd7",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T08:22:49.591Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "s6eb36szVxqeA1OIyaST",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:46:45.439Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "sXiG8yHsnJVPEJoJz6YZ",
+      "title": "מנהיגות",
+      "status": "unknown",
+      "totalUnits": 7,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-07T07:37:01.160Z",
+      "teacherId": "KxBK1L7VxhfmXh3dWyM3VdGDYmt1"
+    },
+    {
+      "id": "tmXo0u5M0vkVz6ZUzYle",
+      "title": "איך לאכוף סוס",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-10T15:05:39.281Z",
+      "teacherId": "tKVneE0uOfbPDNlv9oyXipCamlm2"
+    },
+    {
+      "id": "tnFzFrKyHsS8kuVuCZgX",
+      "title": "העלייה השניה ",
+      "status": "unknown",
+      "totalUnits": 9,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-16T16:50:57.595Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "uFaH9S5XjBOOHwCBW9Y1",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "uhNTZg13t27V1FlwPTiA",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "vAGZfhRjkGtipJSg4Ssy",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T12:39:53.007Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "vjfZ4iwly9w8ZTBANxHm",
+      "title": "בינה מלאכותית בחינוך",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T14:20:50.179Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "wSjQgu2qxYzTlFnyKnN6",
+      "title": "שפות נכחדות בדיקות",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "wp3mWM97gP7umERzensX",
+      "title": "מהפכת הדפוס",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T23:24:30.005Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "xX8YwcKfygp9pLauxDJW",
+      "title": "כמה עולה לנו אנרגיה",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-05T15:21:05.592Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "xfF415jASJMOwghBFYcn",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T13:00:32.060Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "xhSrSvmhYrVN4ThHu5Tu",
+      "title": "המהפכה הצרפתית",
+      "status": "unknown",
+      "totalUnits": 0,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T23:48:32.104Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "xlvVy8UV3OqWKVTkw3E8",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:58:56.440Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "z7NVT9a1fopOzIFqq9cs",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "status": "unknown",
+      "totalUnits": 5,
+      "totalBlocks": 0,
+      "createdAt": "2026-01-03T07:36:51.245Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "zTiwyGr6otO1eO33iK7q",
+      "title": "טקסט פסולת  כיתה ז'",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-31T13:02:03.707Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "zcfhxDcWXeg4PNTo6Doy",
+      "title": "מלחמת העולם השנייה - הטריגרים",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": "2025-12-21T14:59:53.096Z",
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "ztlV9hdCdHixgmegDnG6",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    },
+    {
+      "id": "zvvVCWjGZs5Js5tdshaD",
+      "title": "פעילות טקסט חופשי",
+      "status": "unknown",
+      "totalUnits": 1,
+      "totalBlocks": 0,
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "teacherId": "fBWl9vvkdcX5nFVWm7cOd6Qu4hv2"
+    }
+  ],
+  "coursesWithEmptyUnits": [
+    {
+      "id": "fMxncZ0JuSKGlDVDm2gg",
+      "title": "מלחמת העולם הראשונה ",
+      "emptyUnitsCount": 40,
+      "totalUnits": 40
+    },
+    {
+      "id": "nuQfq7b4DTTj0XPe4vSl",
+      "title": "מלחמת אירן ישראל 12 הימים",
+      "emptyUnitsCount": 24,
+      "totalUnits": 24
+    },
+    {
+      "id": "hHSuRffkuD7cnxyYiaBT",
+      "title": "הבחירות לארהב 2025",
+      "emptyUnitsCount": 23,
+      "totalUnits": 23
+    },
+    {
+      "id": "A98hrWcqL4nHdWvKzXtM",
+      "title": "רכיבה טיפולית מחקרים",
+      "emptyUnitsCount": 21,
+      "totalUnits": 21
+    },
+    {
+      "id": "oTKX35QKY0C5gkvPEXv2",
+      "title": "בריאת העולם",
+      "emptyUnitsCount": 19,
+      "totalUnits": 19
+    },
+    {
+      "id": "CzT83ISIcv2HFjNKgmaK",
+      "title": "ההמנון ",
+      "emptyUnitsCount": 18,
+      "totalUnits": 18
+    },
+    {
+      "id": "Y67NvmavfdOR9cYNPOYj",
+      "title": "העליה הראשונה ",
+      "emptyUnitsCount": 17,
+      "totalUnits": 17
+    },
+    {
+      "id": "hUaq3qbZJQBHWIZn5Zyp",
+      "title": "כלבי נחייה כטיפולים",
+      "emptyUnitsCount": 17,
+      "totalUnits": 17
+    },
+    {
+      "id": "7p7uMy67wTekeMdhLaA5",
+      "title": "בינה מלאכותית בחינוך היסודי",
+      "emptyUnitsCount": 15,
+      "totalUnits": 16
+    },
+    {
+      "id": "PKBrbBCL3qVbaebs8T7u",
+      "title": "העלייה הראשונה לישראל",
+      "emptyUnitsCount": 15,
+      "totalUnits": 15
+    },
+    {
+      "id": "e32xjap4MPwbsqAW89mg",
+      "title": "פוטוסינטזה ואיך היא משפיעה על מחזור המים באלקסה והקוטב הצפוני. אני רוצה להדגיש את הצמחים שגדלים דווקא שם.",
+      "emptyUnitsCount": 12,
+      "totalUnits": 12
+    },
+    {
+      "id": "9FbhXnFPD8xC2UClgALm",
+      "title": "חיים ויצמן הנשיא ",
+      "emptyUnitsCount": 11,
+      "totalUnits": 13
+    },
+    {
+      "id": "Ab7vI6r9g3X3REu8hP9j",
+      "title": "העלייה השנייה לישראל ",
+      "emptyUnitsCount": 10,
+      "totalUnits": 10
+    },
+    {
+      "id": "80xxlHKTD1PT4vd8XFaX",
+      "title": "מלחמת העולם השלישית והאחרונה?",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "DgJURihSVxOmZke08FIF",
+      "title": "General Topic",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "Oa7TfupOAEolZYovOLy1",
+      "title": "תאי הדם",
+      "emptyUnitsCount": 9,
+      "totalUnits": 11
+    },
+    {
+      "id": "PF0vyLXGg6KGBR1Bsl6u",
+      "title": "סטיבן הוקינג הגאון - ניצחון הנפש על הגוף",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "YsuMCnex1Xob3DBNVkl4",
+      "title": "חג החנוכה ",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "bV08pP2KoOnfeZwVzNQL",
+      "title": "תקופת הסזון בישראל",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "cSmhlu1C4pItJ1Z1ctge",
+      "title": "שמואל ב פרק יא",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "fdvpdKcIw94EhxthuzGj",
+      "title": "המהפכה הצרפתית",
+      "emptyUnitsCount": 9,
+      "totalUnits": 11
+    },
+    {
+      "id": "tmXo0u5M0vkVz6ZUzYle",
+      "title": "איך לאכוף סוס",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "tnFzFrKyHsS8kuVuCZgX",
+      "title": "העלייה השניה ",
+      "emptyUnitsCount": 9,
+      "totalUnits": 9
+    },
+    {
+      "id": "RopWX3tXHCgjznvYwvfI",
+      "title": "מנהיגות",
+      "emptyUnitsCount": 8,
+      "totalUnits": 8
+    },
+    {
+      "id": "cozjyzVxofQGu6QkX511",
+      "title": "מערך שיעור חדש",
+      "emptyUnitsCount": 8,
+      "totalUnits": 8
+    },
+    {
+      "id": "lRO5guJhby654GsvlB2N",
+      "title": "כיצד התפתחה הטכנולוגיה",
+      "emptyUnitsCount": 8,
+      "totalUnits": 8
+    },
+    {
+      "id": "qnsSJde5h43sP6EsE958",
+      "title": "מאפייני צריכת חשמל ביתית ",
+      "emptyUnitsCount": 8,
+      "totalUnits": 11
+    },
+    {
+      "id": "0H5DgVmWylgFYp86rrEg",
+      "title": "מערכות טכולוגיות ",
+      "emptyUnitsCount": 7,
+      "totalUnits": 9
+    },
+    {
+      "id": "Iy9lPFRtKMFCgeZ05IGs",
+      "title": "העלייה השנייה",
+      "emptyUnitsCount": 7,
+      "totalUnits": 7
+    },
+    {
+      "id": "PUyl9DMVIgwRWpuck5Ez",
+      "title": "הרשות לתחרות בשנים 2026",
+      "emptyUnitsCount": 7,
+      "totalUnits": 7
+    },
+    {
+      "id": "Y1Qeqt3ZkSn2YaBSUMfs",
+      "title": "- טקסט בלבד - המגוון הביולוגי בסכנה",
+      "emptyUnitsCount": 7,
+      "totalUnits": 7
+    },
+    {
+      "id": "bCLUTuM33Dxwn7vRrjcF",
+      "title": "הוֹרוּת בָּרַוָּקוּת (A4)",
+      "emptyUnitsCount": 7,
+      "totalUnits": 7
+    },
+    {
+      "id": "eSxj8Du79Mb8Jbab4ss4",
+      "title": "מלחמת העולם השנייה הסיבות לפריצתה ",
+      "emptyUnitsCount": 7,
+      "totalUnits": 10
+    },
+    {
+      "id": "koD8gNYuVKck2T6jeJCE",
+      "title": "המהפכה הצרפתית השתקפות למאה ה 21",
+      "emptyUnitsCount": 7,
+      "totalUnits": 9
+    },
+    {
+      "id": "kybHVuOjpvPT1w6VFZh1",
+      "title": "המהפכה התעשייתית הקיטור",
+      "emptyUnitsCount": 7,
+      "totalUnits": 9
+    },
+    {
+      "id": "lX8inouqzYjxNJz0nQyN",
+      "title": "מנהיגות",
+      "emptyUnitsCount": 7,
+      "totalUnits": 9
+    },
+    {
+      "id": "sXiG8yHsnJVPEJoJz6YZ",
+      "title": "מנהיגות",
+      "emptyUnitsCount": 7,
+      "totalUnits": 7
+    },
+    {
+      "id": "A8ANuK0WS3VzQQVkKYnw",
+      "title": "הקראסון כיצד הוא נוצר ",
+      "emptyUnitsCount": 6,
+      "totalUnits": 9
+    },
+    {
+      "id": "IUYCP9UjKphlbfuJInUR",
+      "title": "כיצד התפתחה הטכנולוגיה",
+      "emptyUnitsCount": 6,
+      "totalUnits": 8
+    },
+    {
+      "id": "jZa7R87oSkjtUAZoA8zb",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 6,
+      "totalUnits": 6
+    },
+    {
+      "id": "lQPB5v7nDwCP1PQvDjW4",
+      "title": "מקורות אנרגיה מתכלים ",
+      "emptyUnitsCount": 6,
+      "totalUnits": 12
+    },
+    {
+      "id": "rJZsE8eVMIDpl1CIDzf4",
+      "title": "גיאוגרפיה ",
+      "emptyUnitsCount": 6,
+      "totalUnits": 10
+    },
+    {
+      "id": "wEm170hA8YgsAHlReR4j",
+      "title": "המהפכה התעשייתית",
+      "emptyUnitsCount": 6,
+      "totalUnits": 7
+    },
+    {
+      "id": "19zUkI6LYlUi34lPwCn3",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "8fzQxzerUwZsPb0WStJA",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "8hnOENxFRFHCKzMxFe4f",
+      "title": "הסכנה בגישה אקטיביסטית של בית המשפט העליון בישראל",
+      "emptyUnitsCount": 5,
+      "totalUnits": 10
+    },
+    {
+      "id": "MLmDisyF5SOgM4B5QJUY",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "PKSGnocSpPOvHRz6n7m2",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "RBMohYu6YrCP142dmneb",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "k9ajpRd3NTrHW3B2CaA7",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "s6eb36szVxqeA1OIyaST",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "xlvVy8UV3OqWKVTkw3E8",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "z7NVT9a1fopOzIFqq9cs",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 5,
+      "totalUnits": 5
+    },
+    {
+      "id": "5ukFfUmZ2YevIRNnps8A",
+      "title": "General Topic",
+      "emptyUnitsCount": 4,
+      "totalUnits": 9
+    },
+    {
+      "id": "EMHQA23ERvivw9rvYQrf",
+      "title": "- טקסט בלבד - המגוון הביולוגי בסכנה",
+      "emptyUnitsCount": 4,
+      "totalUnits": 7
+    },
+    {
+      "id": "GNxVw04v7tn2d0Chf0Be",
+      "title": "בינה מלאכותית בחינוך היסודי",
+      "emptyUnitsCount": 4,
+      "totalUnits": 9
+    },
+    {
+      "id": "NJbYYVFoXHzooRS0jP9Q",
+      "title": "הרכבי המערכת ",
+      "emptyUnitsCount": 4,
+      "totalUnits": 6
+    },
+    {
+      "id": "eYsNzeE5gSSKwi0Ff1y2",
+      "title": "כלבי נחייה לטיפול בנכי צהל",
+      "emptyUnitsCount": 4,
+      "totalUnits": 4
+    },
+    {
+      "id": "mtvd6fJiqvlUiphgfZf2",
+      "title": "מנהיגות",
+      "emptyUnitsCount": 4,
+      "totalUnits": 8
+    },
+    {
+      "id": "9g4p5geqPObI1u2WCMWQ",
+      "title": "התחממות כדור הארץ וההמלצות לאזרח הקטן",
+      "emptyUnitsCount": 3,
+      "totalUnits": 12
+    },
+    {
+      "id": "o35SX5y4hlWUXpb2Mvr8",
+      "title": "תהליך התיכון ",
+      "emptyUnitsCount": 3,
+      "totalUnits": 9
+    },
+    {
+      "id": "0LGCl8dDtVHPmAsHZtRV",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "0ZVbtClGEwNkPqZHaeZj",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "0raujKNF4kER94XKfp3a",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "0xpxqeJZrVdEOamhXJIQ",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "1R6D5B4uZeOanZ0onYsX",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "1SmfVpS3BFwjfditIonm",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "1qq0Wo4eaobKRB7ahymv",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "2hvYSAyyyYPWSUGZkD5p",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "3eEBTqs5vatJJikVSKRM",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "41xyG5xSGPzcA40Tfpfv",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "4ACr4x5ZRzJhzVK1GniP",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "4uVlPlJFEbsBtDbCXtSc",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "5mg9LKlxcbRFLqSHwjrA",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "6iT0bKJGXLkHyhaiqt7v",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "7LKJ7Hu7VM7nV03covd5",
+      "title": "- טקסט בלבד - המגוון הביולוגי בסכנה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "7R961XlMt1JlIttrjQ8z",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "7eNQbuTg8YVClh0nUeM3",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "7z1KQN2c2L46lt5y0GIR",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "87i6ppYUl0YTHSnc2Dke",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "892IYKsnLONKG5YLiy8x",
+      "title": "בית הספר בעידן שלפני המבול",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "8Nzroew3VUASAFrQyP2P",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "96hGSqJzUM0e2Ja6esE4",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "9eP861FAjsMlVIz2Ompx",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "ASRiHHwSF9D7hlrmO1Oa",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "AZxkcqQNLqJG0OJw8AOW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "DNSIKJfUz4cmlj9DlU2S",
+      "title": "מהפכת הדפוס",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "DkVWncQi01OJD0XN0INy",
+      "title": "כמה עולה לנו אנרגיה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 8
+    },
+    {
+      "id": "EVkavJ8zwck3dpAbzjZ2",
+      "title": "טיפול בפסולת",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "Ex0gKfXgo7RZsVQF7ChW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "F7RbF11wXtoFmHEcU7or",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "FXVpSViGAQAFpIVhcMYH",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "G6icMZ8uIVgd975q4tbT",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "HPZLmLZcsTkH3zAryV2D",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "HqWcvRJaRHbsJ1Uepprj",
+      "title": "בית הספר בעידן שלפני המבול",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "I4UBIdLsBByVGH4KBvI4",
+      "title": "פוטוסינתזה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "I6CHKghQlqFfyFnlB9kV",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "IQyp08HkSIAjcAsrycbk",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "Jy8nTqcAR3u7dugD0QFK",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "KHY1XLV6vYz7CLKwnujx",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "KLxwou3o6Xj9pA9vVhb5",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "KynbBhqk5oLnEcKk9fhi",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "LjvRczTPoAylTZE1VDdw",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "LrdW7ibrpF2nSlDlt3zy",
+      "title": "מהפכת הדפוס",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "MLEjkVaLy53wffZ4cOSu",
+      "title": "העלייה השניה לישראל",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "MQFNkKqeTzFLHNuEfbAV",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "MTHDQqMmUZOf0iMUe3Kj",
+      "title": "תהליך הפוטוסינתזה:",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "N2WhKkcrikxvffDUUC9k",
+      "title": "פוטוסינטזה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "NTgqV6cf2dYrp0ysWTRc",
+      "title": "פוטוסינטזה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "NUoT3NvnY9f8PtlL87T0",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "NZbskvNOqsqzuddyNSij",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "OLmtY6VnJaxNI8vNVMsY",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "ONkeRhEU7lFFTSFCjbge",
+      "title": "מהפכת הדפוס",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "PYtHt7o0zR9kt6ytExGU",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "Px83GfV6i3DhCpbXxUsX",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "PzndBkEOhSuxN3aHVaWe",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "Q1iRZFrnlfVn5Oym82cl",
+      "title": "הפלישה לנורמונדי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "QmDL9k00M4LFXyVOQv8e",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "RQkoB5BcMe3kxS3xuLGv",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "RURffi9i3COEDhmbuUR7",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "S1uOEpkG36KPbGTfxJkA",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "S2zYrH2fn0gHLhXUE7D5",
+      "title": "המהפכה הצרפתית ",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "S76bRvsXa5wmEG2GYZ1W",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "SC2PufQVScS7ytdCMQ2Q",
+      "title": "בית הספר בעידן שלפני המבול",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "SFNLZ57OoPPM2zC1Vm5h",
+      "title": "מלחמת העולם השנייה - הטריגרים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "SJW4ii2QkTOTU9AaK0B8",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "SYt4SvCe6Rvj9nLAMvgI",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "V0GGmC3tkYVTAUYhIHAP",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "VvNJaV6L9uOpKz8AzrwQ",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "W9lruHPzvz2EjCr5iNeu",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "WLpti2eVXHXAoRZ0OoFi",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "WvjZ2KNi2ZDuFrURISfA",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "XCMstACiMwuVVmcFgXrN",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "YyJEb6yhz50br5VWAJVz",
+      "title": "פוטוסינטזה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "ZgSM3JoGgRLUaqQChGFy",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "atWZfsU6s6yTziJyFNMW",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "c1OZi7rexENywIMcl5Hl",
+      "title": "מלחמת העולם השניייה ",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "d22Q7PpvLWtMjhUerzUL",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "dIbofmgZyUCfFTixsmOG",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "due8GvXUu7yg7sOgkfOD",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "eSZ8f3CCnlMYZNf4cVXs",
+      "title": "פוטוסינטזה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "echKjdfiPGbP7qVT2ZLw",
+      "title": "מלחמת העולם השלישית - אפוקליפסה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "faHcn5sSNayLbRC65GMy",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "fqIlvGzibK9k077LotAJ",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "h23q07OiP9pJ3Azlr4pm",
+      "title": "בית הספר בעידן שלפני המבול",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "iDMXGHD9lXAnEzxK5oV1",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "iEld7vCOnN0IzUWOsYJ5",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "inczEbA99OoWPZzICI5i",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "jFrLS3dZn5Ct52FhbhHK",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "khM1jGyNARpSrQjfe6Kx",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "lC11WvwRA4lEBVrnCjdt",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "mWv7AiGvMFLnul6Tv7fY",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "meKxBBvlJU7Y6fBt1dvL",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "o79AV3bYvsMIdSdaJxJ1",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "pRYbvNpLjG1v00pyoHrG",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "qAbzquBuAZdX0YDgfHIF",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "rGCbW3KGqzcnNGCJBDC8",
+      "title": "בינה מלאכותית במערב מול המזרח וסין",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "rwTCJa3wWyYiFMWwjcd7",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "uFaH9S5XjBOOHwCBW9Y1",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "uhNTZg13t27V1FlwPTiA",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "vAGZfhRjkGtipJSg4Ssy",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "vjfZ4iwly9w8ZTBANxHm",
+      "title": "בינה מלאכותית בחינוך",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "wSjQgu2qxYzTlFnyKnN6",
+      "title": "שפות נכחדות בדיקות",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "xX8YwcKfygp9pLauxDJW",
+      "title": "כמה עולה לנו אנרגיה",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "xfF415jASJMOwghBFYcn",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "zTiwyGr6otO1eO33iK7q",
+      "title": "טקסט פסולת  כיתה ז'",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "zcfhxDcWXeg4PNTo6Doy",
+      "title": "מלחמת העולם השנייה - הטריגרים",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "zhXjFLu4RrIW5ES6NfWn",
+      "title": "המהפכה התעשייתית: טכנולוגיות חדשות - כיתה ח׳",
+      "emptyUnitsCount": 1,
+      "totalUnits": 2
+    },
+    {
+      "id": "ztlV9hdCdHixgmegDnG6",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    },
+    {
+      "id": "zvvVCWjGZs5Js5tdshaD",
+      "title": "פעילות טקסט חופשי",
+      "emptyUnitsCount": 1,
+      "totalUnits": 1
+    }
+  ],
+  "coursesWithMCProblems": [
+    {
+      "id": "0GO0XTt6VW4KcSBwoDwW",
+      "title": "פוטוסינתזה",
+      "problems": [
+        {
+          "unitTitle": "פוטוסינתזה",
+          "blockId": "3e129c9d-b46f-4003-9dfd-4424c848d6f0",
+          "problem": "no_correct_answer",
+          "question": "מהו התהליך שבו צמחים מייצרים מזון בעזרת אור?",
+          "optionsCount": 4
+        }
+      ]
+    },
+    {
+      "id": "0VK3PbKU1gBW9V4KXDfR",
+      "title": "שפות נכחדות בדיקות",
+      "problems": [
+        {
+          "unitTitle": "שפות נכחדות בדיקות.pdf",
+          "blockId": "5e25888d-9691-4e40-a815-56786e0ffe75",
+          "problem": "answer_not_in_options",
+          "question": "מהי אחת הסיבות להיעלמות שפות?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "2G9bugOPUqtrF8c5aTjY",
+      "title": "פוטוסינתזה",
+      "problems": [
+        {
+          "unitTitle": "פוטוסינתזה",
+          "blockId": "9d729086-55a3-43ed-bc93-1b386d8f5b9f",
+          "problem": "no_options",
+          "question": "פוטוסינתזה מתרחשת רק במהלך היום.",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "פוטוסינתזה",
+          "blockId": "397d8cfa-36cc-4807-b245-2ed1f2ffa0a8",
+          "problem": "no_options",
+          "question": "פוטוסינתזה מתבצעת רק בצמחים ירוקים.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "4ydnHvp1Jj14RrSuvpMs",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "נושא כללי",
+          "blockId": "f9d96115-7df5-46bb-8958-652d16783a02",
+          "problem": "answer_not_in_options",
+          "question": "מהו הצעד הראשון בהתחברות לג'מני?",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "525KzIo86JjpAbxHN3p4",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "problems": [
+        {
+          "unitTitle": "איך מהפכת הדפוס שינתה את החיים שלנו.pdf",
+          "blockId": "58038656-b27c-4500-b24f-0c887d0f156f",
+          "problem": "answer_not_in_options",
+          "question": "מה קרה עם המצאת הדפוס לגבי זמינות הספרים?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "5ukFfUmZ2YevIRNnps8A",
+      "title": "General Topic",
+      "problems": [
+        {
+          "unitTitle": "העולם לפני הדפוס",
+          "blockId": "9ce5f187-683d-4b6a-b058-7c2cc82bef71",
+          "problem": "answer_not_in_options",
+          "question": "מה היה האמצעי העיקרי להפצת מידע וידע בעולם לפני המ",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        },
+        {
+          "unitTitle": "העולם לפני הדפוס",
+          "blockId": "e7ca3ff5-9937-41ae-afe9-61c5b82bceb1",
+          "problem": "answer_not_in_options",
+          "question": "איך הופצו רעיונות ומידע בעולם לפני המצאת הדפוס?",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "6Br45UVNgZr3wqeNA5IH",
+      "title": "מלחמת העולם השנייה ",
+      "problems": [
+        {
+          "unitTitle": "מלחמת העולם השנייה ",
+          "blockId": "95cfb11e-02b0-4ec4-b53f-9095afa67d2f",
+          "problem": "no_options",
+          "question": "הצהרה: אחת הסיבות המרכזיות לפרוץ מלחמת העולם השניי",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "7kDa91z7FFfCKjy3PLtA",
+      "title": "שפות נכחדות בדיקות",
+      "problems": [
+        {
+          "unitTitle": "שפות נכחדות בדיקות.pdf",
+          "blockId": "ae85f0ba-5a07-4a9f-8987-e5b26166470d",
+          "problem": "answer_not_in_options",
+          "question": "מה קרה לשפה שוּ לאחר מותה של יאנג הואני?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "7p7uMy67wTekeMdhLaA5",
+      "title": "בינה מלאכותית בחינוך היסודי",
+      "problems": [
+        {
+          "unitTitle": "מה זה בינה מלאכותית? הסבר פשוט לילדים",
+          "blockId": "u2",
+          "problem": "answer_not_in_options",
+          "question": "מה המטרה העיקרית של בינה מלאכותית?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "7rh8eo016tmuxpt5Fw88",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "4e2de9da-70c6-4d8f-8e09-85cb74cdd478",
+          "problem": "answer_not_in_options",
+          "question": "מה היה אחד הקשיים שחוו ילדים שעבדו במפעלי טקסטיל ב",
+          "optionsCount": 4,
+          "correctAnswer": "ג"
+        }
+      ]
+    },
+    {
+      "id": "8yGIKvSyTLc8M0ieieUq",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "problems": [
+        {
+          "unitTitle": "איך מהפכת הדפוס שינתה את החיים שלנו",
+          "blockId": "01949d73-b70d-4e5e-928b-09bef2bd85e2",
+          "problem": "answer_not_in_options",
+          "question": "מי היה יוהאן גוטנברג ומה הוא המציא?",
+          "optionsCount": 4,
+          "correctAnswer": "ג"
+        }
+      ]
+    },
+    {
+      "id": "A8J1CJB1Z1hBbwYoyBOo",
+      "title": "טקסט פסולת  כיתה ז'",
+      "problems": [
+        {
+          "unitTitle": "טקסט פסולת  כיתה ז'",
+          "blockId": "bca703c3-d729-4d19-abb4-7cf12a8f6f62",
+          "problem": "answer_not_in_options",
+          "question": "מה היה קצב הגידול של כמות הפסולת בישראל בין השנים ",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "AYgbjGM1eOR3SxPV49i9",
+      "title": "שפות נכחדות בדיקות",
+      "problems": [
+        {
+          "unitTitle": "שפות נכחדות בדיקות.pdf",
+          "blockId": "e5674419-e4f5-4f07-ac53-774782f4c6e9",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה התרומה של יאנג הואני לשפה שׁוּ?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "Byb70p4BqAkyjOKlQBWV",
+      "title": "העלייה השנייה לישראל",
+      "problems": [
+        {
+          "unitTitle": "העלייה השנייה לישראל",
+          "blockId": "22b74d08-a47d-4b53-96e5-cc1f7deb53e9",
+          "problem": "no_options",
+          "question": "האם נכון שהעלייה השנייה התמקדה בעיקר ביהודים ממזרח",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "C12LXU8vU9wZXBtIRrUy",
+      "title": "הפלישה לאוקראינה",
+      "problems": [
+        {
+          "unitTitle": "הפלישה לאוקראינה",
+          "blockId": "37ec16fc-14bd-4f44-a073-005260ac5896",
+          "problem": "answer_not_in_options",
+          "question": "שאלה",
+          "optionsCount": 4,
+          "correctAnswer": "4"
+        }
+      ]
+    },
+    {
+      "id": "CRDCYWbxCO8OOVESykXF",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "57048c03-cdd4-4e7f-9c62-bed9d8e93e77",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה אחת מהאחריות של ילדים בימי הביניים?",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "CmGvo03MywR4M7rL12Nh",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "ff8e1169-3b19-4e7a-aa39-ca0c60e6eb39",
+          "problem": "answer_not_in_options",
+          "question": "מה הכוונה ב'פעילות טקסט חופשי'?",
+          "optionsCount": 2,
+          "correctAnswer": {
+            "id": "o1",
+            "text": "כתיבה יצירתית ללא הגבלות",
+            "is_correct": true,
+            "feedback": "כל הכבוד!"
+          }
+        },
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "9ee5daff-9b4d-4d35-8923-8cb01bfa0129",
+          "problem": "no_correct_answer",
+          "question": "פעילות טקסט חופשי כוללת רק כתיבה של שירים.",
+          "optionsCount": 2
+        }
+      ]
+    },
+    {
+      "id": "D3dBZi3qi6scMRvFnJ3o",
+      "title": "מושגי יסודי באנרגיה חילופית ",
+      "problems": [
+        {
+          "unitTitle": "מושגי יסודי באנרגיה חילופית ",
+          "blockId": "0e75ed19-c7d3-44a5-8c73-03e117854e7e",
+          "problem": "no_options",
+          "question": "אנרגיה סולארית היא סוג של אנרגיה חילופית.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "Efi4I775KHW7z2nZhG9F",
+      "title": "נפוליאון",
+      "problems": [
+        {
+          "unitTitle": "נפוליאון",
+          "blockId": "62f5022c-a76d-451d-89d9-59334b3ab780",
+          "problem": "answer_not_in_options",
+          "question": "מה היה אחד ההישגים המרכזיים של נפוליאון בשנותיו הר",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        },
+        {
+          "unitTitle": "נפוליאון",
+          "blockId": "eb60ac0e-9408-41a0-bd40-a50db3fd261d",
+          "problem": "answer_not_in_options",
+          "question": "איזה מהמלחמות הבאות הייתה מרכזית במאבק של נפוליאון",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "GOxeF9JuMeil98PF4HHI",
+      "title": "ביקור בכנסת ישראל ",
+      "problems": [
+        {
+          "unitTitle": "ביקור בכנסת ישראל ",
+          "blockId": "6f2437fd-d410-4cbd-9092-971a3a5ce1f7",
+          "problem": "no_options",
+          "question": "הכנסת נמצאת בירושלים.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "HhjBKInBeyezmO6tJWXd",
+      "title": "שפות נכחדות בדיקות",
+      "problems": [
+        {
+          "unitTitle": "שפות נכחדות בדיקות.pdf",
+          "blockId": "38a2f506-ade2-452c-8d8c-4648f7bef51f",
+          "problem": "answer_not_in_options",
+          "question": "מה קרה לשפות ני'שן ופֶּנְטִּיָאנִית?",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        }
+      ]
+    },
+    {
+      "id": "HlzIH3hGmpguikcUknIg",
+      "title": "העלייה השנייה לישראל",
+      "problems": [
+        {
+          "unitTitle": "העלייה השנייה לישראל",
+          "blockId": "ee810d28-557e-4bad-a638-7f36c5327781",
+          "problem": "no_options",
+          "question": "האם נכון שהעלייה השנייה התרחשה בין השנים 1904-1914",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "IPoSxbJ1gwnGLfzcZXW6",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "11ac2077-e4e6-4a83-b2db-b7b97ef338b9",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה אחת הדרכים שבהן ילדים התמודדו עם הקשיים ב",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "KNJ6NTEK52TiOZ64LR5M",
+      "title": "הפלישה לאוקראינה ",
+      "problems": [
+        {
+          "unitTitle": "הפלישה לאוקראינה ",
+          "blockId": "48a23cf5-b57c-44b8-b525-658a86c7be82",
+          "problem": "no_correct_answer",
+          "question": "שאלה",
+          "optionsCount": 4
+        }
+      ]
+    },
+    {
+      "id": "KQCKI2h7fgg3zfV0l3Br",
+      "title": "המהפכה התעשייתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה התעשייתית.pdf",
+          "blockId": "ca78ef45-e292-415f-b458-16e924f84f18",
+          "problem": "answer_not_in_options",
+          "question": "מה היה אחד היתרונות שהובילו למהפכה התעשייתית באנגל",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "KlhwHZCzScQUhfuTHbZ5",
+      "title": "טקסט פסולת  כיתה ז'",
+      "problems": [
+        {
+          "unitTitle": "טקסט פסולת  כיתה ז'.pdf",
+          "blockId": "65fa9f8f-af9d-4e63-9fed-df9a481944a7",
+          "problem": "answer_not_in_options",
+          "question": "מה היה שיעור הגידול בכמות הפסולת בישראל בין השנים ",
+          "optionsCount": 4,
+          "correctAnswer": "ג"
+        }
+      ]
+    },
+    {
+      "id": "KrCFFwcFPjjlo5stNtWN",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "4bd56441-09da-4645-9a49-1db02ce719e3",
+          "problem": "answer_not_in_options",
+          "question": "מהו תהליך הפוטוסינתזה?",
+          "optionsCount": 3,
+          "correctAnswer": {
+            "id": "opt1",
+            "text": "תהליך שבו צמחים מייצרים מזון",
+            "is_correct": true,
+            "feedback": "מעולה! זה בדיוק מה שמתרחש בתהליך הפוטוסינתזה."
+          }
+        },
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "833f5fb9-48f0-4494-9768-738ad7795ddc",
+          "problem": "answer_not_in_options",
+          "question": "האם הכלורופיל חשוב לתהליך הפוטוסינתזה?",
+          "optionsCount": 2,
+          "correctAnswer": {
+            "text": "נכון",
+            "is_correct": true,
+            "feedback": "נכון! הכלורופיל משמש כקולטן אנרגיה בתהליך."
+          }
+        },
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "97b7c0c4-facb-4ee2-a2c8-74f0724c87b3",
+          "problem": "answer_not_in_options",
+          "question": "מהי אחת מהחשיבות של הפוטוסינתזה ליצורים החיים?",
+          "optionsCount": 3,
+          "correctAnswer": {
+            "id": "opt1",
+            "text": "היא מספקת חמצן לאוויר",
+            "is_correct": true,
+            "feedback": "נכון! חמצן הוא תוצר חשוב של הפוטוסינתזה."
+          }
+        }
+      ]
+    },
+    {
+      "id": "Lc2egoW3qJWEuynEWihU",
+      "title": "טקסט פסולת  כיתה ז'",
+      "problems": [
+        {
+          "unitTitle": "טקסט פסולת  כיתה ז'",
+          "blockId": "8d96143f-98fc-4f1b-95ee-23fea9409694",
+          "problem": "answer_not_in_options",
+          "question": "מה קרה לכמות הפסולת בישראל בין השנים 1997 ל-2008?",
+          "optionsCount": 4,
+          "correctAnswer": "C"
+        }
+      ]
+    },
+    {
+      "id": "Qt203J3jMSXxpBh0DPeJ",
+      "title": "המהפכה הצרפתית ",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית ",
+          "blockId": "f041189a-9110-478a-a200-587e2adac2ac",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית הביאה לשוויון זכויות לכל האזרחים בצ",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "QvjpG7A8gQbTfK95GNBp",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "נושא כללי",
+          "blockId": "4ccd6082-6797-42ec-a1cb-1a34427a89ca",
+          "problem": "answer_not_in_options",
+          "question": "מה עשה מאיר כאשר ראה את האדם הזר?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "RKL5kVtFfkoMuj0NehZM",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "33180818-7fd3-4471-aea8-a463b31c1788",
+          "problem": "answer_not_in_options",
+          "question": "מה היה המצב העיקרי שבו הילדים חיו בתקופות מלחמה, ל",
+          "optionsCount": 4,
+          "correctAnswer": "Option 1"
+        }
+      ]
+    },
+    {
+      "id": "U5VLDY4zGjjsNsIh77v3",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "נושא כללי",
+          "blockId": "324546b1-6267-4a8b-b6d2-10057e5cfcb1",
+          "problem": "answer_not_in_options",
+          "question": "מה היתרון המרכזי של הדפוס בעידן המודרני?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "Uig2dXcmTUpnv0xCDdhz",
+      "title": "פעילות טקסט חופשי",
+      "problems": [
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "57bd67fb-d934-4704-bfab-60ff448da5b6",
+          "problem": "answer_not_in_options",
+          "question": "מהו תהליך הפוטוסינתזה?",
+          "optionsCount": 3,
+          "correctAnswer": {
+            "id": "opt1",
+            "text": "תהליך שבו הצמח מייצר מזון",
+            "is_correct": true,
+            "feedback": "מצוין! זהו תהליך שבו הצמח מייצר סוכר."
+          }
+        },
+        {
+          "unitTitle": "פעילות טקסט חופשי",
+          "blockId": "7c8cae49-63e3-4cbe-a248-0011c772d44a",
+          "problem": "answer_not_in_options",
+          "question": "האם הכלורופיל הוא שמאפשר לצמחים לקלוט אנרגיה?",
+          "optionsCount": 2,
+          "correctAnswer": {
+            "id": "true",
+            "text": "נכון",
+            "is_correct": true,
+            "feedback": "נכון! הכלורופיל משמש כקולטן אנרגיה."
+          }
+        }
+      ]
+    },
+    {
+      "id": "V7PdzJFgy8LamRuhLQ77",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "problems": [
+        {
+          "unitTitle": "איך מהפכת הדפוס שינתה את החיים שלנו",
+          "blockId": "e237f3a7-636e-4018-9eae-62eea9874fc6",
+          "problem": "answer_not_in_options",
+          "question": "איך הדפוס שינה את זמינות הידע?",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        }
+      ]
+    },
+    {
+      "id": "VdXjfflZh9p8WunNAbIw",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "516dc18b-7f42-4872-b607-715c9ecaa3e3",
+          "problem": "answer_not_in_options",
+          "question": "מה היו תפקידי הילדים בימי הביניים?",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        },
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+          "blockId": "f42f1a4b-d6e7-4e05-aed4-28686e216edd",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה תחושת הילדים במהלך המהפכה התעשייתית?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        }
+      ]
+    },
+    {
+      "id": "Vnh7td4Qk6GgGoPe3pBu",
+      "title": "המהפכה הצרפתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית",
+          "blockId": "b7b1950a-8cbd-40d4-87c6-6afb25686065",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית הביאה לביטול המעמדות החברתיים בצרפת",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "WEjo3NuKQJUOlsyGi01A",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+          "blockId": "19620be1-1262-4501-86b5-b3c86564b2f0",
+          "problem": "answer_not_in_options",
+          "question": "האם כל הילדים חוו את אותן חוויות באותה תקופה?",
+          "optionsCount": 2,
+          "correctAnswer": true
+        }
+      ]
+    },
+    {
+      "id": "YUwltTyDkWv2PFLM5WWY",
+      "title": "מלחמת העולם השנייה הטריגרים",
+      "problems": [
+        {
+          "unitTitle": "מלחמת העולם השנייה הטריגרים",
+          "blockId": "86c80aec-6d81-4eaf-a2c2-142a01ebf5f0",
+          "problem": "no_options",
+          "question": "האם הסכמות בין מדינות אירופה בשנות ה-30 מנעו את מל",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "מלחמת העולם השנייה הטריגרים",
+          "blockId": "7eebf1e8-fc1a-43f3-82d2-219a9dc94ff5",
+          "problem": "no_options",
+          "question": "האם המצב הכלכלי בתקופה זו השפיע על עליית הנאציזם?",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "ZVAS79P06XJQy5zWU46F",
+      "title": "המהפכה הצרפתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית",
+          "blockId": "e44beeec-cbe8-42fe-b437-5e1a7ec17e81",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית התחילה בשנת 1789.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "ZiMpKUsKXnzVP66SLH2b",
+      "title": "טקסט פסולת  כיתה ז'",
+      "problems": [
+        {
+          "unitTitle": "טקסט פסולת  כיתה ז'.pdf",
+          "blockId": "b051a3a2-06e8-44dd-afbd-5a8be35f3aa6",
+          "problem": "answer_not_in_options",
+          "question": "איזה מהבאים הוא פתרון להפחתת כמות הפסולת?",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        }
+      ]
+    },
+    {
+      "id": "coisphNtXTDnCSxkckTd",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+          "blockId": "248dd21c-c8ba-478f-b484-be7b1440c567",
+          "problem": "no_options",
+          "question": "שגיאה ביצירה",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "fbiD9rVK1kY9ZIDm7Wql",
+      "title": "המהפכה הצרפתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית",
+          "blockId": "30bb4082-d89e-4c87-ab1f-6ee709db1574",
+          "problem": "answer_not_in_options",
+          "question": "מה היה הגורם הכלכלי המרכזי שהוביל למהפכה הצרפתית?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "jIGuNaBY36Y2piugvuPO",
+      "title": "העליה הראשונה לישראל",
+      "problems": [
+        {
+          "unitTitle": "העליה הראשונה לישראל",
+          "blockId": "7d22e8df-eed3-4bc8-8247-0fde89041308",
+          "problem": "no_options",
+          "question": "הברון אדמונד דה רוטשילד (ה'נדיב הידוע') תמך במושבו",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "jTTtTdePag3fVanpDkAF",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "problems": [
+        {
+          "unitTitle": "איך מהפכת הדפוס שינתה את החיים שלנו.pdf",
+          "blockId": "f540925a-5511-4434-bef2-5e03f8a5df28",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה אחת ההשפעות של המצאת הדפוס של גוטנברג?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "kybHVuOjpvPT1w6VFZh1",
+      "title": "המהפכה התעשייתית הקיטור",
+      "problems": [
+        {
+          "unitTitle": "המצאת מנוע הקיטור: התפתחות וחדשנות",
+          "blockId": "acb2f4f5-7c7a-4a5d-be5b-ed0dd520bf97",
+          "problem": "answer_not_in_options",
+          "question": "איזו דמות מפתח קשורה באופן הדוק ביותר לשיפורים משמ",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "id": "lPrzJ0frxeZSTExDuCHG",
+      "title": "מוכרת הגפרורים - עיצוב- טלי פלד 06",
+      "problems": [
+        {
+          "unitTitle": "מוכרת הגפרורים - עיצוב- טלי פלד 06",
+          "blockId": "bca6bf4d-53cf-4c9e-b8b8-ff2fc17cacf8",
+          "problem": "no_options",
+          "question": "האם הסיפור 'מוכרת הגפרורים' עוסק בחג המולד?",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "mJDQ94ycKRhcDpp3FS9X",
+      "title": "פוטוסינתזה ",
+      "problems": [
+        {
+          "unitTitle": "פוטוסינתזה ",
+          "blockId": "e57997d8-e24b-4756-a92b-a4c2e63e73eb",
+          "problem": "no_options",
+          "question": "צמחים משתמשים בחמצן כדי לבצע פוטוסינתזה.",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "פוטוסינתזה ",
+          "blockId": "3037211b-f19a-4c2c-ba61-cad8fed42893",
+          "problem": "no_options",
+          "question": "פוטוסינתזה מתרחשת רק ביום.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "mtvd6fJiqvlUiphgfZf2",
+      "title": "מנהיגות",
+      "problems": [
+        {
+          "unitTitle": "ההזדמנות לגלות מי יודע להנהיג",
+          "blockId": "8466c810-a01c-44f7-a476-06d4ba29d5cc",
+          "problem": "answer_not_in_options",
+          "question": "מה המשמעות העיקרית של \"ההזדמנות לגלות מי יודע להנה",
+          "optionsCount": 4,
+          "correctAnswer": "C"
+        }
+      ]
+    },
+    {
+      "id": "oDKF5Vx8UkTZJGiPFPsz",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "problems": [
+        {
+          "unitTitle": "איך מהפכת הדפוס שינתה את החיים שלנו.pdf",
+          "blockId": "206318b4-1c9e-422e-9ec9-836379987710",
+          "problem": "answer_not_in_options",
+          "question": "איך הדפוס שינה את הגישה של אנשים לספרים?",
+          "optionsCount": 4,
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "id": "saClVkn9RHHtFncbUHax",
+      "title": "הבחירות בארה\"ב המתחים הבין גזעיים ",
+      "problems": [
+        {
+          "unitTitle": "הבחירות בארה\"ב המתחים הבין גזעיים ",
+          "blockId": "3b2a83c0-4f1e-4d33-9cca-a881d92a810e",
+          "problem": "no_options",
+          "question": "נכון או לא נכון: הבחירות בארצות הברית משפיעות על ה",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "הבחירות בארה\"ב המתחים הבין גזעיים ",
+          "blockId": "da67191a-7d72-4c94-8fd5-921ca520ddff",
+          "problem": "no_options",
+          "question": "נכון או לא נכון: המתחים הבין גזעיים בארה\"ב נובעים ",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "sq6aAOBqw8aCcutA8wGB",
+      "title": "המהפכה הצרפתית ",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית ",
+          "blockId": "2c01a153-bd4a-4b4d-abba-9e727c8dd0e8",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית הביאה לעלייה במעמד האזרח והגברת זכו",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "המהפכה הצרפתית ",
+          "blockId": "0f6b19ba-b1cd-43a6-9473-cad2becc915e",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית התרחשה במאה ה-18.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "tAdEynahz2qWmfgebwIC",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+      "problems": [
+        {
+          "unitTitle": "ילדים בגילך בתקופה אחרת בהיסטוריה",
+          "blockId": "a717b4d7-2dc5-4214-8822-0303fab5636c",
+          "problem": "no_options",
+          "question": "שגיאה ביצירה",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "u4E0Dev85Gv49tWrLMG1",
+      "title": "העלייה השנייה לישראל",
+      "problems": [
+        {
+          "unitTitle": "העלייה השנייה לישראל",
+          "blockId": "c4d5c2fc-cf9a-4fbf-aa03-9e17db16181d",
+          "problem": "no_options",
+          "question": "המונח 'כיבוש העבודה', שהיה מושג מרכזי בהגות העלייה",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "ulczATAgrzEZsqvl2DN7",
+      "title": "המהפכה הצרפתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית",
+          "blockId": "b185c1c1-2a28-43a7-a80a-011251dfd22f",
+          "problem": "answer_not_in_options",
+          "question": "מה היה אחד מהגורמים שהובילו למהפכה הצרפתית?",
+          "optionsCount": 4,
+          "correctAnswer": "ג"
+        }
+      ]
+    },
+    {
+      "id": "uwfkgkBjgV3IBpy0hq4c",
+      "title": "העלייה השנייה לישראל - השפעות על הציונות",
+      "problems": [
+        {
+          "unitTitle": "העלייה השנייה לישראל - השפעות על הציונות",
+          "blockId": "677f041f-ae40-4d44-bf61-fbee41749197",
+          "problem": "no_options",
+          "question": "המונח 'כיבוש העבודה' מתייחס למאמץ של עולי העלייה ה",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "vzxfOUAkkv2aOvqtHquI",
+      "title": "פוטוסינתזה",
+      "problems": [
+        {
+          "unitTitle": "פוטוסינתזה",
+          "blockId": "340974c6-8b73-4b56-9ce3-65ff9e498b58",
+          "problem": "no_options",
+          "question": "האם הפוטוסינתזה מתרחשת רק בצמחים?",
+          "optionsCount": 0
+        },
+        {
+          "unitTitle": "פוטוסינתזה",
+          "blockId": "216a3cff-dbb3-475c-bfe8-9794975689f6",
+          "problem": "no_options",
+          "question": "האם הפוטוסינתזה מתבצעת רק באור יום?",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "yCXOiJXlHysvRFeHqrJM",
+      "title": "המהפכה הצרפתית",
+      "problems": [
+        {
+          "unitTitle": "המהפכה הצרפתית",
+          "blockId": "d77fa065-6f07-403e-a775-b724306dab4f",
+          "problem": "no_options",
+          "question": "המהפכה הצרפתית החלה בשנת 1789.",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "yKFJdE6r9c17kweCYwEj",
+      "title": "המתיחות בין סין לטייאון רקע היסטורי",
+      "problems": [
+        {
+          "unitTitle": "המתיחות בין סין לטייאון רקע היסטורי",
+          "blockId": "b89e94a0-e96f-41d1-944c-e9080369998b",
+          "problem": "no_options",
+          "question": "הרפובליקה של סין (ROC) – הגוף הפוליטי השולט כיום ב",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "yqvuwStu7OVyZEJUdVvM",
+      "title": "רכיבה על סוסים ככלי טיפולי לנפגעי טראומה ",
+      "problems": [
+        {
+          "unitTitle": "רכיבה על סוסים ככלי טיפולי לנפגעי טראומה ",
+          "blockId": "ced0adc7-72c3-4319-90b2-34af706f8fa3",
+          "problem": "no_options",
+          "question": "רכיבה על סוסים יכולה לסייע בשיפור הכישורים החברתיי",
+          "optionsCount": 0
+        }
+      ]
+    },
+    {
+      "id": "zM2gQuvu9THQOAdCCjlf",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "problems": [
+        {
+          "unitTitle": "יחידה 1: היכרות ראשונית עם התקופות ההיסטוריות",
+          "blockId": "88c66c45-794f-4e54-bd83-788e9d123cb4",
+          "problem": "answer_not_in_options",
+          "question": "איך למדו ילדים בעבר?",
+          "optionsCount": 4,
+          "correctAnswer": "B"
+        },
+        {
+          "unitTitle": "יחידה 3: חינוך ומשחקים בעולם הישן",
+          "blockId": "b45cf2be-cf55-4ce9-96dd-792f63112c05",
+          "problem": "answer_not_in_options",
+          "question": "מה הייתה אחת הפעילויות שילדים עשו במהלך הקיץ?",
+          "optionsCount": 4,
+          "correctAnswer": "ב"
+        },
+        {
+          "unitTitle": "יחידה 4: השוואה בין ילדות בעבר ובהווה",
+          "blockId": "06f45af6-0584-4d63-b483-8d87e68f32f0",
+          "problem": "answer_not_in_options",
+          "question": "מה היו העבודות שעשו ילדים בתקופות שונות?",
+          "optionsCount": 4,
+          "correctAnswer": "א"
+        }
+      ]
+    }
+  ],
+  "coursesWithNoActivityBlocks": [
+    {
+      "id": "1xLaw0eR7kGqOOe4io7B",
+      "title": "מלחמת העולם השלישית",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "1yu65RzXl9LigyWZHn80",
+      "title": "פעילות טקסט חופשי",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "2HBNXC43SCS3pRWCfSnx",
+      "title": "שפות נכחדות בדיקות",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "2rjrZqxKcx2Sw7ZMxv8C",
+      "title": "דור ה Z",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "5IhYEw6hqMsFkkbfEBul",
+      "title": "העלייה הראשונה לישראל",
+      "unitsWithNoActivity": 3
+    },
+    {
+      "id": "5SCU1d6Y9b7HELptkV8r",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "7KNEw3R2C3HQzIuUFHuO",
+      "title": "תהליך הפוטוסינתזה",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "7td8JBSr5pMRPJPZbQUJ",
+      "title": "שפות נכחדות בדיקות",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "7yyPgDXXlqrXAKzF3EGX",
+      "title": "העלייה הראשונה לישראל",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "9mWksL67Kp4TwSd2uRC2",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "A1XA8su0xphmDn45Z4Fl",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Bup7R1btR5LdjZ03f4a0",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "unitsWithNoActivity": 6
+    },
+    {
+      "id": "CZjv6R67PNiHDg8k2TRP",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "E6BGIncpWXaTTd4k8Miv",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "EGG18YlgbctpUK1ZCYET",
+      "title": "העלייה השנייה לישראל",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "GZtwYV4j2gLlK7MhgBE4",
+      "title": "שפות נכחדות בדיקות",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "GvVLsTgCE1jlPClGiszB",
+      "title": "העלייה השנייה לישראל",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "HasoOssYpHnJjodVyqnY",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Jgn93C8Wr5MRww9rfvMI",
+      "title": "פעילות חקר בין תחומית - STEM",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "LhrpjdIchhY1LgvRnXEZ",
+      "title": "פוטוסינטזה",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "MJoQIkom5dxLLoOz2XXz",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "PPMtEnRuAerYxBzdnzey",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Rz0X6BTLfinIgYBu91i1",
+      "title": "פעילות טקסט חופשי",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "StNSMWuJivGfAViEKk2B",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "UAzyrOwQYiRHqvZC0WI1",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "unitsWithNoActivity": 5
+    },
+    {
+      "id": "UG1dQalwSqxNTaJtEAQR",
+      "title": "איך מהפכת הדפוס שינתה את החיים שלנו",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Uj1dZN1Jy2kqFXlqiDzv",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "V2TlZqm82SHWIqbuABwR",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Zmlv6X1akDTRP9Xh9b1q",
+      "title": "פעילות טקסט חופשי",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "Zmtvo8qB57NR3ULS1BZV",
+      "title": "שימוש בבינה מלאכותית בבית הספר",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "cuxRdEc0VciC05ExqGvd",
+      "title": "בינה מלאכותית ברפואה",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "d2RxcT8VvePS8hl6UHSA",
+      "title": "ילדים בגילך בתקופה אחרת בהיסטוריה ללא שוליים",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "fUUs7kvqBW8qvVCwmY9G",
+      "title": "שפות נכחדות בדיקות",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "hqu2xmcD9zBnPVhfZ7AV",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "hzXxFsSIJS1le8mz91RU",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "mQL2gGX7HFz0ry6SB2oA",
+      "title": "העלייה הראשונה לישראל",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "nMVbttnEjkUcNXUtwWDM",
+      "title": "פעילות טקסט חופשי",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "pCProncpIR2KM1lQuQq4",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "pccd9XAn4KGgO33Wzc8n",
+      "title": "מלחמת העולם השנייה ",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "s5CMQ9kkVGZxhQeIJXdF",
+      "title": "שפות נכחדות בדיקות",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "sRfgZiYkPEtczbV4NbPg",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "tgwEUL4ZgWwXR69MnoLp",
+      "title": "העלייה השניייה  מאפיינים לה ",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "u8LiK2kPgPugdheCMESl",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "vDtLZu1Y8ni8iEiYafLx",
+      "title": "הלובי הקטארי והקשר לחמאס ",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "xtM2w3b3l4nNgETJotCd",
+      "title": "טקסט פסולת  כיתה ז'",
+      "unitsWithNoActivity": 1
+    },
+    {
+      "id": "zji99vx7wlJTLiDL8vMt",
+      "title": "תהליך הפוטוסינתזה",
+      "unitsWithNoActivity": 1
+    }
+  ],
+  "byStatus": {
+    "unknown": 462
+  },
+  "byCreationMethod": {},
+  "patterns": []
+}

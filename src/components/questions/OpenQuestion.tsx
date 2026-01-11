@@ -276,15 +276,6 @@ const OpenQuestion = memo(function OpenQuestion({
         </button>
       )}
 
-      {/* Teacher tip (if available and in exam review mode) */}
-      {readOnly && block.metadata?.teacher_guidelines && (
-        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-          <h4 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2"><span aria-hidden="true">📝</span> הנחיות למורה:</h4>
-          <div className="text-sm text-yellow-700 dark:text-yellow-200 whitespace-pre-wrap">
-            {block.metadata.teacher_guidelines}
-          </div>
-        </div>
-      )}
     </div>
   );
 });

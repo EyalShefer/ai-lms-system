@@ -43,7 +43,7 @@ interface RecentActivity {
 }
 
 interface HomePageRedesignMobileProps {
-    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'game') => void;
+    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
     onNavigateToPrompts?: () => void;
@@ -215,7 +215,7 @@ const HomePageRedesignMobile = ({
                         </button>
 
                         <button
-                            onClick={() => onCreateNew('learning', 'game')}
+                            onClick={() => onCreateNew('learning', 'activity')}
                             className="flex flex-col items-center gap-2 p-4 min-h-[100px] bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-wizdi-action active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-action"
                             aria-label="פעילות לתלמיד"
                         >

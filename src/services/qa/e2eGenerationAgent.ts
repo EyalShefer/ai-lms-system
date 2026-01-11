@@ -110,7 +110,7 @@ const SAMPLE_YOUTUBE_SOURCES = {
 // ===== TYPES =====
 
 interface E2ETestResult {
-  testType: 'lesson_from_text' | 'lesson_from_youtube' | 'podcast' | 'exam' | 'game' | 'differentiated';
+  testType: 'lesson_from_text' | 'lesson_from_youtube' | 'podcast' | 'exam' | 'activity' | 'differentiated';
   sourceType: 'text' | 'youtube' | 'pdf' | 'topic';
   subject: string;
   gradeLevel: string;
@@ -518,7 +518,7 @@ async function testInteractiveBlocksGeneration(
     issues.push(...validation.issues);
 
     return {
-      testType: 'game',
+      testType: 'activity',
       sourceType: 'text',
       subject: source.subject,
       gradeLevel: source.gradeLevel,
@@ -536,7 +536,7 @@ async function testInteractiveBlocksGeneration(
 
   } catch (error: any) {
     return {
-      testType: 'game',
+      testType: 'activity',
       sourceType: 'text',
       subject: source.subject,
       gradeLevel: source.gradeLevel,
@@ -875,7 +875,7 @@ export async function runE2EGenerationAgent(): Promise<QAAgentResult> {
         lesson: e2eResults.filter(r => r.testType === 'lesson_from_text').length,
         youtube: e2eResults.filter(r => r.testType === 'lesson_from_youtube').length,
         podcast: e2eResults.filter(r => r.testType === 'podcast').length,
-        game: e2eResults.filter(r => r.testType === 'game').length,
+        activity: e2eResults.filter(r => r.testType === 'activity').length,
       }
     },
     duration: Date.now() - startTime,

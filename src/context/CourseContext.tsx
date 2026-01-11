@@ -137,13 +137,22 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     }, [currentUser, gamificationProfile]);
 
-    const loadCourse = React.useCallback((id: string) => setCurrentCourseId(id), []);
+    const loadCourse = React.useCallback((id: string) => {
+        console.log('[CourseContext] loadCourse called with id:', id);
+        setCurrentCourseId(id);
+    }, []);
 
     useEffect(() => {
-        if (!currentCourseId) return;
+        if (!currentCourseId) {
+            console.log('[CourseContext] No currentCourseId, skipping load');
+            return;
+        }
+
+        console.log('[CourseContext] Setting up onSnapshot for courseId:', currentCourseId);
 
         // האזנה לשינויים במסמך
         const unsubscribe = onSnapshot(doc(db, "courses", currentCourseId), async (docSnap) => {
+            console.log('[CourseContext] onSnapshot callback - exists:', docSnap.exists());
             if (docSnap.exists()) {
                 const data = docSnap.data() as Course;
 

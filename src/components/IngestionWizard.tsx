@@ -24,7 +24,7 @@ const SUBJECTS = [
     "חינוך גופני", "חינוך פיננסי", "אמנות", "תקשורת", "פסיכולוגיה", "סוציולוגיה", "אחר"
 ];
 
-type ProductType = 'lesson' | 'podcast' | 'exam' | 'game' | null;
+type ProductType = 'lesson' | 'podcast' | 'exam' | 'activity' | null;
 
 const PRODUCT_CONFIG: Record<string, {
     titleLabel: string;
@@ -55,7 +55,7 @@ const PRODUCT_CONFIG: Record<string, {
             { id: 'long', label: 'ארוך' }
         ]
     },
-    game: {
+    activity: {
         titleLabel: "כותרת הפעילות",
         lengthLabel: "משך הפעילות",
         headerLabel: "יצירת פעילות לתלמיד",
@@ -96,7 +96,7 @@ interface IngestionWizardProps {
     onCancel: () => void;
     initialTopic?: string;
     initialMode?: 'learning' | 'exam';
-    initialProduct?: 'lesson' | 'podcast' | 'exam' | 'game';
+    initialProduct?: 'lesson' | 'podcast' | 'exam' | 'activity';
     title?: string;
     cancelLabel?: string;
     cancelIcon?: React.ReactNode;
@@ -209,17 +209,19 @@ const SourceCard = ({ label, icon: Icon, color, isActive, onClick, innerRef, chi
     );
 };
 
-const ProductCard = ({ label, icon: Icon, color, desc, isActive, onClick }: any) => {
+const ProductCard = ({ label, icon: Icon, color, desc, isActive, onClick, disabled }: any) => {
     // const theme = THEMES[color] || THEMES['blue'];
     return (
         <div
-            onClick={onClick}
+            onClick={disabled ? undefined : onClick}
             className={`
-                relative p-6 rounded-2xl border transition-all duration-200 cursor-pointer
+                relative p-6 rounded-2xl border transition-all duration-200
                 flex flex-col items-center text-center h-full
-                ${isActive
-                    ? 'border-wizdi-royal bg-blue-50/50 shadow-lg ring-2 ring-wizdi-royal'
-                    : `border-slate-200 bg-white hover:border-blue-300 hover:shadow-md`
+                ${disabled
+                    ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-60'
+                    : isActive
+                        ? 'border-wizdi-royal bg-blue-50/50 shadow-lg ring-2 ring-wizdi-royal cursor-pointer'
+                        : `border-slate-200 bg-white hover:border-blue-300 hover:shadow-md cursor-pointer`
                 }
             `}
         >
@@ -235,6 +237,11 @@ const ProductCard = ({ label, icon: Icon, color, desc, isActive, onClick }: any)
             {isActive && (
                 <div className="absolute top-4 right-4 bg-wizdi-royal text-white p-1 rounded-full shadow-sm animate-pop">
                     <IconCheck className="w-4 h-4" />
+                </div>
+            )}
+            {disabled && (
+                <div className="absolute top-4 left-4 bg-slate-400 text-white px-2 py-1 rounded-full text-xs font-bold">
+                    בקרוב
                 </div>
             )}
         </div>
@@ -307,7 +314,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         if (selectedProduct === 'exam') {
             setCourseMode('exam');
             setTaxonomy({ knowledge: 20, application: 40, evaluation: 40 });
-        } else if (selectedProduct === 'game') {
+        } else if (selectedProduct === 'activity') {
             setCourseMode('learning');
             setTaxonomy({ knowledge: 20, application: 70, evaluation: 10 });
         } else {
@@ -546,7 +553,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             open();
                                         }}
                                     >
-                                        {file ? <span className="text-wizdi-royal font-bold">{file.name}</span> : "PDF, TXT, תמונות, Audio"}
+                                        {file ? <span className="text-wizdi-royal font-bold">{file.name}</span> : "PDF, TXT"}
                                         <input {...getInputProps()} />
                                     </SourceCard>
                                 );
@@ -565,13 +572,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                             <SourceCard
                                 id="multimodal"
-                                label="יוטיוב / אודיו"
+                                label="יוטיוב / וידאו"
                                 icon={IconVideo}
                                 color="red"
                                 isActive={mode === 'multimodal'}
                                 onClick={() => setMode('multimodal')}
                             >
-                                סרטון או הקלטה
+                                סרטון יוטיוב או קובץ וידאו
                             </SourceCard>
 
                             <SourceCard
@@ -768,12 +775,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
                             <ProductCard
                                 id="lesson"
-                                label="מערך שיעור"
+                                label="סוכני הוראה"
                                 desc="בניית יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום."
                                 icon={IconBook}
                                 color="blue"
                                 isActive={selectedProduct === 'lesson'}
                                 onClick={() => setSelectedProduct('lesson')}
+                                disabled={true}
                             />
                             <ProductCard
                                 id="podcast"
@@ -794,13 +802,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 onClick={() => setSelectedProduct('exam')}
                             />
                             <ProductCard
-                                id="game"
+                                id="activity"
                                 label="פעילות לתלמיד"
                                 desc="פעילות אינטראקטיבית לתרגול וחזרה בצורה חוויתית."
                                 icon={IconJoystick} // Using Joystick icon
                                 color="pink"
-                                isActive={selectedProduct === 'game'}
-                                onClick={() => setSelectedProduct('game')}
+                                isActive={selectedProduct === 'activity'}
+                                onClick={() => setSelectedProduct('activity')}
                             />
                         </div>
                     )}
@@ -835,11 +843,15 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">{config.lengthLabel}</label>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {config.lengthOptions.map(o => (
-                                            <button key={o.id} onClick={() => setActivityLength(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all ${activityLength === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
-                                                {o.label}
-                                            </button>
-                                        ))}
+                                        {config.lengthOptions.map(o => {
+                                            const questionCount = o.id === 'short' ? 3 : (o.id === 'long' ? 7 : 5);
+                                            return (
+                                                <button key={o.id} onClick={() => setActivityLength(o.id as any)} className={`p-2 rounded-xl text-sm font-bold transition-all flex flex-col items-center ${activityLength === o.id ? 'bg-wizdi-royal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
+                                                    <span>{o.label}</span>
+                                                    <span className={`text-xs font-normal ${activityLength === o.id ? 'text-blue-100' : 'text-slate-400'}`}>({questionCount} שאלות)</span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -863,7 +875,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             התאמה פדגוגית
                                         </h3>
 
-                                        {selectedProduct === 'game' && (
+                                        {selectedProduct === 'activity' && (
                                             <>
                                                 {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
                                                 <div
@@ -934,28 +946,46 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                                         {/* SLIDERS (Hidden if Differentiated is ON) */}
                                         <div className={`transition-all duration-300 ${isDifferentiated ? 'opacity-30 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
-                                            <div className="flex items-center justify-between mb-4">
-                                                <span className="text-sm font-bold text-slate-500">או התאמה ידנית (אקולייזר):</span>
-                                            </div>
-                                            {[
-                                                { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
-                                                { k: 'application', l: 'יישום וניתוח', c: 'blue' },
-                                                { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
-                                            ].map((t: any) => (
-                                                <div key={t.k} className="mb-4">
-                                                    <div className="flex justify-between text-sm mb-1 px-1">
-                                                        <span className="font-medium text-slate-600">{t.l}</span>
-                                                        <span className="font-bold text-wizdi-royal">{(taxonomy as any)[t.k]}%</span>
-                                                    </div>
-                                                    <input
-                                                        type="range"
-                                                        value={(taxonomy as any)[t.k]}
-                                                        onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
-                                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
-                                                        disabled={isDifferentiated}
-                                                    />
-                                                </div>
-                                            ))}
+                                            {(() => {
+                                                // Calculate total questions based on activity length
+                                                const totalQuestions = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
+
+                                                // Calculate questions per category (rounded, ensuring total matches)
+                                                const getQuestionCount = (percent: number) => Math.round((percent / 100) * totalQuestions);
+
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <span className="text-sm font-bold text-slate-500">או התאמה ידנית:</span>
+                                                            <span className="text-xs text-slate-400">סה״כ {totalQuestions} שאלות</span>
+                                                        </div>
+                                                        {[
+                                                            { k: 'knowledge', l: 'ידע והבנה', c: 'green' },
+                                                            { k: 'application', l: 'יישום וניתוח', c: 'blue' },
+                                                            { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
+                                                        ].map((t: any) => {
+                                                            const questionCount = getQuestionCount((taxonomy as any)[t.k]);
+                                                            return (
+                                                                <div key={t.k} className="mb-4">
+                                                                    <div className="flex justify-between text-sm mb-1 px-1">
+                                                                        <span className="font-medium text-slate-600">{t.l}</span>
+                                                                        <span className="font-bold text-wizdi-royal">
+                                                                            {questionCount} {questionCount === 1 ? 'שאלה' : 'שאלות'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="range"
+                                                                        value={(taxonomy as any)[t.k]}
+                                                                        onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
+                                                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
+                                                                        disabled={isDifferentiated}
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     </>
                                 )}

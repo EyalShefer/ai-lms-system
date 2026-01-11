@@ -6,7 +6,7 @@ interface TicTacToeLoaderProps {
     isLoading: boolean;
     onContinue: () => void;
     sourceMode?: 'upload' | 'text' | 'multimodal' | 'topic' | null;
-    productType?: 'lesson' | 'game' | 'exam' | 'podcast' | null;
+    productType?: 'lesson' | 'activity' | 'exam' | 'podcast' | null;
 }
 
 const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue, sourceMode, productType }) => {
@@ -162,7 +162,7 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
     // --- Dynamic Loading Text ---
     const productTypeHebrew = {
         'lesson': 'מערך השיעור',
-        'game': 'הפעילות לתלמיד',
+        'activity': 'הפעילות לתלמיד',
         'exam': 'המבחן',
         'podcast': 'הפודקאסט'
     }[productType || 'lesson'] || 'הפעילות';

@@ -4,11 +4,10 @@ import { useCourseStore } from '../context/CourseContext';
 import { useAuth } from '../context/AuthContext';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import {
-    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconHeadphones, IconMicrophone
+    IconArrowBack, IconRobot, IconEye, IconCheck, IconX, IconCalendar, IconClock, IconInfo, IconBook, IconEdit, IconSparkles, IconLoader, IconMicrophone
 } from '../icons';
 import { submitAssignment } from '../services/submissionService';
-import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio, generatePodcastScript } from '../services/ai/geminiApi';
-import type { DialogueScript } from '../shared/types/gemini.types';
+import { openai, MODEL_NAME, checkOpenQuestionAnswer, transcribeAudio } from '../services/ai/geminiApi';
 import { PodcastPlayer } from './PodcastPlayer';
 import MindMapViewer from './MindMapViewer';
 import { InfographicViewer } from './InfographicViewer';
@@ -24,6 +23,7 @@ import { CitationService } from '../services/citationService'; // GROUNDED QA
 
 import QuizBlock from './QuizBlock';
 import type { TelemetryData } from '../shared/types/courseTypes';
+import { sanitizeHtml } from '../utils/sanitize';
 import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
 import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
 import { AudioRecorderBlock } from './AudioRecorderBlock';
@@ -380,46 +380,6 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         // Reset ref if course changes
         return () => { if (course?.id) hasAutoOpenedRef.current = false; };
     }, [course?.id, course?.showSourceToStudent, !!course?.fullBookContent]);
-
-    // --- Podcast State ---
-    const [showPodcast, setShowPodcast] = useState(false);
-    const [podcastScript, setPodcastScript] = useState<DialogueScript | null>(null);
-    const [loadingPodcast, setLoadingPodcast] = useState(false);
-
-    const handlePodcastClick = async () => {
-        if (showPodcast) {
-            setShowPodcast(false);
-            return;
-        }
-
-        if (podcastScript) {
-            setShowPodcast(true);
-            return;
-        }
-
-        setLoadingPodcast(true);
-        setShowPodcast(true); // Show container with loader
-
-        try {
-            // Use full book content or fallback to unit content if available
-            // For now, let's use the full book content as source
-            const sourceText = course?.fullBookContent || activeUnit?.learningContent.map((c: any) => c.content.text).join('\n') || "No content found.";
-            const script = await generatePodcastScript(sourceText, activeUnit?.title);
-
-            if (script) {
-                setPodcastScript(script);
-            } else {
-                alert("Failed to generate podcast script.");
-                setShowPodcast(false);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error generating podcast.");
-            setShowPodcast(false);
-        } finally {
-            setLoadingPodcast(false);
-        }
-    };
 
     // Inspector Mode (Wizdi-Monitor)
     const [inspectorMode, setInspectorMode] = useState(false);
@@ -1049,13 +1009,27 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         const mediaSrc = getMediaSrc();
 
         switch (block.type) {
-            case 'text': return (
-                <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {block.content}
-                    </ReactMarkdown>
-                </div>
-            );
+            case 'text': {
+                const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
+                // Check if content contains HTML tags
+                const containsHtmlTags = /<(div|p|h[1-6]|ul|ol|li|strong|em|span|br|table|tr|td|th)[^>]*>/i.test(textContent);
+
+                if (containsHtmlTags) {
+                    return (
+                        <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl teacher-lesson-content">
+                            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(textContent) }} />
+                        </div>
+                    );
+                }
+
+                return (
+                    <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {textContent}
+                        </ReactMarkdown>
+                    </div>
+                );
+            }
 
             case 'image':
                 if (!mediaSrc) return null;
@@ -1101,7 +1075,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {!isExamMode && (
                             <div className="flex justify-start mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1126,7 +1100,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {!isExamMode && (
                             <div className="flex justify-start mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1158,7 +1132,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {!isExamMode && (
                             <div className="flex justify-start mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1197,7 +1171,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             inspectorMode={inspectorMode}
                         />
 
-                        {inspectorMode && <InspectorBadge block={block} mode={course.mode || 'learning'} />}
+                        {inspectorMode && <InspectorBadge block={block} mode={course?.mode || 'learning'} />}
 
                         {/* Progressive Hints Section - Handled internally by QuizBlock now */}
                         {/* renderProgressiveHints(block) - Removed to avoid duplication */}
@@ -1206,7 +1180,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {userAnswers[block.id] && !isExamMode && (
                             <div className="flex justify-start mt-2">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1338,7 +1312,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {userAnswers[block.id] && !isExamMode && (
                             <div className="flex justify-start mt-4 border-t border-indigo-100 pt-2">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1367,7 +1341,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
                             <div className="flex justify-center mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1397,7 +1371,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
                             <div className="flex justify-center mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1437,7 +1411,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         {(userAnswers[block.id]?.completed || userAnswers[block.id]?.score !== undefined) && !isExamMode && (
                             <div className="flex justify-center mt-4">
                                 <FeedbackWidget
-                                    courseId={course.id}
+                                    courseId={course?.id}
                                     unitId={activeUnit?.id || "unknown"}
                                     blockId={block.id}
                                     blockType={block.type}
@@ -1483,7 +1457,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
     const activeUnit = unitOverride || activeModule?.learningUnits?.find(u => u.id === activeUnitId);
     const displayGrade = assignment?.score ? `ציון: ${assignment.score}` : '';
 
-    if (!course || course.id === 'loading') {
+    // Allow preview mode with unitOverride even without full course
+    const hasValidContent = unitOverride || (course && course.id !== 'loading');
+
+    if (!hasValidContent) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
                 <IconLoader className="w-12 h-12 animate-spin text-blue-600 mb-4" />
@@ -1534,7 +1511,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             {!inspectorMode && !isExamMode && !productType && <GamificationHUD />}
 
             {inspectorMode && activeUnit && (
-                <InspectorDashboard blocks={activeUnit.activityBlocks || []} mode={course.mode || 'learning'} />
+                <InspectorDashboard blocks={activeUnit.activityBlocks || []} mode={course?.mode || 'learning'} />
             )}
 
 
@@ -1597,6 +1574,17 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
+            {/* Floating Exit Button for Preview Mode (when header is hidden) */}
+            {reviewMode && simulateGuest && onExitReview && (
+                <button
+                    onClick={onExitReview}
+                    className="fixed top-4 left-4 z-[110] bg-white shadow-lg border border-slate-200 px-4 py-2 rounded-full font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2 hover:scale-105"
+                >
+                    <IconX className="w-5 h-5" />
+                    יציאה מתצוגה מקדימה
+                </button>
+            )}
+
 
 
             {/* --- Assignment Header --- */}
@@ -1637,7 +1625,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
             {/* --- Source Text Toggle --- */}
             {/* Show button only if enabled AND content exists */}
-            {course.showSourceToStudent && (course.fullBookContent || course.pdfSource) && (
+            {course?.showSourceToStudent && (course?.fullBookContent || course?.pdfSource) && (
                 <div className="fixed left-4 bottom-4 z-50">
                     <button
                         onClick={() => setShowSplitView(!showSplitView)}
@@ -1649,60 +1637,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 </div>
             )}
 
-            {/* PODCAST PLAYER (Outside of flex container) - Hidden for game productType */}
-            {showPodcast && productType !== 'game' && (
-                <div className="fixed bottom-0 left-0 right-0 z-[90] p-4 bg-white shadow-2xl border-t border-gray-100 animate-slide-in-from-bottom">
-                    {loadingPodcast ? (
-                        <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">
-                            <div className="flex flex-col items-center justify-center gap-4">
-                                <div className="p-4 bg-purple-50 rounded-full animate-pulse">
-                                    <IconHeadphones className="w-8 h-8 text-purple-400" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-gray-800">מפיק את הפודקאסט...</h3>
-                                    <p className="text-sm text-gray-500">דן ונועה עוברים על החומר ומכינים את השידור.</p>
-                                </div>
-                            </div>
-                        </div>
-                    ) : podcastScript ? (
-                        <div className="relative max-w-3xl mx-auto">
-                            <button
-                                onClick={() => setShowPodcast(false)}
-                                className="absolute -top-2 right-0 z-10 p-1 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors"
-                            >
-                                <IconX className="w-4 h-4" />
-                            </button>
-                            <PodcastPlayer script={podcastScript} />
-                        </div>
-                    ) : null}
-                </div>
-            )}
 
             <div className={"flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 " + (showSplitView ? 'flex gap-6 items-start' : '')}>
 
                 <div className="flex-1">
-                    {/* PODCAST TRIGGER (Top of Content) - Hidden for game productType */}
-                    {!isExamMode && productType !== 'game' && (
-                        <div className="flex justify-end mb-4">
-                            <button
-                                onClick={handlePodcastClick}
-                                className={`group flex items-center gap-3 px-5 py-3 rounded-full shadow-md transition-all border ${showPodcast
-                                    ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
-                                    : 'bg-white text-gray-700 border-gray-100 hover:border-purple-200 hover:shadow-lg'
-                                    }`}
-                            >
-                                <div className={`p-2 rounded-full ${showPodcast ? 'bg-white/20' : 'bg-purple-50 group-hover:bg-purple-100'}`}>
-                                    <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse text-white' : 'text-purple-600'}`} />
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-xs font-bold opacity-70 uppercase tracking-wider">AI Podcast</div>
-                                    <div className="text-sm font-bold">
-                                        {loadingPodcast ? 'מכין שידור...' : 'האזן לסיכום השיעור'}
-                                    </div>
-                                </div>
-                            </button>
-                        </div>
-                    )}
 
                     {/* --- Split View Side Panel (Source Text) --- */}
                     {showSplitView && (
@@ -1712,7 +1650,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600 p-2"><IconX className="w-5 h-5" /></button>
                             </div>
                             <div className="flex-1 overflow-y-auto bg-gray-50 relative min-h-0">
-                                {course.pdfSource ? (
+                                {course?.pdfSource ? (
                                     <iframe
                                         src={course.pdfSource}
                                         className="w-full h-full absolute inset-0 border-none"
@@ -1720,7 +1658,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                     />
                                 ) : (
                                     <div className="p-6 prose max-w-none text-sm leading-relaxed">
-                                        {course.fullBookContent ? (
+                                        {course?.fullBookContent ? (
                                             <div className="font-serif text-gray-800 leading-relaxed">
                                                 {CitationService.chunkText(course.fullBookContent).map((chunk) => (
                                                     <span
@@ -1737,7 +1675,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                             <div className="text-center text-gray-500 mt-10">
                                                 <p className="font-bold">לא נמצא טקסט מקור.</p>
                                                 <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
-                                                <p className="text-xs text-gray-400 mt-2">ID: {course.id}</p>
+                                                <p className="text-xs text-gray-400 mt-2">ID: {course?.id}</p>
                                             </div>
                                         )}
                                     </div>
@@ -1758,61 +1696,13 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                         <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
                                             {displayGrade}
                                         </span>
-                                        {course.subject && (
+                                        {course?.subject && (
                                             <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
                                                 {course.subject}
                                             </span>
                                         )}
                                     </div>
 
-                                    {/* PODCAST TRIGGER & PLAYER - Hidden for game/activity productType */}
-                                    {productType !== 'game' && (
-                                        <div className="flex flex-col items-center mt-6">
-                                            {!isExamMode && (
-                                                <button
-                                                    onClick={handlePodcastClick}
-                                                    className={`group flex items-center gap-3 px-5 py-2 rounded-full shadow-sm transition-all border ${showPodcast
-                                                        ? 'bg-purple-100 text-purple-700 border-purple-200'
-                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:shadow-md'
-                                                        }`}
-                                                >
-                                                    <IconHeadphones className={`w-5 h-5 ${loadingPodcast ? 'animate-pulse' : 'text-purple-500'}`} />
-                                                    <span className="font-bold text-sm">
-                                                        {showPodcast ? 'סגור נגן' : 'האזן לסיכום השיעור (AI)'}
-                                                    </span>
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* PLAYER CONTAINER - Also hidden for game productType */}
-                                    {showPodcast && productType !== 'game' && (
-                                        <div className="mb-6 animate-in slide-in-from-top-4 duration-500">
-                                            {loadingPodcast ? (
-                                                <div className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center border border-purple-100 shadow-lg">
-                                                    <div className="flex flex-col items-center justify-center gap-4">
-                                                        <div className="p-4 bg-purple-50 rounded-full animate-pulse">
-                                                            <IconHeadphones className="w-8 h-8 text-purple-400" />
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="font-bold text-gray-800">מפיק את הפודקאסט...</h3>
-                                                            <p className="text-sm text-gray-500">דן ונועה עוברים על החומר ומכינים את השידור.</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : podcastScript ? (
-                                                <div className="relative">
-                                                    <button
-                                                        onClick={() => setShowPodcast(false)}
-                                                        className="absolute top-4 right-4 z-10 p-1 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors"
-                                                    >
-                                                        <IconX className="w-4 h-4" />
-                                                    </button>
-                                                    <PodcastPlayer script={podcastScript} />
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    )}
 
                                     {/* ERROR / SUCCESS MESSAGES (Add if needed) */}
                                     {/* Streak Display (Only in Learning Mode) */}
@@ -1830,16 +1720,19 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
                                 <div className="mt-16 flex justify-center">
                                     {(() => {
-                                        const isLastUnit = activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
-                                            activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id;
+                                        // In preview mode with unitOverride (no full course), treat as last unit
+                                        const isLastUnit = !course?.syllabus ? true : (
+                                            activeModuleId === course.syllabus[course.syllabus.length - 1].id &&
+                                            activeUnitId === activeModule?.learningUnits[activeModule.learningUnits.length - 1].id
+                                        );
 
                                         return (
                                             <button
-                                                onClick={isLastUnit ? handleSubmit : handleContinueClick}
-                                                disabled={isLastUnit && isSubmitting}
-                                                className={`${isLastUnit ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-10 py-3.5 rounded-full font-bold shadow-xl transition-all hover:scale-105 flex items-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                onClick={reviewMode && onExitReview ? onExitReview : (isLastUnit ? handleSubmit : handleContinueClick)}
+                                                disabled={!reviewMode && isLastUnit && isSubmitting}
+                                                className={`${isLastUnit && !reviewMode ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-10 py-3.5 rounded-full font-bold shadow-xl transition-all hover:scale-105 flex items-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
                                             >
-                                                {reviewMode ? 'סגור תצוגה' : (
+                                                {reviewMode ? 'סגור תצוגה מקדימה' : (
                                                     isLastUnit ? (
                                                         <>
                                                             {isSubmitting ? 'שולח...' : 'הגש משימה'} <IconCheck className="w-5 h-5" />

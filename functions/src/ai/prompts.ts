@@ -187,11 +187,6 @@ export const getStepContentPrompt = (
        - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
        - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
        - ** OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
-       - ** TEACHER GUIDELINES (CRITICAL):** For EVERY question, provide \`teacher_guidelines\` with:
-         * **What to look for:** Key concepts the student must mention
-         * **Common mistakes:** What students typically get wrong
-         * **Follow-up questions:** 2-3 probing questions if the answer is incomplete
-         * **Differentiation:** How to scaffold for struggling students or challenge advanced ones
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
        
@@ -227,7 +222,6 @@ export const getStepContentPrompt = (
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}", 
        "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
-       "teacher_tip": "A short, actionable tip for the teacher on how to facilitate this specific step effectively (in Hebrew), based on the content.",
        "selected_interaction": "${stepInfo.suggested_interaction_type}", 
        "data": {
           "progressive_hints": ["Hint 1", "Hint 2"],
@@ -252,7 +246,6 @@ export const getStepContentPrompt = (
           // {
           //   "question": "...",
           //   "model_answer": "...",
-          //   "teacher_guidelines": "🎯 מה לחפש: [מושגי מפתח]\n❌ טעויות נפוצות: [דוגמאות]\n❓ שאלות המשך: 1) ... 2) ...\n🎓 התאמה: [הצעות לדיפרנציאציה]",
           //   "points": 10
           // }
           
@@ -498,7 +491,6 @@ OUTPUT FORMAT (JSON ONLY):
   "strengths": ["List 2-3 specific skills the student demonstrated well"],
   "weaknesses": ["List 2-3 specific topics that need more practice"],
   "recommendedFocus": "Specific topic or skill to practice next",
-  "engagementScore": 0-100,
   "learningMetrics": {
     "averageTimePerQuestion": 0,
     "hintUsageRate": 0.0,
@@ -538,13 +530,10 @@ Language: Hebrew.
 
   Goal: Encourage deep thinking or opinion.
 
-    CRITICAL: You MUST provide pedagogical guidelines for the teacher.
-
     OUTPUT JSON:
 {
   "question": "The open question text",
-  "model_answer": "A model answer or key points to look for.",
-  "teacher_guidelines": "🎯 מה לחפש בתשובה: [רשימת מושגי מפתח שהתלמיד חייב להזכיר]\n❌ טעויות נפוצות: [דוגמאות לאמירות שגויות שתלמידים עושים]\n❓ שאלות המשך אם התשובה חלקית:\n   1. [שאלה מכוונת ראשונה]\n   2. [שאלה מכוונת שנייה]\n   3. [שאלה מאתגרת לתלמידים מתקדמים]\n🎓 דיפרנציאציה:\n   • תלמידים מתקשים: [הצעה לפישוט או רמז]\n   • תלמידים מתקדמים: [הצעה להרחבה או אתגר]"
+  "model_answer": "A model answer or key points to look for."
 }
 `;
 
@@ -559,14 +548,12 @@ MISSION:
     Identify PATTERNS in the class.
 1. Are they generally impulsive or hesitant ?
   2. Is there a specific topic they all struggle with?
-    3. What is the emotional state of the class (Engagement) ?
 
       OUTPUT FORMAT(JSON ONLY):
 {
   "strongSkills": ["List 2-3 skills the CLASS excels at"],
     "weakSkills": ["List 2-3 skills the CLASS struggles with"],
-      "actionItems": ["List 2 practical teaching strategies for tomorrow"],
-        "classVibe": "Competitive" | "Collaborative" | "Struggling" | "Curious"
+      "actionItems": ["List 2 practical teaching strategies for tomorrow"]
 }
 `;
 

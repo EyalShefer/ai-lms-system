@@ -324,7 +324,7 @@ export const generateUnitSkeleton = async (
   sourceText?: string,
   mode: 'learning' | 'exam' = 'learning',
   bloomPreferences?: Record<string, number>,
-  productType: 'lesson' | 'game' | 'exam' = 'lesson',
+  productType: 'lesson' | 'activity' | 'exam' = 'lesson',
   studentProfile?: any // StudentAnalyticsProfile (Using any to avoid circular dependency issues if strict)
 ): Promise<UnitSkeleton | null> => {
   // console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Product: ${productType}, Length: ${activityLength}`);
@@ -349,8 +349,8 @@ export const generateUnitSkeleton = async (
       STEP 2: Application. Type: categorization OR ordering.
       STEP 3-${stepCount}: Synthesis/Audio. Type: open_question OR audio_response. NO teaching content.
       `;
-  } else if (productType === 'game') {
-    // === GAME PRODUCT STRUCTURE ===
+  } else if (productType === 'activity') {
+    // === ACTIVITY PRODUCT STRUCTURE ===
     // Focus on INTERACTIVE blocks only.
     if (activityLength === 'short') {
       stepCount = 3;
@@ -406,7 +406,7 @@ export const generateUnitSkeleton = async (
     ${contextPart}
     Target Audience: ${gradeLevel}.
     ${personalityInstruction}
-    Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'game' ? 'GAMIFICATION / PLAY MODE' : 'Learning/Tutorial Mode')}
+    Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'activity' ? 'INTERACTIVE ACTIVITY MODE' : 'Learning/Tutorial Mode')}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
     
@@ -427,10 +427,10 @@ export const generateUnitSkeleton = async (
            - **Structure:** Question Block ONLY. No introduction text.
            - **Content:** Do NOT output 'teach_content'. Output strictly assessment items.
            - **Logic:** Each step is a test item.`
-      : (productType === 'game'
-        ? `- **GAME MODE / INTERACTIVE ONLY:**
+      : (productType === 'activity'
+        ? `- **ACTIVITY MODE / INTERACTIVE ONLY:**
              - **Structure:** 100% Interaction. No long text explanations.
-             - **Content:** Gamified challenges.
+             - **Content:** Interactive challenges.
              - **Logic:** Fun, pacing, engaging.`
         : `- **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
              - **Rule:** If the narrative has more distinct chunks than the requested ${stepCount} steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
@@ -948,14 +948,25 @@ export const generateTeacherStepContent = async (
     - This prevents visual overload and keeps students focused on the teacher
 
     3. GUIDED PRACTICE (10 min) - IN-CLASS FACILITATION
-    Goal: Teacher-led practice with pedagogical guidance
+    Goal: Teacher-led practice with SPECIFIC questions and worked examples
     Output:
     - Teacher facilitation script (how to introduce and guide the practice)
-    - Suggested activities (2-3) with pedagogical reasoning:
+    - EXAMPLE QUESTIONS (2-3 specific questions for the teacher to ask):
+      * question_text: The EXACT question to ask the class (in Hebrew)
+      * expected_answer: What a correct answer should include
+      * common_mistakes: 1-2 typical wrong answers to watch for
+      * follow_up_prompt: How to probe deeper (e.g., "למה אתה חושב ככה?")
+    - WORKED EXAMPLE (demonstrate solution on the board):
+      * problem: A specific problem/scenario to solve together
+      * solution_steps: Step-by-step solution (3-5 steps)
+      * key_points: Important things to emphasize while solving
+    - Suggested activities (1-2) with pedagogical reasoning:
       * activity_type: Choose from multiple-choice, memory_game, ordering, categorization, etc.
-      * description: What this activity should assess (e.g., "בדיקת הבנת המושג...")
-      * facilitation_tip: How to guide students (e.g., "תן 2 דקות לעבודה עצמית, אז דון בזוגות")
-    - Differentiation strategies (for struggling and advanced students)
+      * description: What this activity should assess
+      * facilitation_tip: How to guide students
+    - Differentiation strategies:
+      * for_struggling_students: Specific scaffolding (e.g., "תן להם את שלב 1 פתור, הם ימשיכו משלב 2")
+      * for_advanced_students: Extension challenge with specific example
     - Assessment tips (what to look for while students practice)
 
     4. INDEPENDENT PRACTICE (10 min) - DIGITAL ACTIVITIES
@@ -1039,6 +1050,33 @@ export const generateTeacherStepContent = async (
       },
       "guided_practice": {
         "teacher_facilitation_script": "String (Hebrew - how to introduce and guide the practice)",
+        "example_questions": [
+          {
+            "question_text": "שאלה ספציפית להקריא לכיתה בעברית",
+            "expected_answer": "תשובה נכונה צפויה עם הסבר",
+            "common_mistakes": ["טעות נפוצה 1", "טעות נפוצה 2"],
+            "follow_up_prompt": "שאלת המשך להעמקה"
+          },
+          {
+            "question_text": "שאלה נוספת",
+            "expected_answer": "תשובה צפויה",
+            "common_mistakes": ["טעות נפוצה"],
+            "follow_up_prompt": "שאלת המשך"
+          }
+        ],
+        "worked_example": {
+          "problem": "בעיה/תרחיש ספציפי לפתור יחד על הלוח",
+          "solution_steps": [
+            "שלב 1: ...",
+            "שלב 2: ...",
+            "שלב 3: ...",
+            "שלב 4: ..."
+          ],
+          "key_points": [
+            "נקודה חשובה להדגיש 1",
+            "נקודה חשובה להדגיש 2"
+          ]
+        },
         "suggested_activities": [
           {
             "activity_type": "multiple-choice",
@@ -1047,8 +1085,8 @@ export const generateTeacherStepContent = async (
           }
         ],
         "differentiation_strategies": {
-          "for_struggling_students": "Hebrew tip",
-          "for_advanced_students": "Hebrew challenge"
+          "for_struggling_students": "הנחיה ספציפית למתקשים עם דוגמה",
+          "for_advanced_students": "אתגר הרחבה ספציפי עם דוגמה"
         },
         "assessment_tips": [
           "שים לב ל...",
@@ -1801,7 +1839,7 @@ export const generateCourseSyllabus = async (
   activityLength: 'short' | 'medium' | 'long' = 'medium',
   subject: string = 'General',
   sourceText?: string,
-  productType: 'lesson' | 'game' | 'exam' = 'game' // Default to game for backward compatibility
+  productType: 'lesson' | 'activity' | 'exam' = 'activity' // Default to activity for backward compatibility
 ): Promise<any[]> => {
   // console.log("🏗️ Generating Syllabus Structure (Skeleton)...");
 

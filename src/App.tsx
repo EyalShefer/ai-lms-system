@@ -11,6 +11,9 @@ import type { Assignment } from './courseTypes';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 
+// Migration utilities (exposes migrateGameToActivity to window)
+import './utils/migrations';
+
 // --- Lazy Loading ---
 const CourseEditor = React.lazy(() => import('./components/CourseEditor'));
 const CoursePlayer = React.lazy(() => import('./components/CoursePlayer'));
@@ -143,7 +146,7 @@ const AuthenticatedApp = () => {
   const [isStudentLink, setIsStudentLink] = useState(false);
   const [cameFromStudentDashboard, setCameFromStudentDashboard] = useState(false); // Track if student came from dashboard
   const [wizardMode, setWizardMode] = useState<'learning' | 'exam' | null>(null);
-  const [wizardProduct, setWizardProduct] = useState<'lesson' | 'podcast' | 'exam' | 'game' | null>(null);
+  const [wizardProduct, setWizardProduct] = useState<'lesson' | 'podcast' | 'exam' | 'activity' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false); // NEW: Simulate Guest
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
@@ -191,6 +194,7 @@ const AuthenticatedApp = () => {
   }, [loadCourse]);
 
   const handleCourseSelect = (courseId: string) => {
+    console.log('[App] handleCourseSelect called with courseId:', courseId);
     loadCourse(courseId);
     setMode('editor');
   };
@@ -595,7 +599,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'game') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}

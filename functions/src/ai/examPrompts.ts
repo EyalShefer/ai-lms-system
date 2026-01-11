@@ -515,7 +515,6 @@ ${getExamLinguisticConstraints(gradeLevel)}
 
    - **Open Question:**
      * Provide detailed \`model_answer\` with 3-4 key points.
-     * Include \`teacher_guidelines\` with grading rubric (see below).
 
 6. **ANALYTIC RUBRIC (for Open Questions) - CRITICAL:**
    Open questions MUST include a detailed analytic rubric with multiple criteria.
@@ -648,7 +647,6 @@ Output FORMAT (JSON ONLY):
       // {
       //   "question": "השאלה...",
       //   "model_answer": "תשובה לדוגמה עם כל הנקודות החשובות...",
-      //   "teacher_guidelines": "🎯 מה לחפש: ...\n❌ טעויות נפוצות: ...\n📊 חלוקת ציון: ...",
       //   "points": ${stepInfo.points || 10}
       // }
    }

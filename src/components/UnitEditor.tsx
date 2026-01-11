@@ -1156,14 +1156,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const productType = (course as any)?.wizardData?.settings?.productType || 'lesson';
     const productTypeHebrew = {
         'lesson': 'מערך השיעור',
-        'game': 'הפעילות לתלמיד',
+        'activity': 'הפעילות לתלמיד',
         'exam': 'המבחן',
         'podcast': 'הפודקאסט'
     }[productType as string] || 'הפעילות';
 
     const productTypeStatusLabel = {
         'lesson': 'מצב למידה',
-        'game': 'מצב תרגול',
+        'activity': 'מצב תרגול',
         'exam': 'מצב מבחן',
         'podcast': 'מצב האזנה'
     }[productType as string] || 'מצב פעילות';

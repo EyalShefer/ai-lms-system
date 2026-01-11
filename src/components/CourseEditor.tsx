@@ -526,33 +526,28 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 `,
                                 metadata: { time: '5 min', bloomLevel: 'remember' }
                             },
-                            {
+                            // DIRECT INSTRUCTION - Each slide as separate block
+                            ...lessonPlan.direct_instruction.slides.map((slide, idx) => ({
                                 id: crypto.randomUUID(),
-                                type: 'text',
+                                type: 'text' as const,
                                 content: `
                                     <div class="lesson-section instruction">
-                                        <h3>🎓 הוראה פרונטלית (Direct Instruction)</h3>
-                                        ${lessonPlan.direct_instruction.slides.map((slide, idx) => `
-                                            <div class="slide-card">
-                                                <h4>שקף ${idx + 1}: ${slide.slide_title}</h4>
-                                                ${slide.timing_estimate ? `<div class="timing-badge">⏱️ ${slide.timing_estimate}</div>` : ''}
-                                                <div class="board-points">
-                                                    <strong>📝 על הלוח:</strong>
-                                                    <ul>${slide.bullet_points_for_board.map(p => `<li>${p}</li>`).join('')}</ul>
-                                                </div>
-                                                <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
-                                                ${slide.differentiation_note ? `<div class="diff-note">💡 ${slide.differentiation_note}</div>` : ''}
-                                                ${slide.media_asset?.url ? `
-                                                    <div class="generated-visual">
-                                                        <img src="${slide.media_asset.url}" alt="Slide ${idx + 1} Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
-                                                    </div>
-                                                ` : slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
+                                        <h3>🎓 הוראה פרונטלית: ${slide.slide_title}</h3>
+                                        <div class="board-points">
+                                            <strong>📝 על הלוח:</strong>
+                                            <ul>${slide.bullet_points_for_board.map(p => `<li>${p}</li>`).join('')}</ul>
+                                        </div>
+                                        <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
+                                        ${slide.differentiation_note ? `<div class="diff-note">💡 ${slide.differentiation_note}</div>` : ''}
+                                        ${slide.media_asset?.url ? `
+                                            <div class="generated-visual">
+                                                <img src="${slide.media_asset.url}" alt="${slide.slide_title}" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
                                             </div>
-                                        `).join('')}
+                                        ` : slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
                                     </div>
                                 `,
-                                metadata: { time: '15 min', bloomLevel: 'understand' }
-                            },
+                                metadata: { time: slide.timing_estimate || '5 min', bloomLevel: 'understand' }
+                            })),
                             {
                                 id: crypto.randomUUID(),
                                 type: 'text',
@@ -560,6 +555,38 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                     <div class="lesson-section practice">
                                         <h3>🧑‍🏫 תרגול מודרך (Guided Practice - In-Class)</h3>
                                         <p><strong>🎯 הנחיה להנחיית התרגול:</strong> ${lessonPlan.guided_practice.teacher_facilitation_script}</p>
+
+                                        ${lessonPlan.guided_practice.example_questions && lessonPlan.guided_practice.example_questions.length > 0 ? `
+                                            <div class="example-questions" style="margin: 15px 0; background: #EFF6FF; padding: 15px; border-radius: 8px; border-right: 4px solid #2B59C3;">
+                                                <strong style="color: #2B59C3; font-size: 16px;">❓ שאלות להקראה בכיתה:</strong>
+                                                ${lessonPlan.guided_practice.example_questions.map((q: any, i: number) => `
+                                                    <div style="margin: 12px 0; padding: 12px; background: white; border-radius: 5px;">
+                                                        <p style="margin: 0; font-weight: bold; color: #1E40AF;">שאלה ${i + 1}: ${q.question_text}</p>
+                                                        <p style="margin: 8px 0 5px 0; color: #166534;">✓ <strong>תשובה צפויה:</strong> ${q.expected_answer}</p>
+                                                        ${q.common_mistakes && q.common_mistakes.length > 0 ? `<p style="margin: 5px 0; color: #DC2626;">⚠️ <strong>טעויות נפוצות:</strong> ${q.common_mistakes.join(' | ')}</p>` : ''}
+                                                        ${q.follow_up_prompt ? `<p style="margin: 5px 0; color: #7C3AED;">🔄 <strong>שאלת המשך:</strong> ${q.follow_up_prompt}</p>` : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        ` : ''}
+
+                                        ${lessonPlan.guided_practice.worked_example ? `
+                                            <div class="worked-example" style="margin: 15px 0; background: #FEF3C7; padding: 15px; border-radius: 8px; border: 2px solid #F59E0B;">
+                                                <strong style="color: #B45309; font-size: 16px;">📝 דוגמה מעשית (לפתרון על הלוח):</strong>
+                                                <p style="margin: 10px 0; font-weight: bold;">${lessonPlan.guided_practice.worked_example.problem}</p>
+                                                <div style="background: white; padding: 12px; border-radius: 5px; margin: 10px 0;">
+                                                    <strong>שלבי הפתרון:</strong>
+                                                    <ol style="margin: 8px 0;">${lessonPlan.guided_practice.worked_example.solution_steps.map((step: string) => `<li style="margin: 5px 0;">${step}</li>`).join('')}</ol>
+                                                </div>
+                                                ${lessonPlan.guided_practice.worked_example.key_points && lessonPlan.guided_practice.worked_example.key_points.length > 0 ? `
+                                                    <div style="margin-top: 10px;">
+                                                        <strong style="color: #B45309;">💡 נקודות להדגשה:</strong>
+                                                        <ul style="margin: 5px 0;">${lessonPlan.guided_practice.worked_example.key_points.map((point: string) => `<li>${point}</li>`).join('')}</ul>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        ` : ''}
+
                                         ${lessonPlan.guided_practice.differentiation_strategies ? `
                                             <div class="differentiation">
                                                 <strong>🎯 דיפרנציאציה:</strong>

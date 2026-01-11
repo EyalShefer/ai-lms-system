@@ -137,6 +137,18 @@ service firebase.storage {
       allow delete: if isOwner(userId);
     }
 
+    // ===== INFOGRAPHIC CACHE =====
+    // Cached infographic images for performance optimization
+    match /infographic_cache/{fileName} {
+      // Read: Any authenticated user can read cached infographics
+      allow read: if isAuthenticated();
+
+      // Write: Any authenticated user can write (cache is shared)
+      allow write: if isAuthenticated()
+                   && isValidImage()
+                   && request.resource.size < 5 * 1024 * 1024; // Max 5MB for infographics
+    }
+
     // ===== TEMPORARY UPLOADS =====
     // For processing uploads before moving to final location
     match /temp/{userId}/{fileName} {

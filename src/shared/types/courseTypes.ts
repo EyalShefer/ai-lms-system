@@ -20,7 +20,8 @@ export type ActivityBlockType =
     | 'audio-response'
     | 'drag_and_drop'
     | 'hotspot'
-    | 'mindmap';
+    | 'mindmap'
+    | 'infographic';
 
 export interface MultipleChoiceContent {
     question: string;
@@ -203,7 +204,7 @@ export interface CategorizationBlock extends ActivityBlockBase {
 
 // Simple Media Blocks
 export interface MediaBlock extends ActivityBlockBase {
-    type: 'text' | 'image' | 'video' | 'pdf' | 'gem-link';
+    type: 'text' | 'image' | 'video' | 'pdf' | 'gem-link' | 'infographic';
     content: string; // URL or Text
 }
 

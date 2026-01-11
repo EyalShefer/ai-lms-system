@@ -110,22 +110,20 @@ const generateLessonPlanHTML = (lessonPlan: TeacherLessonPlan): string => {
         ` : ''}
       </div>
 
-      <!-- Direct Instruction -->
-      <div style="margin-bottom: 25px; page-break-before: always;">
-        <div style="background: #2B59C3; color: white; padding: 10px 15px; border-radius: 5px; margin-bottom: 15px;">
-          <h2 style="margin: 0; font-size: 18px;">📖 הוראה ישירה (Direct Instruction)</h2>
-        </div>
-        ${lessonPlan.direct_instruction.slides.map((slide, index) => `
-          <div style="margin-bottom: 20px; padding: 15px; background: #F9FAFB; border-radius: 8px; border: 1px solid #E5E7EB;">
-            <h3 style="color: #2B59C3; margin-top: 0; font-size: 16px;">שקף ${index + 1}: ${escapeHtml(slide.slide_title)}</h3>
-            ${slide.timing_estimate ? `<p style="color: #6366F1; font-size: 14px;">⏱️ זמן משוער: ${escapeHtml(slide.timing_estimate)}</p>` : ''}
-
-            <p style="font-weight: bold; margin-bottom: 5px;">על הלוח:</p>
+      <!-- Direct Instruction - Each as separate section -->
+      ${lessonPlan.direct_instruction.slides.map((slide, index) => `
+        <div style="margin-bottom: 25px; ${index === 0 ? 'page-break-before: always;' : ''}">
+          <div style="background: #2B59C3; color: white; padding: 10px 15px; border-radius: 5px; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 18px;">🎓 הוראה פרונטלית: ${escapeHtml(slide.slide_title)}</h2>
+            ${slide.timing_estimate ? `<span style="font-size: 14px; opacity: 0.9;"> ⏱️ ${escapeHtml(slide.timing_estimate)}</span>` : ''}
+          </div>
+          <div style="padding: 15px; background: #F9FAFB; border-radius: 8px; border: 1px solid #E5E7EB;">
+            <p style="font-weight: bold; margin-bottom: 5px;">📝 על הלוח:</p>
             <ul style="margin: 0 0 15px 0; padding-right: 25px;">
               ${slide.bullet_points_for_board.map(point => `<li style="margin: 5px 0;">${escapeHtml(point)}</li>`).join('')}
             </ul>
 
-            <p style="font-weight: bold; margin-bottom: 5px;">סקריפט למורה:</p>
+            <p style="font-weight: bold; margin-bottom: 5px;">🗣️ למורה:</p>
             <p style="line-height: 1.8; background: white; padding: 10px; border-radius: 5px;">${escapeHtml(slide.script_to_say)}</p>
 
             ${slide.differentiation_note ? `
@@ -136,8 +134,8 @@ const generateLessonPlanHTML = (lessonPlan: TeacherLessonPlan): string => {
 
             ${slide.media_asset ? `<p style="color: #666; font-style: italic; margin-top: 10px;">[מדיה: ${escapeHtml(slide.media_asset.type)}]</p>` : ''}
           </div>
-        `).join('')}
-      </div>
+        </div>
+      `).join('')}
 
       <!-- Guided Practice -->
       <div style="margin-bottom: 25px; page-break-before: always;">
@@ -145,6 +143,43 @@ const generateLessonPlanHTML = (lessonPlan: TeacherLessonPlan): string => {
           <h2 style="margin: 0; font-size: 18px;">🧑‍🏫 תרגול מודרך (Guided Practice)</h2>
         </div>
         <p style="line-height: 1.8;">${escapeHtml(lessonPlan.guided_practice.teacher_facilitation_script)}</p>
+
+        ${lessonPlan.guided_practice.example_questions && lessonPlan.guided_practice.example_questions.length > 0 ? `
+          <div style="margin-top: 20px;">
+            <p style="font-weight: bold; font-size: 16px; color: #2B59C3;">❓ שאלות להקראה בכיתה:</p>
+            ${lessonPlan.guided_practice.example_questions.map((q, i) => `
+              <div style="background: #EFF6FF; padding: 15px; border-radius: 8px; margin: 12px 0; border-right: 4px solid #2B59C3;">
+                <p style="margin: 0; font-weight: bold; color: #1E40AF;">שאלה ${i + 1}: ${escapeHtml(q.question_text)}</p>
+                <p style="margin: 10px 0 5px 0; color: #166534;"><strong>✓ תשובה צפויה:</strong> ${escapeHtml(q.expected_answer)}</p>
+                ${q.common_mistakes && q.common_mistakes.length > 0 ? `
+                  <p style="margin: 5px 0; color: #DC2626;"><strong>⚠️ טעויות נפוצות:</strong> ${q.common_mistakes.map(m => escapeHtml(m)).join(' | ')}</p>
+                ` : ''}
+                ${q.follow_up_prompt ? `<p style="margin: 5px 0 0 0; color: #7C3AED;"><strong>🔄 שאלת המשך:</strong> ${escapeHtml(q.follow_up_prompt)}</p>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        ${lessonPlan.guided_practice.worked_example ? `
+          <div style="margin-top: 20px; background: #FEF3C7; padding: 15px; border-radius: 8px; border: 2px solid #F59E0B;">
+            <p style="font-weight: bold; font-size: 16px; color: #B45309; margin-top: 0;">📝 דוגמה מעשית (לפתרון על הלוח):</p>
+            <p style="margin: 10px 0; font-weight: bold;">${escapeHtml(lessonPlan.guided_practice.worked_example.problem)}</p>
+            <div style="background: white; padding: 12px; border-radius: 5px; margin: 10px 0;">
+              <p style="font-weight: bold; margin-top: 0;">שלבי הפתרון:</p>
+              <ol style="margin: 0; padding-right: 25px;">
+                ${lessonPlan.guided_practice.worked_example.solution_steps.map(step => `<li style="margin: 8px 0;">${escapeHtml(step)}</li>`).join('')}
+              </ol>
+            </div>
+            ${lessonPlan.guided_practice.worked_example.key_points && lessonPlan.guided_practice.worked_example.key_points.length > 0 ? `
+              <div style="margin-top: 10px;">
+                <p style="font-weight: bold; color: #B45309;">💡 נקודות להדגשה:</p>
+                <ul style="margin: 0; padding-right: 25px;">
+                  ${lessonPlan.guided_practice.worked_example.key_points.map(point => `<li style="margin: 5px 0;">${escapeHtml(point)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
 
         ${lessonPlan.guided_practice.suggested_activities && lessonPlan.guided_practice.suggested_activities.length > 0 ? `
           <div style="margin-top: 15px;">

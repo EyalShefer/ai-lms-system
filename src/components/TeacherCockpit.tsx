@@ -15,7 +15,6 @@ import { PEDAGOGICAL_PHASES, getPedagogicalPhase } from '../utils/pedagogicalIco
 import { createBlock } from '../shared/config/blockDefinitions';
 import { downloadLessonPlanPDF } from '../services/pdfExportService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
-import { TextToSpeechButton } from './TextToSpeechButton';
 import { RichTextEditor } from './RichTextEditor';
 import { sanitizeHtml } from '../utils/sanitize';
 
@@ -25,6 +24,9 @@ import ClozeQuestion from './ClozeQuestion';
 import OrderingQuestion from './OrderingQuestion';
 import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
+
+// Lazy load CoursePlayer for full preview mode
+const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 
 
 interface TeacherCockpitProps {
@@ -129,12 +131,13 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
     // Infographic State
     const [showInfographicMenu, setShowInfographicMenu] = useState<string | null>(null);
-    const [isGeneratingInfographic, setIsGeneratingInfographic] = useState(false);
+    const [generatingInfographicBlockId, setGeneratingInfographicBlockId] = useState<string | null>(null);
     const [infographicPreview, setInfographicPreview] = useState<{
         imageUrl: string;
         block: ActivityBlock;
         visualType: InfographicType;
     } | null>(null);
+    const [infographicTextInput, setInfographicTextInput] = useState<Record<string, string>>({});
 
     // Interactive Preview State - shows questions as students see them
     const [previewBlockIds, setPreviewBlockIds] = useState<Set<string>>(new Set());
@@ -144,6 +147,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
     // AI Block Generation State
     const [generatingBlockIndex, setGeneratingBlockIndex] = useState<number | null>(null);
+
+    // Full Preview Mode State - shows entire lesson as students see it
+    const [isFullPreviewMode, setIsFullPreviewMode] = useState(false);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -211,7 +217,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         setGeneratingBlockIndex(index);
 
         // For types that need AI generation, call the appropriate function
-        const aiGeneratableTypes = ['multiple-choice', 'open-question', 'categorization', 'ordering', 'fill_in_blanks', 'memory_game'];
+        const aiGeneratableTypes = ['multiple-choice', 'open-question', 'categorization', 'ordering', 'fill_in_blanks', 'memory_game', 'infographic'];
 
         if (aiGeneratableTypes.includes(type)) {
             try {
@@ -235,6 +241,42 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                         break;
                     case 'memory_game':
                         generatedContent = await generateMemoryGame(topic, gradeLevel, sourceText, subject);
+                        break;
+                    case 'infographic':
+                        // Generate infographic from source text
+                        if (sourceText && sourceText.length > 50) {
+                            setIsGeneratingInfographic(true);
+                            try {
+                                // Auto-detect best infographic type
+                                const detection = detectInfographicType(sourceText);
+                                const visualType = detection?.suggestedType || 'flowchart';
+
+                                console.log('[addBlockAtIndex] Generating infographic, type:', visualType);
+                                const imageBlob = await generateInfographicFromText(sourceText, visualType, topic);
+
+                                if (imageBlob) {
+                                    // Convert blob to base64 data URL
+                                    const reader = new FileReader();
+                                    const base64Promise = new Promise<string>((resolve) => {
+                                        reader.onloadend = () => resolve(reader.result as string);
+                                        reader.readAsDataURL(imageBlob);
+                                    });
+                                    const base64data = await base64Promise;
+
+                                    generatedContent = {
+                                        imageUrl: base64data,
+                                        title: `אינפוגרפיקה: ${topic}`,
+                                        caption: '',
+                                        visualType: visualType
+                                    };
+                                }
+                            } finally {
+                                setIsGeneratingInfographic(false);
+                            }
+                        } else {
+                            console.log('[addBlockAtIndex] Not enough source text for infographic');
+                            // Keep the empty infographic block - user can generate manually
+                        }
                         break;
                 }
 
@@ -396,6 +438,14 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             },
             guided_practice: {
                 teacher_facilitation_script: 'השתמשו בפעילויות האינטראקטיביות המצורפות כדי לתרגל את הנושא בכיתה. הנחו את התלמידים בצורה מדורגת.',
+                example_questions: [
+                    {
+                        question_text: 'מה למדנו עד עכשיו על הנושא הזה?',
+                        expected_answer: 'תשובה שמסכמת את עיקרי הנושא',
+                        common_mistakes: ['תשובה שטחית מדי', 'התמקדות בפרט אחד בלבד'],
+                        follow_up_prompt: 'האם יש דוגמה נוספת מהחיים שלכם?'
+                    }
+                ],
                 suggested_activities: unit.activityBlocks
                     .filter(b => ['multiple-choice', 'memory_game', 'fill_in_blanks', 'ordering', 'categorization', 'drag_and_drop', 'hotspot', 'open-question'].includes(b.type))
                     .map(b => ({
@@ -506,23 +556,36 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         }
     };
 
-    const handleGenerateInfographic = async (block: ActivityBlock, visualType: InfographicType) => {
-        setIsGeneratingInfographic(true);
+    const handleGenerateInfographic = async (block: ActivityBlock, visualType: InfographicType, customText?: string) => {
+        setGeneratingInfographicBlockId(block.id);
         setShowInfographicMenu(null);
 
         try {
-            // Extract text content from block
-            let textContent = '';
-            if (block.type === 'text') {
-                textContent = typeof block.content === 'string'
-                    ? block.content
-                    : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
-            } else if (block.content && typeof block.content === 'object') {
-                textContent = JSON.stringify(block.content);
-            }
+            // Extract text content from block or use provided custom text
+            let textContent = customText || '';
 
             if (!textContent) {
-                alert("לא נמצא תוכן להמרה לאינפוגרפיקה");
+                if (block.type === 'text') {
+                    textContent = typeof block.content === 'string'
+                        ? block.content
+                        : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
+                } else if (block.type === 'infographic') {
+                    // For empty infographic blocks, get content from other text blocks in the unit
+                    console.log('[handleGenerateInfographic] Infographic block detected, gathering text from unit...');
+                    textContent = unit.activityBlocks
+                        ?.filter(b => b.type === 'text')
+                        .map(b => typeof b.content === 'string' ? b.content : ((b.content as any)?.teach_content || (b.content as any)?.text || ''))
+                        .join('\n')
+                        .substring(0, 2000) || '';
+                } else if (block.content && typeof block.content === 'object') {
+                    textContent = JSON.stringify(block.content);
+                }
+            }
+
+            console.log('[handleGenerateInfographic] textContent length:', textContent.length, 'type:', visualType);
+
+            if (!textContent || textContent.length < 10) {
+                alert("נא להזין תוכן ליצירת האינפוגרפיקה");
                 return;
             }
 
@@ -560,7 +623,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             console.error("Infographic Generation Error:", error);
             alert("שגיאה ביצירת אינפוגרפיקה");
         } finally {
-            setIsGeneratingInfographic(false);
+            setGeneratingInfographicBlockId(null);
         }
     };
 
@@ -573,19 +636,40 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             trackPreviewConfirmed(infographicPreview.visualType);
         } catch (e) { console.warn('Analytics not available'); }
 
-        // Create new image block after current block
-        const newBlock = createBlock('image', 'socratic');
-        newBlock.content = infographicPreview.imageUrl;
-        newBlock.metadata = {
-            ...newBlock.metadata,
-            infographicType: infographicPreview.visualType,
-            generatedFrom: infographicPreview.block.id
-        };
-
-        const currentIndex = unit.activityBlocks?.findIndex(b => b.id === infographicPreview.block.id) || 0;
         const newBlocks = [...(unit.activityBlocks || [])];
-        newBlocks.splice(currentIndex + 1, 0, newBlock);
-        updateUnitBlocks(newBlocks);
+        const currentIndex = newBlocks.findIndex(b => b.id === infographicPreview.block.id);
+
+        // If the source block is an empty infographic block, update it directly
+        if (infographicPreview.block.type === 'infographic') {
+            if (currentIndex !== -1) {
+                newBlocks[currentIndex] = {
+                    ...newBlocks[currentIndex],
+                    content: {
+                        imageUrl: infographicPreview.imageUrl,
+                        title: `אינפוגרפיקה: ${unit.title}`,
+                        caption: '',
+                        visualType: infographicPreview.visualType
+                    },
+                    metadata: {
+                        ...newBlocks[currentIndex].metadata,
+                        infographicType: infographicPreview.visualType
+                    }
+                };
+                updateUnitBlocks(newBlocks);
+            }
+        } else {
+            // Create new image block after current text block
+            const newBlock = createBlock('image', 'socratic');
+            newBlock.content = infographicPreview.imageUrl;
+            newBlock.metadata = {
+                ...newBlock.metadata,
+                infographicType: infographicPreview.visualType,
+                generatedFrom: infographicPreview.block.id
+            };
+
+            newBlocks.splice(currentIndex + 1, 0, newBlock);
+            updateUnitBlocks(newBlocks);
+        }
 
         // Close preview
         setInfographicPreview(null);
@@ -603,21 +687,37 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
         if (!onUpdateBlock && !onUnitUpdate) return;
         setIsRefining(true);
         try {
-            const newContent = await refineBlockContent(block.type, block.content, instruction);
-            // If text block, we might get back just string or object.
-            let finalContent = newContent;
-            if (block.type === 'text' && newContent.text) {
-                finalContent = newContent.text;
-            }
+            console.log(`🔧 Refining block ${block.id} (type: ${block.type}) with instruction: "${instruction}"`);
+            console.log(`📄 Original content:`, typeof block.content === 'string' ? block.content.substring(0, 100) + '...' : block.content);
 
-            // Preserve tip if exists in old content
-            if (block.type === 'text' && typeof block.content === 'object' && (block.content as any).teacher_tip) {
-                if (typeof finalContent === 'string') {
-                    // If we converted to string, we lose the tip unless we re-wrap.
-                    // For now, keep as string if that's what the UI expects, OR upgrade to object.
-                    // The getTeacherTip function below handles both.
+            const newContent = await refineBlockContent(block.type, block.content, instruction);
+
+            // Determine the final content to use
+            let finalContent = newContent;
+
+            // For text blocks, handle various response formats
+            if (block.type === 'text') {
+                if (typeof newContent === 'string') {
+                    // Already a string - use as is
+                    finalContent = newContent;
+                } else if (newContent && typeof newContent === 'object') {
+                    // Object response - try to extract text
+                    finalContent = newContent.text || newContent.content || newContent.teach_content || newContent;
                 }
             }
+
+            // Preserve tip if exists in old content and we converted to string
+            if (block.type === 'text' && typeof block.content === 'object' && (block.content as any).teacher_tip) {
+                if (typeof finalContent === 'string') {
+                    // Wrap back into object to preserve teacher_tip
+                    finalContent = {
+                        text: finalContent,
+                        teacher_tip: (block.content as any).teacher_tip
+                    };
+                }
+            }
+
+            console.log(`✅ Final content to apply:`, typeof finalContent === 'string' ? finalContent.substring(0, 100) + '...' : finalContent);
 
             updateBlockContent(block.id, finalContent);
             setRefiningBlockId(null);
@@ -835,11 +935,56 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             const sourceBlockId = block.metadata?.generatedFrom;
 
             if (!infographicSrc) {
+                // Check if there's text content in the unit to generate from
+                const hasTextContent = unit.activityBlocks?.some(b =>
+                    b.type === 'text' &&
+                    (typeof b.content === 'string' ? b.content : ((b.content as any)?.teach_content || (b.content as any)?.text || '')).length > 50
+                );
+                const currentInputText = infographicTextInput[block.id] || '';
+
                 return (
-                    <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50">
+                    <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50 relative">
                         <IconInfographic className="w-8 h-8 text-purple-400 mb-2" />
-                        <span className="text-purple-600 font-bold">אינפוגרפיקה ריקה</span>
-                        <span className="text-sm text-purple-500">צור אינפוגרפיקה מבלוק טקסט</span>
+                        <span className="text-purple-600 font-bold mb-1">צור אינפוגרפיקה</span>
+                        <span className="text-sm text-purple-500 mb-4">הזן נושא או תוכן ליצירת אינפוגרפיקה</span>
+
+                        {/* Text input field */}
+                        <textarea
+                            value={currentInputText}
+                            onChange={(e) => setInfographicTextInput(prev => ({ ...prev, [block.id]: e.target.value }))}
+                            placeholder="לדוגמה: תהליך הפוטוסינתזה בצמחים, שלבי מחזור המים, השוואה בין יונקים לזוחלים..."
+                            className="w-full max-w-md h-24 p-3 border border-purple-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-4"
+                            dir="rtl"
+                        />
+
+                        <button
+                            onClick={() => {
+                                const textToUse = currentInputText.trim() || (hasTextContent ? undefined : '');
+                                if (!textToUse && !hasTextContent) {
+                                    alert('נא להזין נושא ליצירת האינפוגרפיקה');
+                                    return;
+                                }
+                                handleGenerateInfographic(block, 'flowchart', textToUse || undefined);
+                            }}
+                            disabled={generatingInfographicBlockId === block.id}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-bold text-sm disabled:opacity-50"
+                        >
+                            {generatingInfographicBlockId === block.id ? (
+                                <>
+                                    <IconInfographic className="w-4 h-4 animate-spin" />
+                                    <span>יוצר...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <IconSparkles className="w-4 h-4" />
+                                    <span>צור אינפוגרפיקה עכשיו</span>
+                                </>
+                            )}
+                        </button>
+
+                        {hasTextContent && !currentInputText && (
+                            <span className="text-xs text-purple-400 mt-2">או ישתמש בטקסט מהיחידה</span>
+                        )}
                     </div>
                 );
             }
@@ -973,40 +1118,30 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
             if (!textContent) return <div className="text-slate-400 italic p-4 text-center border-2 border-dashed border-slate-200 rounded-xl cursor-text" onClick={() => setEditingBlockId(block.id)}>לחצו כאן להוספת טקסט</div>;
 
-            // Extract plain text for TTS (remove HTML tags if present)
-            const plainText = textContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            // Check if content contains HTML tags that should be rendered
+            const containsHtmlTags = /<(div|p|h[1-6]|ul|ol|li|strong|em|span|br|table|tr|td|th)[^>]*>/i.test(textContent.trim());
 
-            if (textContent.trim().startsWith('<div class="lesson-section')) {
+            if (containsHtmlTags) {
                 // Remove h3 title as it is now shown in the block header
                 const contentWithoutTitle = textContent.replace(/<h3[^>]*>.*?<\/h3>/gi, '');
                 return (
-                    <div className="relative group">
-                        <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <TextToSpeechButton text={plainText} compact={true} />
-                        </div>
-                        <div
-                            onClick={() => setEditingBlockId(block.id)}
-                            className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative p-2 -m-2"
-                            title="לחץ לעריכה"
-                        >
-                            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentWithoutTitle) }} />
-                        </div>
+                    <div
+                        onClick={() => setEditingBlockId(block.id)}
+                        className="teacher-lesson-content cursor-text hover:ring-2 hover:ring-blue-100 rounded-xl transition-all relative p-2 -m-2"
+                        title="לחץ לעריכה"
+                    >
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentWithoutTitle) }} />
                     </div>
                 );
             }
 
             return (
-                <div className="relative group">
-                    <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <TextToSpeechButton text={plainText} compact={true} />
-                    </div>
-                    <div onClick={() => setEditingBlockId(block.id)} className="cursor-text hover:ring-2 hover:ring-slate-100 rounded-lg p-2 transition-all -m-2">
-                        {textContent.split('\n').map((line: string, i: number) => {
-                            // Skip title lines (starting with #) as they are shown in block header
-                            if (line.startsWith('#')) return null;
-                            return <p key={i} className="mb-2">{line}</p>;
-                        })}
-                    </div>
+                <div onClick={() => setEditingBlockId(block.id)} className="cursor-text hover:ring-2 hover:ring-slate-100 rounded-lg p-2 transition-all -m-2">
+                    {textContent.split('\n').map((line: string, i: number) => {
+                        // Skip title lines (starting with #) as they are shown in block header
+                        if (line.startsWith('#')) return null;
+                        return <p key={i} className="mb-2">{line}</p>;
+                    })}
                 </div>
             )
         }
@@ -1213,20 +1348,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
             </div>
         );
     };
-    const getTeacherTip = (block: ActivityBlock) => {
-        // 1. Try to get from AI content
-        if ((block.content as any)?.teacher_tip) {
-            return (block.content as any).teacher_tip;
-        }
-        if (block.metadata?.teacher_tip) {
-            return block.metadata.teacher_tip;
-        }
-
-        // 2. Fallback to generic rules if no AI tip
-        console.log("No AI teacher tip found, using fallback");
-        if (block.type === 'multiple-choice') return "ודאו שכל התלמידים מבינים את ההבדל בין המסיחים. שאלו: 'למה לדעתכם תשובה ב' אינה נכונה?'";
-        if (block.type === 'open-question') return "עודדו תשובות מגוונות. אין תשובה אחת נכונה. שימו לב לתלמידים השקטים.";
-        if (block.type === 'categorization') return "חלקו את הכיתה לקבוצות קטנות. תנו להם 5 דקות לדיון לפני האיסוף במליאה.";
+    // Teacher tips removed - good lesson content should be self-explanatory
+    const getTeacherTip = (_block: ActivityBlock) => {
         return null;
     };
 
@@ -1433,6 +1556,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Preview Button */}
+                        <button
+                            onClick={() => setIsFullPreviewMode(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition shadow-sm border text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                            title="תצוגה מקדימה - ראה איך התלמידים יראו את המערך"
+                        >
+                            <IconEye className="w-5 h-5" />
+                            <span className="hidden md:inline">תצוגה מקדימה</span>
+                        </button>
+
                         {/* Share Button */}
                         <button
                             onClick={handleShare}
@@ -1554,14 +1687,28 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             )}
                         </div>
 
+                        {/* Opening Section Anchor */}
+                        <div id="opening" className="scroll-mt-32"></div>
+
                         {/* Insert Initial Block */}
                         <InsertMenu index={0} />
 
                         {/* Blocks Loop */}
-                        <div id="instruction" className="space-y-8">
+                        <div id="instruction" className="space-y-8 scroll-mt-32">
                             {unit.activityBlocks?.filter((block): block is ActivityBlock => block !== null && block !== undefined).map((block: ActivityBlock, idx: number) => {
+                                const totalBlocks = unit.activityBlocks?.length || 0;
+                                const phase = getPedagogicalPhase(idx, totalBlocks, block.type);
+                                const prevBlock = idx > 0 ? unit.activityBlocks?.[idx - 1] : null;
+                                const prevPhase = prevBlock ? getPedagogicalPhase(idx - 1, totalBlocks, prevBlock.type) : null;
+                                const showPracticeAnchor = phase === 'practice' && prevPhase !== 'practice';
+                                const showSummaryAnchor = phase === 'summary' && prevPhase !== 'summary';
+
                                 return (
                                     <React.Fragment key={block.id}>
+                                        {/* Practice Section Anchor - inserted before first practice block */}
+                                        {showPracticeAnchor && <div id="practice" className="scroll-mt-32"></div>}
+                                        {/* Summary Section Anchor - inserted before first summary block */}
+                                        {showSummaryAnchor && <div id="summary" className="scroll-mt-32"></div>}
                                         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:shadow-none print:break-inside-avoid relative overflow-hidden group hover:shadow-md transition-shadow">
 
                                             {/* Block Controls (Hover) */}
@@ -1569,108 +1716,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                                                 <button onClick={() => moveBlock(idx, 'up')} disabled={idx === 0} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למעלה"><IconArrowUp className="w-4 h-4" /></button>
                                                 <button onClick={() => moveBlock(idx, 'down')} disabled={idx === (unit.activityBlocks?.length || 0) - 1} className="p-1 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors" title="הזז למטה"><IconArrowDown className="w-4 h-4" /></button>
                                                 <div className="w-px bg-slate-200 my-1 mx-1"></div>
-
-                                                {/* Infographic Generator Button */}
-                                                <div className="relative">
-                                                    <button
-                                                        onClick={() => setShowInfographicMenu(showInfographicMenu === block.id ? null : block.id)}
-                                                        className="p-1 hover:text-purple-600 rounded hover:bg-purple-50 transition-colors"
-                                                        title="צור אינפוגרפיקה"
-                                                        disabled={isGeneratingInfographic}
-                                                    >
-                                                        <IconInfographic className="w-4 h-4" />
-                                                    </button>
-
-                                                    {/* Infographic Type Selector Menu */}
-                                                    {showInfographicMenu === block.id && (() => {
-                                                        // Auto-detect infographic type
-                                                        let textContent = '';
-                                                        if (block.type === 'text') {
-                                                            textContent = typeof block.content === 'string'
-                                                                ? block.content
-                                                                : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
-                                                        }
-                                                        const detection = textContent ? detectInfographicType(textContent) : null;
-                                                        const suitability = textContent ? analyzeInfographicSuitability(textContent) : null;
-
-                                                        return (
-                                                            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[250px] z-30">
-                                                                {/* Auto-detection header */}
-                                                                {detection && suitability?.isSuitable && (
-                                                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-2">
-                                                                        <div className="text-xs font-semibold text-blue-700 mb-1">💡 הצעה חכמה:</div>
-                                                                        <button
-                                                                            onClick={() => handleGenerateInfographic(block, detection.suggestedType)}
-                                                                            className="w-full text-right px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-2 font-semibold"
-                                                                            disabled={isGeneratingInfographic}
-                                                                        >
-                                                                            <IconSparkles className="w-4 h-4" />
-                                                                            <div className="flex-1">
-                                                                                <div>{detection.suggestedType === 'flowchart' ? 'תרשים זרימה' : detection.suggestedType === 'timeline' ? 'ציר זמן' : detection.suggestedType === 'comparison' ? 'השוואה' : 'מחזור'}</div>
-                                                                                <div className="text-xs opacity-90">{detection.reason}</div>
-                                                                            </div>
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Warning if not suitable */}
-                                                                {suitability && !suitability.isSuitable && (
-                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-2">
-                                                                        <div className="text-xs font-semibold text-amber-700 mb-1">⚠️ שים לב:</div>
-                                                                        <div className="text-xs text-amber-600">
-                                                                            {suitability.recommendations[0]}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="text-xs font-semibold text-slate-600 mb-2 px-2">או בחר ידנית:</div>
-                                                                <button
-                                                                    onClick={() => handleGenerateInfographic(block, 'flowchart')}
-                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-purple-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'flowchart' ? 'bg-purple-50' : ''}`}
-                                                                    disabled={isGeneratingInfographic}
-                                                                >
-                                                                    <IconList className="w-4 h-4 text-purple-600" />
-                                                                    <span>תרשים זרימה</span>
-                                                                    {detection?.suggestedType === 'flowchart' && <span className="mr-auto text-xs text-purple-600">מומלץ</span>}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleGenerateInfographic(block, 'timeline')}
-                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'timeline' ? 'bg-blue-50' : ''}`}
-                                                                    disabled={isGeneratingInfographic}
-                                                                >
-                                                                    <IconClock className="w-4 h-4 text-blue-600" />
-                                                                    <span>ציר זמן</span>
-                                                                    {detection?.suggestedType === 'timeline' && <span className="mr-auto text-xs text-blue-600">מומלץ</span>}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleGenerateInfographic(block, 'comparison')}
-                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-green-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'comparison' ? 'bg-green-50' : ''}`}
-                                                                    disabled={isGeneratingInfographic}
-                                                                >
-                                                                    <IconLayer className="w-4 h-4 text-green-600" />
-                                                                    <span>השוואה</span>
-                                                                    {detection?.suggestedType === 'comparison' && <span className="mr-auto text-xs text-green-600">מומלץ</span>}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleGenerateInfographic(block, 'cycle')}
-                                                                    className={`w-full text-right px-3 py-2 text-sm hover:bg-orange-50 rounded transition-colors flex items-center gap-2 ${detection?.suggestedType === 'cycle' ? 'bg-orange-50' : ''}`}
-                                                                    disabled={isGeneratingInfographic}
-                                                                >
-                                                                    <IconTarget className="w-4 h-4 text-orange-600" />
-                                                                    <span>מחזור</span>
-                                                                    {detection?.suggestedType === 'cycle' && <span className="mr-auto text-xs text-orange-600">מומלץ</span>}
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-
-                                                <div className="w-px bg-slate-200 my-1 mx-1"></div>
                                                 <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-500 rounded hover:bg-red-50 transition-colors" title="מחק רכיב"><IconTrash className="w-4 h-4" /></button>
                                             </div>
 
                                             {/* Time Estimate Badge or Loading Indicator (Absolute) */}
-                                            {isGeneratingInfographic ? (
+                                            {generatingInfographicBlockId === block.id ? (
                                                 <div className="absolute top-6 left-6 bg-purple-100 text-purple-700 text-xs font-bold px-3 py-1 rounded-full print:hidden animate-pulse flex items-center gap-2">
                                                     <IconInfographic className="w-4 h-4 animate-spin" />
                                                     <span>יוצר אינפוגרפיקה...</span>
@@ -1740,8 +1790,17 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             })}
                         </div>
 
-                        {/* Summary Anchor */}
-                        <div id="summary"></div>
+                        {/* Summary Anchor - fallback if no summary block exists */}
+                        {!unit.activityBlocks?.some((block, idx) => {
+                            const totalBlocks = unit.activityBlocks?.length || 0;
+                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'summary';
+                        }) && <div id="summary" className="scroll-mt-32"></div>}
+
+                        {/* Practice Anchor - fallback if no practice block exists */}
+                        {!unit.activityBlocks?.some((block, idx) => {
+                            const totalBlocks = unit.activityBlocks?.length || 0;
+                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'practice';
+                        }) && <div id="practice" className="scroll-mt-32"></div>}
                     </div>
                 </div>
             </div>
@@ -1967,6 +2026,28 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                             תלמידים מתקשים מקבלים גרסה עם רמזים, תלמידים מצטיינים מקבלים אתגרים נוספים.
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Full Preview Mode Modal */}
+            {isFullPreviewMode && (
+                <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
+                    <React.Suspense fallback={
+                        <div className="flex-1 flex items-center justify-center text-blue-600 font-bold">
+                            <div className="text-center">
+                                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                טוען תצוגה מקדימה...
+                            </div>
+                        </div>
+                    }>
+                        <CoursePlayer
+                            reviewMode={true}
+                            hideReviewHeader={true}
+                            simulateGuest={true}
+                            unitOverride={unit}
+                            onExitReview={() => setIsFullPreviewMode(false)}
+                        />
+                    </React.Suspense>
                 </div>
             )}
         </div>
