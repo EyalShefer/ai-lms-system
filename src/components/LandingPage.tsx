@@ -89,113 +89,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                         </div>
                     </div>
 
-                    {/* Visual Content (Left) - Dual Mockup System */}
-                    <div className="relative z-10 lg:h-[700px] flex items-center justify-center perspective-1000">
+                    {/* Visual Content (Left) - Hero Illustration */}
+                    <div className="relative z-10 lg:h-[700px] flex items-center justify-center">
                         {/* Abstract Background Blobs */}
                         <div className="absolute top-0 right-0 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
                         <div className="absolute -bottom-8 left-0 w-96 h-96 bg-wizdi-lime/30 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
                         <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-wizdi-cyan/30 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
 
-                        {/* 1. TEACHER VIEW (Desktop) - Back Layer */}
-                        <div className="relative w-full max-w-lg bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 p-6 transform rotate-y-6 scale-90 translate-x-12 translate-y-[-20px] transition-transform hover:rotate-y-0 duration-700 z-10 card-glass">
-                            {/* Fake Browser Header */}
-                            <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-4">
-                                <div className="flex gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                                    <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                                </div>
-                                <div className="mx-auto text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-md tracking-wide">TEACHER STUDIO</div>
-                            </div>
-
-                            {/* Generation UI */}
-                            <div className="space-y-6">
-                                <div className="bg-wizdi-cloud p-4 rounded-2xl border border-blue-100 relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-blue-500/5 animate-pulse"></div>
-                                    <div className="flex items-center justify-between mb-3 relative z-10">
-                                        <span className="font-bold text-wizdi-royal">יצירת פעילות חדשה</span>
-                                        <IconWand className="w-5 h-5 text-wizdi-cyan animate-spin-slow" />
-                                    </div>
-                                    <div className="h-2 bg-white rounded-full w-full overflow-hidden border border-blue-100">
-                                        <div className="h-full bg-wizdi-royal w-2/3 rounded-full animate-progress"></div>
-                                    </div>
-                                    <div className="mt-2 text-xs text-wizdi-royal/80 font-bold">מנתח את הסרטון ומייצר שאלות...</div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
-                                        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 mb-2">
-                                            <IconBrain className="w-[18px] h-[18px]" />
-                                        </div>
-                                        <div className="font-bold text-slate-800 text-sm">ניתוח פדגוגי</div>
-                                        <div className="text-xs text-slate-400 mt-1">הושלם בהצלחה</div>
-                                    </div>
-                                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
-                                        <div className="w-8 h-8 bg-wizdi-lime/20 rounded-lg flex items-center justify-center text-wizdi-lime mb-2">
-                                            <IconCheck className="w-[18px] h-[18px] text-green-700" />
-                                        </div>
-                                        <div className="font-bold text-slate-800 text-sm">התאמת רמות</div>
-                                        <div className="text-xs text-slate-400 mt-1">דיפרנציאציה מוכנה</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 2. STUDENT VIEW (Mobile) - Front Layer */}
-                        <div className="absolute bottom-[-40px] left-[-20px] w-[280px] bg-slate-900 rounded-[2.5rem] p-3 shadow-2xl border-[6px] border-slate-800 shadow-purple-500/20 transform -rotate-y-12 hover:rotate-y-0 transition-transform duration-500 z-20">
-                            {/* Notch */}
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-2xl z-20"></div>
-
-                            {/* Screen Content */}
-                            <div className="bg-white w-full h-full rounded-[2rem] overflow-hidden relative flex flex-col">
-                                {/* HUD Mockup */}
-                                <div className="pt-10 px-4 pb-2 flex justify-between items-center bg-wizdi-cloud border-b border-indigo-50">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-md">
-                                            5
-                                        </div>
-                                        <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                            <div className="h-full bg-wizdi-cyan w-3/4"></div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <div className="text-lg animate-bounce-slow">🔥</div>
-                                        <span className="text-xs font-black text-orange-500">12</span>
-                                    </div>
-                                </div>
-
-                                {/* Chat Interface */}
-                                <div className="flex-1 p-3 space-y-3 bg-slate-50">
-                                    <div className="flex gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-wizdi-royal flex items-center justify-center text-white text-xs shrink-0">AI</div>
-                                        <div className="bg-white p-3 rounded-2xl rounded-tr-none shadow-sm text-xs text-slate-700 border border-slate-100">
-                                            מעולה! הסברת נכון את ההבדל בין דמוקרטיה ישירה לעקיפה. ומה לגבי ישראל?
-                                        </div>
-                                    </div>
-
-                                    {/* User Answer Mockup */}
-                                    <div className="flex gap-2 flex-row-reverse">
-                                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-xs shrink-0">אני</div>
-                                        <div className="bg-purple-600 text-white p-3 rounded-2xl rounded-tl-none shadow-md text-xs">
-                                            ישראל היא דמוקרטיה עקיפה, כי אנחנו בוחרים נציגים לכנסת.
-                                        </div>
-                                    </div>
-
-                                    {/* Success Toast */}
-                                    <div className="mt-4 mx-2 bg-green-100 border border-green-200 text-green-800 p-2 rounded-xl flex items-center gap-2 animate-pop">
-                                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</div>
-                                        <div className="text-[10px] font-bold">תשובה נכונה! (+50 XP)</div>
-                                    </div>
-                                </div>
-
-                                {/* Floating Button */}
-                                <div className="absolute bottom-4 left-0 right-0 px-4">
-                                    <div className="w-full h-12 bg-wizdi-lime rounded-full shadow-lg border-b-4 border-green-600 flex items-center justify-center font-bold text-green-900 text-sm">
-                                        המשך לשאלה הבאה
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Hero Illustration */}
+                        <img
+                            src="/images/hero-illustration.png"
+                            alt="AI Education Illustration"
+                            className="relative z-10 w-full max-w-xl h-auto object-contain drop-shadow-2xl"
+                        />
                     </div>
                 </div>
             </section>

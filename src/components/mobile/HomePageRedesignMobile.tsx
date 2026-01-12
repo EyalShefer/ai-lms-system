@@ -29,7 +29,8 @@ import {
     IconBulb,
     IconPlus,
     IconBook,
-    IconHome
+    IconHome,
+    IconWand
 } from '@tabler/icons-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -184,7 +185,7 @@ const HomePageRedesignMobile = ({
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <p className="text-sm text-white/70 mb-1">{getTimeBasedGreeting()}, {firstName}</p>
-                        <h1 className="text-2xl font-black">סטודיו יצירה חכם</h1>
+                        <h1 className="text-2xl font-black flex items-center gap-2">סטודיו יצירה חכם <IconWand className="w-6 h-6" /></h1>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">

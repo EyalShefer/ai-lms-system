@@ -9,7 +9,8 @@ import {
   IconCrown,
   IconCheck,
   IconBrandOpenai,
-  IconSparkles
+  IconSparkles,
+  IconUser
 } from '@tabler/icons-react';
 import type {
   Prompt,
@@ -35,6 +36,7 @@ interface PromptCardProps {
 
 export default function PromptCard({ prompt, featured = false, onRatingChange }: PromptCardProps) {
   const { currentUser } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(featured); // Featured cards start expanded
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -187,6 +189,68 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
 
   const commentsWithText = comments.filter(c => c.comment);
 
+  // Collapsed compact view for non-featured cards
+  if (!isExpanded && !featured) {
+    return (
+      <div
+        className="bg-white rounded-2xl border border-slate-200 hover:border-wizdi-royal/30 hover:shadow-lg transition-all duration-300 cursor-pointer"
+        onClick={() => setIsExpanded(true)}
+      >
+        <div className="p-4">
+          {/* Top row - Category and Stats */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="px-2.5 py-1 bg-slate-100 rounded-full text-xs font-medium text-slate-600">
+              {prompt.category}
+            </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {renderStars(prompt.averageRating)}
+                <span className="text-xs text-slate-500">({prompt.averageRating.toFixed(1)})</span>
+              </div>
+              <span className="text-xs text-slate-400">{prompt.usageCount} שימושים</span>
+            </div>
+          </div>
+
+          {/* Title */}
+          <h3 className="text-lg font-bold text-slate-800 mb-1">{prompt.title}</h3>
+
+          {/* Creator */}
+          <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
+            <IconUser className="w-4 h-4" />
+            <span>{prompt.creatorName || 'מערכת Wizdi'}</span>
+            {isCreatorRecommended && (
+              <span className="flex items-center gap-1 text-wizdi-gold">
+                <IconCrown className="w-4 h-4" />
+              </span>
+            )}
+          </div>
+
+          {/* Description - truncated */}
+          <p className="text-sm text-slate-500 line-clamp-2 mb-3">{prompt.description}</p>
+
+          {/* Bottom row - Tools and Expand */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1.5">
+              {prompt.targetTools.map(tool => (
+                <span
+                  key={tool}
+                  className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600"
+                >
+                  {tool}
+                </span>
+              ))}
+            </div>
+            <button className="flex items-center gap-1 text-sm text-wizdi-royal font-medium hover:text-wizdi-royal/80 transition-colors">
+              <span>הרחב</span>
+              <IconChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Expanded view (also used for featured cards)
   return (
     <div className={`
       bg-white rounded-2xl border transition-all duration-300
@@ -225,7 +289,7 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
           </div>
         ) : (
           <>
-            {/* Stats row */}
+            {/* Collapse button for expanded non-featured cards */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 {/* Rating */}
@@ -236,8 +300,18 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span>{prompt.usageCount} שימושים</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500">{prompt.usageCount} שימושים</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpanded(false);
+                  }}
+                  className="flex items-center gap-1 text-sm text-slate-500 hover:text-wizdi-royal transition-colors"
+                >
+                  <span>צמצם</span>
+                  <IconChevronUp className="w-4 h-4" />
+                </button>
               </div>
             </div>
 

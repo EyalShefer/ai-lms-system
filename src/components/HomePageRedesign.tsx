@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import {
     IconSparkles,
     IconChart,
-    IconList
+    IconList,
+    IconMagicWand
 } from '../icons';
 import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2 } from '@tabler/icons-react';
 import AIBlogWidget from './AIBlogWidget';
@@ -158,6 +159,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             {getTimeBasedGreeting()}, {firstName}
                         </p>
                         <h1 id="hero-title" className="text-4xl lg:text-6xl font-black bg-gradient-to-l from-wizdi-royal via-violet-600 to-wizdi-cyan bg-clip-text text-transparent mb-4 leading-tight">
+                            <IconMagicWand className="w-8 h-8 lg:w-12 lg:h-12 text-wizdi-royal inline-block align-middle ml-2" />
                             סטודיו יצירה חכם
                         </h1>
                         <p className="text-xl lg:text-2xl text-slate-600 dark:text-slate-300 font-medium max-w-lg mx-auto lg:mx-0">
@@ -171,34 +173,11 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             <div className="absolute -top-4 -right-4 w-20 h-20 bg-wizdi-royal/20 rounded-2xl rotate-12 animate-float motion-reduce:animate-none"></div>
                             <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-wizdi-royal/15 rounded-full animate-float animation-delay-2000 motion-reduce:animate-none"></div>
 
-                            <div className="rounded-3xl p-8 relative z-10">
-                                <div className="flex items-center justify-center">
-                                    {/* Modular blocks grid with AI sparkle */}
-                                    <div className="relative w-36 h-36">
-                                        {/* Grid of modular blocks */}
-                                        <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-full h-full">
-                                            {/* Row 1 */}
-                                            <div className="bg-wizdi-royal/20 rounded-lg"></div>
-                                            <div className="bg-wizdi-royal/40 rounded-lg"></div>
-                                            <div className="bg-wizdi-royal/15 rounded-lg"></div>
-                                            {/* Row 2 */}
-                                            <div className="bg-wizdi-royal/30 rounded-lg"></div>
-                                            <div className="bg-gradient-to-br from-wizdi-royal to-blue-700 rounded-xl shadow-lg flex items-center justify-center">
-                                                <IconSparkles className="w-6 h-6 text-white" />
-                                            </div>
-                                            <div className="bg-wizdi-royal/35 rounded-lg"></div>
-                                            {/* Row 3 */}
-                                            <div className="bg-wizdi-royal/10 rounded-lg"></div>
-                                            <div className="bg-wizdi-royal/25 rounded-lg"></div>
-                                            <div className="bg-wizdi-royal/45 rounded-lg"></div>
-                                        </div>
-                                        {/* Floating sparkle accent */}
-                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-wizdi-gold rounded-full flex items-center justify-center shadow-md">
-                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z"/></svg>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <img
+                                src="/images/hero-illustration.png"
+                                alt="AI Education Illustration"
+                                className="relative z-10 w-full max-w-sm h-auto object-contain drop-shadow-xl"
+                            />
                         </div>
                     </div>
                 </div>
