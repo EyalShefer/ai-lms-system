@@ -8,10 +8,10 @@ import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { GoogleGenAI, Modality } from '@google/genai';
 
-// Model options - Gemini 3 Pro Image is best for Hebrew text
+// Model options for image generation
 const GEMINI_IMAGE_MODELS = {
-    flash: 'gemini-2.5-flash-image',      // Fast, cheaper
-    pro: 'gemini-3-pro-image-preview'     // Higher quality, better Hebrew
+    flash: 'gemini-2.5-flash-image',      // Fast, cheaper (Nano Banana)
+    pro: 'gemini-2.5-flash-image'         // Using Nano Banana Pro (gemini-3-pro-image-preview not available)
 } as const;
 
 // Default to Pro for best Hebrew support
@@ -84,7 +84,7 @@ export const generateGeminiImage = onRequest(
             const client = new GoogleGenAI({
                 vertexai: true,
                 project: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT,
-                location: 'us-central1'
+                location: 'global'  // Changed from us-central1 - Gemini 3 Pro Image requires global
             });
 
             // 6. Generate image

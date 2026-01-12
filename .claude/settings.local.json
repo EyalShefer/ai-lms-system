@@ -72,7 +72,11 @@
       "Bash(echo:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add mobile-optimized responsive components\n\n- Create dedicated mobile components for all main views:\n  - SequentialCoursePlayerMobile: Tab-based content/source switching\n  - HomePageRedesignMobile: Teacher dashboard with quick actions\n  - StudentHomeMobile: Student dashboard with bottom sheet\n  - LandingPageMobile: Simplified landing page for phones\n- Add useIsMobile hook for screen size detection\n- Create ResponsiveWrappers for automatic desktop/mobile switching\n- Update App.tsx to use responsive components\n- Remove \"Hebrew LMS\" branding, replace with \"Wizdi\"\n\nMobile optimizations:\n- 44-56px touch targets for accessibility\n- Safe area insets for notches\n- Horizontal scroll carousels instead of hidden content\n- Simplified layouts without complex 3D transforms\n- Lazy loading for mobile components\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(npx firebase firestore:indexes:*)",
-      "Bash(firebase firestore:indexes:*)"
+      "Bash(firebase firestore:indexes:*)",
+      "Bash(cmd.exe /c \"dir C:\\\\Users\\\\eyal\\\\Downloads\\\\*girl* /b\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\eyal\\Desktop\\ai-lms-system\\ai-lms-system"
     ]
   }
 }

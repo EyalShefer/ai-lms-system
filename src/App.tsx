@@ -29,12 +29,14 @@ import {
     ResponsiveLandingPage as LandingPage
 } from './components/ResponsiveWrappers';
 const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
+const TeacherControlCenter = React.lazy(() => import('./components/dashboard/TeacherControlCenter').then(module => ({ default: module.TeacherControlCenter })));
 const PromptsLibrary = React.lazy(() => import('./components/PromptsLibrary'));
 const QADashboard = React.lazy(() => import('./components/QADashboard'));
 const WizdiRoutes = React.lazy(() => import('./components/wizdi/WizdiRouter'));
 const KnowledgeBaseAdmin = React.lazy(() => import('./components/KnowledgeBaseAdmin'));
 const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionReviewPage'));
 const TeachingAgentsLibrary = React.lazy(() => import('./components/TeachingAgentsLibrary'));
+const UsageDashboard = React.lazy(() => import('./components/admin/UsageDashboard'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -599,7 +601,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -641,6 +643,7 @@ const AuthenticatedApp = () => {
                 {mode === 'qa-admin' && <QADashboard onBack={() => setMode('list')} />}
                 {mode === 'knowledge-base' && <KnowledgeBaseAdmin onNavigateToReview={() => setMode('extraction-review')} />}
                 {mode === 'extraction-review' && <ExtractionReviewPage />}
+                {mode === 'usage-admin' && <UsageDashboard />}
               </>
             )}
           </Suspense>

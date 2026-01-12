@@ -14,7 +14,7 @@ export interface InfographicAnalyticsEvent {
                'cache_hit' | 'cache_miss' | 'preview_opened' | 'preview_confirmed' |
                'preview_rejected' | 'type_changed';
     visualType: InfographicType;
-    provider?: 'dall-e' | 'imagen';
+    provider?: 'dall-e' | 'imagen' | 'gemini3';
     cacheSource?: 'memory' | 'firebase-storage';
     generationTime?: number; // milliseconds
     cost?: number; // USD
@@ -35,6 +35,7 @@ export interface InfographicAnalyticsSummary {
     providerUsage: {
         'dall-e': number;
         'imagen': number;
+        'gemini3': number;
     };
     typeUsage: Record<InfographicType, number>;
     period: {
@@ -87,7 +88,7 @@ export const trackGenerationStart = (
  */
 export const trackGenerationComplete = (
     visualType: InfographicType,
-    provider: 'dall-e' | 'imagen',
+    provider: 'dall-e' | 'imagen' | 'gemini3',
     generationTime: number,
     cost: number,
     userId?: string,
@@ -131,7 +132,7 @@ export const trackGenerationComplete = (
  */
 export const trackGenerationFailed = (
     visualType: InfographicType,
-    provider: 'dall-e' | 'imagen',
+    provider: 'dall-e' | 'imagen' | 'gemini3',
     userId?: string,
     courseId?: string
 ) => {
@@ -391,7 +392,8 @@ export const getAnalyticsSummary = (
 
     const providerUsage = {
         'dall-e': relevantEvents.filter(e => e.provider === 'dall-e').length,
-        'imagen': relevantEvents.filter(e => e.provider === 'imagen').length
+        'imagen': relevantEvents.filter(e => e.provider === 'imagen').length,
+        'gemini3': relevantEvents.filter(e => e.provider === 'gemini3').length
     };
 
     const typeUsage: Record<InfographicType, number> = {
@@ -451,6 +453,7 @@ export const printAnalyticsReport = () => {
    Net Cost: $${(summary.totalCost - summary.costSavings).toFixed(2)}
 
 🎨 PROVIDER USAGE:
+   Gemini 3 Pro: ${summary.providerUsage['gemini3']} (${((summary.providerUsage['gemini3'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
    DALL-E 3: ${summary.providerUsage['dall-e']} (${((summary.providerUsage['dall-e'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
    Imagen 3: ${summary.providerUsage['imagen']} (${((summary.providerUsage['imagen'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
 

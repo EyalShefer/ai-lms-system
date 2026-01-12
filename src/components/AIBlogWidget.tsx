@@ -104,11 +104,11 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
         return (
             <div className="card-glass rounded-3xl p-6 h-full">
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
-                        <IconBulb className="w-4 h-4 text-white" />
+                    <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+                        <IconBulb className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm text-slate-700">חדשות AI</h3>
+                        <h3 className="font-bold text-slate-800 dark:text-white">חדשות AI</h3>
                         <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                     </div>
                 </div>
@@ -139,11 +139,11 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
             <div className="card-glass rounded-2xl p-5">
                 {/* Header - Subtle */}
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
-                        <IconBulb className="w-4 h-4 text-white" />
+                    <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+                        <IconBulb className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm text-slate-700 dark:text-white">חדשות AI</h3>
+                        <h3 className="font-bold text-slate-800 dark:text-white">חדשות AI</h3>
                         <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                     </div>
                 </div>
@@ -257,11 +257,11 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
         <div className="card-glass rounded-2xl p-5 h-full">
             {/* Header - Subtle */}
             <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
-                    <IconBulb className="w-4 h-4 text-white" />
+                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                    <IconBulb className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                    <h2 className="font-bold text-sm text-slate-700">חדשות AI</h2>
+                    <h2 className="font-bold text-slate-800 dark:text-white">חדשות AI</h2>
                     <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                 </div>
             </div>

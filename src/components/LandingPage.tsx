@@ -100,7 +100,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                         <img
                             src="/images/hero-illustration.png"
                             alt="AI Education Illustration"
-                            className="relative z-10 w-full max-w-xl h-auto object-contain drop-shadow-2xl"
+                            className="relative z-10 w-full max-w-xl h-auto object-contain drop-shadow-2xl rotate-180"
                         />
                     </div>
                 </div>

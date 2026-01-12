@@ -26,6 +26,73 @@ import { functions } from "../../firebase";
 
 export const MODEL_NAME = "gpt-4o-mini";
 
+// Imagen 4 for infographics (Real AI Image Generation via Vertex AI)
+export const INFOGRAPHIC_MODEL = "imagen-4.0-generate-001";
+
+/**
+ * Call Imagen 4 via Cloud Function for real AI image generation
+ * Uses Vertex AI for high-quality infographic images
+ */
+const callImagen4InfographicCloudFunction = async (
+    content: string,
+    visualType: 'flowchart' | 'timeline' | 'comparison' | 'cycle',
+    topic?: string
+): Promise<Blob | null> => {
+    try {
+        console.log(`🚀 Calling Imagen 4 Cloud Function for infographic...`);
+
+        // Get auth token
+        const { auth } = await import('../../firebase');
+        const user = auth.currentUser;
+        if (!user) {
+            console.error('❌ User not authenticated');
+            return null;
+        }
+        const idToken = await user.getIdToken();
+
+        // Call the Cloud Function (HTTP endpoint)
+        const functionUrl = `https://us-central1-ai-lms-pro.cloudfunctions.net/generateImagen4Infographic`;
+
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+                content,
+                visualType,
+                topic
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ Imagen 4 Cloud Function error:', error);
+            return null;
+        }
+
+        const data = await response.json();
+        if (data.success && data.image?.base64) {
+            console.log('✅ Imagen 4 image received from Cloud Function');
+
+            // Convert base64 to Blob
+            const byteCharacters = atob(data.image.base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: data.image.mimeType || 'image/png' });
+        }
+
+        return null;
+    } catch (error) {
+        console.error('❌ Imagen 4 Cloud Function call failed:', error);
+        return null;
+    }
+};
+
 // Internal OpenAI Client Wrapper ensuring Proxy usage
 export const openai = {
     chat: {
@@ -375,8 +442,7 @@ export const generateInfographicFromText = async (
     text: string,
     visualType: InfographicType,
     topic?: string,
-    skipCache: boolean = false,
-    preferredMethod: 'gemini3' | 'code-to-image' | 'dall-e' | 'auto' = 'code-to-image'
+    skipCache: boolean = false
 ): Promise<Blob | null> => {
     // Import cache utilities dynamically
     const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
@@ -443,153 +509,35 @@ export const generateInfographicFromText = async (
         trackCacheMiss(visualType);
     }
 
-    // Type-specific prompt templates optimized for educational clarity
-    const promptTemplates: Record<InfographicType, string> = {
-        flowchart: `Create a clean educational flowchart infographic showing the process described below.
-        Style: Minimalist, clear arrows, colorful boxes, suitable for classroom presentation.
-        Include Hebrew text labels extracted from the content.
-        Layout: Top-to-bottom or left-to-right flow with decision diamonds where applicable.
-        ${topic ? `Topic: ${topic}` : ''}
-
-        Content to visualize:
-        ${truncatedText}
-
-        Requirements:
-        - Clear, large Hebrew text (RTL support)
-        - High contrast colors (educational palette)
-        - Numbered steps if sequential
-        - Professional diagram style`,
-
-        timeline: `Create a horizontal timeline infographic showing the chronological sequence or historical progression described below.
-        Style: Clean, modern, colorful milestone markers, suitable for educational use.
-        Include Hebrew text labels for each event/stage.
-        ${topic ? `Topic: ${topic}` : ''}
-
-        Content to visualize:
-        ${truncatedText}
-
-        Requirements:
-        - Clear timeline axis with date/stage markers
-        - Large, readable Hebrew text (RTL)
-        - Distinct visual markers for each milestone
-        - Educational color scheme`,
-
-        comparison: `Create a side-by-side comparison table or Venn diagram infographic showing the contrasts/similarities described below.
-        Style: Clean, balanced layout, color-coded categories, suitable for classroom teaching.
-        Include Hebrew text labels for compared items.
-        ${topic ? `Topic: ${topic}` : ''}
-
-        Content to visualize:
-        ${truncatedText}
-
-        Requirements:
-        - Clear visual separation between compared items
-        - Large Hebrew text (RTL support)
-        - Color coding for different categories
-        - Balanced, symmetrical layout`,
-
-        cycle: `Create a circular cycle/loop diagram infographic showing the cyclical process described below.
-        Style: Circular flow with arrows, colorful segments, suitable for educational presentation.
-        Include Hebrew text labels for each stage of the cycle.
-        ${topic ? `Topic: ${topic}` : ''}
-
-        Content to visualize:
-        ${truncatedText}
-
-        Requirements:
-        - Circular arrangement with directional arrows
-        - Large, clear Hebrew text (RTL)
-        - Distinct colors for each cycle stage
-        - Professional educational style`
-    };
-
-    const enhancedPrompt = promptTemplates[visualType];
-
     try {
-        console.log(`🎨 Generating ${visualType} infographic with method: ${preferredMethod}...`);
+        console.log(`🎨 Generating ${visualType} infographic with Imagen 4 (Real AI Image)...`);
         const startTime = Date.now();
         let imageBlob: Blob | null = null;
-        let usedProvider: 'gemini3' | 'code-to-image' | 'dall-e' | 'imagen' = 'dall-e';
-        let actualCost = 0.040;
+        let actualCost = 0.04; // Imagen 4 cost
 
-        // STRATEGY: Code-to-Image first (best Hebrew support) → Gemini 3 → DALL-E fallback
+        // STRATEGY: Imagen 4 for REAL AI-generated infographic images
 
-        // PRIMARY: Code-to-Image (HTML/CSS) - Perfect Hebrew RTL support, clean design
-        if (preferredMethod === 'code-to-image' || preferredMethod === 'auto') {
-            try {
-                console.log('🎯 Using Code-to-Image (HTML/CSS) for perfect Hebrew support...');
-                const { getInfographicHTMLPrompt } = await import('../../utils/infographicHTMLTemplates');
-                const { convertHTMLToImage } = await import('../../utils/htmlToImage');
+        // PRIMARY: Imagen 4 via Vertex AI Cloud Function
+        try {
+            console.log('🎯 Using Imagen 4 (Vertex AI) for real infographic image generation...');
 
-                // Generate HTML with LLM
-                const htmlPrompt = getInfographicHTMLPrompt(truncatedText, visualType, topic);
-                const response = await openaiClient.chat.completions.create({
-                    model: MODEL_NAME,
-                    messages: [
-                        { role: "system", content: `You are an expert HTML/CSS developer specializing in Hebrew educational infographics.
-
-CRITICAL RULES:
-1. Output ONLY valid HTML code - no explanations, no markdown code blocks
-2. All text MUST be in Hebrew with dir="rtl"
-3. Keep the design SIMPLE and CLEAN - maximum 4-5 main elements
-4. Use large, readable fonts (minimum 24px for body text, 48px for titles)
-5. High contrast colors on gradient backgrounds
-6. The output will be rendered at exactly 1024x1024px` },
-                        { role: "user", content: htmlPrompt }
-                    ],
-                    temperature: 0.5
-                });
-
-                const htmlCode = response.choices[0].message.content
-                    ?.replace(/```html\n?/g, '')
-                    ?.replace(/```\n?/g, '')
-                    ?.trim();
-
-                if (htmlCode) {
-                    imageBlob = await convertHTMLToImage(htmlCode);
-                    if (imageBlob) {
-                        usedProvider = 'code-to-image';
-                        actualCost = 0.001; // LLM only
-                        console.log('✅ Code-to-Image successful with perfect Hebrew support!');
-                    }
-                }
-            } catch (codeToImageError) {
-                console.warn('⚠️ Code-to-Image failed:', codeToImageError);
-            }
-        }
-
-        // FALLBACK 1: Gemini 3 Pro Image (if code-to-image fails)
-        if (!imageBlob && (preferredMethod === 'gemini3' || preferredMethod === 'auto')) {
-            console.log('🎯 Trying Gemini 3 Pro Image as fallback...');
-            imageBlob = await generateGemini3InfographicFromText(truncatedText, visualType, topic);
+            // Call Cloud Function to generate image with Imagen 4
+            imageBlob = await callImagen4InfographicCloudFunction(truncatedText, visualType, topic);
 
             if (imageBlob) {
-                usedProvider = 'gemini3';
-                actualCost = 0.015;
-                console.log('✅ Gemini 3 Pro Image successful!');
-            } else {
-                console.warn('⚠️ Gemini 3 Pro Image failed, trying DALL-E...');
+                console.log('✅ Imagen 4 infographic generated successfully!');
             }
-        }
-
-        // FALLBACK 2: DALL-E 3 (last resort)
-        if (!imageBlob) {
-            console.log('🎯 Using DALL-E 3 as final fallback...');
-            imageBlob = await generateAiImage(enhancedPrompt);
-            if (imageBlob) {
-                usedProvider = 'dall-e';
-                actualCost = 0.040;
-                console.log('✅ DALL-E 3 infographic generated!');
-            }
+        } catch (imagenError) {
+            console.error('❌ Imagen 4 infographic generation failed:', imagenError);
         }
 
         const generationTime = Date.now() - startTime;
 
         if (imageBlob) {
-            console.log(`✅ ${visualType} infographic generated successfully with ${usedProvider}`);
+            console.log(`✅ ${visualType} infographic generated successfully with Imagen 4`);
 
             // Track successful generation
-            trackGenerationComplete(visualType, usedProvider as any, generationTime, actualCost);
+            trackGenerationComplete(visualType, 'gemini3', generationTime, actualCost);
 
             // Cache the result for future use (two-tier: memory + Firebase Storage)
             if (!skipCache) {
@@ -615,10 +563,10 @@ CRITICAL RULES:
                 }
             }
         } else {
-            console.warn(`⚠️ ${visualType} infographic generation returned null`);
+            console.warn(`⚠️ ${visualType} infographic generation failed - Gemini 3 Pro only mode`);
 
             // Track failed generation
-            trackGenerationFailed(visualType, 'dall-e');
+            trackGenerationFailed(visualType, 'gemini3');
         }
 
         return imageBlob;

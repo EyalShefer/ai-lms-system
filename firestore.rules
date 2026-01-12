@@ -380,6 +380,111 @@ service cloud.firestore {
     }
 
     // ============================================
+    // LICENSING & USAGE TRACKING
+    // ============================================
+
+    // Check if user belongs to an institution
+    function getUserInstitutionId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId;
+    }
+
+    // Check if user is institution admin
+    function isInstitutionAdmin(institutionId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == institutionId &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Institutions collection
+    match /institutions/{institutionId} {
+      // System admins can read all institutions
+      // Institution admins can read their own
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        isInstitutionAdmin(institutionId)
+      );
+
+      // Only system admins can create institutions
+      allow create: if isAdmin();
+
+      // Institution admins can update settings (not license-related)
+      // System admins can update anything
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isInstitutionAdmin(institutionId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['licenseId', 'licenseStatus']))
+      );
+
+      // Only system admins can delete institutions
+      allow delete: if isAdmin();
+    }
+
+    // Licenses collection
+    match /licenses/{licenseId} {
+      // System admins can read all licenses
+      // Institution admins can read their own license
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/institutions/$(resource.data.institutionId)) &&
+         isInstitutionAdmin(resource.data.institutionId))
+      );
+
+      // Only system admins or Cloud Functions can write licenses
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Usage Logs collection
+    match /usage_logs/{logId} {
+      // System admins can read all usage logs
+      // Institution admins can read their institution's logs
+      // Teachers can read their own logs
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (resource.data.institutionId != null && isInstitutionAdmin(resource.data.institutionId))
+      );
+
+      // Only Cloud Functions can write usage logs (via Admin SDK)
+      allow create, update, delete: if false;
+    }
+
+    // Usage Aggregations collection
+    match /usage_aggregations/{aggId} {
+      // System admins can read all aggregations
+      // Institution admins can read their institution's aggregations
+      // Teachers can read their own aggregations
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (resource.data.institutionId != null && isInstitutionAdmin(resource.data.institutionId))
+      );
+
+      // Only Cloud Functions can write aggregations (via Admin SDK)
+      allow create, update, delete: if false;
+    }
+
+    // Usage Notifications collection
+    match /usage_notifications/{notificationId} {
+      // Users can read notifications for their institution
+      // Or their own personal notifications
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (resource.data.institutionId != null && isInstitutionAdmin(resource.data.institutionId))
+      );
+
+      // Users can update to dismiss their notifications
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isInstitutionAdmin(resource.data.institutionId)
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissed']);
+
+      // Only Cloud Functions can create/delete
+      allow create, delete: if false;
+    }
+
+    // ============================================
     // DEFAULT DENY
     // ============================================
 

@@ -6,6 +6,7 @@ import { mapSystemItemToBlock, cleanJsonString } from "../shared/utils/geminiPar
 import { getCached, setCache, getSkeletonCacheKey, getStepContentCacheKey } from "../services/cacheService";
 import { getOpenAIClient } from "../utils/connectionPool";
 import { KnowledgeService } from "../services/knowledgeBase";
+import { trackAiCall, checkQuota, extractOpenAITokens } from "../services/usageService";
 
 // Helper to convert grade level string to Knowledge Base grade format
 const gradeToKBFormat = (gradeLevel: string): 'א' | 'ב' | 'ג' | 'ד' | 'ה' | 'ו' | 'ז' | 'ח' | 'ט' | 'י' | 'יא' | 'יב' | null => {
@@ -63,6 +64,23 @@ export const createAiController = (openaiApiKey: any) => {
     // --- 1. Generate Teacher Lesson PLAN (Teacher View) ---
     // Formerly 'generateUnitSkeleton' - Renamed to avoid confusion with Student Unit
     const generateTeacherLessonPlan = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
+        // Verify authentication
+        if (!request.auth?.uid) {
+            throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+        }
+        const userId = request.auth.uid;
+
+        // Check quota before proceeding
+        const quotaCheck = await checkQuota(userId, 'lesson_skeleton');
+        if (!quotaCheck.allowed) {
+            throw new HttpsError('resource-exhausted', quotaCheck.messageHe, {
+                code: quotaCheck.reason,
+                currentUsage: quotaCheck.currentUsage,
+                limit: quotaCheck.limit,
+                percentUsed: quotaCheck.percentUsed,
+            });
+        }
+
         const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, gradeLevel, activityLength, sourceText, mode, productType } = request.data;
         const durationMap: Record<string, string> = { short: "45 min", medium: "90 min", long: "120 min" };
@@ -361,16 +379,27 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
 `;
 
         try {
-            const completion = await openai.chat.completions.create({
-                model: MODEL_NAME,
-                messages: [
-                    { role: "system", content: "You are the Wizdi Pedagogical Architect." },
-                    { role: "user", content: ARCHITECT_PROMPT }
-                ],
-                response_format: { type: "json_object" }
-            });
+            // Track the AI call with usage service
+            const result = await trackAiCall(
+                userId,
+                'lesson_skeleton',
+                'openai',
+                MODEL_NAME,
+                { functionName: 'generateTeacherLessonPlan' },
+                async () => {
+                    const completion = await openai.chat.completions.create({
+                        model: MODEL_NAME,
+                        messages: [
+                            { role: "system", content: "You are the Wizdi Pedagogical Architect." },
+                            { role: "user", content: ARCHITECT_PROMPT }
+                        ],
+                        response_format: { type: "json_object" }
+                    });
+                    return completion;
+                }
+            );
 
-            const rawContent = completion.choices[0].message.content;
+            const rawContent = result.choices[0].message.content;
             if (!rawContent) throw new Error("Empty response from AI");
 
             const architectJson = JSON.parse(cleanJsonString(rawContent));
@@ -425,6 +454,23 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
     // --- 2. Generate STUDENT Unit Skeleton (Interactive Flow) ---
     // Ported from frontend/gemini.ts to Fix "Split Brain"
     const generateStudentUnitSkeleton = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
+        // Verify authentication
+        if (!request.auth?.uid) {
+            throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+        }
+        const userId = request.auth.uid;
+
+        // Check quota before proceeding
+        const quotaCheck = await checkQuota(userId, 'lesson_skeleton');
+        if (!quotaCheck.allowed) {
+            throw new HttpsError('resource-exhausted', quotaCheck.messageHe, {
+                code: quotaCheck.reason,
+                currentUsage: quotaCheck.currentUsage,
+                limit: quotaCheck.limit,
+                percentUsed: quotaCheck.percentUsed,
+            });
+        }
+
         const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, gradeLevel, activityLength, sourceText, mode, productType, bloomPreferences, studentProfile } = request.data;
 
@@ -601,14 +647,25 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
         `;
 
         try {
-            const completion = await openai.chat.completions.create({
-                model: MODEL_NAME,
-                messages: [{ role: "user", content: prompt }],
-                response_format: { type: "json_object" },
-                temperature: 0.7
-            });
+            // Track the AI call with usage service
+            const aiResult = await trackAiCall(
+                userId,
+                'lesson_skeleton',
+                'openai',
+                MODEL_NAME,
+                { functionName: 'generateStudentUnitSkeleton' },
+                async () => {
+                    const completion = await openai.chat.completions.create({
+                        model: MODEL_NAME,
+                        messages: [{ role: "user", content: prompt }],
+                        response_format: { type: "json_object" },
+                        temperature: 0.7
+                    });
+                    return completion;
+                }
+            );
 
-            const text = completion.choices[0].message.content || "{}";
+            const text = aiResult.choices[0].message.content || "{}";
             const result = JSON.parse(cleanJsonString(text));
 
             if (!result.steps || !Array.isArray(result.steps)) {
@@ -634,6 +691,23 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
 
     // --- 2. Generate Step Content ---
     const generateStepContent = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
+        // Verify authentication
+        if (!request.auth?.uid) {
+            throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+        }
+        const userId = request.auth.uid;
+
+        // Check quota before proceeding
+        const quotaCheck = await checkQuota(userId, 'step_content');
+        if (!quotaCheck.allowed) {
+            throw new HttpsError('resource-exhausted', quotaCheck.messageHe, {
+                code: quotaCheck.reason,
+                currentUsage: quotaCheck.currentUsage,
+                limit: quotaCheck.limit,
+                percentUsed: quotaCheck.percentUsed,
+            });
+        }
+
         const openai = getOpenAIClient(openaiApiKey.value()); // Use connection pool
         const { topic, stepInfo, gradeLevel, sourceText, fileData, mode } = request.data;
         logger.info(`Vault: Generating Step ${stepInfo?.step_number} Content`);
@@ -702,14 +776,25 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
         }
 
         try {
-            const completion = await openai.chat.completions.create({
-                model: MODEL_NAME,
-                messages: [{ role: "user", content: userContent as any }],
-                response_format: { type: "json_object" },
-                temperature: 0.7
-            });
+            // Track the AI call with usage service
+            const aiResult = await trackAiCall(
+                userId,
+                'step_content',
+                'openai',
+                MODEL_NAME,
+                { functionName: 'generateStepContent', courseId: stepInfo?.courseId },
+                async () => {
+                    const completion = await openai.chat.completions.create({
+                        model: MODEL_NAME,
+                        messages: [{ role: "user", content: userContent as any }],
+                        response_format: { type: "json_object" },
+                        temperature: 0.7
+                    });
+                    return completion;
+                }
+            );
 
-            const text = completion.choices[0].message.content || "{}";
+            const text = aiResult.choices[0].message.content || "{}";
             const result = JSON.parse(cleanJsonString(text));
 
             // Exam Enforcer Logic (Backend Side)
@@ -736,6 +821,23 @@ IMPORTANT: Every step MUST include engagement_elements based on the 10 Principle
 
     // --- 3. Generate Podcast ---
     const generatePodcastScript = onCall({ cors: true, secrets: [openaiApiKey] }, async (request) => {
+        // Verify authentication
+        if (!request.auth?.uid) {
+            throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+        }
+        const userId = request.auth.uid;
+
+        // Check quota before proceeding
+        const quotaCheck = await checkQuota(userId, 'podcast');
+        if (!quotaCheck.allowed) {
+            throw new HttpsError('resource-exhausted', quotaCheck.messageHe, {
+                code: quotaCheck.reason,
+                currentUsage: quotaCheck.currentUsage,
+                limit: quotaCheck.limit,
+                percentUsed: quotaCheck.percentUsed,
+            });
+        }
+
         const openai = new OpenAI({ apiKey: openaiApiKey.value() });
         const { sourceText, topic, gradeLevel, activityLength } = request.data;
 

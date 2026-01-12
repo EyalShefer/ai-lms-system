@@ -18,8 +18,17 @@ const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
 // --- MIDDLEWARE ---
 import { checkRateLimit } from "./middleware/rateLimiter";
 
+// --- USAGE TRACKING SERVICE ---
+import { checkQuota, logUsage, extractOpenAITokens, AICallType } from "./services/usageService";
+
 // --- GEMINI IMAGE GENERATION ---
 export { generateGeminiImage } from "./geminiImageService";
+
+// --- GEMINI 3 PRO INFOGRAPHIC (HTML via Vertex AI) ---
+export { generateGemini3Infographic as generateGemini3InfographicHttp } from "./gemini3InfographicService";
+
+// --- IMAGEN 4 INFOGRAPHIC (Real AI Image Generation) ---
+export { generateImagen4Infographic } from "./imagen4InfographicService";
 
 // --- YOUTUBE EDUCATIONAL SEARCH ---
 export { searchYouTubeEducational, getYouTubeVideoDetails } from "./youtubeSearchService";
@@ -91,6 +100,18 @@ export {
     getAvailableTextbooks
 } from './controllers/referenceExamController';
 
+// --- LICENSING & USAGE MANAGEMENT ---
+export {
+    createInstitution,
+    updateLicense,
+    addUserToInstitution,
+    getMyUsageStats,
+    getInstitutionUsage,
+    getAllUsage,
+    monthlyQuotaReset,
+    checkExpiringLicenses,
+} from './controllers/licensingController';
+
 // --- TYPES ---
 // --- TYPES REMOVED (Imported from Shared) ---
 // interface StepInfo ...
@@ -146,6 +167,36 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
     }
 
     await checkRateLimit(rateLimitType)(req, res, async () => {
+        const userId = (req as any).auth?.uid;
+        const startTime = Date.now();
+
+        // Determine call type for quota checking
+        let callType: AICallType = 'chat';
+        if (req.path.includes('/images')) {
+            callType = 'image_generation';
+        } else if (req.path.includes('/audio')) {
+            callType = 'transcription';
+        } else if (rateLimitType === 'ai-generation') {
+            callType = 'lesson_skeleton'; // Content generation
+        }
+
+        // Check quota before making the API call
+        const quotaCheck = await checkQuota(userId, callType);
+        if (!quotaCheck.allowed) {
+            res.status(429).json({
+                error: quotaCheck.messageHe,
+                code: quotaCheck.reason || 'QUOTA_EXCEEDED',
+                quotaDetails: {
+                    currentUsage: quotaCheck.currentUsage,
+                    limit: quotaCheck.limit,
+                    percentUsed: quotaCheck.percentUsed,
+                    resetDate: quotaCheck.resetDate,
+                    canUpgrade: quotaCheck.canUpgrade,
+                }
+            });
+            return;
+        }
+
         try {
             const apiKey = openAiApiKey.value();
             // 3. Extract Path (e.g., /chat/completions)
@@ -172,11 +223,43 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
             if (!response.ok) {
                 const errorText = await response.text();
                 logger.error(`OpenAI Error (${response.status}):`, errorText);
+
+                // Log failed request
+                logUsage({
+                    institutionId: `personal_${userId}`,
+                    userId,
+                    callType,
+                    provider: 'openai',
+                    model: (req.body as any)?.model || 'gpt-4o-mini',
+                    tokens: { input: 0, output: 0, total: 0 },
+                    context: { functionName: 'openaiProxy' },
+                    performance: { latencyMs: Date.now() - startTime, cached: false, retryCount: 0 },
+                    status: 'error',
+                    errorMessage: `HTTP ${response.status}`,
+                }).catch(err => logger.error('Failed to log usage:', err));
+
                 res.status(response.status).send(errorText);
                 return;
             }
 
             const data = await response.json();
+
+            // Log successful request with token usage
+            const tokens = extractOpenAITokens(data);
+            if (tokens.total > 0) {
+                logUsage({
+                    institutionId: `personal_${userId}`,
+                    userId,
+                    callType,
+                    provider: 'openai',
+                    model: (req.body as any)?.model || 'gpt-4o-mini',
+                    tokens,
+                    context: { functionName: 'openaiProxy' },
+                    performance: { latencyMs: Date.now() - startTime, cached: false, retryCount: 0 },
+                    status: 'success',
+                }).catch(err => logger.error('Failed to log usage:', err));
+            }
+
             res.json(data);
 
         } catch (error: any) {

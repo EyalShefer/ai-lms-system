@@ -6,7 +6,7 @@ import {
     IconList,
     IconMagicWand
 } from '../icons';
-import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2 } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2, IconHistory } from '@tabler/icons-react';
 import AIBlogWidget from './AIBlogWidget';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -20,7 +20,7 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents, onNavigateToUsage }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void, onNavigateToUsage?: () => void }) => {
     const { currentUser, isAdmin } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -176,7 +176,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                             <img
                                 src="/images/hero-illustration.png"
                                 alt="AI Education Illustration"
-                                className="relative z-10 w-full max-w-sm h-auto object-contain drop-shadow-xl"
+                                className="relative z-10 w-full max-w-sm h-auto object-contain drop-shadow-xl rotate-180"
                             />
                         </div>
                     </div>
@@ -211,7 +211,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
 
             {/* Main Section - Content Creation Studio */}
             <section className="mb-8" aria-label="סטודיו יצירת תוכן">
-                    <div className="card-glass rounded-3xl p-8 border border-slate-200 dark:border-slate-700 dark:bg-slate-800/80">
+                    <div className="card-glass rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700 dark:bg-slate-800/80 bg-gradient-to-br from-white to-slate-50/30">
                         <div className="flex flex-col h-full">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
@@ -316,6 +316,54 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     </div>
             </section>
 
+            {/* How It Works - Compact */}
+            <section className="mb-8" aria-labelledby="how-it-works-title">
+                <div className="max-w-4xl mx-auto">
+                    <div className="text-center mb-6">
+                        <h2 id="how-it-works-title" className="text-xl font-bold text-slate-800 dark:text-white mb-1">איך זה עובד?</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">ארבעה שלבים פשוטים ליצירת תוכן מדהים</p>
+                    </div>
+
+                    <ol className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="שלבי תהליך היצירה">
+                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
+                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
+                                <IconUpload className="w-6 h-6 text-wizdi-royal" />
+                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">1</span>
+                            </div>
+                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">העלאה</h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">בחרו קובץ, סרטון או נושא</p>
+                        </li>
+
+                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
+                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
+                                <IconSparkles className="w-6 h-6 text-wizdi-royal" />
+                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">2</span>
+                            </div>
+                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">יצירה</h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">ה-AI בונה את התוכן</p>
+                        </li>
+
+                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
+                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
+                                <IconShare className="w-6 h-6 text-wizdi-royal" />
+                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">3</span>
+                            </div>
+                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">שיתוף</h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">שלחו לתלמידים</p>
+                        </li>
+
+                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
+                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
+                                <IconChart className="w-6 h-6 text-wizdi-royal" />
+                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">4</span>
+                            </div>
+                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">מעקב</h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">קבלו דוחות ותובנות</p>
+                        </li>
+                    </ol>
+                </div>
+            </section>
+
             {/* Teaching Agents & Prompts - Equal Priority Grid */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" aria-label="כלי הוראה מוכנים">
                 {/* Teaching Agents Card - Disabled, Coming Soon */}
@@ -392,7 +440,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     className="group cursor-pointer w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 rounded-3xl"
                     aria-label="כניסה למאגר פרומפטים AI"
                 >
-                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none h-full">
+                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200/80 dark:border-slate-700 motion-reduce:hover:transform-none h-full bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-800 dark:to-slate-700/30">
                         <div className="flex flex-col h-full">
                             {/* Header */}
                             <div className="flex items-center gap-4 mb-4">
@@ -409,6 +457,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
 
                             {/* Preview Categories */}
                             <div className="flex-grow">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">לדוגמה:</p>
                                 <div className="grid grid-cols-2 gap-2 mb-4">
                                     <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
                                         <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
@@ -450,11 +499,11 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
             {/* Secondary Section - Recent Activities + Dashboard */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8" aria-label="פעילויות ולוח בקרה">
                 {/* Recent Activity */}
-                <div className="card-glass rounded-2xl p-5 dark:bg-slate-800/80">
+                <div className="card-glass rounded-2xl p-5 dark:bg-slate-800/80 bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 dark:border-slate-700">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-wizdi-gold/20 dark:bg-wizdi-gold/30 rounded-xl flex items-center justify-center" aria-hidden="true">
-                                <svg className="w-5 h-5 text-wizdi-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg" aria-hidden="true">
+                                <IconHistory className="w-7 h-7 text-white" />
                             </div>
                             <h3 className="font-bold text-slate-800 dark:text-white">פעילויות אחרונות</h3>
                         </div>
@@ -546,8 +595,8 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                         </div>
 
                         <div className="relative z-10 flex items-center gap-4">
-                            <div className="w-12 h-12 min-w-[44px] min-h-[44px] bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                <IconChart className="w-6 h-6 text-white" />
+                            <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-slate-600 to-slate-800 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
+                                <IconChart className="w-7 h-7 text-white" />
                             </div>
                             <div className="flex-grow">
                                 <h2 className="text-lg font-black text-slate-800 dark:text-white">לוח בקרה</h2>
@@ -567,51 +616,6 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 <AIBlogWidget compact={true} showFeatured={true} maxItems={1} />
             </section>
 
-            {/* How It Works */}
-            <section className="mb-12" aria-labelledby="how-it-works-title">
-                <div className="text-center mb-8">
-                    <h2 id="how-it-works-title" className="text-2xl font-bold text-slate-800 dark:text-white mb-2">איך זה עובד?</h2>
-                    <p className="text-slate-500 dark:text-slate-400">ארבעה שלבים פשוטים ליצירת תוכן מדהים</p>
-                </div>
-
-                <ol className="grid grid-cols-2 md:grid-cols-4 gap-4" aria-label="שלבי תהליך היצירה">
-                    <li className="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                        <div className="w-14 h-14 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-2xl flex items-center justify-center mx-auto mb-4 relative" aria-hidden="true">
-                            <IconUpload className="w-7 h-7 text-wizdi-royal" />
-                            <span className="absolute -top-2 -left-2 w-6 h-6 bg-wizdi-royal text-white rounded-full text-xs font-bold flex items-center justify-center shadow">1</span>
-                        </div>
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-1">העלאה</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">בחרו קובץ, סרטון או נושא</p>
-                    </li>
-
-                    <li className="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                        <div className="w-14 h-14 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-2xl flex items-center justify-center mx-auto mb-4 relative" aria-hidden="true">
-                            <IconSparkles className="w-7 h-7 text-wizdi-royal" />
-                            <span className="absolute -top-2 -left-2 w-6 h-6 bg-wizdi-royal text-white rounded-full text-xs font-bold flex items-center justify-center shadow">2</span>
-                        </div>
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-1">יצירה</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">ה-AI בונה את התוכן</p>
-                    </li>
-
-                    <li className="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                        <div className="w-14 h-14 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-2xl flex items-center justify-center mx-auto mb-4 relative" aria-hidden="true">
-                            <IconShare className="w-7 h-7 text-wizdi-royal" />
-                            <span className="absolute -top-2 -left-2 w-6 h-6 bg-wizdi-royal text-white rounded-full text-xs font-bold flex items-center justify-center shadow">3</span>
-                        </div>
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-1">שיתוף</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">שלחו לתלמידים</p>
-                    </li>
-
-                    <li className="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                        <div className="w-14 h-14 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-2xl flex items-center justify-center mx-auto mb-4 relative" aria-hidden="true">
-                            <IconChart className="w-7 h-7 text-wizdi-royal" />
-                            <span className="absolute -top-2 -left-2 w-6 h-6 bg-wizdi-royal text-white rounded-full text-xs font-bold flex items-center justify-center shadow">4</span>
-                        </div>
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-1">מעקב</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">קבלו דוחות ותובנות</p>
-                    </li>
-                </ol>
-            </section>
 
             {/* Floating Button for Mobile */}
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 lg:hidden z-fixed" aria-label="יצירה מהירה">
@@ -643,6 +647,15 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                         aria-label="כניסה לניהול בסיס ידע"
                     >
                         בסיס ידע
+                    </button>
+                )}
+                {onNavigateToUsage && (
+                    <button
+                        onClick={() => onNavigateToUsage()}
+                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
+                        aria-label="דשבורד שימוש"
+                    >
+                        שימוש AI
                     </button>
                 )}
             </nav>

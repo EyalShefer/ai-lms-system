@@ -19,11 +19,13 @@ import {
 
 // --- Lazy Load CoursePlayer ---
 const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
+const TeacherControlCenter = React.lazy(() => import('./dashboard/TeacherControlCenter').then(m => ({ default: m.TeacherControlCenter })));
 import { SmartGroupingPanel } from './SmartGroupingPanel';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
 import { ShareModal } from './ShareModal';
-import { IconBrandGoogle, IconShare, IconMail, IconMailOff } from '@tabler/icons-react';
+import { TeacherUsageWidget } from './TeacherUsageWidget';
+import { IconBrandGoogle, IconShare, IconMail, IconMailOff, IconChartBar } from '@tabler/icons-react';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -68,6 +70,7 @@ interface CourseAggregation {
     productType: 'lesson' | 'activity' | 'exam' | 'podcast' | null; // Product type from wizard
     mode?: 'learning' | 'exam' | 'lesson'; // Added mode
     submittedCount: number; // New field for submitted count
+    parentLesson?: { courseId: string; title: string }; // If extracted from lesson plan
 }
 
 interface TeacherDashboardProps {
@@ -249,6 +252,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     const [reportStudent, setReportStudent] = useState<any>(null);
     const [viewingInsightStudent, setViewingInsightStudent] = useState<StudentStat | null>(null); // New State
     const [viewingLessonPlan, setViewingLessonPlan] = useState<string | null>(null); // View lesson plan modal
+    const [viewingControlCenter, setViewingControlCenter] = useState<string | null>(null); // Teacher Control Center
     const [aiInsight, setAiInsight] = useState<any>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
@@ -310,39 +314,38 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     const [assignmentsMap, setAssignmentsMap] = useState<Record<string, any[]>>({});
 
-    // --- 1. Fetch Courses Metadata ---
+    // --- 1. Fetch Courses Metadata (Realtime) ---
     useEffect(() => {
         if (!currentUser) return;
 
-        const fetchCourses = async () => {
-            try {
-                const q = query(collection(db, "courses"), where("teacherId", "==", currentUser.uid));
-                const snapshot = await getDocs(q);
-                // Updated mapped type to include syllabus for type detection
-                const map: Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[] }> = {};
+        const q = query(collection(db, "courses"), where("teacherId", "==", currentUser.uid));
+        const unsubCourses = onSnapshot(q, (snapshot) => {
+            // Updated mapped type to include syllabus for type detection
+            const map: Record<string, { subject: string, grade: string, title: string, createdAt?: any, syllabus?: any[], parentLesson?: any }> = {};
 
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const rawSubject = data.subject || data.topic || "כללי";
-                    const rawGrade = data.gradeLevel || data.grade || data.classLevel || "כללי";
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const rawSubject = data.subject || data.topic || "כללי";
+                const rawGrade = data.gradeLevel || data.grade || data.classLevel || "כללי";
 
-                    map[doc.id] = {
-                        subject: rawSubject,
-                        grade: rawGrade,
-                        title: data.title || "ללא שם",
-                        createdAt: data.createdAt,
-                        mode: data.mode, // Store mode
-                        syllabus: data.syllabus, // Store syllabus
-                        wizardData: data.wizardData // Store wizardData for productType
-                    };
-                });
-                setCoursesMap(map);
-                setIsCoursesLoaded(true);
-            } catch (error) {
-                console.error("Error fetching courses map:", error);
-            }
-        };
-        fetchCourses();
+                map[doc.id] = {
+                    subject: rawSubject,
+                    grade: rawGrade,
+                    title: data.title || "ללא שם",
+                    createdAt: data.createdAt,
+                    mode: data.mode, // Store mode
+                    syllabus: data.syllabus, // Store syllabus
+                    wizardData: data.wizardData, // Store wizardData for productType
+                    parentLesson: data.parentLesson // Track if extracted from lesson plan
+                };
+            });
+            setCoursesMap(map);
+            setIsCoursesLoaded(true);
+        }, (error) => {
+            console.error("Error fetching courses:", error);
+        });
+
+        return () => unsubCourses();
     }, [currentUser]);
 
     // --- 1.5 Fetch Assignments for Due Dates ---
@@ -565,7 +568,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     nextDueDate: nextDue, // New Field
                     productType: productType,
                     mode: meta.mode as any,
-                    submittedCount: 0
+                    submittedCount: 0,
+                    parentLesson: (meta as any).parentLesson // Track if extracted from lesson plan
                 };
             }
         });
@@ -827,6 +831,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         <IconTrash className="w-5 h-5 opacity-70 group-hover:opacity-100" /> מחיקה
                                     </button>
                                     <button
+                                        onClick={() => setViewingControlCenter(selectedCourseId)}
+                                        className="px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl transition-all font-bold flex items-center gap-2 text-sm border border-indigo-200"
+                                        title="לוח בקרת כיתה - צפייה בנתונים מפורטים"
+                                    >
+                                        <IconChartBar className="w-5 h-5" /> לוח בקרה
+                                    </button>
+                                    <button
                                         onClick={() => setViewingLessonPlan(selectedCourseId)}
                                         className="px-5 py-2.5 bg-wizdi-cyan/10 hover:bg-wizdi-cyan/20 text-wizdi-cyan rounded-2xl transition-all font-bold flex items-center gap-2 text-sm border border-wizdi-cyan/30"
                                         title="צפה במערך השיעור"
@@ -968,6 +979,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     </div>
                 </header>
 
+                {/* Usage Widget - Shows AI quota usage at the top */}
+                {!selectedCourseId && (
+                    <div className="mb-6">
+                        <TeacherUsageWidget className="max-w-sm" />
+                    </div>
+                )}
+
                 {!selectedCourseId && (
                     <div className="animate-fade-in relative z-10">
                         {aggregatedCourses.length === 0 ? (
@@ -988,7 +1006,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         {aggregatedCourses.map(c => (
                                             <div
                                                 key={c.courseId}
-                                                onClick={() => setSelectedCourseId(c.courseId)}
+                                                onClick={() => setViewingControlCenter(c.courseId)}
                                                 className="card-glass p-0 cursor-pointer group flex flex-col h-[280px] relative overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 ring-1 ring-white/60 border-0"
                                             >
                                                 {/* Header Color Splash */}
@@ -1006,9 +1024,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
                                                     <div className="relative z-10 flex justify-between items-start">
-                                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm ${getProductTypeDisplay(c.productType, c.mode).cardColor}`}>
-                                                            {getProductTypeDisplay(c.productType, c.mode).label}
-                                                        </span>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm ${getProductTypeDisplay(c.productType, c.mode).cardColor}`}>
+                                                                {getProductTypeDisplay(c.productType, c.mode).label}
+                                                            </span>
+                                                            {c.parentLesson && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/30">
+                                                                    ממערך שיעור
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
                                                             <IconArrowBack className="w-5 h-5 text-white rotate-180" />
                                                         </div>
@@ -1137,15 +1162,22 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {aggregatedCourses.map(c => (
-                                                        <tr key={c.courseId} onClick={() => setSelectedCourseId(c.courseId)} className="hover:bg-wizdi-cloud/50 cursor-pointer transition-colors group">
+                                                        <tr key={c.courseId} onClick={() => setViewingControlCenter(c.courseId)} className="hover:bg-wizdi-cloud/50 cursor-pointer transition-colors group">
                                                             <td className="p-4">
                                                                 <div className="font-bold text-slate-800 text-base group-hover:text-wizdi-royal transition-colors">{c.title}</div>
                                                                 <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
                                                             </td>
                                                             <td className="p-4">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
-                                                                    {getProductTypeDisplay(c.productType, c.mode).label}
-                                                                </span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
+                                                                        {getProductTypeDisplay(c.productType, c.mode).label}
+                                                                    </span>
+                                                                    {c.parentLesson && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600" title={`ממערך: ${c.parentLesson.title}`}>
+                                                                            ממערך
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
                                                             <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
@@ -1626,6 +1658,38 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     courseTitle={shareModalCourse.title}
                     initialTab="assign"
                 />
+            )}
+
+            {/* Teacher Control Center Modal */}
+            {viewingControlCenter && (
+                <div className="fixed inset-0 z-[100] bg-slate-50">
+                    <React.Suspense fallback={
+                        <div className="h-full flex items-center justify-center">
+                            <div className="text-center">
+                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                                <p className="text-slate-500">טוען לוח בקרה...</p>
+                            </div>
+                        </div>
+                    }>
+                        <TeacherControlCenter
+                            courseId={viewingControlCenter}
+                            onBack={() => setViewingControlCenter(null)}
+                            onViewStudent={(studentId) => {
+                                // Find student and open their submission
+                                const student = allData.find(s => s.id === studentId);
+                                if (student) setViewingTestStudent(student);
+                            }}
+                            onViewLessonPlan={(courseId) => {
+                                setViewingControlCenter(null);
+                                setViewingLessonPlan(courseId);
+                            }}
+                            onEditCourse={(courseId) => {
+                                setViewingControlCenter(null);
+                                if (onEditCourse) onEditCourse(courseId);
+                            }}
+                        />
+                    </React.Suspense>
+                </div>
             )}
 
         </div >

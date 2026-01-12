@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye } from '../icons';
-import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend } from '../icons';
+import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
 import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
     generateSingleMultipleChoiceQuestion,
@@ -28,10 +28,14 @@ import MemoryGameQuestion from './MemoryGameQuestion';
 // Lazy load CoursePlayer for full preview mode
 const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 
+// Lazy load SendActivitiesModal
+const SendActivitiesModal = React.lazy(() => import('./SendActivitiesModal'));
+
 
 interface TeacherCockpitProps {
     unit: LearningUnit;
     courseId?: string; // For generating proper share links
+    course?: Course; // Full course object for activity extraction
     onExit?: () => void;
     onEdit?: () => void; // Legacy
     onUpdateBlock?: (blockId: string, newContent: any) => void; // Legacy
@@ -108,7 +112,7 @@ const BlockIconRenderer: React.FC<{ blockType: string; blockIndex: number; total
 // Debounce delay - should match CourseContext SAVE_DEBOUNCE_MS
 const SAVE_DEBOUNCE_MS = 2000;
 
-const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
+const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course, onExit, onEdit, onUpdateBlock, onUnitUpdate, embedded = false }) => {
     const [activeSection, setActiveSection] = useState<string>('all');
     const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
     const [refiningBlockId, setRefiningBlockId] = useState<string | null>(null); // Separate state for AI refine mode
@@ -119,6 +123,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
     // Track unsaved changes (for share warning)
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const unsavedTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Send Activities Modal State
+    const [showSendActivitiesModal, setShowSendActivitiesModal] = useState(false);
 
     // Editing state for goals
     const [isEditingGoals, setIsEditingGoals] = useState(false);
@@ -584,7 +591,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
 
             console.log('[handleGenerateInfographic] textContent length:', textContent.length, 'type:', visualType);
 
-            if (!textContent || textContent.length < 10) {
+            if (!textContent || textContent.length < 3) {
                 alert("נא להזין תוכן ליצירת האינפוגרפיקה");
                 return;
             }
@@ -1556,6 +1563,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Send Activities to Students Button */}
+                        {course && (
+                            <button
+                                onClick={() => setShowSendActivitiesModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition shadow-sm border text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
+                                title="שלח פעילויות לתלמידים"
+                            >
+                                <IconSend className="w-5 h-5" />
+                                <span className="hidden md:inline">שלח לתלמידים</span>
+                            </button>
+                        )}
+
                         {/* Preview Button */}
                         <button
                             onClick={() => setIsFullPreviewMode(true)}
@@ -2049,6 +2068,27 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, onExit,
                         />
                     </React.Suspense>
                 </div>
+            )}
+
+            {/* Send Activities Modal */}
+            {showSendActivitiesModal && course && (
+                <React.Suspense fallback={
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-2xl p-8 text-center">
+                            <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                            <p className="text-slate-600">טוען...</p>
+                        </div>
+                    </div>
+                }>
+                    <SendActivitiesModal
+                        unit={unit}
+                        course={course}
+                        onClose={() => setShowSendActivitiesModal(false)}
+                        onSuccess={(activityCourseId, shareUrl) => {
+                            console.log('Activity created:', activityCourseId, shareUrl);
+                        }}
+                    />
+                </React.Suspense>
             )}
         </div>
     );

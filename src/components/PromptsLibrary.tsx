@@ -366,15 +366,15 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
                   העשירייה הפופולרית
                 </h2>
                 <p className="text-sm text-orange-600">
-                  10 הפרומפטים הכי מועתקים במאגר - מבוסס על מספר ההעתקות בפועל
+                  הפרומפטים הכי פופולריים במאגר
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Featured Prompt - hide when popular category is selected */}
-        {featuredPrompt && !isPopularCategory && (
+        {/* Featured Prompt - hide when any category is selected */}
+        {featuredPrompt && !selectedCategory && (
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-4">
               <IconSparkles className="w-5 h-5 text-wizdi-gold" />
