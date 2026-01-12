@@ -302,7 +302,7 @@ export type AICallType =
     | 'class_analysis'
     | 'question_generation';
 
-export type AIProvider = 'openai' | 'gemini' | 'dall-e' | 'imagen' | 'whisper';
+export type AIProvider = 'openai' | 'gemini' | 'gemini-image' | 'whisper';
 
 export interface TokenUsage {
     input: number;
@@ -489,18 +489,14 @@ export const AI_COST_RATES = {
         input: 0.00125,
         output: 0.005,
     },
-    'dall-e-3': {
-        perImage: {
-            '1024x1024': 0.04,
-            '1792x1024': 0.08,
-            '1024x1792': 0.08,
-        },
+    'gemini-2.5-flash-image': {
+        perImage: 0.02, // Nano Banana - fast, cheaper
     },
-    'imagen-3': {
-        perImage: 0.04,
+    'gemini-3-pro-image': {
+        perImage: 0.04, // Gemini 3 Pro - higher quality
     },
     'gemini-image': {
-        perImage: 0.04,
+        perImage: 0.04, // Legacy alias
     },
     'whisper-1': {
         perMinute: 0.006,
@@ -527,14 +523,14 @@ export function calculateTokenCost(
 export function calculateImageCost(
     model: string,
     count: number,
-    resolution: string = '1024x1024'
+    _resolution: string = '1024x1024'
 ): number {
-    if (model === 'dall-e-3') {
-        const rates = AI_COST_RATES['dall-e-3'].perImage;
-        const rate = rates[resolution as keyof typeof rates] || rates['1024x1024'];
-        return rate * count;
+    // Gemini 2.5 Flash Image (Nano Banana) - faster, cheaper
+    if (model === 'gemini-2.5-flash-image' || model === 'nano-banana') {
+        return 0.02 * count;
     }
-    if (model === 'imagen-3' || model === 'gemini-image') {
+    // Gemini 3 Pro Image - higher quality
+    if (model === 'gemini-3-pro-image' || model === 'gemini-image') {
         return 0.04 * count;
     }
     return 0.04 * count; // Default

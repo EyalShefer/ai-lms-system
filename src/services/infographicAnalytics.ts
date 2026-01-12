@@ -14,7 +14,7 @@ export interface InfographicAnalyticsEvent {
                'cache_hit' | 'cache_miss' | 'preview_opened' | 'preview_confirmed' |
                'preview_rejected' | 'type_changed';
     visualType: InfographicType;
-    provider?: 'dall-e' | 'imagen' | 'gemini3';
+    provider?: 'gemini-flash' | 'gemini-pro';  // Only Gemini models supported
     cacheSource?: 'memory' | 'firebase-storage';
     generationTime?: number; // milliseconds
     cost?: number; // USD
@@ -33,9 +33,8 @@ export interface InfographicAnalyticsSummary {
     costSavings: number; // USD saved due to caching
     averageGenerationTime: number; // milliseconds
     providerUsage: {
-        'dall-e': number;
-        'imagen': number;
-        'gemini3': number;
+        'gemini-flash': number;  // Nano Banana
+        'gemini-pro': number;    // Gemini 3 Pro
     };
     typeUsage: Record<InfographicType, number>;
     period: {
@@ -88,7 +87,7 @@ export const trackGenerationStart = (
  */
 export const trackGenerationComplete = (
     visualType: InfographicType,
-    provider: 'dall-e' | 'imagen' | 'gemini3',
+    provider: 'gemini-flash' | 'gemini-pro',
     generationTime: number,
     cost: number,
     userId?: string,
@@ -132,7 +131,7 @@ export const trackGenerationComplete = (
  */
 export const trackGenerationFailed = (
     visualType: InfographicType,
-    provider: 'dall-e' | 'imagen' | 'gemini3',
+    provider: 'gemini-flash' | 'gemini-pro',
     userId?: string,
     courseId?: string
 ) => {
@@ -379,8 +378,8 @@ export const getAnalyticsSummary = (
         .reduce((sum, e) => sum + (e.cost || 0), 0);
 
     // Calculate cost savings from cache hits
-    // Assume average cost of $0.03 (between DALL-E and Imagen)
-    const costSavings = totalCacheHits * 0.03;
+    // Assume average cost of $0.02 (Gemini Flash - Nano Banana)
+    const costSavings = totalCacheHits * 0.02;
 
     const generationEvents = relevantEvents.filter(
         e => e.eventType === 'generation_completed' && e.generationTime
@@ -391,9 +390,8 @@ export const getAnalyticsSummary = (
         : 0;
 
     const providerUsage = {
-        'dall-e': relevantEvents.filter(e => e.provider === 'dall-e').length,
-        'imagen': relevantEvents.filter(e => e.provider === 'imagen').length,
-        'gemini3': relevantEvents.filter(e => e.provider === 'gemini3').length
+        'gemini-flash': relevantEvents.filter(e => e.provider === 'gemini-flash').length,  // Nano Banana
+        'gemini-pro': relevantEvents.filter(e => e.provider === 'gemini-pro').length       // Gemini 3 Pro
     };
 
     const typeUsage: Record<InfographicType, number> = {
@@ -453,9 +451,8 @@ export const printAnalyticsReport = () => {
    Net Cost: $${(summary.totalCost - summary.costSavings).toFixed(2)}
 
 🎨 PROVIDER USAGE:
-   Gemini 3 Pro: ${summary.providerUsage['gemini3']} (${((summary.providerUsage['gemini3'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
-   DALL-E 3: ${summary.providerUsage['dall-e']} (${((summary.providerUsage['dall-e'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
-   Imagen 3: ${summary.providerUsage['imagen']} (${((summary.providerUsage['imagen'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
+   Nano Banana (Gemini Flash): ${summary.providerUsage['gemini-flash']} (${((summary.providerUsage['gemini-flash'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
+   Gemini 3 Pro: ${summary.providerUsage['gemini-pro']} (${((summary.providerUsage['gemini-pro'] / (summary.totalGenerations || 1)) * 100).toFixed(1)}%)
 
 📊 TYPE DISTRIBUTION:
    Flowchart: ${summary.typeUsage.flowchart}

@@ -1609,27 +1609,39 @@ export const generateInteractiveBlocks = async (
 
 /**
  * Regenerates a single image based on a new or edited prompt
+ * Uses Gemini (Nano Banana / Gemini 3 Pro) for image generation
  *
- * @param prompt - The DALL-E 3 prompt for the image
+ * @param prompt - The prompt for the image
  * @returns Base64 data URL of the generated image, or null on failure
  */
 export const regenerateImage = async (prompt: string): Promise<string | null> => {
-  console.log(`🎨 Regenerating image with prompt: "${prompt.substring(0, 50)}..."`);
+  console.log(`🎨 Regenerating image with Gemini: "${prompt.substring(0, 50)}..."`);
 
   try {
-    const response = await (await getOpenAIClient()).images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      size: "1024x1024",
-      quality: "standard",
-      n: 1,
-      response_format: "b64_json"
-    });
+    // Import Gemini image generation
+    const { generateGeminiImage, isGeminiImageAvailable } = await import('./services/ai/imagenService');
 
-    if (response.data && response.data[0]?.b64_json) {
-      const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
-      console.log("✅ Image regenerated successfully");
-      return imageUrl;
+    if (!isGeminiImageAvailable()) {
+      console.error("❌ Gemini Image not configured");
+      return null;
+    }
+
+    const imageBlob = await generateGeminiImage(prompt, 'pro');
+
+    if (imageBlob) {
+      // Convert blob to base64 data URL
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          console.log("✅ Image regenerated successfully with Gemini");
+          resolve(reader.result as string);
+        };
+        reader.onerror = () => {
+          console.error("❌ Failed to convert image blob to base64");
+          resolve(null);
+        };
+        reader.readAsDataURL(imageBlob);
+      });
     }
 
     console.error("❌ Image generation returned no data");
@@ -2028,36 +2040,36 @@ export const generateCoursePlan = async (
   }
 };
 
-// --- שאר הפונקציות (נשארו ללא שינוי - Hybrid Mode) ---
+// --- שאר הפונקציות (Gemini Only Mode) ---
 
+/**
+ * Generate an AI image using Gemini (Nano Banana / Gemini 3 Pro)
+ * @param prompt - The prompt for the image
+ * @returns Blob of the generated image, or null on failure
+ */
 export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
-  if (!OPENAI_API_KEY) {
-    console.error("OpenAI API Key missing for image generation");
-    return null;
-  }
-
   try {
-    const response = await (await getOpenAIClient()).images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      response_format: "b64_json"
-    });
+    console.log(`🎨 Generating image with Gemini: "${prompt.substring(0, 50)}..."`);
 
-    const base64Data = response.data?.[0]?.b64_json;
-    if (base64Data) {
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: "image/png" });
+    // Import Gemini image generation
+    const { generateGeminiImage, isGeminiImageAvailable } = await import('./services/ai/imagenService');
+
+    if (!isGeminiImageAvailable()) {
+      console.error("❌ Gemini Image not configured. Set VITE_ENABLE_GEMINI_IMAGE=true");
+      return null;
     }
+
+    const imageBlob = await generateGeminiImage(prompt, 'pro');
+
+    if (imageBlob) {
+      console.log("✅ Image generated successfully with Gemini");
+      return imageBlob;
+    }
+
+    console.error("❌ Image generation returned no data");
     return null;
   } catch (e) {
-    console.error("Error generating image (DALL-E 3):", e);
+    console.error("Error generating image (Gemini):", e);
     return null;
   }
 };

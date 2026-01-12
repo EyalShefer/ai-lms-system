@@ -77,6 +77,18 @@ service firebase.storage {
                    && isValidFileType();
     }
 
+    // ===== COURSE ASSETS =====
+    // General course assets (images, media) uploaded during content creation
+    match /course_assets/{folder}/{allPaths=**} {
+      // Read: Any authenticated user can read course assets
+      allow read: if isAuthenticated();
+
+      // Write: Any authenticated teacher can upload assets
+      allow write: if isAuthenticated()
+                   && isValidFileSize()
+                   && isValidFileType();
+    }
+
     // ===== PROFILE PICTURES =====
     match /profiles/{userId}/{fileName} {
       // Anyone can view profile pictures

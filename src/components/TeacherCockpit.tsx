@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
-import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
+import { refineBlockContent, generateInfographicFromText, type InfographicType, generateAiImage } from '../services/ai/geminiApi';
 import {
     generateSingleMultipleChoiceQuestion,
     generateSingleOpenQuestion,
@@ -541,19 +541,20 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
         setLoadingBlockId(blockId);
         try {
-            const res = await openai.images.generate({
-                prompt: prompt,
-                model: "dall-e-3",
-                size: "1024x1024",
-                response_format: "b64_json",
-                quality: "standard",
-                n: 1,
-            });
+            // Using Gemini (Nano Banana / Gemini 3 Pro) instead of DALL-E
+            const imageBlob = await generateAiImage(prompt, 'pro');
 
-            const image_url = res.data[0].b64_json;
-            if (image_url) {
-                updateBlockContent(blockId, `data:image/png;base64,${image_url}`);
-                setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
+            if (imageBlob) {
+                // Convert blob to base64 data URL
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    updateBlockContent(blockId, base64data);
+                    setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
+                };
+                reader.readAsDataURL(imageBlob);
+            } else {
+                alert("שגיאה ביצירת תמונה. נסה שנית.");
             }
         } catch (error) {
             console.error("Image Gen Error:", error);
@@ -853,10 +854,69 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         );
     };
 
+    // --- Helper: Extract suggested prompt text from block content ---
+    const getSuggestedPromptFromBlock = (block: ActivityBlock): string => {
+        if (!block) return '';
+
+        // For image blocks - use previous prompt, caption, or unit title
+        if (block.type === 'image') {
+            if (block.metadata?.aiPrompt) return block.metadata.aiPrompt;
+            if (block.metadata?.caption) return `תמונה של: ${block.metadata.caption}`;
+        }
+
+        // For text blocks - use first 100 chars of content
+        if (block.type === 'text') {
+            const textContent = typeof block.content === 'string'
+                ? block.content
+                : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
+            if (textContent) {
+                const cleanText = textContent.replace(/<[^>]*>/g, '').trim().substring(0, 100);
+                return `איור המתאר: ${cleanText}`;
+            }
+        }
+
+        // Default - use unit title
+        if (unit?.title) return `איור לנושא: ${unit.title}`;
+
+        return '';
+    };
+
     const renderBlockContent = (block: ActivityBlock) => {
         // --- MEDIA BLOCKS ---
         if (block.type === 'image') {
             if (!block.content) {
+                // Check if AI mode is active
+                if (mediaInputMode[block.id] === 'ai') {
+                    return (
+                        // AI Generation Mode - Full Width Panel
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-xl">
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-base font-bold text-blue-700 flex items-center gap-2">
+                                    <IconPalette className="w-5 h-5" /> יצירת תמונה עם AI
+                                </h4>
+                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-full transition-colors">
+                                    <IconX className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <textarea
+                                className="w-full p-4 border border-blue-200 rounded-xl text-base focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white mb-4"
+                                rows={5}
+                                placeholder="תארו את התמונה בפירוט...&#10;&#10;למשל: מפה עתיקה של ירושלים עם סמלים וכיתובים בעברית"
+                                value={mediaInputValue[block.id] || ''}
+                                onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                autoFocus
+                            />
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">💡 טיפ: הוסיפו פרטים על סגנון, צבעים ואווירה לתוצאה טובה יותר</span>
+                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-lg">
+                                    {loadingBlockId === block.id ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</> : <><IconWand className="w-4 h-4" /> צור תמונה</>}
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+
+                // Selection Mode - Two Column Grid
                 return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
                         <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
@@ -864,28 +924,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
                             <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
                         </label>
-                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group relative">
+                        <button onClick={() => {
+                            // Pre-fill with suggested text if empty
+                            if (!mediaInputValue[block.id]) {
+                                const suggestedText = getSuggestedPromptFromBlock(block);
+                                if (suggestedText) {
+                                    setMediaInputValue({ ...mediaInputValue, [block.id]: suggestedText });
+                                }
+                            }
+                            setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' });
+                        }} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group">
                             <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
                             <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
-
-                            {mediaInputMode[block.id] === 'ai' && (
-                                <div className="absolute inset-0 bg-white p-4 rounded-xl z-20 flex flex-col justify-center" onClick={e => e.stopPropagation()}>
-                                    <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה:</h4>
-                                    <textarea
-                                        className="w-full p-2 border rounded-lg mb-2 text-sm focus:border-blue-400 outline-none"
-                                        rows={2}
-                                        placeholder="למשל: מפה עתיקה של ירושלים..."
-                                        onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
-                                        autoFocus
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                        <button onClick={(e) => { e.stopPropagation(); setMediaInputMode({ ...mediaInputMode, [block.id]: null }) }} className="text-gray-500 text-xs px-2">ביטול</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleGenerateAiImage(block.id) }} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-xs px-3 py-1 rounded-lg">
-                                            {loadingBlockId === block.id ? "יוצר..." : "צור"}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
                         </button>
                     </div>
                 );
@@ -896,7 +946,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     {/* Control buttons - always visible */}
                     <div className="absolute top-2 right-2 flex gap-2">
                         <button
-                            onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })}
+                            onClick={() => {
+                                // Pre-fill with suggested text if empty
+                                if (!mediaInputValue[block.id]) {
+                                    const suggestedText = getSuggestedPromptFromBlock(block);
+                                    if (suggestedText) {
+                                        setMediaInputValue({ ...mediaInputValue, [block.id]: suggestedText });
+                                    }
+                                }
+                                setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' });
+                            }}
                             className="bg-white/90 p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-all"
                             title="יצירת תמונה חדשה עם AI"
                         >
@@ -912,19 +971,27 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     </div>
                     {/* AI regenerate overlay */}
                     {mediaInputMode[block.id] === 'ai' && (
-                        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center z-20">
-                            <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה החדשה:</h4>
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/98 to-indigo-50/98 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center z-20 shadow-xl border border-blue-200">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2">
+                                    <IconPalette className="w-4 h-4" /> תארו את התמונה החדשה
+                                </h4>
+                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-full transition-colors">
+                                    <IconX className="w-4 h-4" />
+                                </button>
+                            </div>
                             <textarea
-                                className="w-full p-3 border border-blue-200 rounded-lg mb-3 text-sm focus:border-blue-400 outline-none"
-                                rows={3}
-                                placeholder="למשל: מפה עתיקה של ירושלים..."
+                                className="w-full p-3 border border-blue-200 rounded-lg text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white mb-3"
+                                rows={5}
+                                placeholder="תארו את התמונה בפירוט...&#10;למשל: מפה עתיקה של ירושלים עם סמלים, מבנים היסטוריים וכיתובים בעברית"
+                                value={mediaInputValue[block.id] || ''}
                                 onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
                                 autoFocus
                             />
-                            <div className="flex gap-2 justify-end">
-                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-sm px-3 py-2 hover:bg-gray-100 rounded-lg">ביטול</button>
-                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-                                    {loadingBlockId === block.id ? <><IconSparkles className="w-4 h-4 animate-spin" /> יוצר...</> : <><IconPalette className="w-4 h-4" /> צור תמונה</>}
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-400">טיפ: הוסיפו פרטים על סגנון, צבעים ואווירה</span>
+                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-md">
+                                    {loadingBlockId === block.id ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</> : <><IconWand className="w-4 h-4" /> צור תמונה</>}
                                 </button>
                             </div>
                         </div>
@@ -1056,6 +1123,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                         dir="ltr"
                                         className="w-full p-2 border rounded-lg mb-2 text-sm text-left focus:border-red-400 outline-none"
                                         placeholder="https://youtu.be/..."
+                                        value={mediaInputValue[block.id] || ''}
                                         onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
                                         autoFocus
                                     />

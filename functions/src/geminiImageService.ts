@@ -1,6 +1,10 @@
 /**
  * Gemini Image Generation Service
- * Uses Gemini 2.5 Flash Image or Gemini 3 Pro Image for high-quality Hebrew infographics
+ * Uses Gemini 2.5 Flash Image (Nano Banana) or Gemini 3 Pro Image for high-quality Hebrew infographics
+ *
+ * Models:
+ * - flash: gemini-2.5-flash-preview-05-20 (Nano Banana) - Fast, cheaper
+ * - pro: gemini-2.0-flash-exp (Gemini with image output) - Higher quality
  */
 
 import { onRequest } from 'firebase-functions/v2/https';
@@ -9,12 +13,13 @@ import { getAuth } from 'firebase-admin/auth';
 import { GoogleGenAI, Modality } from '@google/genai';
 
 // Model options for image generation
+// Note: Using models that support native image output
 const GEMINI_IMAGE_MODELS = {
-    flash: 'gemini-2.5-flash-image',      // Fast, cheaper (Nano Banana)
-    pro: 'gemini-2.5-flash-image'         // Using Nano Banana Pro (gemini-3-pro-image-preview not available)
+    flash: 'gemini-2.5-flash-preview-05-20',  // Nano Banana - Fast, cheaper
+    pro: 'gemini-2.0-flash-exp'                // Gemini 2.0 Flash Experimental - supports image output
 } as const;
 
-// Default to Pro for best Hebrew support
+// Default to Pro for best quality
 const DEFAULT_MODEL = GEMINI_IMAGE_MODELS.pro;
 
 /**

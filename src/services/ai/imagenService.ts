@@ -1,7 +1,11 @@
 /**
  * Gemini Image Generation Service
- * Uses Gemini 3 Pro Image for high-quality Hebrew infographics
- * Falls back to DALL-E 3 if Gemini fails
+ * Uses Gemini 2.5 Flash Image (Nano Banana) or Gemini 3 Pro Image
+ * for high-quality Hebrew infographics
+ *
+ * Models:
+ * - flash: Gemini 2.5 Flash Image (Nano Banana) - Fast, cheaper
+ * - pro: Gemini 3 Pro Image Preview - Higher quality, better Hebrew
  *
  * Setup Instructions:
  * 1. Enable Vertex AI in Google Cloud Console
@@ -13,11 +17,12 @@ import { auth } from '../../firebase';
 
 /**
  * Gemini Image configuration
+ * Note: Model selection is handled by the Cloud Function
  */
 export const GEMINI_IMAGE_CONFIG = {
     models: {
-        flash: 'gemini-2.5-flash-image',      // Fast, cheaper
-        pro: 'gemini-3-pro-image-preview'     // Higher quality, better Hebrew
+        flash: 'gemini-2.5-flash-preview-05-20',  // Nano Banana - Fast, cheaper
+        pro: 'gemini-2.0-flash-exp'                // Gemini 2.0 Flash Exp - Higher quality
     },
     endpoint: 'generateGeminiImage',
     defaultModel: 'pro' as const
@@ -89,7 +94,7 @@ export const generateGeminiImage = async (
 
             // Handle specific error codes
             if (response.status === 429) {
-                console.warn('⚠️ Rate limited, will fall back to DALL-E');
+                console.warn('⚠️ Rate limited by Gemini Image API');
                 return null;
             }
 
@@ -127,16 +132,16 @@ export const generateImagenImage = generateGeminiImage;
 
 /**
  * Cost comparison helper
+ * Only Gemini models supported (Nano Banana + Gemini 3 Pro)
  */
-export const getImageGenerationCost = (provider: 'dall-e' | 'gemini-flash' | 'gemini-pro'): {
+export const getImageGenerationCost = (provider: 'gemini-flash' | 'gemini-pro'): {
     perImage: number;
     per1000: number;
     currency: string;
 } => {
     const costs = {
-        'dall-e': { perImage: 0.040, per1000: 40, currency: 'USD' },
-        'gemini-flash': { perImage: 0.020, per1000: 20, currency: 'USD' },
-        'gemini-pro': { perImage: 0.040, per1000: 40, currency: 'USD' }
+        'gemini-flash': { perImage: 0.020, per1000: 20, currency: 'USD' },  // Nano Banana
+        'gemini-pro': { perImage: 0.040, per1000: 40, currency: 'USD' }     // Gemini 3 Pro
     };
     return costs[provider];
 };
