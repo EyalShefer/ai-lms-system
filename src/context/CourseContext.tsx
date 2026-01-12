@@ -82,7 +82,8 @@ const sanitizeCourseData = (data: any, docId: string): Course => {
         gradeLevel: baseData.gradeLevel || '',
         fullBookContent: baseData.fullBookContent || '',
         showSourceToStudent: baseData.showSourceToStudent ?? true, // Default to true if missing
-        pdfSource: baseData.pdfSource || null
+        pdfSource: baseData.pdfSource || null,
+        createdAt: baseData.createdAt || null // Preserve createdAt for recent activities
     } as Course;
 };
 

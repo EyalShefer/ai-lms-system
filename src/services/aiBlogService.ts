@@ -23,13 +23,14 @@ export interface AIBlogArticle {
     // Hebrew content (AI-generated)
     title: string;              // Translated title
     summary: string;            // 2-3 sentence summary
-    keyPoints: string[];        // 3-5 practical points
+    keyPoints: string[];        // 3-5 practical points (show top 2-3 prominently)
     classroomTips: string[];    // "How to use in classroom"
 
     // Original source
     originalTitle: string;
     originalUrl: string;
     sourceName: string;
+    imageUrl?: string;          // Article featured image
 
     // Metadata
     category: 'tool' | 'research' | 'tip' | 'trend';

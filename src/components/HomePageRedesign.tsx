@@ -20,7 +20,7 @@ interface RecentActivity {
 }
 
 const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void }) => {
-    const { currentUser } = useAuth();
+    const { currentUser, isAdmin } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
@@ -34,21 +34,35 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
             }
 
             try {
-                // Fetch recent courses
-                const coursesQuery = query(
-                    collection(db, "courses"),
-                    where("teacherId", "==", currentUser.uid),
-                    orderBy("createdAt", "desc"),
-                    limit(5)
-                );
-                const coursesSnapshot = await getDocs(coursesQuery);
+                let coursesSnapshot;
+
+                try {
+                    // Try with orderBy first (requires composite index)
+                    const coursesQuery = query(
+                        collection(db, "courses"),
+                        where("teacherId", "==", currentUser.uid),
+                        orderBy("createdAt", "desc"),
+                        limit(10)
+                    );
+                    coursesSnapshot = await getDocs(coursesQuery);
+                } catch (indexError: any) {
+                    // Fallback: fetch without orderBy and sort client-side
+                    console.warn("📝 Missing Firestore index, using client-side sort. Create index for better performance:", indexError?.message);
+                    const fallbackQuery = query(
+                        collection(db, "courses"),
+                        where("teacherId", "==", currentUser.uid)
+                    );
+                    coursesSnapshot = await getDocs(fallbackQuery);
+                }
 
                 const activities: RecentActivity[] = [];
                 const courseIds: string[] = [];
 
+                console.log("📊 Courses found:", coursesSnapshot.size, "for user:", currentUser.uid);
                 coursesSnapshot.forEach(doc => {
                     const data = doc.data();
                     courseIds.push(doc.id);
+                    console.log("📝 Course:", doc.id, "Title:", data.title, "createdAt:", data.createdAt);
 
                     // Determine type based on mode or syllabus
                     let type: 'test' | 'activity' | 'lesson' = 'activity';
@@ -66,12 +80,28 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     });
                 });
 
-                // Fetch submission counts for each course
-                if (courseIds.length > 0) {
+                // Sort by createdAt descending (client-side, works for both paths)
+                // Filter out activities with invalid timestamps first, then sort
+                const validActivities = activities.filter(a => {
+                    const hasValidTimestamp = a.createdAt?.seconds || a.createdAt?.toMillis;
+                    return hasValidTimestamp;
+                });
+
+                validActivities.sort((a, b) => {
+                    const aTime = a.createdAt?.toMillis?.() || (a.createdAt?.seconds * 1000) || 0;
+                    const bTime = b.createdAt?.toMillis?.() || (b.createdAt?.seconds * 1000) || 0;
+                    return bTime - aTime;
+                });
+
+                console.log("📊 Valid activities after sort:", validActivities.slice(0, 3).map(a => a.title));
+
+                // Fetch submission counts for recent courses
+                const recentCourseIds = validActivities.slice(0, 5).map(a => a.id);
+                if (recentCourseIds.length > 0) {
                     const submissionsQuery = query(
                         collection(db, "submissions"),
                         where("teacherId", "==", currentUser.uid),
-                        where("courseId", "in", courseIds)
+                        where("courseId", "in", recentCourseIds)
                     );
                     const submissionsSnapshot = await getDocs(submissionsQuery);
 
@@ -82,17 +112,16 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     });
 
                     // Update activities with submission counts
-                    activities.forEach(activity => {
+                    validActivities.forEach(activity => {
                         activity.submissionCount = submissionCounts[activity.id] || 0;
                     });
                 }
 
-                setRecentActivities(activities.slice(0, 3));
+                setRecentActivities(validActivities.slice(0, 3));
             } catch (error: any) {
                 console.error("❌ Error fetching recent activities:", error);
                 console.error("Error code:", error?.code);
                 console.error("Error message:", error?.message);
-                // If it's a missing index error, the message will contain a link to create the index
             } finally {
                 setLoadingActivities(false);
             }
@@ -116,7 +145,6 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
 
     return (
         <div className="max-w-7xl mx-auto px-6 py-8 font-sans">
-
             {/* Hero Section */}
             <section className="relative mb-12" aria-labelledby="hero-title">
                 {/* Background Blobs - reduced motion support */}
@@ -126,14 +154,13 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                 <div className="relative z-10 flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
                     {/* Text Content */}
                     <div className="flex-1 text-center lg:text-right animate-slideUp motion-reduce:animate-none">
-                        <div className="inline-flex items-center gap-2 bg-wizdi-action-light text-wizdi-royal dark:text-wizdi-action px-4 py-2 rounded-full text-sm font-medium mb-4">
-                            <span className="w-2 h-2 bg-wizdi-action rounded-full animate-pulse motion-reduce:animate-none" aria-hidden="true"></span>
+                        <p className="text-base text-slate-500 dark:text-slate-400 mb-3">
+                            {getTimeBasedGreeting()}, {firstName}
+                        </p>
+                        <h1 id="hero-title" className="text-4xl lg:text-6xl font-black bg-gradient-to-l from-wizdi-royal via-violet-600 to-wizdi-cyan bg-clip-text text-transparent mb-4 leading-tight">
                             סטודיו יצירה חכם
-                        </div>
-                        <h1 id="hero-title" className="text-4xl lg:text-5xl font-black text-slate-800 dark:text-white mb-4 leading-tight">
-                            {getTimeBasedGreeting()}, {firstName}!
                         </h1>
-                        <p className="text-lg text-slate-500 dark:text-slate-300 max-w-md mx-auto lg:mx-0">
+                        <p className="text-xl lg:text-2xl text-slate-600 dark:text-slate-300 font-medium max-w-lg mx-auto lg:mx-0">
                             צרו תכנים לימודיים מדהימים בעזרת AI - שיעורים, מבחנים ופעילויות אינטראקטיביות
                         </p>
                     </div>
@@ -196,6 +223,10 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                         <IconFlask className="w-5 h-5 text-amber-500" aria-hidden="true" />
                         מנושא
                     </div>
+                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
+                        <IconBook className="w-5 h-5 text-emerald-500" aria-hidden="true" />
+                        מספר לימוד
+                    </div>
                 </div>
             </section>
 
@@ -209,8 +240,8 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                         <IconSparkles className="w-7 h-7 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-2xl font-black text-slate-800 dark:text-white">יצירת תוכן לימודי</h2>
-                                        <p className="text-slate-500 dark:text-slate-400 text-sm">בחרו את סוג התוכן שתרצו ליצור</p>
+                                        <h2 className="text-2xl font-black text-wizdi-royal dark:text-wizdi-cyan">יצירת תוכן לימודי</h2>
+                                        <p className="text-slate-600 dark:text-slate-300 text-base font-medium">בחרו את סוג התוכן שתרצו ליצור</p>
                                     </div>
                                 </div>
                                 <span className="bg-wizdi-action-light text-wizdi-action-dark text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
@@ -308,74 +339,73 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
 
             {/* Teaching Agents & Prompts - Equal Priority Grid */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" aria-label="כלי הוראה מוכנים">
-                {/* Teaching Agents Card */}
-                <button
-                    onClick={() => handleCardClick("Teaching Agents", () => onNavigateToAgents?.())}
-                    className="group cursor-pointer w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 rounded-3xl"
-                    aria-label="כניסה למאגר סוכני הוראה"
+                {/* Teaching Agents Card - Disabled, Coming Soon */}
+                <div
+                    className="group w-full text-right rounded-3xl opacity-60 cursor-not-allowed"
+                    aria-label="מאגר סוכני הוראה - בקרוב"
                 >
-                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none h-full">
+                    <div className="card-glass rounded-3xl p-6 border border-slate-200 dark:border-slate-700 h-full relative overflow-hidden">
                         <div className="flex flex-col h-full">
                             {/* Header */}
                             <div className="flex items-center gap-4 mb-4">
-                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
+                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-slate-400 to-slate-500 rounded-2xl flex items-center justify-center shadow-lg" aria-hidden="true">
                                     <IconRobot className="w-7 h-7 text-white" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-full">
-                                            חדש
+                                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-full">
+                                            בקרוב
                                         </span>
                                     </div>
-                                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                                    <h2 className="text-xl font-black text-slate-500 dark:text-slate-400">
                                         מאגר סוכני הוראה
                                     </h2>
+                                    <p className="text-slate-400 dark:text-slate-500 text-base">עוזרי AI לתלמידים</p>
                                 </div>
                             </div>
 
                             {/* Description */}
-                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                            <p className="text-slate-400 dark:text-slate-500 text-sm mb-4">
                                 עוזרי AI מותאמים לנושאים ספציפיים. התלמידים מתרגלים, הסוכן עוזר צעד אחר צעד.
                             </p>
 
                             {/* Preview Agents */}
                             <div className="flex-grow">
                                 <div className="grid grid-cols-2 gap-2 mb-4">
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-cyan/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMath className="w-4 h-4 text-wizdi-cyan" />
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
+                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMath className="w-4 h-4 text-slate-400" />
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">עוזר שברים</span>
+                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">עוזר שברים</span>
                                     </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconLanguage className="w-4 h-4 text-wizdi-royal" />
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
+                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconLanguage className="w-4 h-4 text-slate-400" />
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">English Buddy</span>
+                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">English Buddy</span>
                                     </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-action/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMath className="w-4 h-4 text-wizdi-action" />
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
+                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMath className="w-4 h-4 text-slate-400" />
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">מורה לאלגברה</span>
+                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">מורה לאלגברה</span>
                                     </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-amber-500/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconBook className="w-4 h-4 text-amber-600" />
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
+                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconBook className="w-4 h-4 text-slate-400" />
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">חברותא לתנ"ך</span>
+                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">חברותא לתנ"ך</span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* CTA */}
-                            <div className="flex items-center gap-2 font-bold text-cyan-600 dark:text-cyan-400 text-sm group-hover:translate-x-[-4px] transition-transform motion-reduce:group-hover:transform-none">
-                                כניסה למאגר
-                                <IconChevronLeft className="w-5 h-5" />
+                            {/* CTA - Disabled */}
+                            <div className="flex items-center gap-2 font-bold text-slate-400 dark:text-slate-500 text-sm">
+                                בקרוב...
                             </div>
                         </div>
                     </div>
-                </button>
+                </div>
 
                 {/* Prompts Library Card */}
                 <button
@@ -391,37 +421,33 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                     <IconBulb className="w-7 h-7 text-white" />
                                 </div>
                                 <div className="flex-1">
-                                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                                    <h2 className="text-xl font-black text-violet-600 dark:text-violet-400">
                                         מאגר פרומפטים
                                     </h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-base">מגוון פרומפטים מוכנים לצורכי ההוראה</p>
                                 </div>
                             </div>
-
-                            {/* Description */}
-                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                                פרומפטים מוכנים לכל צורך הוראתי - בדיקת עבודות, יצירת תוכן, משוב לתלמידים ועוד.
-                            </p>
 
                             {/* Preview Categories */}
                             <div className="flex-grow">
                                 <div className="grid grid-cols-2 gap-2 mb-4">
                                     <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconSchool className="w-4 h-4 text-wizdi-royal" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">ניהול כיתה</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                                        <div className="w-6 h-6 bg-pink-500/20 rounded-lg flex items-center justify-center" aria-hidden="true">
+                                            <IconMessage className="w-4 h-4 text-pink-500" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">היבטים רגשיים</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
                                         <div className="w-6 h-6 bg-wizdi-cyan/20 rounded-lg flex items-center justify-center" aria-hidden="true">
                                             <IconClipboardCheck className="w-4 h-4 text-wizdi-cyan" />
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">יצירת מבחנים</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMessage className="w-4 h-4 text-wizdi-royal" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">משוב לתלמידים</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-action/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconSchool className="w-4 h-4 text-wizdi-action" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">הכנת שיעורים</span>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">הערכת לומדים</span>
                                     </div>
                                     <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
                                         <div className="w-6 h-6 bg-wizdi-lime/30 rounded-lg flex items-center justify-center" aria-hidden="true">

@@ -191,79 +191,103 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
     <div className={`
       bg-white rounded-2xl border transition-all duration-300
       ${featured
-        ? 'border-2 border-wizdi-gold shadow-lg shadow-wizdi-gold/20 ring-2 ring-wizdi-gold/30'
+        ? 'border-2 border-wizdi-gold shadow-md shadow-wizdi-gold/10'
         : 'border-slate-200 hover:border-wizdi-royal/30 hover:shadow-lg'
       }
     `}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-100">
-        {/* Stats row */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            {/* Rating */}
-            <div className="flex items-center gap-1">
-              {renderStars(prompt.averageRating)}
-              <span className="text-sm text-slate-600 mr-1">
-                ({prompt.averageRating.toFixed(1)})
-              </span>
+      <div className={`${featured ? 'p-3' : 'p-4'} border-b border-slate-100`}>
+        {/* Featured: Compact horizontal layout */}
+        {featured ? (
+          <div className="flex items-start gap-4">
+            {/* Left side - Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2 py-0.5 bg-wizdi-gold/20 text-wizdi-gold rounded-full text-xs font-medium flex items-center gap-1">
+                  <IconSparkles className="w-3 h-3" />
+                  פרומפט השבוע
+                </span>
+                <span className="px-2 py-0.5 bg-slate-100 rounded-full text-xs text-slate-500">
+                  {prompt.category}
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-800 mb-0.5">{prompt.title}</h3>
+              <p className="text-xs text-slate-500 line-clamp-1">{prompt.description}</p>
+            </div>
+            {/* Right side - Stats */}
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="flex items-center gap-1">
+                {renderStars(prompt.averageRating)}
+                <span className="text-xs text-slate-500">({prompt.averageRating.toFixed(1)})</span>
+              </div>
+              <span className="text-xs text-slate-400">{prompt.usageCount} שימושים</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>{prompt.usageCount} שימושים</span>
-          </div>
-        </div>
+        ) : (
+          <>
+            {/* Stats row */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                {/* Rating */}
+                <div className="flex items-center gap-1">
+                  {renderStars(prompt.averageRating)}
+                  <span className="text-sm text-slate-600 mr-1">
+                    ({prompt.averageRating.toFixed(1)})
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>{prompt.usageCount} שימושים</span>
+              </div>
+            </div>
 
-        {/* Category tag */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="px-2 py-1 bg-slate-100 rounded-full text-xs text-slate-600">
-            {prompt.category} &gt; {prompt.subcategory}
-          </span>
-          {featured && (
-            <span className="px-2 py-1 bg-wizdi-gold/20 text-wizdi-gold rounded-full text-xs font-medium flex items-center gap-1">
-              <IconSparkles className="w-3 h-3" />
-              פרומפט השבוע
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h3 className="text-lg font-bold text-slate-800 mb-1">{prompt.title}</h3>
-
-        {/* Creator */}
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <span>מאת: {prompt.creatorName || 'מערכת Wizdi'}</span>
-          {isCreatorRecommended && (
-            <span className="flex items-center gap-1 text-wizdi-gold">
-              <IconCrown className="w-4 h-4" />
-              <span className="text-xs">מורה מומלץ</span>
-            </span>
-          )}
-        </div>
-
-        {/* Description */}
-        <p className="text-sm text-slate-500 mt-2">{prompt.description}</p>
-
-        {/* Target tools */}
-        <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs text-slate-400">מתאים ל:</span>
-          <div className="flex gap-1">
-            {prompt.targetTools.map(tool => (
-              <span
-                key={tool}
-                className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600"
-              >
-                {tool}
+            {/* Category tag */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-2 py-1 bg-slate-100 rounded-full text-xs text-slate-600">
+                {prompt.category} &gt; {prompt.subcategory}
               </span>
-            ))}
-          </div>
-        </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-lg font-bold text-slate-800 mb-1">{prompt.title}</h3>
+
+            {/* Creator */}
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span>מאת: {prompt.creatorName || 'מערכת Wizdi'}</span>
+              {isCreatorRecommended && (
+                <span className="flex items-center gap-1 text-wizdi-gold">
+                  <IconCrown className="w-4 h-4" />
+                  <span className="text-xs">מורה מומלץ</span>
+                </span>
+              )}
+            </div>
+
+            {/* Description */}
+            <p className="text-sm text-slate-500 mt-2">{prompt.description}</p>
+
+            {/* Target tools */}
+            <div className="flex items-center gap-2 mt-3">
+              <span className="text-xs text-slate-400">מתאים ל:</span>
+              <div className="flex gap-1">
+                {prompt.targetTools.map(tool => (
+                  <span
+                    key={tool}
+                    className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Dynamic Fields */}
-      <div className="p-4 bg-slate-50/50">
-        <div className="grid grid-cols-2 gap-3">
+      <div className={`${featured ? 'p-3' : 'p-4'} bg-slate-50/50`}>
+        <div className={`grid ${featured ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
           {prompt.fields.map(field => (
-            <div key={field.id} className={field.type === 'text' && !field.options ? 'col-span-2' : ''}>
+            <div key={field.id} className={!featured && field.type === 'text' && !field.options ? 'col-span-2' : ''}>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 {field.label}
                 {field.required && <span className="text-red-400 mr-1">*</span>}
@@ -275,15 +299,15 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
       </div>
 
       {/* Preview */}
-      <div className="p-4 border-t border-slate-100">
-        <div className="bg-slate-800 rounded-xl p-4 text-white text-sm font-mono leading-relaxed max-h-40 overflow-y-auto">
+      <div className={`${featured ? 'p-3' : 'p-4'} border-t border-slate-100`}>
+        <div className={`bg-slate-800 rounded-xl ${featured ? 'p-3 max-h-24' : 'p-4 max-h-40'} text-white text-sm font-mono leading-relaxed overflow-y-auto`}>
           <pre className="whitespace-pre-wrap text-right" dir="rtl">
             {getFilledPrompt()}
           </pre>
         </div>
 
-        {/* Tips */}
-        {prompt.tips && (
+        {/* Tips - hidden in featured mode */}
+        {!featured && prompt.tips && (
           <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-xs text-blue-700">
               <strong>טיפ:</strong> {prompt.tips}
@@ -293,7 +317,7 @@ export default function PromptCard({ prompt, featured = false, onRatingChange }:
       </div>
 
       {/* Actions */}
-      <div className="p-4 border-t border-slate-100 flex items-center justify-between">
+      <div className={`${featured ? 'p-3' : 'p-4'} border-t border-slate-100 flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           {/* Copy button */}
           <button

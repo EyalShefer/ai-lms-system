@@ -28,6 +28,7 @@ import {
     IconLayoutList,
     IconBulb,
     IconPlus,
+    IconBook,
     IconHome
 } from '@tabler/icons-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -75,13 +76,26 @@ const HomePageRedesignMobile = ({
             }
 
             try {
-                const coursesQuery = query(
-                    collection(db, "courses"),
-                    where("teacherId", "==", currentUser.uid),
-                    orderBy("createdAt", "desc"),
-                    limit(5)
-                );
-                const coursesSnapshot = await getDocs(coursesQuery);
+                let coursesSnapshot;
+
+                try {
+                    // Try with orderBy first (requires composite index)
+                    const coursesQuery = query(
+                        collection(db, "courses"),
+                        where("teacherId", "==", currentUser.uid),
+                        orderBy("createdAt", "desc"),
+                        limit(10)
+                    );
+                    coursesSnapshot = await getDocs(coursesQuery);
+                } catch (indexError: any) {
+                    // Fallback: fetch without orderBy and sort client-side
+                    console.warn("📝 Missing Firestore index, using client-side sort:", indexError?.message);
+                    const fallbackQuery = query(
+                        collection(db, "courses"),
+                        where("teacherId", "==", currentUser.uid)
+                    );
+                    coursesSnapshot = await getDocs(fallbackQuery);
+                }
 
                 const activities: RecentActivity[] = [];
                 const courseIds: string[] = [];
@@ -104,12 +118,20 @@ const HomePageRedesignMobile = ({
                     });
                 });
 
-                // Fetch submission counts
-                if (courseIds.length > 0) {
+                // Sort by createdAt descending (client-side, works for both paths)
+                activities.sort((a, b) => {
+                    const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+                    const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+                    return bTime - aTime;
+                });
+
+                // Fetch submission counts for recent courses
+                const recentCourseIds = activities.slice(0, 5).map(a => a.id);
+                if (recentCourseIds.length > 0) {
                     const submissionsQuery = query(
                         collection(db, "submissions"),
                         where("teacherId", "==", currentUser.uid),
-                        where("courseId", "in", courseIds)
+                        where("courseId", "in", recentCourseIds)
                     );
                     const submissionsSnapshot = await getDocs(submissionsQuery);
 
@@ -158,11 +180,11 @@ const HomePageRedesignMobile = ({
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-24" dir="rtl">
             {/* Header */}
-            <header className="bg-wizdi-royal dark:bg-slate-800 text-white px-4 py-6 safe-area-inset-top">
+            <header className="bg-gradient-to-bl from-wizdi-royal via-violet-600 to-wizdi-cyan dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 text-white px-4 py-6 safe-area-inset-top">
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        <p className="text-sm text-white/70">{getTimeBasedGreeting()}</p>
-                        <h1 className="text-2xl font-black">{firstName}</h1>
+                        <p className="text-sm text-white/70 mb-1">{getTimeBasedGreeting()}, {firstName}</p>
+                        <h1 className="text-2xl font-black">סטודיו יצירה חכם</h1>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -352,6 +374,13 @@ const HomePageRedesignMobile = ({
                         >
                             <IconFlask className="w-5 h-5 text-amber-500" />
                             <span className="font-medium text-slate-700 dark:text-slate-200">נושא</span>
+                        </button>
+                        <button
+                            onClick={() => onCreateNew('learning')}
+                            className="flex items-center gap-2 px-4 py-3 min-h-[48px] bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 whitespace-nowrap active:scale-95 transition-all"
+                        >
+                            <IconBook className="w-5 h-5 text-emerald-500" />
+                            <span className="font-medium text-slate-700 dark:text-slate-200">מספר לימוד</span>
                         </button>
                     </div>
                 </section>

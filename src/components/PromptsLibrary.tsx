@@ -7,16 +7,32 @@ import {
   IconSparkles,
   IconSortDescending,
   IconX,
-  IconRefresh
+  IconRefresh,
+  IconClipboardCheck,
+  IconSchool,
+  IconMessage,
+  IconDeviceGamepad2,
+  IconTarget,
+  IconWand,
+  IconUsers,
+  IconChartBar,
+  IconHeartHandshake,
+  IconCalendarEvent,
+  IconMailHeart,
+  IconFlame,
+  IconTrophy
 } from '@tabler/icons-react';
 import PromptCard from './PromptCard';
 import SubmitPromptModal from './SubmitPromptModal';
+import AdminPromptSeeder from './AdminPromptSeeder';
+import { useAuth } from '../context/AuthContext';
 import type { Prompt } from '../services/promptsService';
 import {
   PROMPT_CATEGORIES,
   subscribeToPrompts,
   getFeaturedPrompt,
-  searchPrompts
+  searchPrompts,
+  getMostUsedPrompts
 } from '../services/promptsService';
 
 interface PromptsLibraryProps {
@@ -25,8 +41,51 @@ interface PromptsLibraryProps {
 
 type SortOption = 'newest' | 'rating' | 'popular';
 
+// Map category IDs to Tabler Icons (matching the main app design)
+const getCategoryIcon = (categoryId: string) => {
+  const iconMap: Record<string, React.ReactNode> = {
+    'popular': <IconFlame className="w-4 h-4" />,
+    'exams': <IconClipboardCheck className="w-4 h-4" />,
+    'lessons': <IconSchool className="w-4 h-4" />,
+    'feedback': <IconMessage className="w-4 h-4" />,
+    'activities': <IconDeviceGamepad2 className="w-4 h-4" />,
+    'adaptations': <IconTarget className="w-4 h-4" />,
+    'content': <IconWand className="w-4 h-4" />,
+    'management': <IconUsers className="w-4 h-4" />,
+    'assessment': <IconChartBar className="w-4 h-4" />,
+    'sel': <IconHeartHandshake className="w-4 h-4" />,
+    'planning': <IconCalendarEvent className="w-4 h-4" />,
+    'communication': <IconMailHeart className="w-4 h-4" />
+  };
+  return iconMap[categoryId] || <IconSparkles className="w-4 h-4" />;
+};
+
+// Map category IDs to colors for visual distinction
+const getCategoryColor = (categoryId: string, isSelected: boolean) => {
+  if (isSelected) {
+    return 'text-white';
+  }
+  const colorMap: Record<string, string> = {
+    'popular': 'text-orange-500',
+    'exams': 'text-cyan-600',
+    'lessons': 'text-blue-600',
+    'feedback': 'text-indigo-600',
+    'activities': 'text-emerald-600',
+    'adaptations': 'text-orange-600',
+    'content': 'text-purple-600',
+    'management': 'text-slate-600',
+    'assessment': 'text-teal-600',
+    'sel': 'text-pink-600',
+    'planning': 'text-amber-600',
+    'communication': 'text-rose-600'
+  };
+  return colorMap[categoryId] || 'text-slate-600';
+};
+
 export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
+  const { isAdmin } = useAuth();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [popularPrompts, setPopularPrompts] = useState<Prompt[]>([]);
   const [featuredPrompt, setFeaturedPrompt] = useState<Prompt | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,11 +106,35 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
     // Load featured prompt
     getFeaturedPrompt().then(setFeaturedPrompt);
 
+    // Load top 10 most popular prompts
+    getMostUsedPrompts(10).then(setPopularPrompts);
+
     return () => unsubscribe();
   }, []);
 
+  // Check if the 'popular' special category is selected
+  const isPopularCategory = selectedCategory === 'popular';
+
   // Filter and sort prompts
   const filteredPrompts = useMemo(() => {
+    // Special case: "Most Popular" category - show top 10 by copy count
+    if (isPopularCategory) {
+      let result = [...popularPrompts];
+
+      // Apply search filter even in popular category
+      if (searchTerm) {
+        const lowerSearch = searchTerm.toLowerCase();
+        result = result.filter(p =>
+          p.title.toLowerCase().includes(lowerSearch) ||
+          p.description.toLowerCase().includes(lowerSearch) ||
+          p.category.toLowerCase().includes(lowerSearch) ||
+          p.subcategory.toLowerCase().includes(lowerSearch)
+        );
+      }
+
+      return result;
+    }
+
     let result = [...prompts];
 
     // Filter by search term
@@ -65,10 +148,10 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
       );
     }
 
-    // Filter by category
+    // Filter by category (skip for special categories)
     if (selectedCategory) {
       const category = PROMPT_CATEGORIES.find(c => c.id === selectedCategory);
-      if (category) {
+      if (category && !('isSpecial' in category)) {
         result = result.filter(p => p.category === category.name);
       }
     }
@@ -98,7 +181,7 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
     }
 
     return result;
-  }, [prompts, searchTerm, selectedCategory, selectedSubcategory, sortBy, featuredPrompt]);
+  }, [prompts, popularPrompts, searchTerm, selectedCategory, selectedSubcategory, sortBy, featuredPrompt, isPopularCategory]);
 
   const handleCategoryChange = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
@@ -126,16 +209,18 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
   const refreshData = () => {
     setLoading(true);
     getFeaturedPrompt().then(setFeaturedPrompt);
+    getMostUsedPrompts(10).then(setPopularPrompts);
     // Subscription will handle the rest
     setTimeout(() => setLoading(false), 500);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20" dir="rtl">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200">
+      {/* Header with Search & Filters */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          {/* Top row - Title and actions */}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
@@ -148,7 +233,7 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
                   <IconSparkles className="w-7 h-7 text-wizdi-gold" />
                   מאגר פרומפטים AI
                 </h1>
-                <p className="text-sm text-slate-500">פרומפטים מוכנים לכל צורך הוראתי</p>
+                <p className="text-sm text-slate-500">מגוון פרומפטים מוכנים לצורכי ההוראה</p>
               </div>
             </div>
 
@@ -169,66 +254,65 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
               </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Featured Prompt */}
-        {featuredPrompt && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <IconSparkles className="w-5 h-5 text-wizdi-gold" />
-              <h2 className="text-lg font-bold text-slate-800">פרומפט השבוע</h2>
-            </div>
-            <PromptCard prompt={featuredPrompt} featured onRatingChange={refreshData} />
+          {/* Search Bar - Prominent */}
+          <div className="relative mb-4">
+            <IconSearch className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="חפש פרומפט לפי שם, תיאור או קטגוריה..."
+              className="w-full pr-12 pl-4 py-3.5 bg-gradient-to-r from-slate-50 to-blue-50/50 border-2 border-slate-200 rounded-2xl focus:border-wizdi-royal focus:ring-4 focus:ring-wizdi-royal/10 outline-none transition-all text-lg placeholder:text-slate-400"
+            />
           </div>
-        )}
 
-        {/* Search and Filters */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <IconSearch className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="חיפוש פרומפטים..."
-                className="w-full pr-10 pl-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all"
-              />
-            </div>
-
-            {/* Category Filter */}
-            <div className="relative">
-              <select
-                value={selectedCategory || ''}
-                onChange={(e) => handleCategoryChange(e.target.value || null)}
-                className="appearance-none w-full lg:w-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all cursor-pointer"
+          {/* Category Quick Filters - Prominent placement */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              onClick={() => handleCategoryChange(null)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+                !selectedCategory
+                  ? 'bg-gradient-to-r from-wizdi-royal to-blue-600 text-white shadow-md'
+                  : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal hover:bg-blue-50/50'
+              }`}
+            >
+              הכל
+            </button>
+            {PROMPT_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => handleCategoryChange(cat.id)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm ${
+                  selectedCategory === cat.id
+                    ? 'bg-gradient-to-r from-wizdi-royal to-blue-600 text-white shadow-md'
+                    : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal hover:bg-blue-50/50'
+                }`}
               >
-                <option value="">כל הקטגוריות</option>
-                {PROMPT_CATEGORIES.map(cat => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.name}
-                  </option>
-                ))}
-              </select>
-              <IconFilter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-            </div>
+                <span className={getCategoryColor(cat.id, selectedCategory === cat.id)}>
+                  {getCategoryIcon(cat.id)}
+                </span>
+                <span>{cat.name}</span>
+              </button>
+            ))}
+          </div>
 
-            {/* Subcategory Filter (only if category selected) */}
-            {selectedCategoryData && (
+          {/* Filter Controls Row */}
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100">
+            {/* Subcategory Filter (only if category selected and not a special category) */}
+            {selectedCategoryData && selectedCategoryData.subcategories.length > 0 && (
               <div className="relative">
                 <select
                   value={selectedSubcategory || ''}
                   onChange={(e) => setSelectedSubcategory(e.target.value || null)}
-                  className="appearance-none w-full lg:w-56 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all cursor-pointer"
+                  className="appearance-none px-4 py-2 pr-4 pl-9 bg-amber-50 border-2 border-amber-200 rounded-xl text-amber-800 font-medium focus:border-amber-400 focus:ring-2 focus:ring-amber-200 outline-none transition-all cursor-pointer text-sm"
                 >
                   <option value="">כל תתי-הקטגוריות</option>
                   {selectedCategoryData.subcategories.map(sub => (
                     <option key={sub} value={sub}>{sub}</option>
                   ))}
                 </select>
+                <IconFilter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 pointer-events-none" />
               </div>
             )}
 
@@ -237,64 +321,68 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="appearance-none w-full lg:w-40 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all cursor-pointer"
+                className="appearance-none px-4 py-2 pr-4 pl-9 bg-slate-100 border-2 border-slate-200 rounded-xl text-slate-700 font-medium focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all cursor-pointer text-sm"
               >
                 <option value="newest">החדשים</option>
                 <option value="rating">הכי מדורגים</option>
                 <option value="popular">הפופולריים</option>
               </select>
-              <IconSortDescending className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+              <IconSortDescending className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
 
             {/* Clear Filters */}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1 px-4 py-3 text-sm text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-all border border-red-200"
               >
                 <IconX className="w-4 h-4" />
-                <span>נקה</span>
+                <span>נקה הכל</span>
               </button>
             )}
+
+            {/* Results count - inline */}
+            <div className="mr-auto text-sm text-slate-500 font-medium">
+              {loading ? 'טוען...' : `${filteredPrompts.length} פרומפטים`}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Category Quick Filters */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => handleCategoryChange(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              !selectedCategory
-                ? 'bg-wizdi-royal text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal'
-            }`}
-          >
-            הכל
-          </button>
-          {PROMPT_CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => handleCategoryChange(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1 ${
-                selectedCategory === cat.id
-                  ? 'bg-wizdi-royal text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal'
-              }`}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.name}</span>
-            </button>
-          ))}
-        </div>
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Admin Seeder - only shown to admins */}
+        <AdminPromptSeeder isAdmin={isAdmin} />
 
-        {/* Results count */}
-        <div className="mb-4 text-sm text-slate-500">
-          {loading ? (
-            'טוען...'
-          ) : (
-            `נמצאו ${filteredPrompts.length} פרומפטים`
-          )}
-        </div>
+        {/* Popular Section Header - when popular category is selected */}
+        {isPopularCategory && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <IconTrophy className="w-7 h-7 text-orange-500" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-orange-800 flex items-center gap-2">
+                  <IconFlame className="w-5 h-5" />
+                  העשירייה הפופולרית
+                </h2>
+                <p className="text-sm text-orange-600">
+                  10 הפרומפטים הכי מועתקים במאגר - מבוסס על מספר ההעתקות בפועל
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Featured Prompt - hide when popular category is selected */}
+        {featuredPrompt && !isPopularCategory && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <IconSparkles className="w-5 h-5 text-wizdi-gold" />
+              <h2 className="text-lg font-bold text-slate-800">פרומפט השבוע</h2>
+            </div>
+            <PromptCard prompt={featuredPrompt} featured onRatingChange={refreshData} />
+          </div>
+        )}
 
         {/* Prompts Grid */}
         {loading ? (

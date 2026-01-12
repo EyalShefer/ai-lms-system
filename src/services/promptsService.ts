@@ -85,6 +85,13 @@ export interface TeacherStats {
 
 export const PROMPT_CATEGORIES = [
   {
+    id: 'popular',
+    name: 'הכי פופולרי',
+    icon: '🔥',
+    subcategories: [],
+    isSpecial: true  // Special category - not a real category filter
+  },
+  {
     id: 'exams',
     name: 'יצירת מבחנים',
     icon: '📝',
@@ -170,6 +177,39 @@ export const PROMPT_CATEGORIES = [
       'פרויקט מסכם',
       'תיק עבודות (Portfolio)',
       'הערכת עמיתים'
+    ]
+  },
+  {
+    id: 'sel',
+    name: 'למידה חברתית-רגשית (SEL)',
+    icon: '🤝',
+    subcategories: [
+      'מערך שיעור חברתי',
+      'פעילות מיומנויות SEL',
+      'משחק תפקידים',
+      'פעילות אופטימיות וחוסן'
+    ]
+  },
+  {
+    id: 'planning',
+    name: 'תכנון ותכניות עבודה',
+    icon: '📋',
+    subcategories: [
+      'תכנית עבודה כיתתית',
+      'תכנית לימודית אישית',
+      'תכנון שנתי',
+      'תכנון יחידת הוראה'
+    ]
+  },
+  {
+    id: 'communication',
+    name: 'תקשורת אישית',
+    icon: '💌',
+    subcategories: [
+      'מכתב אישי לתלמיד',
+      'הודעה להורים',
+      'משוב מעצים',
+      'ברכה אישית'
     ]
   }
 ];

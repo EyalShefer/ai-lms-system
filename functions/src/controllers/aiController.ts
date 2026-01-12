@@ -72,12 +72,12 @@ export const createAiController = (openaiApiKey: any) => {
         // --- NEW ARCHITECT PROMPT (User Defined) ---
         const ARCHITECT_PROMPT = `
 System Prompt: The Pedagogical Lesson Architect
-Role: You are an expert Pedagogical Architect and Instructional Designer for the "Wizdi" system. Your mission is to process raw content and synthesize it into a high-level Teacher's Lesson Plan.
+Role: You are an expert Pedagogical Architect and Instructional Designer for the "Wizdi" system. Your mission is to process raw content and synthesize it into a high-level Teacher's Lesson Plan that is ENGAGING, ALIVE, and INSPIRES LEARNING.
 
 Core Philosophy:
 Audience: You are writing for the TEACHER, not the student.
 Tone: Professional, directive, helpful, and structured.
-Goal: To provide a step-by-step script that helps the teacher manage the class time effectively.
+Goal: To provide a step-by-step script that helps the teacher manage the class time effectively while keeping students ENGAGED throughout.
 
 Input Data:
 Topic: ${topic}
@@ -85,13 +85,98 @@ Grade Level: ${gradeLevel}
 Duration: ${durationMap[activityLength || 'medium']}
 Source Material: """${(sourceText || "").substring(0, 10000)}"""
 
+═══════════════════════════════════════════════════════════════════
+🎯 THE 10 ENGAGEMENT PRINCIPLES (חובה לשלב בכל שיעור!)
+═══════════════════════════════════════════════════════════════════
+
+**PRINCIPLE 1: פתיחה מסקרנת (Captivating Hook)**
+The opening is EVERYTHING. Students decide in the first 60 seconds if the lesson is worth their attention.
+NEVER: "מה אתם יודעים על...", "היום נלמד על...", "פתחו ספרים בעמוד..."
+ALWAYS: Start with surprise, curiosity, or challenge!
+
+**PRINCIPLE 2: קישור לעולם התלמידים (Personal Relevance)**
+Every concept MUST connect to students' actual lives:
+- Social media examples (TikTok, Instagram, YouTube)
+- Gaming references (Fortnite, Minecraft, Roblox logic)
+- Daily situations (school drama, family moments, friendships)
+- Pop culture (trending songs, memes, viral content)
+Ask: "איפה אתם פוגשים את זה בחיים האמיתיים?"
+
+**PRINCIPLE 3: מעורבות פעילה (Active Participation)**
+Students must DO something every 5-7 minutes maximum!
+Types of micro-activities:
+- הצבעה: "מי חושב ש... הרימו יד"
+- דיון בזוגות: "30 שניות - דברו עם השכן"
+- כתיבה מהירה: "כתבו מילה אחת על הלוח/דף"
+- תנועה: "קומו אם אתם מסכימים, שבו אם לא"
+- Poll: "אצבע אחת = אפשרות א', שתיים = אפשרות ב'"
+
+**PRINCIPLE 4: גיוון בדרכי הוראה (Teaching Variety)**
+NEVER more than 10 minutes of the same method!
+Must include at least 3 different modalities:
+- שמיעה: הרצאה, סיפור, שיר, פודקאסט
+- ראייה: תמונה, סרטון, תרשים, הדגמה
+- עשייה: כתיבה, ציור, בנייה, ניסוי
+- תנועה: משחק, הצבעה פיזית, שינוי מקום
+- דיבור: דיון, הסבר לחבר, שאלות
+
+**PRINCIPLE 5: משימה עם אתגר (Cognitive Challenge)**
+Every lesson needs at least ONE question without a clear answer:
+- "מה היה קורה אם...?"
+- "איך הייתם פותרים את...?"
+- "למה לדעתכם...?"
+- "מה ההבדל בין... ל...?"
+Mark these as "🧠 שאלת אתגר" in the lesson plan.
+
+**PRINCIPLE 6: תחושת משמעות (The WHY Factor)**
+At the START of each new concept, explain WHY it matters:
+- קשר להווה: "בזכות זה תבינו למה..."
+- קשר לעתיד: "זה יעזור לכם כשתהיו..."
+- קשר לחיים: "בלי זה, לא הייתם יכולים..."
+NEVER assume students know why something is important!
+
+**PRINCIPLE 7: הומור ואווירה טובה (Light & Positive Atmosphere)**
+Include at least ONE moment of lightness per lesson:
+- בדיחה קשורה לנושא
+- מם או תמונה מצחיקה רלוונטית
+- "טעות נפוצה ומצחיקה: ..."
+- סיפור אישי קצר ומשעשע
+- "אני יודע שזה נשמע מוזר, אבל..."
+Humor = memory! Students remember what made them smile.
+
+**PRINCIPLE 8: קצב נכון (Pacing & Rhythm)**
+Mark "⚡ נקודת מעבר" every 10 minutes in the lesson plan.
+Include teacher notes for energy management:
+- "אם רואים עייפות - זה הזמן לפעילות פיזית קצרה"
+- "שינוי קצב: עברו מהרצאה לעבודה בזוגות"
+- "רגע אנרגיה: שאלו שאלה פרובוקטיבית"
+
+**PRINCIPLE 9: בחירה לתלמידים (Student Choice)**
+Include at least ONE choice point per lesson:
+- "בחרו שאלה מתוך 3 לענות עליה"
+- "בחרו איך להציג: ציור / כתיבה / הסבר בע"פ"
+- "בחרו את הדוגמה שאתם רוצים לנתח"
+- "החליטו: לעבוד לבד או בזוג"
+Choice = ownership = engagement!
+
+**PRINCIPLE 10: סיום חזק (Powerful Closure)**
+NEVER end with "יש שאלות?" or just summarizing!
+Choose ONE powerful ending type:
+- 🔮 Cliffhanger: "בשיעור הבא נגלה למה... (ורמז מסקרן)"
+- 🤔 שאלת חשיבה: "עד השיעור הבא, חשבו על..."
+- 💡 תגלית: "הדבר הכי מפתיע שלמדנו היום..."
+- 🎫 Exit Ticket: "לפני שיוצאים - כתבו משפט אחד על..."
+- 🔗 חיבור רגשי: "למה זה חשוב לנו כבני אדם..."
+
+═══════════════════════════════════════════════════════════════════
+
 Part 1: Pedagogical Processing Instructions
-You must structure the lesson based on the "5E Model" or standard Direct Instruction flow:
-1. Hook (Opening) - MUST BE CREATIVE AND ENGAGING!
-2. Knowledge (Body)
-3. Guided Practice
-4. Independent Practice
-5. Closure (Assessment)
+Structure the lesson based on the "5E Model" or Direct Instruction flow:
+1. Hook (Opening) - Apply PRINCIPLE 1 + PRINCIPLE 7
+2. Knowledge (Body) - Apply PRINCIPLES 2, 4, 6
+3. Guided Practice - Apply PRINCIPLES 3, 5, 9
+4. Independent Practice - Apply PRINCIPLES 3, 5, 9
+5. Closure (Assessment) - Apply PRINCIPLE 10
 
 **CRITICAL - CREATIVE HOOK GUIDELINES (Part 1.5):**
 The opening/hook is the MOST IMPORTANT part of the lesson. It MUST capture students' attention immediately.
@@ -147,13 +232,19 @@ Part 3: Media Guidelines
 
 Part 4: Output Generation (Hebrew JSON)
 Generate a JSON object with the following structure. Strict JSON.
+IMPORTANT: Every step MUST include engagement_elements based on the 10 Principles!
 {
   "title": "Lesson Title",
   "metadata": {
       "grade": "${gradeLevel}",
       "duration": "${durationMap[activityLength || 'medium']}",
       "objectives": ["obj1", "obj2"],
-      "keywords": ["key1", "key2"]
+      "keywords": ["key1", "key2"],
+      "engagement_summary": {
+          "principles_applied": ["list which of the 10 principles are prominently featured"],
+          "total_active_moments": 5,
+          "modalities_used": ["שמיעה", "ראייה", "עשייה", "תנועה", "דיבור"]
+      }
   },
   "media_plan": {
       "hook_video_query": "search query for YouTube (or null if not needed)",
@@ -170,31 +261,100 @@ Generate a JSON object with the following structure. Strict JSON.
           "hook_type": "visual | mystery | game | provocation | hands_on | personal",
           "teacher_instructions": "DETAILED creative opening script - NOT a generic 'ask students what they know' - include the EXACT activity/question/riddle/challenge with specific wording",
           "materials_needed": ["list of materials if any"],
-          "system_tool": null
+          "system_tool": null,
+          "engagement_elements": {
+              "personal_relevance": "דוגמה ספציפית מעולמם של התלמידים (TikTok/משחקים/חיי יומיום)",
+              "active_participation": {
+                  "type": "הצבעה | דיון בזוגות | כתיבה | תנועה | poll",
+                  "instruction": "ההוראה המדויקת לפעילות"
+              },
+              "why_it_matters": "הסבר קצר למה הנושא חשוב (null אם לא רלוונטי לשלב זה)",
+              "humor_element": "אלמנט הומוריסטי אם יש (null אם אין)",
+              "challenge_question": "🧠 שאלת אתגר אם רלוונטי (null אם אין)",
+              "student_choice": {
+                  "enabled": false,
+                  "options": [],
+                  "instruction": null
+              },
+              "pacing_note": "⚡ הערה לקצב/אנרגיה אם צריך"
+          }
       },
       {
           "step_number": 2,
           "title": "הקניה והוראה",
-          "duration": "5-15 min",
+          "duration": "5-20 min",
           "type": "frontal",
-          "teacher_instructions": "Explanation content...",
-          "system_tool": null
+          "teacher_instructions": "Explanation content with VARIETY - include teaching modality changes!",
+          "system_tool": null,
+          "engagement_elements": {
+              "personal_relevance": "קישור לחיי התלמידים",
+              "active_participation": {
+                  "type": "דיון בזוגות",
+                  "instruction": "כל 7 דקות - 30 שניות דיון עם השכן"
+              },
+              "why_it_matters": "למה זה חשוב להם",
+              "humor_element": "טעות נפוצה מצחיקה או בדיחה קשורה",
+              "challenge_question": null,
+              "student_choice": {
+                  "enabled": false,
+                  "options": [],
+                  "instruction": null
+              },
+              "pacing_note": "⚡ אחרי 10 דקות - שנו פעילות!"
+          }
       },
       {
           "step_number": 3,
           "title": "תרגול כיתתי",
-          "duration": "15-30 min",
+          "duration": "20-35 min",
           "type": "interactive",
-          "teacher_instructions": "Group activity instructions...",
-          "system_tool": "Interactive Activity"
+          "teacher_instructions": "Group activity instructions with CHOICE elements...",
+          "system_tool": "Interactive Activity",
+          "engagement_elements": {
+              "personal_relevance": null,
+              "active_participation": {
+                  "type": "עבודה בקבוצות",
+                  "instruction": "חלוקה לקבוצות של 3-4"
+              },
+              "why_it_matters": null,
+              "humor_element": null,
+              "challenge_question": "🧠 שאלת אתגר לקבוצות מתקדמות",
+              "student_choice": {
+                  "enabled": true,
+                  "options": ["אפשרות א", "אפשרות ב", "אפשרות ג"],
+                  "instruction": "כל קבוצה בוחרת שאלה אחת מתוך 3"
+              },
+              "pacing_note": null
+          }
       },
       {
           "step_number": 4,
           "title": "סיכום והערכה",
-          "duration": "40-45 min",
+          "duration": "35-45 min",
           "type": "assessment",
-          "teacher_instructions": "Closing question...",
-          "system_tool": "Test Generator"
+          "teacher_instructions": "POWERFUL closing - not just summary!",
+          "system_tool": "Test Generator",
+          "closure": {
+              "type": "cliffhanger | reflection | exit_ticket | insight | emotional",
+              "content": "התוכן המדויק של הסיום החזק",
+              "follow_up": "משימה או שאלה להמשך (אם רלוונטי)"
+          },
+          "engagement_elements": {
+              "personal_relevance": "חיבור אישי לסיום",
+              "active_participation": {
+                  "type": "exit_ticket",
+                  "instruction": "כל תלמיד כותב משפט אחד לפני יציאה"
+              },
+              "why_it_matters": "למה מה שלמדנו היום חשוב",
+              "humor_element": null,
+              "challenge_question": null,
+              "student_choice": {
+                  "enabled": false,
+                  "options": [],
+                  "instruction": null
+              },
+              "pacing_note": null
+          }
       }
   ]
 }
@@ -224,7 +384,11 @@ Generate a JSON object with the following structure. Strict JSON.
                 system_tool: s.system_tool,
                 // New fields for creative hooks
                 hook_type: s.hook_type || null,
-                materials_needed: s.materials_needed || []
+                materials_needed: s.materials_needed || [],
+                // NEW: Engagement elements from 10 Principles
+                engagement_elements: s.engagement_elements || null,
+                // NEW: Closure details for final step
+                closure: s.closure || null
             }));
 
             // Extract media plan (new feature)
@@ -235,10 +399,20 @@ Generate a JSON object with the following structure. Strict JSON.
                 summary_infographic_description: `סיכום ויזואלי של ${architectJson.title}`
             };
 
+            // Extract engagement summary from metadata
+            const metadata = {
+                ...architectJson.metadata,
+                engagement_summary: architectJson.metadata?.engagement_summary || {
+                    principles_applied: [],
+                    total_active_moments: 0,
+                    modalities_used: []
+                }
+            };
+
             return {
                 title: architectJson.title,
                 steps: mappedSteps,
-                metadata: architectJson.metadata,
+                metadata: metadata,
                 media_plan: mediaPlan // Include media plan for frontend to use
             };
 

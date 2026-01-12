@@ -11,7 +11,8 @@ import {
     IconChevronLeft,
     IconCheck,
     IconBookmark,
-    IconRefresh
+    IconRefresh,
+    IconLanguage
 } from '@tabler/icons-react';
 import { getBlogArticles, getFeaturedArticle, triggerBlogGeneration, BLOG_CATEGORIES, type AIBlogArticle } from '../services/aiBlogService';
 
@@ -102,13 +103,13 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
     if (!featuredArticle && articles.length === 0) {
         return (
             <div className="card-glass rounded-3xl p-6 h-full">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                        <IconBulb className="w-5 h-5 text-white" />
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
+                        <IconBulb className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-800">תובנות AI למורים</h3>
-                        <p className="text-xs text-slate-500">מאמרים מעשיים לכיתה</p>
+                        <h3 className="font-bold text-sm text-slate-700">חדשות AI</h3>
+                        <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                     </div>
                 </div>
                 <div className="text-center py-8">
@@ -132,94 +133,118 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
 
     const articleToShow = featuredArticle || articles[0];
 
-    // Compact mode - single article card (expanded view)
+    // Compact mode - single article card (newsletter style)
     if (compact) {
         return (
-            <div className="card-glass rounded-3xl p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
-                            <IconBulb className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-lg text-slate-800 dark:text-white">תובנות AI למורים</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">מאמר השבוע • מתעדכן כל יום ראשון</p>
-                        </div>
+            <div className="card-glass rounded-2xl p-5">
+                {/* Header - Subtle */}
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
+                        <IconBulb className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-sm text-slate-700 dark:text-white">חדשות AI</h3>
+                        <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                     </div>
                 </div>
 
                 {articleToShow && (
-                    <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
-                        {/* Category badge & meta */}
-                        <div className="flex items-center justify-between mb-3">
-                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
-                                {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
-                            </span>
-                            <span className="flex items-center gap-1 text-xs text-slate-400">
-                                <IconClock className="w-3.5 h-3.5" />
-                                {articleToShow.readingTime} דק׳ קריאה
-                            </span>
-                        </div>
+                    <div className="space-y-3">
+                        {/* Article Image - Smaller */}
+                        {articleToShow.imageUrl && (
+                            <div className="relative rounded-xl overflow-hidden">
+                                <img
+                                    src={articleToShow.imageUrl}
+                                    alt={articleToShow.title}
+                                    className="w-full h-32 object-cover"
+                                />
+                                <div className="absolute top-2 right-2">
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
+                                        {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* No image - compact category */}
+                        {!articleToShow.imageUrl && (
+                            <div className="flex items-center justify-between">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
+                                    {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
+                                </span>
+                                <span className="flex items-center gap-1 text-xs text-slate-400">
+                                    <IconClock className="w-3 h-3" />
+                                    {articleToShow.readingTime} דק׳
+                                </span>
+                            </div>
+                        )}
 
                         {/* Title */}
-                        <h4 className="font-bold text-slate-800 text-lg mb-3 leading-tight">
+                        <h4 className="font-bold text-slate-800 text-base leading-snug">
                             {articleToShow.title}
                         </h4>
 
-                        {/* Summary - full text */}
-                        <p className="text-slate-600 text-sm leading-relaxed mb-4">
+                        {/* Key Insights - 2-3 compact insights */}
+                        {articleToShow.keyPoints && articleToShow.keyPoints.length > 0 && (
+                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                <h5 className="font-semibold text-slate-600 text-xs mb-2">תובנות מרכזיות</h5>
+                                <ul className="space-y-1.5">
+                                    {articleToShow.keyPoints.slice(0, 3).map((point, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                                            <span className="flex-shrink-0 w-5 h-5 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center font-medium text-xs">
+                                                {idx + 1}
+                                            </span>
+                                            <span className="leading-snug">{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Summary - smaller */}
+                        <p className="text-slate-500 text-sm leading-relaxed">
                             {articleToShow.summary}
                         </p>
 
-                        {/* Key Points */}
-                        {articleToShow.keyPoints && articleToShow.keyPoints.length > 0 && (
-                            <div className="bg-white/80 rounded-xl p-4 mb-4">
-                                <h5 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                                    📌 נקודות מפתח
-                                </h5>
-                                <ul className="space-y-2">
-                                    {articleToShow.keyPoints.map((point, idx) => (
-                                        <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                            <IconCheck className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
-                                            <span>{point}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {/* Classroom Tips */}
+                        {/* Classroom Tips - compact */}
                         {articleToShow.classroomTips && articleToShow.classroomTips.length > 0 && (
-                            <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
-                                <h5 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                                    💡 איך להשתמש בזה בכיתה
-                                </h5>
-                                <ul className="space-y-2">
-                                    {articleToShow.classroomTips.map((tip, idx) => (
-                                        <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                            <span className="text-slate-600 font-bold min-w-[20px]">{idx + 1}.</span>
-                                            <span>{tip}</span>
+                            <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100">
+                                <h5 className="font-semibold text-blue-700 text-xs mb-2">💡 לכיתה</h5>
+                                <ul className="space-y-1">
+                                    {articleToShow.classroomTips.slice(0, 2).map((tip, idx) => (
+                                        <li key={idx} className="text-sm text-slate-600">
+                                            {idx + 1}. {tip}
                                         </li>
                                     ))}
                                 </ul>
                             </div>
                         )}
 
-                        {/* Footer with source */}
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                            <span className="text-xs text-slate-500">
-                                מקור: <span className="font-medium">{articleToShow.sourceName}</span>
+                        {/* Footer - compact */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                            <span className="text-xs text-slate-400">
+                                {articleToShow.sourceName}
                             </span>
-                            <a
-                                href={articleToShow.originalUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 bg-wizdi-royal text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-                            >
-                                קראו את המאמר המקורי
-                                <IconExternalLink className="w-4 h-4" />
-                            </a>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={`https://translate.google.com/translate?sl=en&tl=he&u=${encodeURIComponent(articleToShow.originalUrl)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-slate-500 hover:text-slate-700 text-xs"
+                                    title="תרגום לעברית"
+                                >
+                                    <IconLanguage className="w-4 h-4" />
+                                </a>
+                                <a
+                                    href={articleToShow.originalUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                >
+                                    קראו עוד
+                                    <IconExternalLink className="w-3 h-3" />
+                                </a>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -229,144 +254,172 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
 
     // Full mode - multiple articles with expandable details
     return (
-        <div className="card-glass rounded-3xl p-6 h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
-                        <IconBulb className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-black text-slate-800">תובנות AI למורים</h2>
-                        <p className="text-sm text-slate-500">מאמרים מעשיים לכיתה • מתעדכן שבועית</p>
-                    </div>
+        <div className="card-glass rounded-2xl p-5 h-full">
+            {/* Header - Subtle */}
+            <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center">
+                    <IconBulb className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                    <h2 className="font-bold text-sm text-slate-700">חדשות AI</h2>
+                    <p className="text-xs text-slate-400">מתעדכן שבועית</p>
                 </div>
             </div>
 
             {/* Featured Article */}
             {articleToShow && (
                 <div
-                    className={`bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 mb-4 cursor-pointer transition-all ${
-                        expandedArticle === articleToShow.id ? 'ring-2 ring-purple-300' : 'hover:shadow-md'
+                    className={`bg-slate-50 rounded-xl overflow-hidden mb-3 cursor-pointer transition-all ${
+                        expandedArticle === articleToShow.id ? 'ring-1 ring-slate-300' : 'hover:bg-slate-100'
                     }`}
                     onClick={() => setExpandedArticle(
                         expandedArticle === articleToShow.id ? null : articleToShow.id
                     )}
                 >
-                    {/* Category & Meta */}
-                    <div className="flex items-center justify-between mb-3">
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
-                            {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
-                        </span>
-                        <div className="flex items-center gap-3 text-xs text-slate-400">
-                            <span className="flex items-center gap-1">
-                                <IconClock className="w-3.5 h-3.5" />
-                                {articleToShow.readingTime} דק׳ קריאה
-                            </span>
-                            <span>{formatDate(articleToShow.createdAt)}</span>
-                        </div>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="font-bold text-lg text-slate-800 mb-2 leading-tight">
-                        {articleToShow.title}
-                    </h3>
-
-                    {/* Summary */}
-                    <p className="text-slate-600 text-sm leading-relaxed mb-4">
-                        {articleToShow.summary}
-                    </p>
-
-                    {/* Expanded Content */}
-                    {expandedArticle === articleToShow.id && (
-                        <div className="space-y-4 animate-fadeIn">
-                            {/* Key Points */}
-                            {articleToShow.keyPoints && articleToShow.keyPoints.length > 0 && (
-                                <div className="bg-white/70 rounded-xl p-4">
-                                    <h4 className="font-bold text-purple-700 text-sm mb-2">
-                                        📌 נקודות מפתח
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {articleToShow.keyPoints.map((point, idx) => (
-                                            <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                                <IconCheck className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                                                {point}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Classroom Tips */}
-                            {articleToShow.classroomTips && articleToShow.classroomTips.length > 0 && (
-                                <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                                    <h4 className="font-bold text-amber-700 text-sm mb-2">
-                                        💡 איך להשתמש בזה בכיתה
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {articleToShow.classroomTips.map((tip, idx) => (
-                                            <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
-                                                <span className="text-amber-500 font-bold">{idx + 1}.</span>
-                                                {tip}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Source link */}
-                            <div className="flex items-center justify-between pt-2 border-t border-purple-100">
-                                <span className="text-xs text-slate-500">
-                                    מקור: {articleToShow.sourceName}
+                    {/* Article Image */}
+                    {articleToShow.imageUrl && (
+                        <div className="relative">
+                            <img
+                                src={articleToShow.imageUrl}
+                                alt={articleToShow.title}
+                                className="w-full h-28 object-cover"
+                            />
+                            <div className="absolute top-2 right-2">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
+                                    {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
                                 </span>
-                                <a
-                                    href={articleToShow.originalUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    קראו את המאמר המקורי
-                                    <IconExternalLink className="w-4 h-4" />
-                                </a>
                             </div>
                         </div>
                     )}
 
-                    {/* Collapse/Expand indicator */}
-                    {expandedArticle !== articleToShow.id && (
-                        <div className="flex items-center justify-center text-purple-500 text-sm font-medium">
-                            <span>לחצו לפרטים מלאים</span>
-                            <IconChevronLeft className="w-4 h-4 rotate-90" />
-                        </div>
-                    )}
+                    <div className="p-3">
+                        {/* Category & Meta (when no image) */}
+                        {!articleToShow.imageUrl && (
+                            <div className="flex items-center justify-between mb-2">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryStyle(articleToShow.category).color}`}>
+                                    {getCategoryStyle(articleToShow.category).icon} {articleToShow.categoryLabel}
+                                </span>
+                                <span className="text-xs text-slate-400">{formatDate(articleToShow.createdAt)}</span>
+                            </div>
+                        )}
+
+                        {/* Title */}
+                        <h3 className="font-bold text-sm text-slate-800 mb-2 leading-snug">
+                            {articleToShow.title}
+                        </h3>
+
+                        {/* Key Insights Preview */}
+                        {articleToShow.keyPoints && articleToShow.keyPoints.length > 0 && (
+                            <div className="bg-white rounded-lg p-2 mb-2 border border-slate-100">
+                                <ul className="space-y-1">
+                                    {articleToShow.keyPoints.slice(0, 2).map((point, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-xs text-slate-600">
+                                            <span className="flex-shrink-0 w-4 h-4 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center font-medium text-[10px]">
+                                                {idx + 1}
+                                            </span>
+                                            <span className="leading-snug">{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Expanded Content */}
+                        {expandedArticle === articleToShow.id && (
+                            <div className="space-y-2 animate-fadeIn">
+                                {/* Summary */}
+                                <p className="text-slate-500 text-xs leading-relaxed">
+                                    {articleToShow.summary}
+                                </p>
+
+                                {/* Remaining Key Points */}
+                                {articleToShow.keyPoints && articleToShow.keyPoints.length > 2 && (
+                                    <ul className="space-y-1">
+                                        {articleToShow.keyPoints.slice(2).map((point, idx) => (
+                                            <li key={idx} className="flex items-start gap-2 text-xs text-slate-600">
+                                                <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                {point}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+
+                                {/* Classroom Tips */}
+                                {articleToShow.classroomTips && articleToShow.classroomTips.length > 0 && (
+                                    <div className="bg-blue-50/50 rounded-lg p-2 border border-blue-100">
+                                        <h4 className="font-semibold text-blue-700 text-xs mb-1">💡 לכיתה</h4>
+                                        <ul className="space-y-0.5">
+                                            {articleToShow.classroomTips.slice(0, 2).map((tip, idx) => (
+                                                <li key={idx} className="text-xs text-slate-600">
+                                                    {idx + 1}. {tip}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <span className="text-xs text-slate-400">{articleToShow.sourceName}</span>
+                                    <div className="flex items-center gap-2">
+                                        <a
+                                            href={`https://translate.google.com/translate?sl=en&tl=he&u=${encodeURIComponent(articleToShow.originalUrl)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-slate-400 hover:text-slate-600"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <IconLanguage className="w-4 h-4" />
+                                        </a>
+                                        <a
+                                            href={articleToShow.originalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 bg-slate-700 text-white px-2 py-1 rounded text-xs font-medium hover:bg-slate-800"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            קראו עוד
+                                            <IconExternalLink className="w-3 h-3" />
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Collapse/Expand indicator */}
+                        {expandedArticle !== articleToShow.id && (
+                            <div className="flex items-center justify-center text-slate-400 text-xs mt-1">
+                                <span>לחצו לפרטים</span>
+                                <IconChevronLeft className="w-3 h-3 rotate-90" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
             {/* More Articles (if any) */}
             {articles.length > 1 && (
                 <div className="space-y-2">
-                    <h4 className="text-sm font-bold text-slate-500 mb-2">מאמרים נוספים</h4>
                     {articles.slice(1).map((article) => (
                         <div
                             key={article.id}
-                            className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                            className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                             onClick={() => setExpandedArticle(
                                 expandedArticle === article.id ? null : article.id
                             )}
                         >
-                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${getCategoryStyle(article.category).color}`}>
-                                {getCategoryStyle(article.category).icon}
-                            </span>
+                            {article.imageUrl ? (
+                                <img src={article.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                            ) : (
+                                <span className={`w-8 h-8 rounded flex items-center justify-center text-sm ${getCategoryStyle(article.category).color}`}>
+                                    {getCategoryStyle(article.category).icon}
+                                </span>
+                            )}
                             <div className="flex-grow min-w-0">
-                                <p className="text-sm font-medium text-slate-700 truncate">
-                                    {article.title}
-                                </p>
-                                <p className="text-[10px] text-slate-400">
-                                    {article.sourceName} • {formatDate(article.createdAt)}
-                                </p>
+                                <p className="text-xs font-medium text-slate-700 truncate">{article.title}</p>
+                                <p className="text-[10px] text-slate-400">{article.sourceName}</p>
                             </div>
-                            <IconChevronLeft className="w-4 h-4 text-slate-400" />
+                            <IconChevronLeft className="w-3 h-3 text-slate-300" />
                         </div>
                     ))}
                 </div>
