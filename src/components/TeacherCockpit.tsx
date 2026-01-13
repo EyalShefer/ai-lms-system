@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
-import { refineBlockContent, openai, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
+import { refineBlockContent, generateAiImage, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
     generateSingleMultipleChoiceQuestion,
     generateSingleOpenQuestion,
@@ -118,6 +118,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     const [refiningBlockId, setRefiningBlockId] = useState<string | null>(null); // Separate state for AI refine mode
     const [isRefining, setIsRefining] = useState(false);
     const [refinePrompt, setRefinePrompt] = useState("");
+
+    // Store user's custom prompts per block to preserve them across open/close
+    const userEditedPromptsRef = useRef<Record<string, string>>({});
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
 
     // Track unsaved changes (for share warning)
@@ -541,19 +544,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
         setLoadingBlockId(blockId);
         try {
-            const res = await openai.images.generate({
-                prompt: prompt,
-                model: "dall-e-3",
-                size: "1024x1024",
-                response_format: "b64_json",
-                quality: "standard",
-                n: 1,
-            });
-
-            const image_url = res.data[0].b64_json;
-            if (image_url) {
-                updateBlockContent(blockId, `data:image/png;base64,${image_url}`);
-                setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
+            const blob = await generateAiImage(prompt);
+            if (blob) {
+                // Convert blob to base64 data URL
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = reader.result as string;
+                    updateBlockContent(blockId, dataUrl);
+                    setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
+                };
+                reader.readAsDataURL(blob);
+            } else {
+                alert("שגיאה ביצירת תמונה. נסה שנית.");
             }
         } catch (error) {
             console.error("Image Gen Error:", error);
@@ -803,6 +805,79 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         </div>
     );
 
+    /**
+     * Generate a smart default prompt suggestion based on block type and content
+     */
+    const generateDefaultPromptForBlock = (block: ActivityBlock): string => {
+        const blockType = block.type;
+        const content = block.content;
+
+        // Extract text content for context
+        const getTextContent = (): string => {
+            if (!content) return '';
+            if (typeof content === 'string') return content;
+            if ((content as any).question) return (content as any).question;
+            if ((content as any).text) return (content as any).text;
+            if ((content as any).title) return (content as any).title;
+            if ((content as any).prompt) return (content as any).prompt;
+            if ((content as any).teach_content) return (content as any).teach_content;
+            return '';
+        };
+
+        const textContent = getTextContent();
+        const shortContent = textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent;
+
+        switch (blockType) {
+            case 'multiple-choice':
+                return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח כדי שיהיה ברור יותר`;
+            case 'open-question':
+                return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+            case 'ordering':
+                return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+            case 'fill_in_blanks':
+                return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+            case 'text':
+                return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
+            case 'video':
+                return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
+            case 'image':
+                return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
+            case 'interactive-chat':
+                return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
+            case 'categorization':
+                return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
+            case 'memory_game':
+                return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
+            default:
+                if (shortContent) {
+                    return `שפרו את התוכן בנושא "${shortContent}": פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
+                }
+                return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
+        }
+    };
+
+    // Handle refine prompt change and save to ref
+    const handleRefinePromptChange = (blockId: string, value: string) => {
+        setRefinePrompt(value);
+        userEditedPromptsRef.current[blockId] = value;
+    };
+
+    // When opening refine toolbar, set default or restore saved prompt
+    useEffect(() => {
+        if (refiningBlockId) {
+            const savedPrompt = userEditedPromptsRef.current[refiningBlockId];
+            if (savedPrompt !== undefined) {
+                setRefinePrompt(savedPrompt);
+            } else {
+                const block = unit.activityBlocks.find((b: ActivityBlock) => b.id === refiningBlockId);
+                if (block) {
+                    const defaultPrompt = generateDefaultPromptForBlock(block);
+                    setRefinePrompt(defaultPrompt);
+                }
+            }
+        }
+    }, [refiningBlockId, unit.activityBlocks]);
+
     const renderRefineToolbar = (block: ActivityBlock) => {
         if (refiningBlockId !== block.id) return null;
 
@@ -821,7 +896,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     <IconWand className="w-4 h-4" />
                     שיפור עם AI
                 </h4>
-                <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-md">
+                <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-lg">
                     {presets.map(p => (
                         <button
                             key={p}
@@ -833,20 +908,35 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         </button>
                     ))}
                 </div>
-                <div className="flex gap-2 w-full max-w-md">
-                    <input
-                        type="text"
+                <div className="flex flex-col gap-2 w-full max-w-lg">
+                    <textarea
                         value={refinePrompt}
-                        onChange={(e) => setRefinePrompt(e.target.value)}
-                        placeholder="או כתבו בקשה חופשית..."
-                        className="flex-1 p-2 border border-slate-200 rounded-lg focus:border-wizdi-royal outline-none text-sm"
+                        onChange={(e) => handleRefinePromptChange(block.id, e.target.value)}
+                        placeholder="כתבו הנחיות לשיפור התוכן..."
+                        className="w-full p-3 border border-slate-200 rounded-lg focus:border-wizdi-royal outline-none text-sm min-h-[100px] resize-y"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (refinePrompt) handleRefineBlock(block, refinePrompt);
+                            }
+                        }}
                     />
                     <button
                         onClick={() => handleRefineBlock(block, refinePrompt)}
                         disabled={!refinePrompt || isRefining}
-                        className="bg-wizdi-royal text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        className="bg-wizdi-royal text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-bold text-sm self-end"
                     >
-                        {isRefining ? <IconSparkles className="animate-spin w-4 h-4" /> : <IconCheck className="w-4 h-4" />}
+                        {isRefining ? (
+                            <>
+                                <IconSparkles className="animate-spin w-4 h-4" />
+                                משפר...
+                            </>
+                        ) : (
+                            <>
+                                <IconCheck className="w-4 h-4" />
+                                בצע שיפור
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

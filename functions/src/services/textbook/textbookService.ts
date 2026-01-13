@@ -3,7 +3,6 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { v4 as uuidv4 } from 'uuid';
-import OpenAI from 'openai';
 
 import type {
   Textbook,
@@ -13,6 +12,7 @@ import type {
   TextbookContextResponse,
 } from '../knowledgeBase/types';
 import { EmbeddingService } from '../knowledgeBase/embeddingService';
+import { generateText, ChatMessage } from '../geminiService';
 
 const TEXTBOOKS_COLLECTION = 'textbooks';
 const KNOWLEDGE_COLLECTION = 'math_knowledge';
@@ -20,12 +20,10 @@ const KNOWLEDGE_COLLECTION = 'math_knowledge';
 export class TextbookService {
   private db: FirebaseFirestore.Firestore;
   private embeddingService: EmbeddingService;
-  private openai: OpenAI;
 
   constructor(openaiApiKey: string) {
     this.db = getFirestore();
     this.embeddingService = new EmbeddingService(openaiApiKey);
-    this.openai = new OpenAI({ apiKey: openaiApiKey });
   }
 
   // ============================================
@@ -484,7 +482,7 @@ export class TextbookService {
   }
 
   /**
-   * Generate chapter summary using AI
+   * Generate chapter summary using Gemini 2.5 Pro
    */
   private async generateChapterSummary(
     chapterName: string,
@@ -498,23 +496,23 @@ export class TextbookService {
         .join('\n\n')
         .substring(0, 2000);
 
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'אתה עוזר שמסכם תוכן מספרי לימוד. כתוב סיכום קצר (משפט אחד או שניים) של הפרק בעברית.',
-          },
-          {
-            role: 'user',
-            content: `סכם את הפרק "${chapterName}":\n\n${sampleContent}`,
-          },
-        ],
-        max_tokens: 150,
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: 'אתה עוזר שמסכם תוכן מספרי לימוד. כתוב סיכום קצר (משפט אחד או שניים) של הפרק בעברית.',
+        },
+        {
+          role: 'user',
+          content: `סכם את הפרק "${chapterName}":\n\n${sampleContent}`,
+        },
+      ];
+
+      const summary = await generateText(messages, {
+        maxTokens: 150,
         temperature: 0.3,
       });
 
-      return response.choices[0]?.message?.content?.trim() || '';
+      return summary.trim();
     } catch (error) {
       logger.warn('Failed to generate chapter summary:', error);
       return '';

@@ -12,10 +12,10 @@
  * Output: Individual question blocks ready for mapping
  */
 
-import OpenAI from "openai";
 import * as logger from "firebase-functions/logger";
 import { cleanJsonString } from '../shared/utils/geminiParsers';
 import { getExamGeneratorPrompt } from '../ai/examPrompts';
+import { generateJSON, ChatMessage } from './geminiService';
 import type { ExamSkeletonStep } from './examArchitect';
 
 export interface ExamQuestionResponse {
@@ -71,10 +71,9 @@ export interface ExamGeneratorContext {
  * This function creates ONE rigorous exam question based on the
  * specifications provided by the Exam Architect.
  *
- * CRITICAL: Uses temperature 0.3 for deterministic output.
+ * CRITICAL: Uses Gemini 2.5 Pro with temperature 0.3 for deterministic output.
  */
 export async function generateExamQuestion(
-    openai: OpenAI,
     stepInfo: ExamSkeletonStep,
     context: ExamGeneratorContext
 ): Promise<ExamQuestionResponse | null> {
@@ -89,18 +88,14 @@ export async function generateExamQuestion(
     try {
         logger.info(`✍️ Exam Generator: Creating question ${stepInfo.step_number} (${stepInfo.suggested_interaction_type})`);
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini", // Fast model for question generation
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `Generate exam question ${stepInfo.step_number} now.` }
-            ],
-            temperature: 0.3, // LOW temperature for exam consistency
-            response_format: { type: "json_object" }
-        });
+        const messages: ChatMessage[] = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate exam question ${stepInfo.step_number} now.` }
+        ];
 
-        const text = response.choices[0].message.content || "{}";
-        const result = JSON.parse(cleanJsonString(text)) as ExamQuestionResponse;
+        const result = await generateJSON<ExamQuestionResponse>(messages, {
+            temperature: 0.3 // LOW temperature for exam consistency
+        });
 
         // Validate exam integrity
         if (result.teach_content && result.teach_content.trim() !== "") {
@@ -128,14 +123,13 @@ export async function generateExamQuestion(
  * concurrently for speed, then filters out any failures.
  */
 export async function generateAllExamQuestions(
-    openai: OpenAI,
     skeleton: { steps: ExamSkeletonStep[] },
     context: ExamGeneratorContext
 ): Promise<ExamQuestionResponse[]> {
     logger.info(`🚀 Exam Generator: Starting parallel generation of ${skeleton.steps.length} questions`);
 
     const promises = skeleton.steps.map(step =>
-        generateExamQuestion(openai, step, context)
+        generateExamQuestion(step, context)
     );
 
     const results = await Promise.all(promises);

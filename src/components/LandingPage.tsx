@@ -98,9 +98,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
                         {/* Hero Illustration */}
                         <img
-                            src="/images/hero-illustration.png"
+                            src="/images/c73c7a67-1411-4c9f-ac8d-38d70580e50d.png"
                             alt="AI Education Illustration"
-                            className="relative z-10 w-full max-w-xl h-auto object-contain drop-shadow-2xl rotate-180"
+                            className="relative z-10 w-full max-w-3xl h-auto object-contain drop-shadow-2xl"
                         />
                     </div>
                 </div>

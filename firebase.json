@@ -30,6 +30,10 @@
         "function": "openaiProxy"
       },
       {
+        "source": "/api/elevenlabs",
+        "function": "elevenLabsProxy"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

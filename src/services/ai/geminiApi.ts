@@ -24,22 +24,22 @@ import type { ValidationResult } from "../../shared/types/courseTypes";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../../firebase";
 
-export const MODEL_NAME = "gpt-4o-mini";
+export const MODEL_NAME = "gemini-2.5-pro"; // Using Gemini via Cloud Function
 
-// Imagen 4 for infographics (Real AI Image Generation via Vertex AI)
-export const INFOGRAPHIC_MODEL = "imagen-4.0-generate-001";
+// Gemini 3 Pro Image for infographics (Real AI Image Generation)
+export const INFOGRAPHIC_MODEL = "gemini-3-pro-image";
 
 /**
- * Call Imagen 4 via Cloud Function for real AI image generation
- * Uses Vertex AI for high-quality infographic images
+ * Call Gemini 3 Pro Image via Cloud Function for real AI image generation
+ * Uses Gemini for high-quality Hebrew infographic images
  */
-const callImagen4InfographicCloudFunction = async (
+const callGeminiInfographicCloudFunction = async (
     content: string,
     visualType: 'flowchart' | 'timeline' | 'comparison' | 'cycle',
     topic?: string
 ): Promise<Blob | null> => {
     try {
-        console.log(`🚀 Calling Imagen 4 Cloud Function for infographic...`);
+        console.log(`🚀 Calling Gemini 3 Pro Image Cloud Function for infographic...`);
 
         // Get auth token
         const { auth } = await import('../../firebase');
@@ -51,7 +51,7 @@ const callImagen4InfographicCloudFunction = async (
         const idToken = await user.getIdToken();
 
         // Call the Cloud Function (HTTP endpoint)
-        const functionUrl = `https://us-central1-ai-lms-pro.cloudfunctions.net/generateImagen4Infographic`;
+        const functionUrl = `https://us-central1-ai-lms-pro.cloudfunctions.net/generateGeminiInfographic`;
 
         const response = await fetch(functionUrl, {
             method: 'POST',
@@ -68,13 +68,13 @@ const callImagen4InfographicCloudFunction = async (
 
         if (!response.ok) {
             const error = await response.json();
-            console.error('❌ Imagen 4 Cloud Function error:', error);
+            console.error('❌ Gemini 3 Pro Image Cloud Function error:', error);
             return null;
         }
 
         const data = await response.json();
         if (data.success && data.image?.base64) {
-            console.log('✅ Imagen 4 image received from Cloud Function');
+            console.log('✅ Gemini 3 Pro Image received from Cloud Function');
 
             // Convert base64 to Blob
             const byteCharacters = atob(data.image.base64);
@@ -88,28 +88,19 @@ const callImagen4InfographicCloudFunction = async (
 
         return null;
     } catch (error) {
-        console.error('❌ Imagen 4 Cloud Function call failed:', error);
+        console.error('❌ Gemini 3 Pro Image Cloud Function call failed:', error);
         return null;
     }
 };
 
-// Internal OpenAI Client Wrapper ensuring Proxy usage
+// Gemini Client Wrapper using Cloud Function
 export const openai = {
     chat: {
         completions: {
             create: async (params: any) => {
-                // Determine endpoint based on what we are doing? 
-                // Using standard chat completions endpoint
+                // Uses callAI which now routes to Gemini Cloud Function
                 return await callAI("/chat/completions", params);
             }
-        }
-    },
-    images: {
-        generate: async (params: any) => {
-            // START EXPERIMENTAL PROXY SUPPORT FOR IMAGES
-            // Requires Backend Proxy Update if simple forwarding isn't enough. 
-            // Assuming Backend Proxy forwards path /v1/images/generations
-            return await callAI("/images/generations", params);
         }
     }
 };
@@ -290,63 +281,29 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
 
 export const generateAiImage = async (
     prompt: string,
-    preferredProvider: 'dall-e' | 'imagen' | 'gemini3' | 'auto' = 'auto'
+    preferredProvider: 'gemini3' | 'imagen' | 'auto' = 'auto'
 ): Promise<Blob | null> => {
-    // Dynamic import of Imagen service
-    const { isImagenAvailable, generateImagenImage } = await import('./imagenService');
+    // Dynamic import of Gemini Image service
+    const { isGeminiImageAvailable, generateGeminiImage } = await import('./imagenService');
 
-    // Auto-select provider based on availability and cost
-    let provider: 'dall-e' | 'imagen' | 'gemini3' = 'dall-e';
-    if (preferredProvider === 'gemini3') {
-        provider = 'gemini3';
-    } else if (preferredProvider === 'imagen' || (preferredProvider === 'auto' && isImagenAvailable())) {
-        provider = 'imagen';
+    // Always use Gemini for image generation
+    console.log('🎨 Generating with Gemini Image via Cloud Function...');
+
+    if (!isGeminiImageAvailable()) {
+        console.error('❌ Gemini Image not available');
+        return null;
     }
 
-    // Try Gemini 3 Pro Image first if selected (NOT in auto mode - Preview only!)
-    if (provider === 'gemini3') {
-        console.log('🎨 Attempting Gemini 3 Pro Image generation (Preview)...');
-        // Note: Gemini 3 is called separately via generateGemini3InfographicFromText
-        // This is just a placeholder for future direct calls
-        console.warn('⚠️ Gemini 3 should be called via specific infographic function');
-    }
-
-    // Try Imagen if selected/available
-    if (provider === 'imagen') {
-        console.log('🎨 Attempting Imagen 3 generation (cost-effective)...');
-        const imagenResult = await generateImagenImage(prompt);
-        if (imagenResult) {
-            console.log('✅ Imagen 3 generation successful');
-            return imagenResult;
-        }
-        console.warn('⚠️ Imagen 3 failed, falling back to DALL-E 3');
-    }
-
-    // DALL-E 3 (primary or fallback)
     try {
-        console.log('🎨 Generating with DALL-E 3...');
-        const response = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json"
-        });
-
-        const base64Data = response.data?.[0]?.b64_json;
-        if (base64Data) {
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            console.log('✅ DALL-E 3 generation successful');
-            return new Blob([byteArray], { type: "image/png" });
+        const result = await generateGeminiImage(prompt);
+        if (result) {
+            console.log('✅ Gemini Image generation successful');
+            return result;
         }
+        console.error('❌ Gemini Image generation returned null');
         return null;
     } catch (e) {
-        console.error("❌ DALL-E 3 generation failed:", e);
+        console.error("❌ Gemini Image generation failed:", e);
         return null;
     }
 };
@@ -510,31 +467,31 @@ export const generateInfographicFromText = async (
     }
 
     try {
-        console.log(`🎨 Generating ${visualType} infographic with Imagen 4 (Real AI Image)...`);
+        console.log(`🎨 Generating ${visualType} infographic with Gemini 3 Pro Image...`);
         const startTime = Date.now();
         let imageBlob: Blob | null = null;
-        let actualCost = 0.04; // Imagen 4 cost
+        let actualCost = 0.04; // Gemini 3 Pro Image cost
 
-        // STRATEGY: Imagen 4 for REAL AI-generated infographic images
+        // STRATEGY: Gemini 3 Pro Image for REAL AI-generated infographic images
 
-        // PRIMARY: Imagen 4 via Vertex AI Cloud Function
+        // PRIMARY: Gemini 3 Pro Image via Cloud Function
         try {
-            console.log('🎯 Using Imagen 4 (Vertex AI) for real infographic image generation...');
+            console.log('🎯 Using Gemini 3 Pro Image for real infographic image generation...');
 
-            // Call Cloud Function to generate image with Imagen 4
-            imageBlob = await callImagen4InfographicCloudFunction(truncatedText, visualType, topic);
+            // Call Cloud Function to generate image with Gemini 3 Pro Image
+            imageBlob = await callGeminiInfographicCloudFunction(truncatedText, visualType, topic);
 
             if (imageBlob) {
-                console.log('✅ Imagen 4 infographic generated successfully!');
+                console.log('✅ Gemini 3 Pro Image infographic generated successfully!');
             }
-        } catch (imagenError) {
-            console.error('❌ Imagen 4 infographic generation failed:', imagenError);
+        } catch (geminiError) {
+            console.error('❌ Gemini 3 Pro Image infographic generation failed:', geminiError);
         }
 
         const generationTime = Date.now() - startTime;
 
         if (imageBlob) {
-            console.log(`✅ ${visualType} infographic generated successfully with Imagen 4`);
+            console.log(`✅ ${visualType} infographic generated successfully with Gemini 3 Pro Image`);
 
             // Track successful generation
             trackGenerationComplete(visualType, 'gemini3', generationTime, actualCost);
@@ -574,7 +531,7 @@ export const generateInfographicFromText = async (
         console.error(`Error generating ${visualType} infographic:`, e);
 
         // Track failed generation
-        trackGenerationFailed(visualType, 'dall-e');
+        trackGenerationFailed(visualType, 'gemini3');
 
         return null;
     }

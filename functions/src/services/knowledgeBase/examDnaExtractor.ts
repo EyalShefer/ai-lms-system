@@ -2,7 +2,7 @@
 // Uses AI to analyze exam structure without storing actual questions
 
 import * as logger from 'firebase-functions/logger';
-import { VertexAI } from '@google-cloud/vertexai';
+import { GoogleGenAI } from '@google/genai';
 import { Timestamp } from 'firebase-admin/firestore';
 import { ExamDNA, Grade, Subject } from './types';
 
@@ -59,12 +59,10 @@ interface RawExamAnalysis {
  * Important: We do NOT store the actual questions, only the structural patterns.
  */
 export class ExamDnaExtractor {
-  private vertexAI: VertexAI;
-  private projectId: string;
+  private genAI: GoogleGenAI;
 
-  constructor(projectId: string = 'ai-lms-pro') {
-    this.vertexAI = new VertexAI({ project: projectId, location: 'us-central1' });
-    this.projectId = projectId;
+  constructor(_projectId: string = 'ai-lms-pro') {
+    this.genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   }
 
   /**
@@ -274,31 +272,29 @@ export class ExamDnaExtractor {
     const prompt = this.buildExtractionPrompt(metadata.grade, metadata.subject);
 
     return this.withRetry(async () => {
-      const model = this.vertexAI.getGenerativeModel({
+      const response = await this.genAI.models.generateContent({
         model: 'gemini-2.0-flash-001',
-        generationConfig: {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: pdfBase64
+                }
+              }
+            ]
+          }
+        ],
+        config: {
           temperature: 0.1, // Low temperature for consistent analysis
           maxOutputTokens: 4096,
         }
       });
 
-      const response = await model.generateContent({
-        contents: [{
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: pdfBase64
-              }
-            }
-          ]
-        }]
-      });
-
-      const result = response.response;
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);

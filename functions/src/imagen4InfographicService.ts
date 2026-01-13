@@ -1,6 +1,6 @@
 /**
- * Imagen 4 Infographic Service
- * Cloud Function to generate REAL infographic images using Imagen 4
+ * Gemini Infographic Service
+ * Cloud Function to generate REAL infographic images using Gemini 3 Pro Image
  *
  * This generates actual AI-generated images, not HTML conversions
  */
@@ -8,23 +8,80 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
-import { generateInfographicWithImagen4, isImagen4Available } from './services/imagen4Service';
+import { defineSecret } from 'firebase-functions/params';
+import { GoogleGenAI, Modality } from '@google/genai';
+
+// Google AI Studio API Key
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+// Single model for all infographic generation
+const GEMINI_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
 /**
- * Cloud Function: generateImagen4Infographic
- * Generates real infographic images using Imagen 4
+ * Build infographic-specific prompt based on visual type
+ */
+const buildInfographicPrompt = (
+    content: string,
+    visualType: 'flowchart' | 'timeline' | 'comparison' | 'cycle',
+    topic?: string
+): string => {
+    const promptTemplates: Record<string, string> = {
+        flowchart: `Create a professional educational flowchart infographic.
+Style: Clean, modern design with a gradient background (purple to blue).
+Layout: Vertical flow with 4-5 numbered steps connected by arrows.
+Text: All text must be in Hebrew (עברית), right-to-left direction.
+Elements: White rounded boxes with shadows, colorful numbered circles, directional arrows.
+Topic: ${topic || 'Educational Process'}
+Content to visualize: ${content.substring(0, 500)}
+Requirements: High contrast, large readable text, professional educational style, 1024x1024 square format.`,
+
+        timeline: `Create a professional educational timeline infographic.
+Style: Modern horizontal timeline with a warm gradient background (orange to red).
+Layout: Timeline axis from right to left (RTL for Hebrew), with events above and below.
+Text: All text must be in Hebrew (עברית), right-to-left direction.
+Elements: Central timeline line, colorful milestone circles, event cards with dates.
+Topic: ${topic || 'Historical Timeline'}
+Content to visualize: ${content.substring(0, 500)}
+Requirements: Clear chronological order, large readable Hebrew text, professional style, 1024x1024 square format.`,
+
+        comparison: `Create a professional educational comparison infographic.
+Style: Clean side-by-side comparison with a neutral gradient background.
+Layout: Two columns - right side in blue theme, left side in red/orange theme.
+Text: All text must be in Hebrew (עברית), right-to-left direction.
+Elements: Clear headers for each column, bullet points with icons, visual separation.
+Topic: ${topic || 'Comparison'}
+Content to visualize: ${content.substring(0, 500)}
+Requirements: Balanced layout, high contrast, large readable Hebrew text, 1024x1024 square format.`,
+
+        cycle: `Create a professional educational cycle diagram infographic.
+Style: Circular arrangement with a green to teal gradient background.
+Layout: 4-6 stages arranged in a circle with clockwise arrows.
+Text: All text must be in Hebrew (עברית), right-to-left direction.
+Elements: Central circle with title, colored stage boxes, directional arrows showing flow.
+Topic: ${topic || 'Cycle Process'}
+Content to visualize: ${content.substring(0, 500)}
+Requirements: Clear circular flow, large readable Hebrew text, professional style, 1024x1024 square format.`
+    };
+
+    return promptTemplates[visualType];
+};
+
+/**
+ * Cloud Function: generateGeminiInfographic
+ * Generates real infographic images using Gemini 3 Pro Image
  *
  * Request body:
  * - content: string (required) - Educational content in Hebrew
  * - visualType: 'flowchart' | 'timeline' | 'comparison' | 'cycle' (required)
  * - topic: string (optional) - Topic name for context
  */
-export const generateImagen4Infographic = onRequest(
+export const generateGeminiInfographic = onRequest(
     {
         cors: true,
         memory: '1GiB',
         timeoutSeconds: 180,
-        region: 'us-central1'
+        region: 'us-central1',
+        secrets: [geminiApiKey]
     },
     async (req, res) => {
         // 1. Validate Method
@@ -51,16 +108,7 @@ export const generateImagen4Infographic = onRequest(
             return;
         }
 
-        // 3. Check if Imagen 4 is available
-        if (!isImagen4Available()) {
-            res.status(503).json({
-                error: 'Imagen 4 is not available',
-                code: 'SERVICE_UNAVAILABLE'
-            });
-            return;
-        }
-
-        // 4. Extract request data
+        // 3. Extract request data
         const { content, visualType, topic } = req.body;
 
         if (!content || typeof content !== 'string') {
@@ -73,7 +121,7 @@ export const generateImagen4Infographic = onRequest(
             return;
         }
 
-        logger.info('🎨 Generating infographic with Imagen 4', {
+        logger.info('🎨 Generating infographic with Gemini 3 Pro Image', {
             contentLength: content.length,
             visualType,
             topic
@@ -82,10 +130,29 @@ export const generateImagen4Infographic = onRequest(
         const startTime = Date.now();
 
         try {
-            // 5. Generate image using Imagen 4
-            const result = await generateInfographicWithImagen4(content, visualType, topic);
+            // 4. Build the prompt
+            const prompt = buildInfographicPrompt(content, visualType, topic);
 
-            if (!result) {
+            // 5. Initialize Gemini client (Google AI Studio ONLY - no Vertex AI)
+            const client = new GoogleGenAI({
+                apiKey: geminiApiKey.value(),
+                vertexai: false
+            });
+
+            // 6. Generate image
+            const response = await client.models.generateContent({
+                model: GEMINI_IMAGE_MODEL,
+                contents: prompt,
+                config: {
+                    responseModalities: [Modality.IMAGE, Modality.TEXT],
+                }
+            });
+
+            // 7. Extract image from response
+            const parts = response.candidates?.[0]?.content?.parts;
+
+            if (!parts || parts.length === 0) {
+                logger.error('No parts in response');
                 res.status(500).json({
                     error: 'Failed to generate infographic image',
                     code: 'GENERATION_FAILED'
@@ -93,30 +160,42 @@ export const generateImagen4Infographic = onRequest(
                 return;
             }
 
+            // Find the image part
+            const imagePart = parts.find(part => part.inlineData?.mimeType?.startsWith('image/'));
+
+            if (!imagePart || !imagePart.inlineData) {
+                logger.error('No image in response parts');
+                res.status(500).json({
+                    error: 'No image in response',
+                    code: 'GENERATION_FAILED'
+                });
+                return;
+            }
+
             const generationTime = Date.now() - startTime;
 
-            logger.info(`✅ Imagen 4 infographic generated successfully in ${generationTime}ms`, {
+            logger.info(`✅ Gemini 3 Pro Image infographic generated successfully in ${generationTime}ms`, {
                 visualType,
-                imageSize: `${Math.round(result.base64.length * 0.75 / 1024)}KB`
+                imageSize: `${Math.round((imagePart.inlineData.data?.length || 0) * 0.75 / 1024)}KB`
             });
 
-            // 6. Return successful response with base64 image
+            // 8. Return successful response with base64 image
             res.status(200).json({
                 success: true,
                 image: {
-                    base64: result.base64,
-                    mimeType: result.mimeType
+                    base64: imagePart.inlineData.data,
+                    mimeType: imagePart.inlineData.mimeType || 'image/png'
                 },
                 metadata: {
-                    model: 'imagen-4.0-generate-001',
+                    model: GEMINI_IMAGE_MODEL,
                     visualType,
                     generationTime,
-                    estimatedCost: 0.04 // Approximate cost per image
+                    estimatedCost: 0.04
                 }
             });
 
         } catch (error: any) {
-            logger.error('Imagen 4 infographic generation failed:', error);
+            logger.error('Gemini 3 Pro Image infographic generation failed:', error);
 
             if (error.message?.includes('SAFETY')) {
                 res.status(400).json({

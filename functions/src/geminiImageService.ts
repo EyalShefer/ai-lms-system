@@ -1,29 +1,26 @@
 /**
  * Gemini Image Generation Service
- * Uses Gemini 2.5 Flash Image or Gemini 3 Pro Image for high-quality Hebrew infographics
+ * Uses Gemini 3 Pro Image for high-quality Hebrew infographics
  */
 
 import { onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
+import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenAI, Modality } from '@google/genai';
 
-// Model options for image generation
-const GEMINI_IMAGE_MODELS = {
-    flash: 'gemini-2.5-flash-image',      // Fast, cheaper (Nano Banana)
-    pro: 'gemini-2.5-flash-image'         // Using Nano Banana Pro (gemini-3-pro-image-preview not available)
-} as const;
+// Google AI Studio API Key
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
-// Default to Pro for best Hebrew support
-const DEFAULT_MODEL = GEMINI_IMAGE_MODELS.pro;
+// Single model for all image generation
+const GEMINI_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
 /**
  * Cloud Function: generateGeminiImage
- * Generates images using Gemini's native image generation
+ * Generates images using Gemini 3 Pro Image
  *
  * Request body:
  * - prompt: string (required) - The image generation prompt
- * - model: 'flash' | 'pro' (optional) - Model to use, defaults to 'pro'
  * - userId: string (optional) - For rate limiting
  */
 export const generateGeminiImage = onRequest(
@@ -31,7 +28,8 @@ export const generateGeminiImage = onRequest(
         cors: true,
         memory: '512MiB',
         timeoutSeconds: 120,
-        region: 'us-central1'
+        region: 'us-central1',
+        secrets: [geminiApiKey]
     },
     async (req, res) => {
         // 1. Validate Method
@@ -59,37 +57,40 @@ export const generateGeminiImage = onRequest(
         }
 
         // 3. Extract request data
-        const { prompt, model = 'pro' } = req.body;
+        const { prompt } = req.body;
 
         if (!prompt || typeof prompt !== 'string') {
             res.status(400).json({ error: 'Missing or invalid prompt' });
             return;
         }
 
-        // 4. Select model
-        const modelName = model === 'flash'
-            ? GEMINI_IMAGE_MODELS.flash
-            : GEMINI_IMAGE_MODELS.pro;
-
-        logger.info(`Generating image with ${modelName}`, {
-            promptLength: prompt.length,
-            model: modelName
+        logger.info(`Generating image with ${GEMINI_IMAGE_MODEL}`, {
+            promptLength: prompt.length
         });
 
         const startTime = Date.now();
 
         try {
-            // 5. Initialize Gemini client
-            // Uses Application Default Credentials from Cloud Functions environment
+            // 5. Initialize Gemini client (Google AI Studio ONLY - no Vertex AI)
+            // Clean API key - remove any BOM or invisible characters
+            const rawKey = geminiApiKey.value();
+            const cleanKey = rawKey.replace(/[^\x20-\x7E]/g, '').trim();
+
+            logger.info('API Key debug', {
+                rawLength: rawKey.length,
+                cleanLength: cleanKey.length,
+                startsWithAI: cleanKey.startsWith('AIza'),
+                firstChars: cleanKey.substring(0, 10)
+            });
+
             const client = new GoogleGenAI({
-                vertexai: true,
-                project: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT,
-                location: 'global'  // Changed from us-central1 - Gemini 3 Pro Image requires global
+                apiKey: cleanKey,
+                vertexai: false
             });
 
             // 6. Generate image
             const response = await client.models.generateContent({
-                model: modelName,
+                model: GEMINI_IMAGE_MODEL,
                 contents: prompt,
                 config: {
                     responseModalities: [Modality.IMAGE, Modality.TEXT],
@@ -125,7 +126,7 @@ export const generateGeminiImage = onRequest(
             const generationTime = Date.now() - startTime;
 
             logger.info(`Image generated successfully in ${generationTime}ms`, {
-                model: modelName,
+                model: GEMINI_IMAGE_MODEL,
                 mimeType: imagePart.inlineData.mimeType
             });
 
@@ -137,9 +138,9 @@ export const generateGeminiImage = onRequest(
                     mimeType: imagePart.inlineData.mimeType || 'image/png'
                 },
                 metadata: {
-                    model: modelName,
+                    model: GEMINI_IMAGE_MODEL,
                     generationTime,
-                    cost: model === 'flash' ? 0.02 : 0.04 // Approximate costs
+                    cost: 0.04
                 }
             });
 

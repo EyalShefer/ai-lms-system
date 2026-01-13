@@ -1,10 +1,11 @@
 // pdfProcessor.ts - PDF Processing and Chunking for Knowledge Base
+// Uses Gemini 2.5 Pro via Google AI Studio for all text extraction
 
-import OpenAI from 'openai';
 import * as logger from 'firebase-functions/logger';
 import { CHUNK_CONFIG, KnowledgeChunk } from './types';
 import { estimateTokens } from './embeddingService';
 import { PDFDocument } from 'pdf-lib';
+import { GoogleGenAI } from '@google/genai';
 import { HighQualityExtractor, FullExtractionResult, PageExtractionStatus, BatchExtractionProgress, BatchExtractionResult } from './highQualityExtractor';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
@@ -29,14 +30,15 @@ export interface ProcessedPDF {
 }
 
 export class PDFProcessor {
-  private openai: OpenAI;
+  private genAI: GoogleGenAI;
   private highQualityExtractor: HighQualityExtractor | null = null;
 
-  constructor(openaiApiKey: string, useVertexAI: boolean = true) {
-    this.openai = new OpenAI({ apiKey: openaiApiKey });
-    if (useVertexAI) {
-      // Use Vertex AI for high-quality extraction (higher rate limits than Google AI Studio)
-      this.highQualityExtractor = new HighQualityExtractor(openaiApiKey);
+  constructor(_openaiApiKey?: string, useHighQuality: boolean = true) {
+    // Use Google AI Studio with Gemini 2.5 Pro for all extractions
+    this.genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    if (useHighQuality) {
+      // Use high-quality extraction
+      this.highQualityExtractor = new HighQualityExtractor();
     }
   }
 
@@ -87,15 +89,15 @@ export class PDFProcessor {
   }
 
   /**
-   * Extract text from PDF using GPT-4o Vision
-   * Processes PDF in batches by splitting into smaller PDFs and sending to GPT-4o
+   * Extract text from PDF using Gemini 2.5 Pro Vision
+   * Processes PDF in batches by splitting into smaller PDFs and sending to Gemini
    */
   async extractWithVision(
     pdfBase64: string,
     fileName: string,
     pageCount: number
   ): Promise<string> {
-    logger.info(`🔍 Using GPT-4o Vision for PDF text extraction (${pageCount} pages)`);
+    logger.info(`🔍 Using Gemini 2.5 Pro Vision for PDF text extraction (${pageCount} pages)`);
 
     try {
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
@@ -105,7 +107,7 @@ export class PDFProcessor {
       const totalPages = pdfDoc.getPageCount();
       logger.info(`📄 PDF loaded: ${totalPages} pages`);
 
-      // Process pages in batches of 5 (GPT-4o works best with smaller PDFs)
+      // Process pages in batches of 5 (smaller batches for better quality)
       const PAGES_PER_BATCH = 5;
       const allExtractedText: string[] = [];
 
@@ -117,16 +119,7 @@ export class PDFProcessor {
           // Extract batch of pages as a new PDF
           const batchPdfBase64 = await this.extractPdfPages(pdfBuffer, batchStart, batchEnd);
 
-          // Send to GPT-4o Vision
-          const response = await this.openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: `אלו עמודים ${batchStart}-${batchEnd} מתוך ${totalPages} מספר לימוד מתמטיקה בעברית.
+          const prompt = `אלו עמודים ${batchStart}-${batchEnd} מתוך ${totalPages} מספר לימוד מתמטיקה בעברית.
 
 המשימה שלך היא לחלץ את כל הטקסט מהעמודים האלה.
 
@@ -138,23 +131,32 @@ export class PDFProcessor {
 5. שמור על מספרים מדויקים - אלו הם תרגילי חשבון!
 6. הפרד בין עמודים עם שורת "---"
 
-החזר את כל הטקסט המחולץ בעברית.`,
-                  },
+החזר את כל הטקסט המחולץ בעברית.`;
+
+          // Send to Gemini Vision via Google AI Studio
+          const response = await this.genAI.models.generateContent({
+            model: 'gemini-2.0-flash-001',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
                   {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:application/pdf;base64,${batchPdfBase64}`,
-                      detail: 'high',
-                    },
-                  },
-                ],
-              },
+                    inlineData: {
+                      mimeType: 'application/pdf',
+                      data: batchPdfBase64
+                    }
+                  }
+                ]
+              }
             ],
-            max_tokens: 16000,
-            temperature: 0,
+            config: {
+              temperature: 0,
+              maxOutputTokens: 16000,
+            }
           });
 
-          const batchText = response.choices[0]?.message?.content || '';
+          const batchText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
           if (batchText.length > 0) {
             allExtractedText.push(batchText);
             logger.info(`✅ Batch ${batchStart}-${batchEnd}: extracted ${batchText.length} characters`);
@@ -166,7 +168,7 @@ export class PDFProcessor {
 
         // Delay between batches to avoid rate limiting
         if (batchEnd < totalPages) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
@@ -175,39 +177,34 @@ export class PDFProcessor {
 
       return fullText;
     } catch (error: any) {
-      logger.error('GPT-4o Vision extraction failed:', error.message);
+      logger.error('Gemini Vision extraction failed:', error.message);
 
-      // Last resort: Try to clean garbled text from pdf-parse
+      // Last resort: Try to clean garbled text from pdf-parse using Gemini
       try {
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
         const pdfData = await pdfParse(pdfBuffer);
         const rawText = pdfData.text;
 
         if (rawText && rawText.length > 100) {
-          logger.info('Attempting to clean garbled text with GPT-4o-mini...');
-          const cleanResponse = await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: 'אתה מומחה בתיקון טקסט עברי משובש שחולץ מ-PDF. תקן את הטקסט והחזר גרסה קריאה.',
-              },
-              {
-                role: 'user',
-                content: `הטקסט הבא חולץ מספר מתמטיקה לכיתה א' אבל הוא משובש.
+          logger.info('Attempting to clean garbled text with Gemini 2.5 Pro...');
+
+          const cleanResponse = await this.genAI.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: `אתה מומחה בתיקון טקסט עברי משובש שחולץ מ-PDF.
+הטקסט הבא חולץ מספר מתמטיקה לכיתה א' אבל הוא משובש.
 נסה לתקן אותו ולהפוך אותו לקריא. אם אתה לא מצליח לפענח חלקים - דלג עליהם.
 
 טקסט משובש:
 ${rawText.substring(0, 15000)}
 
 החזר טקסט מתוקן בעברית:`,
-              },
-            ],
-            max_tokens: 8000,
-            temperature: 0,
+            config: {
+              temperature: 0,
+              maxOutputTokens: 8000,
+            }
           });
 
-          return cleanResponse.choices[0]?.message?.content || rawText;
+          return cleanResponse.candidates?.[0]?.content?.parts?.[0]?.text || rawText;
         }
       } catch (cleanupError: any) {
         logger.error('Text cleanup also failed:', cleanupError.message);
@@ -218,27 +215,19 @@ ${rawText.substring(0, 15000)}
   }
 
   /**
-   * Extract text from PDF using Vision AI directly (without parsing PDF structure)
+   * Extract text from PDF using Gemini Vision directly (without parsing PDF structure)
    * Used as fallback when PDF structure is invalid but the content is readable as images
    */
   async extractWithVisionOnly(
     pdfBase64: string,
     fileName: string
   ): Promise<ProcessedPDF> {
-    logger.info(`🔍 Using Vision-only extraction for: ${fileName} (PDF structure invalid)`);
+    logger.info(`🔍 Using Gemini Vision-only extraction for: ${fileName} (PDF structure invalid)`);
 
     try {
-      // Send the entire PDF to GPT-4o Vision
-      // GPT-4o can handle PDFs directly and extract text even if structure is corrupted
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `זהו ספר לימוד בעברית. הקובץ עלול להיות פגום במבנה שלו, אבל התוכן הוויזואלי קריא.
+      // Send the entire PDF to Gemini Vision
+      // Gemini can handle PDFs directly and extract text even if structure is corrupted
+      const prompt = `זהו ספר לימוד בעברית. הקובץ עלול להיות פגום במבנה שלו, אבל התוכן הוויזואלי קריא.
 
 המשימה שלך היא לחלץ את כל הטקסט מהמסמך הזה.
 
@@ -250,23 +239,31 @@ ${rawText.substring(0, 15000)}
 5. שמור על מספרים מדויקים
 6. הפרד בין עמודים עם שורת "---"
 
-החזר את כל הטקסט המחולץ בעברית.`,
-              },
+החזר את כל הטקסט המחולץ בעברית.`;
+
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
               {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${pdfBase64}`,
-                  detail: 'high',
-                },
-              },
-            ],
-          },
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: pdfBase64
+                }
+              }
+            ]
+          }
         ],
-        max_tokens: 16000,
-        temperature: 0,
+        config: {
+          temperature: 0,
+          maxOutputTokens: 16000,
+        }
       });
 
-      const extractedText = response.choices[0]?.message?.content || '';
+      const extractedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
       logger.info(`✅ Vision-only extraction complete: ${extractedText.length} characters`);
 
       if (!extractedText || extractedText.trim().length < 50) {

@@ -15,12 +15,8 @@ import { auth } from '../../firebase';
  * Gemini Image configuration
  */
 export const GEMINI_IMAGE_CONFIG = {
-    models: {
-        flash: 'gemini-2.5-flash-image',      // Fast, cheaper
-        pro: 'gemini-3-pro-image-preview'     // Higher quality, better Hebrew
-    },
-    endpoint: 'generateGeminiImage',
-    defaultModel: 'pro' as const
+    model: 'gemini-3-pro-image',
+    endpoint: 'generateGeminiImage'
 };
 
 // Legacy export for backwards compatibility
@@ -43,12 +39,10 @@ export const isGeminiImageAvailable = isImagenAvailable;
  * Best for Hebrew text and educational infographics
  *
  * @param prompt - Image generation prompt
- * @param model - 'flash' for speed, 'pro' for quality (default: 'pro')
  * @returns Promise<Blob | null> - PNG image blob or null on failure
  */
 export const generateGeminiImage = async (
-    prompt: string,
-    model: 'flash' | 'pro' = 'pro'
+    prompt: string
 ): Promise<Blob | null> => {
     if (!isGeminiImageAvailable()) {
         console.warn('⚠️ Gemini Image is not configured. Set VITE_ENABLE_GEMINI_IMAGE=true');
@@ -56,7 +50,7 @@ export const generateGeminiImage = async (
     }
 
     try {
-        console.log(`🎨 Generating image with Gemini ${model === 'pro' ? '3 Pro' : '2.5 Flash'} Image...`);
+        console.log(`🎨 Generating image with Gemini 3 Pro Image...`);
 
         // Get Firebase auth token for authentication
         const user = auth.currentUser;
@@ -78,10 +72,7 @@ export const generateGeminiImage = async (
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({
-                prompt,
-                model
-            })
+            body: JSON.stringify({ prompt })
         });
 
         if (!response.ok) {
@@ -126,19 +117,14 @@ export const generateGeminiImage = async (
 export const generateImagenImage = generateGeminiImage;
 
 /**
- * Cost comparison helper
+ * Cost helper - Gemini 3 Pro Image only
  */
-export const getImageGenerationCost = (provider: 'dall-e' | 'gemini-flash' | 'gemini-pro'): {
+export const getImageGenerationCost = (): {
     perImage: number;
     per1000: number;
     currency: string;
 } => {
-    const costs = {
-        'dall-e': { perImage: 0.040, per1000: 40, currency: 'USD' },
-        'gemini-flash': { perImage: 0.020, per1000: 20, currency: 'USD' },
-        'gemini-pro': { perImage: 0.040, per1000: 40, currency: 'USD' }
-    };
-    return costs[provider];
+    return { perImage: 0.040, per1000: 40, currency: 'USD' };
 };
 
 /**

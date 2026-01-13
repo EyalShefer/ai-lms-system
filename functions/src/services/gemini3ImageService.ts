@@ -1,28 +1,24 @@
 /**
  * Gemini 3 Pro Image Service
- * Google's latest image generation model with advanced text rendering
- * Model: gemini-3-pro-image-preview
+ * Google's image generation model with advanced text rendering
+ * Model: gemini-3-pro-image
+ * Uses Google AI Studio (not Vertex AI)
  *
  * Features:
  * - 94% text rendering accuracy across multiple languages
  * - Native Hebrew (iw) support
  * - High-resolution output (1K, 2K, 4K)
  * - Advanced reasoning for complex compositions
- *
- * Status: Preview (Not GA - use with caution in production)
  */
 
-// Dynamic import to avoid initialization timeout
-// import { VertexAI } from '@google-cloud/vertexai';
 import * as logger from 'firebase-functions/logger';
+import { GoogleGenAI, Modality } from '@google/genai';
 
 /**
  * Gemini 3 Pro Image configuration
  */
 export const GEMINI3_IMAGE_CONFIG = {
   model: 'gemini-3-pro-image-preview',
-  location: 'us-central1',
-  projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT,
   defaultAspectRatio: '1:1', // Square for infographics
   defaultResolution: '1K', // 1024x1024 equivalent
   supportedAspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9'] as const,
@@ -34,17 +30,16 @@ export type Resolution = typeof GEMINI3_IMAGE_CONFIG.supportedResolutions[number
 
 /**
  * Check if Gemini 3 Pro Image is available
- * Preview models may have limited availability
  */
 export const isGemini3ImageAvailable = (): boolean => {
   try {
-    // Check if project ID is configured
-    const hasProjectId = !!(GEMINI3_IMAGE_CONFIG.projectId);
+    // Check if API key is configured
+    const hasApiKey = !!process.env.GEMINI_API_KEY;
 
     // Environment flag to enable/disable (useful for rollback)
     const isEnabled = process.env.ENABLE_GEMINI3_IMAGE !== 'false';
 
-    return hasProjectId && isEnabled;
+    return hasApiKey && isEnabled;
   } catch (error) {
     logger.warn('Gemini 3 Pro Image availability check failed:', error);
     return false;
@@ -62,7 +57,7 @@ export const isGemini3ImageAvailable = (): boolean => {
 export const generateGemini3Image = async (
   prompt: string,
   aspectRatio: AspectRatio = '1:1',
-  resolution: Resolution = '1K'
+  _resolution: Resolution = '1K'
 ): Promise<{ base64: string; mimeType: string } | null> => {
   if (!isGemini3ImageAvailable()) {
     logger.warn('Gemini 3 Pro Image is not available');
@@ -72,60 +67,32 @@ export const generateGemini3Image = async (
   try {
     logger.info('🎨 Generating image with Gemini 3 Pro Image...', {
       promptLength: prompt.length,
-      aspectRatio,
-      resolution
+      aspectRatio
     });
 
     const startTime = Date.now();
 
-    // Dynamic import to avoid cold start delays
-    const { VertexAI } = await import('@google-cloud/vertexai');
-
-    // Initialize Vertex AI client
-    const vertexAI = new VertexAI({
-      project: GEMINI3_IMAGE_CONFIG.projectId!,
-      location: GEMINI3_IMAGE_CONFIG.location
-    });
-
-    // Get the generative model
-    const model = vertexAI.getGenerativeModel({
-      model: GEMINI3_IMAGE_CONFIG.model
+    // Initialize Google AI Studio client
+    const client = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY!
     });
 
     // Generate content with image output
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: prompt
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        // @ts-ignore - Preview API may have different types
-        responseModalities: ['Image'],
-        // @ts-ignore
-        imageConfig: {
-          aspectRatio,
-          // Note: resolution might not be supported in all versions
-          // Will gracefully fallback to default if not available
-        }
+    const response = await client.models.generateContent({
+      model: GEMINI3_IMAGE_CONFIG.model,
+      contents: prompt,
+      config: {
+        responseModalities: [Modality.IMAGE, Modality.TEXT],
       }
     });
 
     const generationTime = Date.now() - startTime;
 
     // Extract image from response
-    const response = result.response;
+    const parts = response.candidates?.[0]?.content?.parts;
 
-    // @ts-ignore - Preview API structure
-    if (response.candidates && response.candidates[0]?.content?.parts) {
-      // @ts-ignore
-      for (const part of response.candidates[0].content.parts) {
-        // @ts-ignore
+    if (parts && parts.length > 0) {
+      for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
           const base64Image = part.inlineData.data;
           const mimeType = part.inlineData.mimeType || 'image/png';

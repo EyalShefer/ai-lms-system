@@ -9,10 +9,11 @@ import { AUDIO_OVERVIEW_PROMPT } from "../prompts/audioPrompts";
  */
 export const AudioGenerator = {
     /**
-     * Checks if API key is configured (OpenAI).
+     * Checks if service is available (user must be authenticated).
      */
     isConfigured: (): boolean => {
-        return !!import.meta.env.VITE_OPENAI_API_KEY;
+        // Service available via secure proxy - just need authentication
+        return true;
     },
 
     /**

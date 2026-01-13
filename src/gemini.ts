@@ -1,17 +1,17 @@
 import { getFirestore, collection, addDoc, onSnapshot, doc } from "firebase/firestore";
 import { getApp } from "firebase/app";
-import OpenAI from "openai";
 import { v4 as uuidv4 } from 'uuid';
 import { PEDAGOGICAL_SYSTEM_PROMPT, STRUCTURAL_SYSTEM_PROMPT, EXAM_MODE_SYSTEM_PROMPT } from './prompts/pedagogicalPrompts';
 import type { ValidationResult } from './shared/types/courseTypes';
-import { getFunctions } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { cleanJsonString, mapSystemItemToBlock } from './shared/utils/geminiParsers';
-import { auth } from './firebase';
+import { auth, functions as firebaseFunctions } from './firebase';
 import { generateInfographicFromText, type InfographicType } from './services/ai/geminiApi';
 import { detectInfographicType } from './utils/infographicDetector';
 import { generateInfographicHash, saveToFirebaseCache } from './utils/infographicCache';
 import { getKnowledgeContext, formatKnowledgeForPrompt, getMathPedagogicalContext, formatPedagogicalContextForPrompt } from './services/knowledgeBaseService';
 import { enrichBlockWithVariants } from './services/adaptiveContentService';
+import { callGeminiChat, callGeminiJSON, type ChatMessage } from './services/ProxyService';
 
 /**
  * Maps grade level to age-appropriate character description for image generation
@@ -63,60 +63,54 @@ export const functions = getFunctions(getApp());
 //     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 // }
 
-// --- אתחול הקליינט של OpenAI (עבור פונקציות עזר ותמונות) ---
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+// --- Gemini Chat via Cloud Function ---
+// All LLM calls now go through geminiChat Cloud Function
 
-if (!OPENAI_API_KEY) {
-  console.error("Missing VITE_OPENAI_API_KEY in .env file");
+/**
+ * Helper to call Gemini and get text response
+ * Replaces OpenAI client calls
+ */
+async function callGemini(
+  messages: ChatMessage[],
+  options?: { temperature?: number; maxTokens?: number; responseFormat?: { type: 'json_object' | 'text' } }
+): Promise<string> {
+  return await callGeminiChat(messages, options);
 }
 
-// Helper to get Firebase Auth token
-async function getAuthToken(): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
-  return await user.getIdToken();
+/**
+ * Helper to call Gemini and get JSON response
+ * Replaces OpenAI client calls with response_format: { type: "json_object" }
+ */
+async function callGeminiForJSON<T = any>(
+  messages: ChatMessage[],
+  options?: { temperature?: number; maxTokens?: number }
+): Promise<T> {
+  return await callGeminiJSON<T>(messages, options);
 }
 
-// Create authenticated OpenAI client with Firebase Auth token
-async function getAuthenticatedOpenAIClient(): Promise<OpenAI> {
-  const token = await getAuthToken();
-  return new OpenAI({
-    apiKey: OPENAI_API_KEY || 'dummy-key-for-proxy',
-    dangerouslyAllowBrowser: true,
-    baseURL: `${window.location.origin}/api/openai`,
-    timeout: 60000,
-    maxRetries: 2,
-    defaultHeaders: {
-      'X-Firebase-Token': token
+// For backwards compatibility - exports openai-like interface
+export const openai = {
+  chat: {
+    completions: {
+      create: async (params: any) => {
+        const messages = params.messages as ChatMessage[];
+        const content = await callGemini(messages, {
+          temperature: params.temperature,
+          maxTokens: params.max_tokens,
+          responseFormat: params.response_format
+        });
+        return {
+          choices: [{
+            message: {
+              role: 'assistant',
+              content
+            }
+          }]
+        };
+      }
     }
-  });
-}
-
-// Cached client instance with token refresh
-let cachedClient: OpenAI | null = null;
-let cachedTokenExpiry: number = 0;
-
-async function getOpenAIClient(): Promise<OpenAI> {
-  const now = Date.now();
-  // Refresh client if token is about to expire (5 min buffer)
-  if (!cachedClient || now >= cachedTokenExpiry - 5 * 60 * 1000) {
-    cachedClient = await getAuthenticatedOpenAIClient();
-    // Firebase tokens expire in 1 hour
-    cachedTokenExpiry = now + 55 * 60 * 1000;
   }
-  return cachedClient;
-}
-
-// For backwards compatibility - create unauthenticated client (will fail on proxy without auth)
-export const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY || 'dummy-key-for-proxy',
-  dangerouslyAllowBrowser: true,
-  baseURL: `${window.location.origin}/api/openai`,
-  timeout: 60000,
-  maxRetries: 2
-});
+};
 
 export const BOT_PERSONAS = {
   teacher: {
@@ -464,7 +458,7 @@ export const generateUnitSkeleton = async (
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -789,7 +783,7 @@ ${getMathRestrictions()}`}
   }
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: userContent as any }],
       response_format: { type: "json_object" },
@@ -1149,7 +1143,7 @@ export const generateTeacherStepContent = async (
   }
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: userContent as any }],
       response_format: { type: "json_object" },
@@ -1570,7 +1564,7 @@ export const generateInteractiveBlocks = async (
       }
 
       // Call OpenAI to generate the block content
-      const response = await (await getOpenAIClient()).chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: MODEL_NAME,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
@@ -1609,27 +1603,38 @@ export const generateInteractiveBlocks = async (
 
 /**
  * Regenerates a single image based on a new or edited prompt
+ * Uses Gemini Image via Cloud Function
  *
- * @param prompt - The DALL-E 3 prompt for the image
+ * @param prompt - The prompt for the image
  * @returns Base64 data URL of the generated image, or null on failure
  */
 export const regenerateImage = async (prompt: string): Promise<string | null> => {
   console.log(`🎨 Regenerating image with prompt: "${prompt.substring(0, 50)}..."`);
 
   try {
-    const response = await (await getOpenAIClient()).images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      size: "1024x1024",
-      quality: "standard",
-      n: 1,
-      response_format: "b64_json"
-    });
+    // Use Gemini Image via Cloud Function
+    const { generateGeminiImage, isGeminiImageAvailable } = await import('./services/ai/imagenService');
 
-    if (response.data && response.data[0]?.b64_json) {
-      const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
-      console.log("✅ Image regenerated successfully");
-      return imageUrl;
+    if (!isGeminiImageAvailable()) {
+      console.error("❌ Gemini Image not available");
+      return null;
+    }
+
+    const blob = await generateGeminiImage(prompt);
+    if (blob) {
+      // Convert Blob to base64 data URL
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          console.log("✅ Image regenerated successfully");
+          resolve(reader.result as string);
+        };
+        reader.onerror = () => {
+          console.error("❌ Failed to convert image blob to data URL");
+          resolve(null);
+        };
+        reader.readAsDataURL(blob);
+      });
     }
 
     console.error("❌ Image generation returned no data");
@@ -1672,7 +1677,7 @@ export const generatePodcastScript = async (sourceText: string, topic?: string):
       Style: Conversational, fun, like "NotebookLM".
       `;
 
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -1725,7 +1730,7 @@ export const validateContent = async (
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [
         { role: "system", content: PEDAGOGICAL_SYSTEM_PROMPT + "\n\n" + STRUCTURAL_SYSTEM_PROMPT },
@@ -1774,7 +1779,7 @@ export const attemptAutoFix = async (
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -1893,7 +1898,7 @@ export const generateCourseSyllabus = async (
     `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o", // Strong model for structure
       messages: [
         { role: "system", content: "You are a Curriculum Architect. Output strict JSON." },
@@ -2031,33 +2036,22 @@ export const generateCoursePlan = async (
 // --- שאר הפונקציות (נשארו ללא שינוי - Hybrid Mode) ---
 
 export const generateAiImage = async (prompt: string): Promise<Blob | null> => {
-  if (!OPENAI_API_KEY) {
-    console.error("OpenAI API Key missing for image generation");
-    return null;
-  }
-
   try {
-    const response = await (await getOpenAIClient()).images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      response_format: "b64_json"
-    });
+    // Use Gemini Image via Cloud Function
+    const { generateGeminiImage, isGeminiImageAvailable } = await import('./services/ai/imagenService');
 
-    const base64Data = response.data?.[0]?.b64_json;
-    if (base64Data) {
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: "image/png" });
+    if (!isGeminiImageAvailable()) {
+      console.error("Gemini Image not available");
+      return null;
+    }
+
+    const blob = await generateGeminiImage(prompt);
+    if (blob) {
+      return blob;
     }
     return null;
   } catch (e) {
-    console.error("Error generating image (DALL-E 3):", e);
+    console.error("Error generating image (Gemini):", e);
     return null;
   }
 };
@@ -2440,7 +2434,7 @@ export const generateFullUnitContent = async (
   }
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [
         { role: "system", content: systemPrompt },
@@ -2622,7 +2616,7 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
   `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }]
     });
@@ -2644,7 +2638,7 @@ export const checkOpenQuestionAnswer = async (
   mode: 'learning' | 'exam' = 'learning' // NEW: Mode parameter
 ): Promise<{ status: "correct" | "partial" | "incorrect"; feedback: string }> => {
 
-  if (!OPENAI_API_KEY) return { status: "partial", feedback: "שגיאה בחיבור ל-AI. נסה שוב." };
+  // Authentication handled by Cloud Function
 
   const prompt = `
   # ROLE
@@ -2677,7 +2671,7 @@ export const checkOpenQuestionAnswer = async (
     `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -2705,7 +2699,7 @@ export const generateQuestionsFromText = async (text: string, type: string) => {
   `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -2720,7 +2714,7 @@ export const generateQuestionsFromText = async (text: string, type: string) => {
 
 export const generateImagePromptBlock = async (context: string) => {
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: `Suggest a creative, safe, educational image prompt(English) for: "${context.substring(0, 300)}".` }]
     });
@@ -2832,7 +2826,7 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
     }
     `;
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.categories || result.categories.length < 2) return null;
@@ -2878,7 +2872,7 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
     }
     `;
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.correct_order || result.correct_order.length < 2) return null;
@@ -2921,7 +2915,7 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
     }
     `;
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const parsed = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation: Must have at least one cloze deletion
     if (!parsed.text || !parsed.text.includes('[') || !parsed.text.includes(']')) return null;
@@ -2965,7 +2959,7 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
     }
     `;
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
+    const res = await openai.chat.completions.create({ model: MODEL_NAME, messages: [{ role: "user", content: prompt }], response_format: { type: "json_object" } });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.pairs || result.pairs.length < 3) return null;
@@ -3007,7 +3001,7 @@ export const generateTrueFalseQuestion = async (topic: string, gradeLevel: strin
   `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -3058,7 +3052,7 @@ export const generateStudentReport = async (studentData: any) => {
     `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -3071,43 +3065,18 @@ export const generateStudentReport = async (studentData: any) => {
 };
 
 /**
- * Transcribes an audio file using OpenAI Whisper.
+ * Transcribes an audio file using OpenAI Whisper via secure proxy.
  * Used for student voice answers.
  * @param audioBlob The recorded audio blob.
  * @returns The transcribed text or null on failure.
  */
 export const transcribeAudio = async (audioBlob: Blob): Promise<string | null> => {
-  if (!OPENAI_API_KEY) {
-    console.error("Missing OpenAI Key for transcription");
-    return null;
-  }
-
-  const formData = new FormData();
-  // Whisper requires a filename with extension
-  formData.append("file", audioBlob, "recording.webm");
-  formData.append("model", "whisper-1");
-  formData.append("language", "he"); // Hint for Hebrew
-
   try {
-    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`
-      },
-      body: formData
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      console.error("Whisper API Error:", err);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.text || null;
-
+    // Use the transcribeAudio function from geminiApi which goes through secure proxy
+    const { transcribeAudio: transcribeViaProxy } = await import('./services/ai/geminiApi');
+    return await transcribeViaProxy(audioBlob);
   } catch (e) {
-    console.error("Transcription Network Error:", e);
+    console.error("Transcription Error:", e);
     return null;
   }
 };
@@ -3149,7 +3118,7 @@ export const generateStudentAnalysis = async (
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -3190,7 +3159,7 @@ export const generateClassAnalysis = async (students: any[]) => {
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -3265,7 +3234,7 @@ OUTPUT JSON:
   `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -3349,7 +3318,7 @@ OUTPUT JSON:
   `;
 
   try {
-    const res = await (await getOpenAIClient()).chat.completions.create({
+    const res = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
@@ -3404,7 +3373,7 @@ export const refineBlockContent = async (
   `;
 
   try {
-    const completion = await (await getOpenAIClient()).chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -3484,7 +3453,7 @@ export const generateDifferentiatedContent = async (
         Generate the 3 levels now.
         `;
 
-    const response = await (await getOpenAIClient()).chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o", // Use a smart model for this complex task
       messages: [
         { role: "system", content: sysPrompt },

@@ -12,10 +12,10 @@
  * Output: Validation result with pass/fail status and detailed feedback
  */
 
-import OpenAI from "openai";
 import * as logger from "firebase-functions/logger";
 import { cleanJsonString } from '../shared/utils/geminiParsers';
 import { getExamGuardianPrompt } from '../ai/examPrompts';
+import { generateJSON, ChatMessage } from './geminiService';
 import type { ExamQuestionResponse } from './examGenerator';
 
 export interface GuardianCheckResult {
@@ -64,10 +64,9 @@ export interface ExamGuardianResult {
  * 3. Formal, objective tone
  * 4. No answer reveals in feedback
  *
- * Uses GPT-4o with very low temperature (0.1) for strict validation.
+ * Uses Gemini 2.5 Pro with very low temperature (0.1) for strict validation.
  */
 export async function validateExamIntegrity(
-    openai: OpenAI,
     questions: ExamQuestionResponse[]
 ): Promise<ExamGuardianResult> {
     logger.info(`🛡️ Exam Guardian: Starting integrity check for ${questions.length} questions`);
@@ -79,15 +78,10 @@ export async function validateExamIntegrity(
     const prompt = getExamGuardianPrompt(contentSample);
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", // Strong model for validation
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
+        const messages: ChatMessage[] = [{ role: "user", content: prompt }];
+        const validationResult = await generateJSON<ExamGuardianResult>(messages, {
             temperature: 0.1 // Very strict validation
         });
-
-        const resultText = response.choices[0].message.content || "{}";
-        const validationResult = JSON.parse(cleanJsonString(resultText)) as ExamGuardianResult;
 
         // Log result
         if (validationResult.status === 'CRITICAL_FAIL') {

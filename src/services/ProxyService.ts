@@ -1,85 +1,46 @@
-import { auth } from '../firebase';
+import { functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { withRetry, withTimeout, getErrorMessage } from '../utils/errorHandling';
 
-export const callAI = async (endpoint: string, payload: any) => {
-    // Determine Environment
-    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+/**
+ * Message format compatible with OpenAI/Gemini
+ */
+export interface ChatMessage {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
 
-    // Get Auth Token
-    let token = "";
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+/**
+ * Options for chat completion
+ */
+export interface ChatOptions {
+    temperature?: number;
+    maxTokens?: number;
+    responseFormat?: { type: 'json_object' | 'text' };
+}
 
-    if (isLocal && apiKey) {
-        // Local Dev: Use API Key directly for Vite Proxy
-        token = apiKey;
-    } else if (auth.currentUser) {
-        // Prod: Use Firebase ID Token for Cloud Function Proxy
-        token = await auth.currentUser.getIdToken();
-    }
-
-    // Choose URL Strategy
-    // Note: 'endpoint' should NOT start with /v1 if the proxy adds it.
-    // Based on inspection, Vite proxy target is .../v1 and Functions proxy adds .../v1.
-    // So endpoint should be e.g. "/chat/completions"
-    let url = "";
-
-    if (isLocal) {
-        // Option B: Direct Proxy via Vite (set up in vite.config.ts)
-        // Vite proxy rule: ^/api/openai -> https://api.openai.com/v1
-        url = `/api/openai${endpoint}`;
-    } else {
-        // Production: Call Cloud Function via Firebase Hosting Rewrite
-        // Hosting rewrite: /api/openai/** -> openaiProxy
-        url = `/api/openai${endpoint}`;
-    }
-
-    // console.log(`🔄 ProxyService: Calling ${url}`);
-
-    const headers: Record<string, string> = {
-        'Authorization': `Bearer ${token}`
-    };
-
-    let body;
-
-    if (payload instanceof FormData) {
-        // Browser sets Content-Type to multipart/form-data with boundary automatically
-        body = payload;
-    } else {
-        headers['Content-Type'] = 'application/json';
-        body = JSON.stringify(payload);
-    }
-
-    // Wrap in retry logic with timeout
+/**
+ * Call Gemini Chat via Cloud Function
+ * Replaces OpenAI chat completions
+ */
+export const callGeminiChat = async (
+    messages: ChatMessage[],
+    options?: ChatOptions
+): Promise<string> => {
     return await withRetry(
         async () => {
             return await withTimeout(
                 async () => {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers,
-                        body
+                    const geminiChatFn = httpsCallable(functions, 'geminiChat', {
+                        timeout: 120000 // 2 minutes
                     });
 
-                    if (!response.ok) {
-                        const errorText = await response.text();
+                    const result = await geminiChatFn({ messages, options });
+                    const data = result.data as { content: string; type: string };
 
-                        // Parse rate limit info from headers
-                        const retryAfter = response.headers.get('Retry-After');
-                        const rateLimitReset = response.headers.get('X-RateLimit-Reset');
-
-                        if (response.status === 429) {
-                            const waitTime = retryAfter || '60';
-                            throw new Error(
-                                `Rate Limit Exceeded. נא להמתין ${waitTime} שניות לפני ניסיון נוסף.`
-                            );
-                        }
-
-                        throw new Error(`AI Request Failed: ${response.status} - ${errorText}`);
-                    }
-
-                    return await response.json();
+                    return data.content;
                 },
-                120000, // 2 minutes timeout
+                120000,
                 'הבקשה ארכה זמן רב מדי. נסה שוב.'
             );
         },
@@ -89,24 +50,76 @@ export const callAI = async (endpoint: string, payload: any) => {
             backoffMultiplier: 2,
             onRetry: (attempt, error) => {
                 console.warn(
-                    `[AI Retry] Attempt ${attempt}/3 for ${endpoint}:`,
+                    `[Gemini Retry] Attempt ${attempt}/3:`,
                     getErrorMessage(error)
                 );
             },
             shouldRetry: (error: Error) => {
                 const message = error.message.toLowerCase();
                 // Don't retry on auth errors or invalid requests
-                if (message.includes('401') || message.includes('403') || message.includes('400')) {
+                if (message.includes('unauthenticated') || message.includes('invalid-argument')) {
                     return false;
                 }
-                // Retry on network errors, timeouts, and 500s
+                // Retry on network errors, timeouts, and server errors
                 return (
                     message.includes('network') ||
                     message.includes('timeout') ||
-                    message.includes('500') ||
-                    message.includes('econnreset')
+                    message.includes('internal') ||
+                    message.includes('unavailable') ||
+                    message.includes('502') ||
+                    message.includes('503') ||
+                    message.includes('bad gateway') ||
+                    message.includes('service unavailable')
                 );
             }
         }
     );
+};
+
+/**
+ * Call Gemini Chat and parse JSON response
+ */
+export const callGeminiJSON = async <T = any>(
+    messages: ChatMessage[],
+    options?: Omit<ChatOptions, 'responseFormat'>
+): Promise<T> => {
+    const content = await callGeminiChat(messages, {
+        ...options,
+        responseFormat: { type: 'json_object' }
+    });
+
+    try {
+        return JSON.parse(content) as T;
+    } catch (error) {
+        console.error('Failed to parse Gemini JSON response:', content.substring(0, 500));
+        throw new Error('תשובה לא תקינה מהשרת');
+    }
+};
+
+/**
+ * Legacy callAI function for backwards compatibility
+ * @deprecated Use callGeminiChat instead
+ */
+export const callAI = async (endpoint: string, payload: any): Promise<any> => {
+    // Convert OpenAI format to Gemini format
+    if (endpoint.includes('/chat/completions')) {
+        const messages = payload.messages as ChatMessage[];
+        const content = await callGeminiChat(messages, {
+            temperature: payload.temperature,
+            maxTokens: payload.max_tokens,
+            responseFormat: payload.response_format
+        });
+
+        // Return in OpenAI-compatible format
+        return {
+            choices: [{
+                message: {
+                    role: 'assistant',
+                    content
+                }
+            }]
+        };
+    }
+
+    throw new Error(`Unsupported endpoint: ${endpoint}. Use callGeminiChat directly.`);
 };

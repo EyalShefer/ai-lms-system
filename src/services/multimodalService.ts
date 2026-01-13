@@ -1,4 +1,4 @@
-import { openaiLegacy } from './ai/legacyClient';
+import { transcribeAudio as transcribeAudioViaProxy } from './ai/geminiApi';
 // functions will be imported dynamically or from firebase
 
 // Error codes matching backend
@@ -94,7 +94,7 @@ function parseFirebaseError(error: any): { code: TranscriptionErrorCode; userMes
 
 export const MultimodalService = {
     /**
-     * Transcribes an audio file using OpenAI Whisper.
+     * Transcribes an audio file using OpenAI Whisper via secure proxy.
      * @param file - The audio file (mp3, wav, etc.)
      * @returns The transcribed text.
      */
@@ -109,13 +109,9 @@ export const MultimodalService = {
                 );
             }
 
-            const transcription = await openaiLegacy.audio.transcriptions.create({
-                file: file,
-                model: "whisper-1",
-                language: "he", // Optimize for Hebrew
-            });
-
-            return transcription.text;
+            // Use secure proxy instead of direct API call
+            const result = await transcribeAudioViaProxy(file);
+            return result;
         } catch (e: any) {
             console.error("Transcription failed:", e);
 

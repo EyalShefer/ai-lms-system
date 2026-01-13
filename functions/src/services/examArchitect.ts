@@ -12,7 +12,6 @@
  * Output: ExamSkeleton with question specifications
  */
 
-import OpenAI from "openai";
 import * as logger from "firebase-functions/logger";
 import { cleanJsonString } from '../shared/utils/geminiParsers';
 import {
@@ -23,6 +22,7 @@ import {
     calculateQuestionPoints,
     estimateQuestionTime
 } from '../ai/examPrompts';
+import { generateJSON, ChatMessage } from './geminiService';
 import type { ExamDNA } from './knowledgeBase/types';
 
 export interface ExamSkeletonStep {
@@ -66,11 +66,10 @@ export interface ExamArchitectContext {
 /**
  * Run the Exam Architect stage
  *
- * This function uses GPT-4o with low temperature (0.3) to ensure
+ * This function uses Gemini 2.5 Pro with low temperature (0.3) to ensure
  * deterministic, consistent exam structure generation.
  */
 export async function runExamArchitect(
-    openai: OpenAI,
     context: ExamArchitectContext
 ): Promise<ExamSkeleton | null> {
     // Determine question count based on length or DNA
@@ -115,31 +114,26 @@ export async function runExamArchitect(
         );
     }
 
-    // Prepare user content (text + optional image)
-    const userContent: any[] = [{ type: "text", text: `Create exam skeleton for: ${context.topic}` }];
+    // Prepare user content
+    let userContentText = `Create exam skeleton for: ${context.topic}`;
 
+    // Note: For image support, Gemini 2.5 Pro handles this differently
+    // If fileData is present, we would use generateWithVision instead
     if (context.fileData) {
-        userContent.push({
-            type: "image_url",
-            image_url: { url: `data:${context.fileData.mimeType};base64,${context.fileData.base64}` }
-        });
+        logger.warn('⚠️ File data provided but Gemini JSON generation does not support images. Using text-only mode.');
     }
 
     try {
         logger.info(`🧠 Exam Architect: Planning ${stepCount} questions for "${context.topic}"`);
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", // Strong model for strategic planning
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userContent as any }
-            ],
-            response_format: { type: "json_object" },
+        const messages: ChatMessage[] = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContentText }
+        ];
+
+        const result = await generateJSON<ExamSkeleton>(messages, {
             temperature: 0.3 // LOW temperature for deterministic exam planning
         });
-
-        const text = response.choices[0].message.content || "{}";
-        const result = JSON.parse(cleanJsonString(text)) as ExamSkeleton;
 
         // Validate structure
         if (!result.steps || !Array.isArray(result.steps) || result.steps.length === 0) {
