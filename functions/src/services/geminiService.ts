@@ -1,15 +1,22 @@
 /**
- * Gemini 2.5 Pro Service
- * Unified service for all LLM text generation using Gemini 2.5 Pro
+ * Gemini 3 Pro Service
+ * Unified service for all LLM text generation using Gemini 3 Pro
  * Uses Google AI Studio (not Vertex AI)
+ *
+ * ============================================================
+ * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
+ * See AI_MODELS_POLICY.md for approved models.
+ * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * ============================================================
  */
 
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI } from '@google/genai';
 
 // Configuration
+// WARNING: Do not change without approval - see AI_MODELS_POLICY.md
 export const GEMINI_CONFIG = {
-    model: 'gemini-2.5-pro'
+    model: 'gemini-3-pro-preview'
 };
 
 // Singleton client with API key

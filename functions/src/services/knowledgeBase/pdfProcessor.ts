@@ -135,7 +135,7 @@ export class PDFProcessor {
 
           // Send to Gemini Vision via Google AI Studio
           const response = await this.genAI.models.generateContent({
-            model: 'gemini-2.0-flash-001',
+            model: 'gemini-3-pro-preview',
             contents: [
               {
                 role: 'user',
@@ -186,10 +186,10 @@ export class PDFProcessor {
         const rawText = pdfData.text;
 
         if (rawText && rawText.length > 100) {
-          logger.info('Attempting to clean garbled text with Gemini 2.5 Pro...');
+          logger.info('Attempting to clean garbled text with Gemini 3 Pro...');
 
           const cleanResponse = await this.genAI.models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-3-pro-preview',
             contents: `אתה מומחה בתיקון טקסט עברי משובש שחולץ מ-PDF.
 הטקסט הבא חולץ מספר מתמטיקה לכיתה א' אבל הוא משובש.
 נסה לתקן אותו ולהפוך אותו לקריא. אם אתה לא מצליח לפענח חלקים - דלג עליהם.
@@ -242,7 +242,7 @@ ${rawText.substring(0, 15000)}
 החזר את כל הטקסט המחולץ בעברית.`;
 
       const response = await this.genAI.models.generateContent({
-        model: 'gemini-2.5-pro',
+        model: 'gemini-3-pro-preview',
         contents: [
           {
             role: 'user',

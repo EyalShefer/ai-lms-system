@@ -24,6 +24,7 @@ import {
     enrichActivityWithImages, isActivityEnriched, generateContextImageBlock
 } from '../services/activityMediaService';
 import { createBlock } from '../shared/config/blockDefinitions'; // DECOUPLER FIX
+import { saveGenerationTiming } from '../services/generationTimingService'; // Speed Analytics
 
 // ... (existing imports)
 
@@ -41,7 +42,7 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone, IconInfographic
 } from '../icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -269,6 +270,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             hasInitialized.current = true;
             setIsAutoGenerating(true); // START LOADING STATE
 
+            const settings = (course as any)?.wizardData?.settings || {};
+            const productType = settings.productType || 'lesson'; // Get Product Type
+
+            // ⏱️ Initialize timing tracker
+            const timer = new (await import('../services/generationTimingService')).GenerationTimer(
+                course.id,
+                unit.id,
+                productType as 'lesson' | 'activity' | 'exam' | 'podcast',
+                course
+            );
+
             try {
                 // 1. SKELETON PHASE (Fast)
                 console.log("🚀 Starting Incremental Generation: Skeleton Phase...");
@@ -281,11 +293,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     ]
                 }));
 
-                const settings = (course as any)?.wizardData?.settings || {};
                 const targetLength = settings.activityLength || 'medium';
                 const safeIncludeBot = settings.includeBot === true;
                 const sourceText = course?.fullBookContent || (course as any)?.wizardData?.pastedText || "";
-                const productType = settings.productType || 'lesson'; // Get Product Type
 
                 console.log("📚 Source Text Length:", sourceText?.length || 0);
 
@@ -334,6 +344,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     throw new Error("Failed to generate skeleton");
                 }
 
+                // ⏱️ Mark skeleton complete
+                timer.mark('skeleton_complete');
+                timer.setStepCount(skeleton.steps.length);
                 console.log("✅ Skeleton Ready:", skeleton.steps.length, "steps");
 
                 // 🖼️ START CONTEXT IMAGE GENERATION IN PARALLEL (for activities only)
@@ -451,6 +464,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 await Promise.all(promises);
 
+                // ⏱️ Mark content generation complete
+                timer.mark('content_complete');
                 console.log("🏁 All steps generated. Auto-Saving to Firestore...");
                 console.log("🔍 DEBUG: productType =", productType, "| Expected: 'activity'");
 
@@ -458,8 +473,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 // This should be ready by now or very soon since it ran alongside content
                 let contextImageBlock: ActivityBlock | null = null;
                 if (contextImagePromise) {
+                    timer.mark('image_start');
                     console.log("🖼️ [Parallel] Waiting for context image to complete...");
                     contextImageBlock = await contextImagePromise;
+                    timer.mark('image_complete');
 
                     if (contextImageBlock) {
                         console.log("✅ [Parallel] Context image ready! Inserting at beginning...");
@@ -478,6 +495,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 setTimeout(() => {
                     onSave(editedUnitRef.current);
                 }, 100);
+
+                // ⏱️ Finish timing and save to Firestore
+                await timer.finish(true);
 
                 // Mark generation as done
                 setIsAutoGenerating(false);
@@ -515,8 +535,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     }, 200);
                 }
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Incremental Auto Generation Failed", error);
+                // ⏱️ Save timing with error
+                await timer.finish(false, error?.message || 'Unknown error');
                 setIsAutoGenerating(false);
             }
         };
@@ -1197,6 +1219,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
 
                         <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>

@@ -272,7 +272,7 @@ MISSION:
 
 Output JSON Structure (STRICT):
 {
-  "exam_title": "String (concise exam title)",
+  "exam_title": "String (concise exam title - MUST contain the word 'מבחן', NEVER use 'פעילות')",
   "total_points": number,
   "estimated_duration_minutes": number,
   "coverage_matrix": {
@@ -301,6 +301,7 @@ CRITICAL RULES:
 - NO "teach_content" in output
 - NO "progressive_hints" in output
 - Focus on VERIFICATION of knowledge, not instruction
+- exam_title MUST contain "מבחן" (exam), NEVER "פעילות" (activity) or "ברוכים הבאים"
 `;
 
 /**
@@ -402,7 +403,7 @@ MISSION:
 
 Output JSON Structure (STRICT):
 {
-  "exam_title": "String (concise exam title)",
+  "exam_title": "String (concise exam title - MUST contain the word 'מבחן', NEVER use 'פעילות')",
   "total_points": ${examDna.totalPoints},
   "estimated_duration_minutes": ${examDna.estimatedDurationMinutes},
   "coverage_matrix": {
@@ -432,6 +433,7 @@ CRITICAL RULES:
 - NO "teach_content" in output
 - NO "progressive_hints" in output
 - Create NEW questions, don't copy from reference
+- exam_title MUST contain "מבחן" (exam), NEVER "פעילות" (activity) or "ברוכים הבאים"
 `;
 
 /**
@@ -869,16 +871,41 @@ export const calculateQuestionPoints = (bloomLevel: string, questionType: string
         'Apply': 1.5,
         'Analyze': 1.7,
         'Evaluate': 2.0,
-        'Create': 2.2
+        'Create': 2.2,
+        // Hebrew variants
+        'זכירה': 1.0,
+        'הבנה': 1.2,
+        'יישום': 1.5,
+        'ניתוח': 1.7,
+        'הערכה': 2.0,
+        'יצירה': 2.2,
+        // Legacy/alternate names
+        'Knowledge': 1.0,
+        'Comprehension': 1.2,
+        'Application': 1.5,
+        'Analysis': 1.7,
+        'Synthesis': 2.0,
+        'Evaluation': 2.0,
+        // Default fallback (when bloom level is Hebrew description)
+        'ידע ומיומנויות יסוד': 1.0
     };
 
     const basePoints: { [key: string]: number } = {
         'multiple_choice': 5,
+        'multiple-choice': 5,
         'true_false': 5,
+        'true-false': 5,
         'fill_in_blanks': 7,
+        'fill-in-blanks': 7,
+        'cloze': 7,
         'ordering': 10,
         'categorization': 10,
-        'open_question': 15
+        'memory_game': 8,
+        'memory-game': 8,
+        'open_question': 15,
+        'open-question': 15,
+        'audio_response': 10,
+        'audio-response': 10
     };
 
     const multiplier = bloomMultipliers[bloomLevel] || 1.0;

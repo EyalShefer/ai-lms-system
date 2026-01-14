@@ -106,7 +106,7 @@ export const generateGemini3Infographic = onRequest(
                 success: true,
                 html,
                 metadata: {
-                    model: 'gemini-2.5-pro',
+                    model: 'gemini-3-pro-preview',
                     visualType,
                     generationTime,
                     estimatedCost: 0.002 // Approximate cost per request
@@ -114,7 +114,7 @@ export const generateGemini3Infographic = onRequest(
             });
 
         } catch (error: any) {
-            logger.error('Gemini 2.5 Pro infographic generation failed:', error);
+            logger.error('Gemini 3 Pro infographic generation failed:', error);
 
             if (error.message?.includes('SAFETY')) {
                 res.status(400).json({

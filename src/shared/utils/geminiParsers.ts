@@ -2,6 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { RawAiItem, MappedLearningBlock } from '../types/gemini.types';
 import type { ActivityBlockType, RichOption } from '../types/courseTypes';
+import { calculateQuestionWeight } from '../../utils/scoring';
 
 /**
  * Cleans a JSON string returned by an LLM, removing markdown code blocks.
@@ -173,7 +174,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: 10,
+                score: calculateQuestionWeight(typeString, commonMetadata.bloomLevel),
                 progressiveHints: rawData.progressive_hints || [],
                 richOptions: options.some(o => typeof o === 'object') ? options : undefined
             }
@@ -211,7 +212,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             metadata: {
                 ...commonMetadata,
                 modelAnswer: modelAnswer,
-                score: 20
+                score: calculateQuestionWeight('open_question', commonMetadata.bloomLevel)
             }
         };
     }
@@ -257,7 +258,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 instruction: questionText !== "שאלה ללא טקסט" ? questionText : "סדרו את הצעדים הבאים:",
                 correct_order: items
             },
-            metadata: { ...commonMetadata, score: 15 }
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('ordering', commonMetadata.bloomLevel) }
         };
     }
 
@@ -334,7 +335,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 categories: categories,
                 items: items
             },
-            metadata: { ...commonMetadata, score: 20 }
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('categorization', commonMetadata.bloomLevel) }
         };
     }
 
@@ -352,7 +353,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: 15,
+                score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel),
                 wordBank: bank // Optional word bank
             }
         };
@@ -370,7 +371,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: 20
+                score: calculateQuestionWeight('audio_response', commonMetadata.bloomLevel)
             }
         };
     }
@@ -409,7 +410,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 pairs: normalizedPairs,
                 question: questionText || "מצאו את הזוגות המתאימים:"
             },
-            metadata: { ...commonMetadata, score: 15 }
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('memory_game', commonMetadata.bloomLevel) }
         };
     }
 

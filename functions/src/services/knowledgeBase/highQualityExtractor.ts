@@ -214,9 +214,9 @@ export class HighQualityExtractor {
 חלץ את כל הטקסט מהעמוד:`;
 
     return this.withRetry(async () => {
-      // Use Google AI Studio with gemini-2.0-flash-001 model
+      // Use Google AI Studio with gemini-3-pro-preview model
       const response = await this.genAI.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+        model: 'gemini-3-pro-preview',
         contents: [
           {
             role: 'user',
@@ -443,7 +443,7 @@ export class HighQualityExtractor {
       averageConfidence: avgConfidence,
       pagesNeedingReview,
       extractionTimeMs,
-      modelsUsed: ['vertex-ai/gemini-2.0-flash-001']
+      modelsUsed: ['gemini-3-pro-preview']
     };
   }
 
@@ -617,12 +617,12 @@ export class HighQualityExtractor {
       averageConfidence: avgConfidence,
       pagesNeedingReview: progress.pagesNeedingReview,
       extractionTimeMs: progress.updatedAt - progress.startedAt,
-      modelsUsed: ['vertex-ai/gemini-2.0-flash-001']
+      modelsUsed: ['gemini-3-pro-preview']
     };
   }
 
   /**
-   * Second extraction pass with Vertex AI Gemini using different prompt for verification
+   * Second extraction pass with Gemini 3 Pro using different prompt for verification
    */
   private async extractPageWithGeminiVerification(
     pdfBase64: string,
@@ -643,7 +643,7 @@ export class HighQualityExtractor {
     try {
       return await this.withRetry(async () => {
         const response = await this.genAI.models.generateContent({
-          model: 'gemini-2.0-flash-001',
+          model: 'gemini-3-pro-preview',
           contents: [
             {
               role: 'user',

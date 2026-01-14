@@ -15,9 +15,16 @@ const auth = getAuth();
 const openAiApiKey = defineSecret("OPENAI_API_KEY"); // Keep for legacy proxy support
 const geminiApiKey = defineSecret("GEMINI_API_KEY"); // Google AI Studio API Key
 const elevenLabsApiKey = defineSecret("ELEVENLABS_API_KEY"); // ElevenLabs TTS API Key
-const MODEL_NAME = "gemini-2.5-pro"; // Standard model for all LLM calls
+/**
+ * ============================================================
+ * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
+ * See AI_MODELS_POLICY.md for approved models.
+ * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * ============================================================
+ */
+const MODEL_NAME = "gemini-3-pro-preview"; // Standard model for all LLM calls
 
-// --- GEMINI 2.5 PRO SERVICE ---
+// --- GEMINI 3 PRO SERVICE ---
 import { generateText, generateJSON, generateWithVision, ChatMessage } from "./services/geminiService";
 
 // --- MIDDLEWARE ---
@@ -2157,7 +2164,7 @@ export const generateInitialPrompts = onCall({
 עבור select הוסף גם "options": ["אפשרות1", "אפשרות2"]`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash-001',
+                    model: 'gemini-3-pro-preview',
                     contents: prompt
                 });
                 const content = result.candidates?.[0]?.content?.parts?.[0]?.text;

@@ -37,6 +37,7 @@ const KnowledgeBaseAdmin = React.lazy(() => import('./components/KnowledgeBaseAd
 const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionReviewPage'));
 const TeachingAgentsLibrary = React.lazy(() => import('./components/TeachingAgentsLibrary'));
 const UsageDashboard = React.lazy(() => import('./components/admin/UsageDashboard'));
+const GenerationSpeedAnalytics = React.lazy(() => import('./components/admin/GenerationSpeedAnalytics'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -603,7 +604,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && <SequentialCoursePlayer
                   assignment={currentAssignment || undefined}
@@ -646,6 +647,7 @@ const AuthenticatedApp = () => {
                 {mode === 'knowledge-base' && <KnowledgeBaseAdmin onNavigateToReview={() => setMode('extraction-review')} />}
                 {mode === 'extraction-review' && <ExtractionReviewPage />}
                 {mode === 'usage-admin' && <UsageDashboard />}
+                {mode === 'speed-analytics' && <GenerationSpeedAnalytics />}
               </>
             )}
           </Suspense>

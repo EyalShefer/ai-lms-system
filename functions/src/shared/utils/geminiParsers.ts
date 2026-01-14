@@ -2,6 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { RawAiItem, MappedLearningBlock } from '../types/gemini.types';
 import type { ActivityBlockType, RichOption } from '../types/courseTypes';
+import { calculateQuestionPoints } from '../../ai/examPrompts';
 
 /**
  * Cleans a JSON string returned by an LLM, removing markdown code blocks.
@@ -154,7 +155,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 },
                 metadata: {
                     ...commonMetadata,
-                    score: 10,
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, typeString),
                     progressiveHints: rawData.progressive_hints || [],
                     richOptions: options.some(o => typeof o === 'object') ? options : undefined
                 }
@@ -174,7 +175,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                                  (Array.isArray(rawData.model_answer)
                                     ? rawData.model_answer.join('\n- ')
                                     : (rawData.model_answer || rawData.answer_key || "🎯 מה לחפש: תשובה המבוססת על החומר הנלמד")),
-                    score: 20
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, 'open_question')
                 }
             };
         }
@@ -219,7 +220,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                     instruction: questionText !== "שאלה ללא טקסט" ? questionText : "סדרו את הצעדים הבאים:",
                     correct_order: items
                 },
-                metadata: { ...commonMetadata, score: 15 }
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'ordering') }
             };
         }
 
@@ -295,7 +296,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                     categories: categories,
                     items: items
                 },
-                metadata: { ...commonMetadata, score: 20 }
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'categorization') }
             };
         }
 
@@ -311,7 +312,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 },
                 metadata: {
                     ...commonMetadata,
-                    score: 15,
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, 'fill_in_blanks'),
                     wordBank: bank // Optional word bank
                 }
             };
@@ -329,7 +330,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 },
                 metadata: {
                     ...commonMetadata,
-                    score: 20
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, 'open_question') // Audio is like open question
                 }
             };
         }
@@ -362,7 +363,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                     pairs: normalizedPairs,
                     question: questionText || "מצאו את הזוגות המתאימים:"
                 },
-                metadata: { ...commonMetadata, score: 15 }
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'multiple_choice') } // Memory game is similar to MC
             };
         }
 

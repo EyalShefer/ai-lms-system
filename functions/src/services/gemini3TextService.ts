@@ -1,21 +1,27 @@
 /**
- * Gemini 2.5 Pro Text Service
- * Uses Gemini 2.5 Pro via Google AI Studio for high-quality HTML generation
- * Model: gemini-2.5-pro
+ * Gemini 3 Pro Text Service
+ * Uses Gemini 3 Pro via Google AI Studio for high-quality HTML generation
+ * Model: gemini-3-pro-preview
  *
  * This service generates HTML for infographics which can then be converted to images
+ *
+ * ============================================================
+ * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
+ * See AI_MODELS_POLICY.md for approved models.
+ * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * ============================================================
  */
 
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI } from '@google/genai';
 
-// Configuration for Gemini 2.5 Pro (Text)
+// Configuration for Gemini 3 Pro (Text)
 export const GEMINI_TEXT_CONFIG = {
-    model: 'gemini-2.5-pro'
+    model: 'gemini-3-pro-preview'
 };
 
 /**
- * Check if Gemini 2.5 Pro is available
+ * Check if Gemini 3 Pro is available
  */
 export const isGemini3TextAvailable = (): boolean => {
     const hasApiKey = !!process.env.GEMINI_API_KEY;

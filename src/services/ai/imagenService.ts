@@ -7,15 +7,22 @@
  * 1. Enable Vertex AI in Google Cloud Console
  * 2. Deploy Cloud Function: firebase deploy --only functions:generateGeminiImage
  * 3. Set VITE_ENABLE_GEMINI_IMAGE=true in .env
+ *
+ * ============================================================
+ * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
+ * See AI_MODELS_POLICY.md for approved models.
+ * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * ============================================================
  */
 
 import { auth } from '../../firebase';
 
 /**
  * Gemini Image configuration
+ * WARNING: Do not change model without approval - see AI_MODELS_POLICY.md
  */
 export const GEMINI_IMAGE_CONFIG = {
-    model: 'gemini-3-pro-image',
+    model: 'gemini-3-pro-image-preview',
     endpoint: 'generateGeminiImage'
 };
 

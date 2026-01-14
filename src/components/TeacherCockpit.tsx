@@ -126,6 +126,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     // Store user's custom prompts per block to preserve them across open/close
     const userEditedPromptsRef = useRef<Record<string, string>>({});
+
+    // Store content before AI refinement to allow reverting if result is not good
+    const contentBeforeRefineRef = useRef<Record<string, any>>({});
+    const [canRevertBlockId, setCanRevertBlockId] = useState<string | null>(null);
+
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
 
     // Track unsaved changes (for share warning)
@@ -690,6 +695,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     const handleRefineBlock = async (block: ActivityBlock, instruction: string) => {
         if (!onUpdateBlock && !onUnitUpdate) return;
         setIsRefining(true);
+
+        // Save the current content BEFORE refinement so user can revert if result is not good
+        contentBeforeRefineRef.current[block.id] = JSON.parse(JSON.stringify(block.content));
+        console.log(`💾 Saved content before refinement for block ${block.id}`);
+
         try {
             console.log(`🔧 Refining block ${block.id} (type: ${block.type}) with instruction: "${instruction}"`);
             console.log(`📄 Original content:`, typeof block.content === 'string' ? block.content.substring(0, 100) + '...' : block.content);
@@ -726,11 +736,27 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             updateBlockContent(block.id, finalContent);
             setRefiningBlockId(null);
             setRefinePrompt("");
+
+            // Enable revert option for this block
+            setCanRevertBlockId(block.id);
         } catch (error) {
             console.error("Refine Error:", error);
             alert("שגיאה בעריכת התוכן");
+            // Clear the saved content on error since we didn't change anything
+            delete contentBeforeRefineRef.current[block.id];
         } finally {
             setIsRefining(false);
+        }
+    };
+
+    // Revert to content before AI refinement
+    const handleRevertRefinement = (blockId: string) => {
+        const savedContent = contentBeforeRefineRef.current[blockId];
+        if (savedContent) {
+            console.log(`↩️ Reverting block ${blockId} to pre-refinement content`);
+            updateBlockContent(blockId, savedContent);
+            delete contentBeforeRefineRef.current[blockId];
+            setCanRevertBlockId(null);
         }
     };
 
@@ -780,6 +806,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
 
                         <div className="w-px bg-slate-200 mx-2"></div>
                         <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
@@ -802,6 +829,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     /**
      * Generate a smart default prompt suggestion based on block type and content
+     * The suggestions are contextual and include specific references to the block's content
      */
     const generateDefaultPromptForBlock = (block: ActivityBlock): string => {
         const blockType = block.type;
@@ -819,33 +847,90 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             return '';
         };
 
+        // Extract question for question-type blocks
+        const getQuestion = (): string => {
+            if (!content || typeof content === 'string') return '';
+            return (content as any).question || '';
+        };
+
+        // Extract options count for multiple choice
+        const getOptionsInfo = (): { count: number; hasDistractors: boolean } => {
+            if (!content || typeof content === 'string') return { count: 0, hasDistractors: false };
+            const options = (content as any).options || [];
+            return {
+                count: options.length,
+                hasDistractors: options.length > 2
+            };
+        };
+
+        // Extract items count for ordering/categorization
+        const getItemsCount = (): number => {
+            if (!content || typeof content === 'string') return 0;
+            const items = (content as any).items || (content as any).pairs || [];
+            return items.length;
+        };
+
         const textContent = getTextContent();
-        const shortContent = textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent;
+        const question = getQuestion();
+        const shortContent = textContent.length > 60 ? textContent.substring(0, 60) + '...' : textContent;
+        const shortQuestion = question.length > 50 ? question.substring(0, 50) + '...' : question;
 
         switch (blockType) {
-            case 'multiple-choice':
-                return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח כדי שיהיה ברור יותר`;
+            case 'multiple-choice': {
+                const { count } = getOptionsInfo();
+                if (shortQuestion) {
+                    return `עבור השאלה "${shortQuestion}" - הוסיפו מסיחים מתוחכמים יותר${count < 4 ? ` (כרגע יש ${count} תשובות)` : ''}, או שפרו את ניסוח השאלה`;
+                }
+                return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח`;
+            }
             case 'open-question':
+                if (shortQuestion) {
+                    return `עבור השאלה "${shortQuestion}" - הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+                }
                 return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
-            case 'ordering':
+            case 'categorization': {
+                const itemsCount = getItemsCount();
+                if (itemsCount > 0) {
+                    return `שפרו את פעילות המיון (${itemsCount} פריטים): הוסיפו פריטים או קטגוריות נוספות`;
+                }
+                return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
+            }
+            case 'memory_game': {
+                const itemsCount = getItemsCount();
+                if (itemsCount > 0) {
+                    return `שפרו את משחק הזיכרון (${itemsCount} זוגות): הוסיפו זוגות או שפרו את התוכן`;
+                }
+                return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
+            }
+            case 'ordering': {
+                const itemsCount = getItemsCount();
+                if (itemsCount > 0) {
+                    return `שפרו את פעילות הסידור (${itemsCount} פריטים): הוסיפו פריטים או הבהירו את קריטריון המיון`;
+                }
                 return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+            }
             case 'fill_in_blanks':
+                if (shortContent) {
+                    return `עבור הטקסט "${shortContent}" - הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+                }
                 return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
             case 'text':
+                if (shortContent) {
+                    return `עבור הטקסט "${shortContent}" - פשטו את השפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
+                }
                 return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
             case 'video':
                 return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
             case 'image':
                 return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
             case 'interactive-chat':
+                if (shortContent) {
+                    return `עבור השיחה בנושא "${shortContent}" - הוסיפו תרחישים או שאלות העמקה`;
+                }
                 return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
-            case 'categorization':
-                return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
-            case 'memory_game':
-                return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
             default:
                 if (shortContent) {
-                    return `שפרו את התוכן בנושא "${shortContent}": פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
+                    return `עבור התוכן "${shortContent}" - פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
                 }
                 return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
         }
@@ -1561,6 +1646,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                                 <IconSparkles className="w-3.5 h-3.5" />
                                                 שפרו עם AI
                                             </button>
+
+                                            {/* Revert button - shows when AI refinement was just applied to this block */}
+                                            {canRevertBlockId === block.id && contentBeforeRefineRef.current[block.id] && (
+                                                <button
+                                                    onClick={() => handleRevertRefinement(block.id)}
+                                                    className="flex items-center gap-2 px-3 py-1.5 text-orange-600 hover:text-white hover:bg-orange-500 rounded-lg transition-all text-xs font-bold bg-orange-50 border border-orange-200"
+                                                    title="חזרה לגרסה הקודמת"
+                                                >
+                                                    <IconArrowUp className="w-3.5 h-3.5 rotate-180" />
+                                                    בטל שיפור
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Refine Toolbar Overlay */}
@@ -1890,7 +1987,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
                                             {/* AI Refine Trigger (If Not Already Refining) */}
                                             {refiningBlockId !== block.id && (
-                                                <div className="flex justify-end -mt-4 mb-4">
+                                                <div className="flex justify-end gap-2 -mt-4 mb-4">
                                                     <button
                                                         onClick={() => setRefiningBlockId(block.id)}
                                                         className="flex items-center gap-2 px-4 py-2 text-blue-500 hover:text-white hover:bg-blue-600 rounded-lg transition-all text-xs font-bold bg-blue-50 border border-blue-100"
@@ -1898,6 +1995,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                                         <IconSparkles className="w-4 h-4" />
                                                         שפרו עם AI
                                                     </button>
+
+                                                    {/* Revert button - shows when AI refinement was just applied to this block */}
+                                                    {canRevertBlockId === block.id && contentBeforeRefineRef.current[block.id] && (
+                                                        <button
+                                                            onClick={() => handleRevertRefinement(block.id)}
+                                                            className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:text-white hover:bg-orange-500 rounded-lg transition-all text-xs font-bold bg-orange-50 border border-orange-200"
+                                                            title="חזרה לגרסה הקודמת"
+                                                        >
+                                                            <IconArrowUp className="w-4 h-4 rotate-180" />
+                                                            בטל שיפור
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 

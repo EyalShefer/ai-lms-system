@@ -27,8 +27,13 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
-        'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+        (
+          // Check roles array
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
+           'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles) ||
+          // OR check isAdmin boolean field
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        );
     }
 
     // Validate string length
@@ -482,6 +487,22 @@ service cloud.firestore {
 
       // Only Cloud Functions can create/delete
       allow create, delete: if false;
+    }
+
+    // ============================================
+    // GENERATION TIMINGS (Admin Analytics)
+    // ============================================
+
+    // Generation timing data for speed analytics
+    match /generationTimings/{timingId} {
+      // Any authenticated user can create timing records
+      allow create: if isAuthenticated();
+
+      // Only admins can read timing data
+      allow read: if isAdmin();
+
+      // No updates or deletes allowed
+      allow update, delete: if false;
     }
 
     // ============================================

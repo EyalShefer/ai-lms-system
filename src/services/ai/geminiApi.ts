@@ -38,10 +38,18 @@ import {
     trackGenerationFailed
 } from '../infographicAnalytics';
 
-export const MODEL_NAME = "gemini-2.5-pro"; // Using Gemini via Cloud Function
+/**
+ * ============================================================
+ * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
+ * See AI_MODELS_POLICY.md for approved models.
+ * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * ============================================================
+ */
+export const MODEL_NAME = "gemini-3-pro-preview"; // Using Gemini via Cloud Function
 
 // Gemini 3 Pro Image for infographics (Real AI Image Generation)
-export const INFOGRAPHIC_MODEL = "gemini-3-pro-image";
+// WARNING: Do not change without approval - see AI_MODELS_POLICY.md
+export const INFOGRAPHIC_MODEL = "gemini-3-pro-image-preview";
 
 /**
  * Call Gemini 3 Pro Image via Cloud Function for real AI image generation
