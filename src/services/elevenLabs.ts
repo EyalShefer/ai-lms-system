@@ -1,6 +1,5 @@
 import type { DialogueLine } from "../types/gemini.types";
-
-const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech";
+import { auth } from '../firebase';
 
 // Multi-language Voice Configuration
 // The system automatically selects voices based on the language detected in the text
@@ -47,22 +46,24 @@ function getVoiceConfig(text: string): VoiceConfig {
 
 export const ElevenLabsService = {
     /**
-     * Checks if API key is configured.
+     * Checks if ElevenLabs is available (user must be authenticated)
      */
     isConfigured: (): boolean => {
-        return !!import.meta.env.VITE_ELEVENLABS_API_KEY;
+        return !!auth.currentUser;
     },
 
     /**
      * Generates audio for a single dialogue line.
      * Automatically selects appropriate voice based on language detection.
+     * Uses Cloud Function proxy to keep API key secure.
      * @param line The dialogue line containing speaker and text.
      * @returns Promise resolving to an Audio Blob URL.
      */
     generateAudioSegment: async (line: DialogueLine): Promise<string | null> => {
-        const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
-        if (!apiKey) {
-            console.error("Missing VITE_ELEVENLABS_API_KEY");
+        // Check if user is authenticated
+        const user = auth.currentUser;
+        if (!user) {
+            console.error("User not authenticated for TTS");
             return null;
         }
 
@@ -77,27 +78,31 @@ export const ElevenLabsService = {
         console.log(`🎙️ Generating audio: ${line.speaker} (${language}) - "${line.text.substring(0, 30)}..."`)
 
         try {
-            const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}/stream`, {
+            // Get Firebase ID token for authentication
+            const idToken = await user.getIdToken();
+
+            // Call Cloud Function proxy instead of direct API
+            const response = await fetch('/api/elevenlabs', {
                 method: "POST",
                 headers: {
-                    "Accept": "audio/mpeg",
                     "Content-Type": "application/json",
-                    "xi-api-key": apiKey
+                    "Authorization": `Bearer ${idToken}`
                 },
                 body: JSON.stringify({
+                    voiceId,
                     text: line.text,
-                    model_id: modelId, // Auto-selected based on language
-                    voice_settings: {
+                    modelId,
+                    voiceSettings: {
                         stability: 0.5,
                         similarity_boost: 0.75,
-                        style: line.emotion === "Excited" ? 0.8 : 0.0 // Try to map emotion
+                        style: line.emotion === "Excited" ? 0.8 : 0.0
                     }
                 })
             });
 
             if (!response.ok) {
-                const err = await response.json();
-                console.error("ElevenLabs API Error:", err);
+                const err = await response.json().catch(() => ({ error: response.statusText }));
+                console.error("ElevenLabs Proxy Error:", err);
                 return null;
             }
 

@@ -8,6 +8,7 @@ import { feedbackService } from '../services/feedbackService';
 import { GamificationService } from '../services/telemetry';
 import type { StudentAnalyticsProfile } from '../shared/types/courseTypes';
 import { useAuth } from '../context/AuthContext';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 
 import { db } from '../firebase';
 import {
@@ -1666,7 +1667,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     <React.Suspense fallback={
                         <div className="h-full flex items-center justify-center">
                             <div className="text-center">
-                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                                <AIStarsSpinner size="xl" color="primary" className="mx-auto mb-4" />
                                 <p className="text-slate-500">טוען לוח בקרה...</p>
                             </div>
                         </div>

@@ -1,10 +1,10 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https"; // Added for Proxy & Error handling
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import OpenAI from "openai";
+import OpenAI from "openai"; // Keep for legacy proxy support
 import { defineSecret } from "firebase-functions/params";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,8 +12,13 @@ import { v4 as uuidv4 } from 'uuid';
 initializeApp();
 const db = getFirestore();
 const auth = getAuth();
-const openAiApiKey = defineSecret("OPENAI_API_KEY");
-const MODEL_NAME = "gpt-4o-mini"; // Cost-effective for multi-stage calls
+const openAiApiKey = defineSecret("OPENAI_API_KEY"); // Keep for legacy proxy support
+const geminiApiKey = defineSecret("GEMINI_API_KEY"); // Google AI Studio API Key
+const elevenLabsApiKey = defineSecret("ELEVENLABS_API_KEY"); // ElevenLabs TTS API Key
+const MODEL_NAME = "gemini-2.5-pro"; // Standard model for all LLM calls
+
+// --- GEMINI 2.5 PRO SERVICE ---
+import { generateText, generateJSON, generateWithVision, ChatMessage } from "./services/geminiService";
 
 // --- MIDDLEWARE ---
 import { checkRateLimit } from "./middleware/rateLimiter";
@@ -24,11 +29,69 @@ import { checkQuota, logUsage, extractOpenAITokens, AICallType } from "./service
 // --- GEMINI IMAGE GENERATION ---
 export { generateGeminiImage } from "./geminiImageService";
 
+// --- GEMINI CHAT PROXY (Universal LLM endpoint) ---
+/**
+ * Universal Gemini Chat endpoint for all LLM calls
+ * Replaces OpenAI chat completions with Gemini 2.5 Pro
+ */
+export const geminiChat = onCall({
+    secrets: [geminiApiKey],
+    cors: true,
+    memory: "512MiB",
+    timeoutSeconds: 120
+}, async (request) => {
+    const { messages, options } = request.data as {
+        messages: ChatMessage[];
+        options?: {
+            temperature?: number;
+            maxTokens?: number;
+            responseFormat?: { type: 'json_object' | 'text' };
+        };
+    };
+
+    if (!messages || !Array.isArray(messages)) {
+        throw new HttpsError('invalid-argument', 'messages array is required');
+    }
+
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    logger.info(`🤖 Gemini Chat request from user ${userId}`, {
+        messageCount: messages.length,
+        options
+    });
+
+    try {
+        // Check if JSON response requested
+        if (options?.responseFormat?.type === 'json_object') {
+            const result = await generateJSON(messages, {
+                temperature: options?.temperature,
+                maxTokens: options?.maxTokens
+            });
+            return { content: JSON.stringify(result), type: 'json' };
+        }
+
+        // Regular text response
+        const result = await generateText(messages, {
+            temperature: options?.temperature,
+            maxTokens: options?.maxTokens
+        });
+
+        return { content: result, type: 'text' };
+
+    } catch (error: any) {
+        logger.error('Gemini Chat error:', error);
+        throw new HttpsError('internal', `שגיאה ביצירת תוכן: ${error.message}`);
+    }
+});
+
 // --- GEMINI 3 PRO INFOGRAPHIC (HTML via Vertex AI) ---
 export { generateGemini3Infographic as generateGemini3InfographicHttp } from "./gemini3InfographicService";
 
-// --- IMAGEN 4 INFOGRAPHIC (Real AI Image Generation) ---
-export { generateImagen4Infographic } from "./imagen4InfographicService";
+// --- GEMINI INFOGRAPHIC (Real AI Image Generation with Gemini 3 Pro Image) ---
+export { generateGeminiInfographic } from "./imagen4InfographicService";
 
 // --- YOUTUBE EDUCATIONAL SEARCH ---
 export { searchYouTubeEducational, getYouTubeVideoDetails } from "./youtubeSearchService";
@@ -269,25 +332,113 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
     });
 });
 
+// --- ELEVENLABS TTS PROXY ---
+/**
+ * Proxy for ElevenLabs Text-to-Speech API
+ * Keeps API key secure on server side
+ */
+export const elevenLabsProxy = onRequest({ secrets: [elevenLabsApiKey], cors: true }, async (req, res) => {
+    // 1. Validate Method
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    // 2. Authenticate user via Firebase Auth token
+    const authHeader = req.headers.authorization;
+    let idToken: string | undefined;
+
+    if (authHeader?.startsWith('Bearer ')) {
+        idToken = authHeader.split('Bearer ')[1];
+    }
+
+    if (!idToken) {
+        logger.warn('ElevenLabs Proxy: Missing Firebase token');
+        res.status(401).json({ error: 'נדרשת הזדהות' });
+        return;
+    }
+
+    let userId: string;
+    try {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        userId = decodedToken.uid;
+    } catch (error) {
+        logger.error('ElevenLabs Proxy: Invalid Firebase token:', error);
+        res.status(401).json({ error: 'נדרשת הזדהות', code: 'UNAUTHORIZED' });
+        return;
+    }
+
+    // 3. Apply Rate Limiting
+    await checkRateLimit('ai-generation')(req, res, async () => {
+        try {
+            const apiKey = elevenLabsApiKey.value();
+            const { voiceId, text, modelId, voiceSettings } = req.body;
+
+            if (!voiceId || !text) {
+                res.status(400).json({ error: 'Missing voiceId or text' });
+                return;
+            }
+
+            logger.info(`🎙️ ElevenLabs TTS request for user ${userId}, voice: ${voiceId}`);
+
+            // 4. Forward Request to ElevenLabs
+            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'audio/mpeg',
+                    'Content-Type': 'application/json',
+                    'xi-api-key': apiKey
+                },
+                body: JSON.stringify({
+                    text,
+                    model_id: modelId || 'eleven_multilingual_v2',
+                    voice_settings: voiceSettings || {
+                        stability: 0.5,
+                        similarity_boost: 0.75
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error(`ElevenLabs API Error (${response.status}):`, errorText);
+                res.status(response.status).json({ error: 'TTS generation failed' });
+                return;
+            }
+
+            // 5. Stream audio back to client
+            res.setHeader('Content-Type', 'audio/mpeg');
+
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            res.send(buffer);
+
+            logger.info(`✅ ElevenLabs TTS completed for user ${userId}`);
+
+        } catch (error: any) {
+            logger.error("ElevenLabs Proxy Internal Error:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+});
+
 // --- IMAGE ANALYSIS WITH VISION API ---
 /**
- * Analyzes an uploaded image using GPT-4o Vision API
+ * Analyzes an uploaded image using Gemini 2.5 Pro Vision
  * Extracts educational content, text (OCR), diagrams, and relevant information
  * Returns structured content that can be used for lesson/activity generation
  */
-export const analyzeImageWithVision = onCall({ cors: true, secrets: [openAiApiKey], memory: "512MiB" }, async (request) => {
+export const analyzeImageWithVision = onCall({ cors: true, memory: "512MiB", secrets: [geminiApiKey] }, async (request) => {
     const { imageBase64, mimeType, context } = request.data;
 
     if (!imageBase64 || !mimeType) {
         throw new HttpsError('invalid-argument', 'Missing imageBase64 or mimeType');
     }
 
-    logger.info(`🖼️ Analyzing image with Vision API (type: ${mimeType})`);
+    logger.info(`🖼️ Analyzing image with Gemini 2.5 Pro Vision (type: ${mimeType})`);
 
     try {
-        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
-
-        const systemPrompt = `You are an expert educational content analyzer. Analyze the provided image and extract ALL relevant educational information.
+        const prompt = `You are an expert educational content analyzer. Analyze the provided image and extract ALL relevant educational information.
 
 Your task:
 1. **Text Extraction (OCR)**: Extract ALL visible text from the image, maintaining structure and hierarchy.
@@ -295,6 +446,8 @@ Your task:
 3. **Visual Elements**: Describe any diagrams, charts, graphs, illustrations, or visual aids.
 4. **Structure Detection**: Identify if this is a worksheet, textbook page, diagram, infographic, etc.
 5. **Educational Value**: Determine what can be learned from this image.
+
+${context ? `Context: ${context}\n\n` : ''}Analyze this educational image.
 
 Output in Hebrew JSON format:
 {
@@ -315,36 +468,23 @@ IMPORTANT:
 - Output MUST be in Hebrew
 - Extract text exactly as it appears (preserve Hebrew/English as-is)
 - Be thorough - don't miss any visible text or important visual elements
-- If the image is unclear or low quality, still try to extract what you can`;
+- If the image is unclear or low quality, still try to extract what you can
+- Output ONLY valid JSON, no explanations`;
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", // Use GPT-4o for best vision capabilities
-            messages: [
-                { role: "system", content: systemPrompt },
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: context ? `Context: ${context}\n\nAnalyze this educational image:` : "Analyze this educational image:"
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: `data:${mimeType};base64,${imageBase64}`,
-                                detail: "high" // High detail for better text extraction
-                            }
-                        }
-                    ]
-                }
-            ],
-            response_format: { type: "json_object" },
-            max_tokens: 4000,
-            temperature: 0.3
+        const resultText = await generateWithVision(prompt, imageBase64, mimeType, {
+            temperature: 0.3,
+            maxTokens: 4000
         });
 
-        const resultText = response.choices[0].message.content || "{}";
-        const analysis = JSON.parse(resultText);
+        // Clean and parse JSON
+        let jsonText = resultText
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        const analysis = JSON.parse(jsonText);
 
         logger.info(`✅ Image analysis complete. Topic: ${analysis.main_topic}, Content type: ${analysis.content_type}`);
 
@@ -472,7 +612,7 @@ export const transcribeYoutube = onCall({
     cors: true,
     memory: "512MiB", // Increased for Whisper processing
     timeoutSeconds: 300, // 5 minutes for long videos
-    secrets: [openAiApiKey]
+    secrets: [openAiApiKey, geminiApiKey]
 }, async (request) => {
     const { url, videoId } = request.data;
     const target = videoId || url;
@@ -586,29 +726,20 @@ export const transcribeYoutube = onCall({
         let wasTranslated = false;
 
         if (!hasHebrew && cleanText.length > 0) {
-            logger.info(`🌐 Content is not in Hebrew, translating...`);
+            logger.info(`🌐 Content is not in Hebrew, translating with Gemini 2.5 Pro...`);
 
             try {
-                const response = await withRetry(
-                    () => openai.chat.completions.create({
-                        model: "gpt-4o-mini",
-                        messages: [
-                            {
-                                role: "system",
-                                content: "אתה מתרגם מקצועי. תרגם את התמליל הבא לעברית טבעית וקריאה. שמור על המשמעות המקורית."
-                            },
-                            {
-                                role: "user",
-                                content: cleanText.substring(0, 14000) // Leave room for response
-                            }
-                        ],
-                        temperature: 0.3,
-                        max_tokens: 4000
-                    }),
-                    2 // 2 retries
-                );
+                const translated = await generateText([
+                    {
+                        role: "system",
+                        content: "אתה מתרגם מקצועי. תרגם את התמליל הבא לעברית טבעית וקריאה. שמור על המשמעות המקורית."
+                    },
+                    {
+                        role: "user",
+                        content: cleanText.substring(0, 14000)
+                    }
+                ], { temperature: 0.3, maxTokens: 4000 });
 
-                const translated = response.choices[0].message.content;
                 if (translated && translated.length > 50) {
                     cleanText = translated;
                     wasTranslated = true;
@@ -616,7 +747,6 @@ export const transcribeYoutube = onCall({
                 }
             } catch (transError: any) {
                 logger.warn("Translation failed, returning original:", transError.message);
-                // Don't fail - return original text with a note
             }
         }
 
@@ -674,7 +804,7 @@ const sanitizeData = (data: any): any => {
 // --- Agentic Workflow Stages ---
 
 // Stage 1: The Architect (Planner) - BRAIN
-async function runArchitectStage(openai: OpenAI, context: { topic: string, gradeLevel: string, subject: string, fileData: any, activityLength: string, sourceText?: string, mode?: string }): Promise<UnitSkeleton | null> {
+async function runArchitectStage(context: { topic: string, gradeLevel: string, subject: string, fileData: any, activityLength: string, sourceText?: string, mode?: string }): Promise<UnitSkeleton | null> {
     let stepCount = 5;
     let structureGuide = "";
 
@@ -774,18 +904,29 @@ async function runArchitectStage(openai: OpenAI, context: { topic: string, grade
     }
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", // USE STRONG MODEL FOR BRAIN
-            messages: [
+        // Use Gemini 2.5 Pro for BRAIN (Architect)
+        let text: string;
+        if (context.fileData) {
+            // With image - use vision
+            const fullPrompt = `${systemPrompt}\n\nBuild the skeleton for topic: ${context.topic}\n\nOutput ONLY valid JSON.`;
+            text = await generateWithVision(fullPrompt, context.fileData.base64, context.fileData.mimeType, {
+                temperature: 0.7,
+                maxTokens: 4096
+            });
+        } else {
+            // Text only
+            text = await generateText([
                 { role: "system", content: systemPrompt },
-                { role: "user", content: userContent as any }
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.7
-        });
+                { role: "user", content: `Build the skeleton for topic: ${context.topic}\n\nOutput ONLY valid JSON.` }
+            ], { temperature: 0.7, maxTokens: 4096 });
+        }
 
-        const text = response.choices[0].message.content || "{}";
-        const result = JSON.parse(cleanJsonString(text)) as UnitSkeleton;
+        // Clean and parse JSON
+        let jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        const result = JSON.parse(cleanJsonString(jsonText)) as UnitSkeleton;
 
         if (!result.steps || !Array.isArray(result.steps)) {
             logger.error("Invalid skeleton format");
@@ -800,7 +941,7 @@ async function runArchitectStage(openai: OpenAI, context: { topic: string, grade
 }
 
 // Stage 2: The Generator (Drafter) - HANDS (Parallel)
-async function generateSingleStep(openai: OpenAI, stepInfo: SkeletonStep, context: { topic: string, gradeLevel: string, sourceText?: string, mode?: string }): Promise<any | null> {
+async function generateSingleStep(stepInfo: SkeletonStep, context: { topic: string, gradeLevel: string, sourceText?: string, mode?: string }): Promise<any | null> {
     const contextText = context.sourceText
         ? `Source Material:\n"""${context.sourceText.substring(0, 3000)}..."""`
         : `Topic: ${context.topic}`;
@@ -877,18 +1018,21 @@ async function generateSingleStep(openai: OpenAI, stepInfo: SkeletonStep, contex
     `;
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini", // FAST MODEL FOR HANDS
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `Generate Step ${stepInfo.step_number} now.` }
-            ],
-            temperature: isAssessment ? 0.3 : 0.7, // Lower temperature for Assessment
-            response_format: { type: "json_object" }
+        // Use Gemini 2.5 Pro for HANDS (Generator)
+        const text = await generateText([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate Step ${stepInfo.step_number} now.\n\nOutput ONLY valid JSON.` }
+        ], {
+            temperature: isAssessment ? 0.3 : 0.7,
+            maxTokens: 4096
         });
 
-        const text = response.choices[0].message.content || "{}";
-        return JSON.parse(cleanJsonString(text));
+        // Clean and parse JSON
+        let jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        return JSON.parse(cleanJsonString(jsonText));
     } catch (e) {
         logger.error(`Step Gen Error (Step ${stepInfo.step_number}):`, e);
         return null;
@@ -944,18 +1088,13 @@ Output Format (Hebrew JSON):
 }
 `;
 
-async function validateLessonPlanWithGuardian(openai: OpenAI, content: any[], mode: string): Promise<any> {
+async function validateLessonPlanWithGuardian(content: any[], mode: string): Promise<any> {
     // Only run Guardian in 'lesson' mode
-    // However, the function might be called 'learning' mode in the legacy logic.
-    // We treat 'learning' as 'lesson' for this purpose unless it's strictly 'game' or 'assessment'.
     if (mode === 'assessment' || mode === 'game') return { status: 'PASS', note: 'Guardian skipped for non-lesson mode' };
 
-    logger.info("🛡️ GUARDIAN: Starting Strict Integrity Check...");
+    logger.info("🛡️ GUARDIAN: Starting Strict Integrity Check with Gemini 2.5 Pro...");
 
-    // Serialize content for checking (Sample first 2 modules to save tokens, or full text if short)
     const contentSample = JSON.stringify(content).substring(0, 15000);
-
-    // Define UI Flags based on intended mode
     const uiFlags = "Print PDF: ENABLED, Share with Colleague: ENABLED, Share to Student: DISABLED";
 
     const prompt = LESSON_PLAN_GUARDIAN_PROMPT
@@ -964,22 +1103,22 @@ async function validateLessonPlanWithGuardian(openai: OpenAI, content: any[], mo
         .replace('{{UI_BUTTONS_PRESENT}}', uiFlags);
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", // Strong model for validation
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.1
-        });
+        const resultText = await generateText([
+            { role: "user", content: prompt + '\n\nOutput ONLY valid JSON.' }
+        ], { temperature: 0.1, maxTokens: 2048 });
 
-        const resultText = response.choices[0].message.content || "{}";
-        const validationResult = JSON.parse(cleanJsonString(resultText));
+        // Clean and parse JSON
+        let jsonText = resultText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        const validationResult = JSON.parse(cleanJsonString(jsonText));
 
         logger.info("🛡️ GUARDIAN RESULT:", validationResult);
         return validationResult;
 
     } catch (e) {
         logger.error("Guardian Check Failed:", e);
-        // Fail open or closed? Safe to fail open if AI errors, but log warning.
         return { status: 'PASS', note: 'Guardian failed to execute' };
     }
 }
@@ -989,7 +1128,7 @@ async function validateLessonPlanWithGuardian(openai: OpenAI, content: any[], mo
 export const generateLessonPlan = onDocumentCreated(
     {
         document: "course_generation_queue/{docId}",
-        secrets: [openAiApiKey],
+        secrets: [openAiApiKey, geminiApiKey],
         timeoutSeconds: 540, // Increased timeout for 3 stages
         memory: "512MiB",
     },
@@ -1013,14 +1152,14 @@ export const generateLessonPlan = onDocumentCreated(
 
             // 1. Architect (The Brain)
             logger.info(`Stage 1: Architect (Hyperspeed) running in ${data.mode || 'learning'} mode...`);
-            const skeleton = await runArchitectStage(openai, {
+            const skeleton = await runArchitectStage({
                 topic,
                 gradeLevel,
                 subject,
                 fileData,
                 activityLength,
                 sourceText: data.sourceText,
-                mode: data.mode || 'learning' // Pass mode
+                mode: data.mode || 'learning'
             });
 
             if (!skeleton || !skeleton.steps) {
@@ -1031,11 +1170,11 @@ export const generateLessonPlan = onDocumentCreated(
             logger.info(`Stage 2: Hands running in PARALLEL for ${skeleton.steps.length} steps...`);
 
             const stepPromises = skeleton.steps.map(step =>
-                generateSingleStep(openai, step, {
+                generateSingleStep(step, {
                     topic,
                     gradeLevel,
                     sourceText: data.sourceText,
-                    mode: data.mode || 'learning' // Pass mode
+                    mode: data.mode || 'learning'
                 })
             );
 
@@ -1045,7 +1184,7 @@ export const generateLessonPlan = onDocumentCreated(
             logger.info(`Generation complete. Success: ${validResults.length}/${skeleton.steps.length}`);
 
             // --- 🛡️ GUARDIAN CHECK ---
-            const guardianResult = await validateLessonPlanWithGuardian(openai, validResults, data.mode || 'learning');
+            const guardianResult = await validateLessonPlanWithGuardian(validResults, data.mode || 'learning');
 
             if (guardianResult.status === 'REJECT') {
                 logger.warn("🛡️ GUARDIAN SOFT-BLOCK:", guardianResult);
@@ -1451,7 +1590,7 @@ async function parseRSSFeedServer(feedUrl: string, sourceName: string): Promise<
     }
 }
 
-async function translateToHebrew(openai: OpenAI, title: string, summary: string): Promise<{
+async function translateToHebrew(title: string, summary: string): Promise<{
     hebrewTitle: string;
     hebrewSummary: string;
 }> {
@@ -1469,16 +1608,15 @@ async function translateToHebrew(openai: OpenAI, title: string, summary: string)
 החזר JSON בלבד:
 {"hebrewTitle": "...", "hebrewSummary": "..."}`;
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' },
-            max_tokens: 500,
-            temperature: 0.3
-        });
+        const text = await generateText([
+            { role: 'user', content: prompt + '\n\nOutput ONLY valid JSON.' }
+        ], { temperature: 0.3, maxTokens: 500 });
 
-        const content = response.choices[0].message.content || '{}';
-        return JSON.parse(content);
+        let jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        return JSON.parse(jsonText);
     } catch (error) {
         logger.error('Translation error:', error);
         return { hebrewTitle: title, hebrewSummary: summary };
@@ -1491,7 +1629,7 @@ async function translateToHebrew(openai: OpenAI, title: string, summary: string)
  */
 export const updateAINews = onSchedule({
     schedule: 'every 6 hours',
-    secrets: [openAiApiKey],
+    secrets: [openAiApiKey, geminiApiKey],
     memory: '512MiB',
     timeoutSeconds: 300
 }, async () => {
@@ -1541,7 +1679,6 @@ export const updateAINews = onSchedule({
 
             // Translate to Hebrew
             const { hebrewTitle, hebrewSummary } = await translateToHebrew(
-                openai,
                 article.title,
                 article.summary
             );
@@ -1593,7 +1730,7 @@ export const updateAINews = onSchedule({
  */
 export const triggerAINewsUpdate = onCall({
     cors: true,
-    secrets: [openAiApiKey]
+    secrets: [openAiApiKey, geminiApiKey]
 }, async (request) => {
     // Verify admin (optional - add your admin check logic)
     if (!request.auth) {
@@ -1620,7 +1757,6 @@ export const triggerAINewsUpdate = onCall({
 
                 if (existing.empty) {
                     const { hebrewTitle, hebrewSummary } = await translateToHebrew(
-                        openai,
                         article.title,
                         article.summary
                     );
@@ -1665,7 +1801,8 @@ export const triggerAINewsUpdate = onCall({
 export const generateGemini3Infographic = onCall({
     cors: true,
     memory: "512MiB",
-    timeoutSeconds: 120
+    timeoutSeconds: 120,
+    secrets: [geminiApiKey]
 }, async (request) => {
     const startTime = Date.now();
 
@@ -1845,28 +1982,24 @@ const PROMPT_CATEGORIES = [
 export const generateWeeklyPrompt = onSchedule({
     schedule: '0 9 * * 1', // Every Monday at 9 AM
     timeZone: 'Asia/Jerusalem',
-    secrets: [openAiApiKey],
+    secrets: [openAiApiKey, geminiApiKey],
     memory: '512MiB',
     timeoutSeconds: 120
 }, async () => {
     logger.info('🤖 Starting weekly prompt generation...');
 
     try {
-        const openai = new OpenAI({ apiKey: openAiApiKey.value() });
-
         // Pick a random category and subcategory
         const randomCategory = PROMPT_CATEGORIES[Math.floor(Math.random() * PROMPT_CATEGORIES.length)];
         const randomSubcategory = randomCategory.subcategories[Math.floor(Math.random() * randomCategory.subcategories.length)];
 
         logger.info(`📌 Selected: ${randomCategory.name} > ${randomSubcategory}`);
 
-        // Generate prompt using OpenAI
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                {
-                    role: 'system',
-                    content: `אתה מומחה ליצירת פרומפטים למורים בישראל. צור פרומפט איכותי שמורים יוכלו להעתיק לכלי AI כמו ChatGPT, Claude או Gemini.
+        // Generate prompt using Gemini 2.5 Pro
+        const content = await generateText([
+            {
+                role: 'system',
+                content: `אתה מומחה ליצירת פרומפטים למורים בישראל. צור פרומפט איכותי שמורים יוכלו להעתיק לכלי AI כמו ChatGPT, Claude או Gemini.
 
 הפרומפט חייב לכלול שדות דינמיים בפורמט {{שם_שדה}} שהמורה ימלא לפני ההעתקה.
 
@@ -1881,35 +2014,35 @@ export const generateWeeklyPrompt = onSchedule({
       "label": "שם תצוגה",
       "placeholder": "דוגמה למילוי",
       "type": "text|select|number",
-      "options": ["אפשרות1", "אפשרות2"], // רק אם type=select
+      "options": ["אפשרות1", "אפשרות2"],
       "required": true
     }
   ],
   "tips": "טיפ קצר לשימוש יעיל"
 }`
-                },
-                {
-                    role: 'user',
-                    content: `צור פרומפט איכותי בקטגוריה "${randomCategory.name}" עבור "${randomSubcategory}".
+            },
+            {
+                role: 'user',
+                content: `צור פרומפט איכותי בקטגוריה "${randomCategory.name}" עבור "${randomSubcategory}".
 
 דרישות:
 1. הפרומפט חייב להיות בעברית
 2. כלול לפחות 3 שדות דינמיים (מקצוע, שכבה, נושא וכו')
 3. הפרומפט צריך להיות מפורט ולתת הנחיות ברורות לכלי ה-AI
-4. הוסף טיפ שימושי למורה`
-                }
-            ],
-            temperature: 0.8,
-            max_tokens: 2000
-        });
+4. הוסף טיפ שימושי למורה
 
-        const content = response.choices[0]?.message?.content;
+Output ONLY valid JSON.`
+            }
+        ], { temperature: 0.8, maxTokens: 2000 });
+
         if (!content) {
-            throw new Error('No content in OpenAI response');
+            throw new Error('No content in Gemini response');
         }
 
         // Parse the JSON response
-        const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        let cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) cleanedContent = jsonMatch[0];
         const promptData = JSON.parse(cleanedContent);
 
         // Unmark previous featured prompt
@@ -1963,7 +2096,8 @@ export const generateWeeklyPrompt = onSchedule({
 export const generateInitialPrompts = onCall({
     cors: true,
     memory: '2GiB',
-    timeoutSeconds: 540 // 9 minutes
+    timeoutSeconds: 540, // 9 minutes
+    secrets: [geminiApiKey]
 }, async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Authentication required');
@@ -1972,11 +2106,8 @@ export const generateInitialPrompts = onCall({
     logger.info('🚀 Starting bulk prompt generation with Gemini 2.0 Flash...');
 
     // Dynamic import to avoid cold start issues
-    const { VertexAI } = await import('@google-cloud/vertexai');
-
-    const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'ai-lms-pro';
-    const vertexAI = new VertexAI({ project: projectId, location: 'us-central1' });
-    const model = vertexAI.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
+    const { GoogleGenAI } = await import('@google/genai');
+    const genAI = new GoogleGenAI({ apiKey: geminiApiKey.value() });
 
     const createdPrompts: string[] = [];
     let errorCount = 0;
@@ -2025,9 +2156,11 @@ export const generateInitialPrompts = onCall({
 סוגי שדות אפשריים: "text", "select", "number"
 עבור select הוסף גם "options": ["אפשרות1", "אפשרות2"]`;
 
-                const result = await model.generateContent(prompt);
-                const response = result.response;
-                const content = response.candidates?.[0]?.content?.parts?.[0]?.text;
+                const result = await genAI.models.generateContent({
+                    model: 'gemini-2.0-flash-001',
+                    contents: prompt
+                });
+                const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (!content) continue;
 
                 const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -2239,7 +2372,7 @@ export const checkDueTasksAndSendReports = onSchedule({
                     maxPoints: taskData.maxPoints || 100
                 };
 
-                const analysis = await analyzeSubmissions(openai, task, submissions, totalAssigned);
+                const analysis = await analyzeSubmissions(task, submissions, totalAssigned);
 
                 // Prepare report data
                 const reportData: TaskReportData = {
@@ -2405,10 +2538,9 @@ async function parseBlogRSSFeed(feedUrl: string, sourceName: string): Promise<Ra
 }
 
 /**
- * Generate Hebrew blog article with practical classroom applications using GPT-4o
+ * Generate Hebrew blog article with practical classroom applications using Gemini 2.5 Pro
  */
 async function generateBlogArticle(
-    openai: OpenAI,
     article: RawBlogArticle
 ): Promise<{
     title: string;
@@ -2455,18 +2587,19 @@ async function generateBlogArticle(
 חשוב:
 1. כל התוכן חייב להיות בעברית תקנית
 2. התמקד ב"מה המורה יכול לעשות עם זה מחר בכיתה"
-3. היה ספציפי - לא "אפשר להשתמש בזה" אלא "תנו לתלמידים משימה לכתוב שאלות לחומר הלימוד"`;
+3. היה ספציפי - לא "אפשר להשתמש בזה" אלא "תנו לתלמידים משימה לכתוב שאלות לחומר הלימוד"
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o', // Using GPT-4o for higher quality Hebrew content
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-            temperature: 0.7
-        });
+Output ONLY valid JSON.`;
 
-        const content = response.choices[0].message.content || '{}';
-        const result = JSON.parse(content);
+        const content = await generateText([
+            { role: 'user', content: prompt }
+        ], { temperature: 0.7, maxTokens: 1500 });
+
+        let jsonText = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+
+        const result = JSON.parse(jsonText);
 
         // Validate Hebrew content
         const hasHebrew = (text: string) => /[\u0590-\u05FF]/.test(text);
@@ -2490,7 +2623,7 @@ async function generateBlogArticle(
 export const generateWeeklyBlogArticle = onSchedule({
     schedule: '0 10 * * 0', // Every Sunday at 10 AM
     timeZone: 'Asia/Jerusalem',
-    secrets: [openAiApiKey],
+    secrets: [openAiApiKey, geminiApiKey],
     memory: '512MiB',
     timeoutSeconds: 300
 }, async () => {
@@ -2533,7 +2666,7 @@ export const generateWeeklyBlogArticle = onSchedule({
             }
 
             // Generate Hebrew blog article
-            const blogContent = await generateBlogArticle(openai, article);
+            const blogContent = await generateBlogArticle(article);
 
             if (!blogContent) {
                 continue;
@@ -2600,7 +2733,7 @@ export const generateWeeklyBlogArticle = onSchedule({
  */
 export const triggerBlogArticleGeneration = onCall({
     cors: true,
-    secrets: [openAiApiKey],
+    secrets: [openAiApiKey, geminiApiKey],
     memory: '512MiB',
     timeoutSeconds: 300
 }, async (request) => {
@@ -2654,7 +2787,7 @@ export const triggerBlogArticleGeneration = onCall({
 
         if (!existing.empty) continue;
 
-        const blogContent = await generateBlogArticle(openai, article);
+        const blogContent = await generateBlogArticle(article);
         if (!blogContent) continue;
 
         const categoryLabels: Record<string, string> = {

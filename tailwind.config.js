@@ -186,6 +186,19 @@ export default {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        // AI Stars animations
+        orbit: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
+        sparkle: {
+          '0%, 100%': { opacity: '0', transform: 'scale(0)' },
+          '50%': { opacity: '1', transform: 'scale(1)' },
+        },
+        twinkle: {
+          '0%, 100%': { opacity: '0.3', transform: 'scale(0.8)' },
+          '50%': { opacity: '1', transform: 'scale(1.2)' },
+        },
       },
 
       animation: {
@@ -199,6 +212,9 @@ export default {
         'float': 'float 4s ease-in-out infinite',
         'blob': 'blob 7s infinite',
         'shimmer': 'shimmer 2s linear infinite',
+        'orbit': 'orbit 2s linear infinite',
+        'sparkle': 'sparkle 1.5s ease-in-out infinite',
+        'twinkle': 'twinkle 2s ease-in-out infinite',
       },
 
       // Min heights for touch targets

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
@@ -9,7 +10,6 @@ import {
     generateTrueFalseQuestion,
     generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent
 } from '../gemini';
-import { generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
@@ -20,6 +20,9 @@ import { MultimodalService } from '../services/multimodalService'; // Restore Im
 import {
     enrichUnitBlocks, enrichActivityBlock
 } from '../services/adaptiveContentService';
+import {
+    enrichActivityWithImages, isActivityEnriched, generateContextImageBlock
+} from '../services/activityMediaService';
 import { createBlock } from '../shared/config/blockDefinitions'; // DECOUPLER FIX
 
 // ... (existing imports)
@@ -38,7 +41,7 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone, IconInfographic
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone
 } from '../icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -66,8 +69,7 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'true_false_speed': 'אמת או שקר',
     'matching': 'התאמה',
     'audio-response': 'תשובה קולית',
-    'mindmap': 'מפת חשיבה',
-    'infographic': 'אינפוגרפיקה'
+    'mindmap': 'מפת חשיבה'
 };
 
 // --- הגדרות מקומיות ---
@@ -146,15 +148,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     // --- Mind Map Modal State ---
     const [mindMapModalOpen, setMindMapModalOpen] = useState(false);
     const [mindMapBlockId, setMindMapBlockId] = useState<string | null>(null);
-
-    // --- Infographic State ---
-    const [generatingInfographicBlockId, setGeneratingInfographicBlockId] = useState<string | null>(null);
-    const [infographicTextInput, setInfographicTextInput] = useState<Record<string, string>>({});
-    const [infographicPreview, setInfographicPreview] = useState<{
-        imageUrl: string;
-        blockId: string;
-        visualType: InfographicType;
-    } | null>(null);
 
     // Handler for YouTube video selection
     const handleYouTubeVideoSelect = async (video: YouTubeVideoResult) => {
@@ -343,13 +336,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 console.log("✅ Skeleton Ready:", skeleton.steps.length, "steps");
 
+                // 🖼️ START CONTEXT IMAGE GENERATION IN PARALLEL (for activities only)
+                // This runs concurrently with content generation to reduce total time
+                let contextImagePromise: Promise<ActivityBlock | null> | null = null;
+                if (productType === 'activity') {
+                    const topic = unit.title || course?.title || '';
+                    const subject = settings.subject || 'כללי';
+                    console.log("🖼️ [Parallel] Starting context image generation alongside content...");
+                    contextImagePromise = generateContextImageBlock(topic, subject, gradeLevel);
+                }
+
                 // 2. PLACEHOLDER PHASE (Immediate Feedback)
                 const placeholderBlocks = skeleton.steps.map((step: any) => ({
                     id: `step-${step.step_number}`, // Temporary ID
-                    type: 'text', // Generic type until filled
-                    content: `### ${step.step_number}. ${step.title}\n_(כותב תוכן...)_`,
+                    type: 'loading-placeholder', // Special type for loading state
+                    content: {
+                        stepNumber: step.step_number,
+                        title: step.title,
+                        message: 'כותב תוכן...'
+                    },
                     metadata: {
-                        isLoading: true, // Custom flag we can use for styling
+                        isLoading: true,
                         stepInfo: step
                     }
                 }));
@@ -445,6 +452,26 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 await Promise.all(promises);
 
                 console.log("🏁 All steps generated. Auto-Saving to Firestore...");
+                console.log("🔍 DEBUG: productType =", productType, "| Expected: 'activity'");
+
+                // 🖼️ WAIT FOR CONTEXT IMAGE (started in parallel earlier)
+                // This should be ready by now or very soon since it ran alongside content
+                let contextImageBlock: ActivityBlock | null = null;
+                if (contextImagePromise) {
+                    console.log("🖼️ [Parallel] Waiting for context image to complete...");
+                    contextImageBlock = await contextImagePromise;
+
+                    if (contextImageBlock) {
+                        console.log("✅ [Parallel] Context image ready! Inserting at beginning...");
+                        // Insert context image as first block
+                        setEditedUnit((prev: any) => ({
+                            ...prev,
+                            activityBlocks: [contextImageBlock, ...prev.activityBlocks]
+                        }));
+                    } else {
+                        console.warn("⚠️ [Parallel] Context image not available, continuing without it");
+                    }
+                }
 
                 // Safe Save: Read from Ref instead of inside setState
                 // Small timeout to allow last render to flush
@@ -454,6 +481,39 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 // Mark generation as done
                 setIsAutoGenerating(false);
+
+                // 🖼️ FALLBACK: Only if parallel context image failed
+                // We track success with a variable, not by checking state (which is async)
+                if (productType === 'activity' && !contextImageBlock) {
+                    // Parallel context image failed, try full enrichment as fallback
+                    console.log("🖼️ [Fallback] Context image failed, trying full enrichment...");
+                    const topic = unit.title || course?.title || '';
+                    const subject = settings.subject || 'כללי';
+
+                    // Need to get fresh unit from ref after state updates
+                    setTimeout(() => {
+                        const currentUnit = editedUnitRef.current;
+                        if (currentUnit && !isActivityEnriched(currentUnit)) {
+                            enrichActivityWithImages(
+                                currentUnit,
+                                topic,
+                                subject,
+                                gradeLevel,
+                                (step, current, total) => {
+                                    console.log(`🖼️ Media Generation: ${step} (${current}/${total})`);
+                                }
+                            ).then(enrichedUnit => {
+                                console.log("✅ Activity enriched with images!");
+                                setEditedUnit(enrichedUnit);
+                                setTimeout(() => {
+                                    onSave(enrichedUnit);
+                                }, 100);
+                            }).catch(err => {
+                                console.warn("⚠️ Image enrichment failed (activity still works):", err);
+                            });
+                        }
+                    }, 200);
+                }
 
             } catch (error) {
                 console.error("Incremental Auto Generation Failed", error);
@@ -764,85 +824,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
 
-    // --- Infographic Generation Handler ---
-    const handleGenerateInfographic = async (blockId: string, visualType: InfographicType, customText?: string) => {
-        setGeneratingInfographicBlockId(blockId);
-
-        try {
-            // Get text content - either custom input or from unit's text blocks
-            let textContent = customText || '';
-
-            if (!textContent) {
-                // Gather text from all text blocks in the unit
-                textContent = editedUnit.activityBlocks
-                    ?.filter((b: any) => b.type === 'text')
-                    .map((b: any) => typeof b.content === 'string' ? b.content : ((b.content as any)?.teach_content || (b.content as any)?.text || ''))
-                    .join('\n')
-                    .substring(0, 2000) || '';
-            }
-
-            if (!textContent || textContent.length < 3) {
-                alert("נא להזין תוכן ליצירת האינפוגרפיקה");
-                return;
-            }
-
-            // Generate infographic
-            const imageBlob = await generateInfographicFromText(
-                textContent,
-                visualType,
-                editedUnit.title
-            );
-
-            if (imageBlob) {
-                // Convert blob to base64 for preview
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64data = reader.result as string;
-                    setInfographicPreview({
-                        imageUrl: base64data,
-                        blockId: blockId,
-                        visualType: visualType
-                    });
-                };
-                reader.readAsDataURL(imageBlob);
-            } else {
-                alert("שגיאה ביצירת אינפוגרפיקה. נסה שנית.");
-            }
-        } catch (error) {
-            console.error("Infographic Generation Error:", error);
-            alert("שגיאה ביצירת אינפוגרפיקה");
-        } finally {
-            setGeneratingInfographicBlockId(null);
-        }
-    };
-
-    const handleConfirmInfographic = () => {
-        if (!infographicPreview) return;
-
-        const newBlocks = [...(editedUnit.activityBlocks || [])];
-        const blockIndex = newBlocks.findIndex(b => b.id === infographicPreview.blockId);
-
-        if (blockIndex !== -1) {
-            newBlocks[blockIndex] = {
-                ...newBlocks[blockIndex],
-                content: {
-                    imageUrl: infographicPreview.imageUrl,
-                    title: `אינפוגרפיקה: ${editedUnit.title}`,
-                    caption: '',
-                    visualType: infographicPreview.visualType
-                },
-                metadata: {
-                    ...newBlocks[blockIndex].metadata,
-                    infographicType: infographicPreview.visualType
-                }
-            };
-            setEditedUnit({ ...editedUnit, activityBlocks: newBlocks });
-            setIsDirty(true);
-        }
-
-        setInfographicPreview(null);
-    };
-
     // --- שדרוג: יצירת פודקאסט עבור בלוק ספציפי ---
     const handleGeneratePodcastBlock = async (blockId: string) => {
         if (!ElevenLabsService.isConfigured()) {
@@ -1080,42 +1061,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : url;
     };
 
-    // --- Helper: Extract suggested prompt text from block content ---
-    const getSuggestedPromptFromBlock = (block: any): string => {
-        if (!block) return '';
-
-        // For question blocks - use the question text
-        if (block.type === 'multiple-choice' || block.type === 'open-question') {
-            const question = block.metadata?.relatedQuestion?.question || block.content?.question || '';
-            if (question) return `תמונה המתארת: ${question}`;
-        }
-
-        // For text blocks - use first 100 chars of content
-        if (block.type === 'text') {
-            const textContent = typeof block.content === 'string'
-                ? block.content
-                : (block.content?.teach_content || block.content?.text || '');
-            if (textContent) {
-                const cleanText = textContent.replace(/<[^>]*>/g, '').trim().substring(0, 100);
-                return `איור המתאר: ${cleanText}`;
-            }
-        }
-
-        // For image blocks - use unit title or caption
-        if (block.type === 'image') {
-            if (block.metadata?.aiPrompt) return block.metadata.aiPrompt; // Previous prompt
-            if (block.metadata?.caption) return `תמונה של: ${block.metadata.caption}`;
-            if (editedUnit?.title) return `איור לנושא: ${editedUnit.title}`;
-        }
-
-        // Default - use unit title
-        if (editedUnit?.title) return `איור לנושא: ${editedUnit.title}`;
-
-        return '';
-    };
-
     // --- New: Unified Media Toolbar for Questions (Upload / AI / Link) ---
-    const renderMediaToolbar = (blockId: string, block?: any) => {
+    const renderMediaToolbar = (blockId: string) => {
         const mode = mediaInputMode[blockId]; // 'image_select', 'video_select', 'image_ai', 'video_link'
 
         // 1. מצב התחלתי - בחירה בין תמונה לוידאו
@@ -1133,16 +1080,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             return (
                 <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
                     <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="image/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
-                    <button onClick={() => {
-                        // Pre-fill with suggested text if empty
-                        if (!mediaInputValue[blockId]) {
-                            const suggestedText = getSuggestedPromptFromBlock(block);
-                            if (suggestedText) {
-                                setMediaInputValue({ ...mediaInputValue, [blockId]: suggestedText });
-                            }
-                        }
-                        setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' });
-                    }} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' })} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
                 </div>
             );
@@ -1160,28 +1098,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             );
         }
 
-        // 4. ממשק יצירת AI (פרומפט) - תיבה גדולה יותר
+        // 4. ממשק יצירת AI (פרומפט)
         if (mode === 'image_ai') {
             return (
-                <div className="flex flex-col gap-3 w-full bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-lg animate-scale-in mt-2">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-blue-700 flex items-center gap-2">
-                            <IconPalette className="w-4 h-4" /> תיאור התמונה ליצירה
-                        </span>
-                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-4 h-4" /></button>
-                    </div>
-                    <textarea
-                        className="w-full p-3 border border-blue-200 rounded-lg text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white"
-                        rows={4}
-                        placeholder="תארו את התמונה שברצונכם ליצור...&#10;למשל: תא ביולוגי מתחת למיקרוסקופ עם גרעין וממברנה, בסגנון אילוסטרציה חינוכית"
-                        value={mediaInputValue[blockId] || ''}
-                        onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })}
-                    />
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">טיפ: ככל שהתיאור מפורט יותר, התוצאה תהיה טובה יותר</span>
-                        <button onClick={() => handleGenerateAiImage(blockId, 'metadata')} disabled={loadingBlockId === blockId} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-md">
-                            {loadingBlockId === blockId ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</> : <><IconWand className="w-4 h-4" /> צור תמונה</>}
+                <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
+                    <span className="text-xs font-bold text-blue-600">תיאור התמונה ליצירה:</span>
+                    <div className="flex gap-2">
+                        <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="למשל: תא ביולוגי מתחת למיקרוסקופ..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <button onClick={() => handleGenerateAiImage(blockId, 'metadata')} disabled={loadingBlockId === blockId} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap flex items-center gap-2">
+                            {loadingBlockId === blockId ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר...</> : 'צור'}
                         </button>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-5 h-5" /></button>
                     </div>
                 </div>
             );
@@ -1193,7 +1120,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
                     <span className="text-xs font-bold text-blue-600">קישור ל-YouTube:</span>
                     <div className="flex gap-2">
-                        <input type="text" dir="ltr" className="flex-1 p-2 border rounded text-sm text-left" placeholder="https://youtube.com/..." value={mediaInputValue[blockId] || ''} onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <input type="text" dir="ltr" className="flex-1 p-2 border rounded text-sm text-left" placeholder="https://youtube.com/..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
                         <button onClick={async () => {
                             const url = mediaInputValue[blockId];
                             if (!url) return;
@@ -1271,7 +1198,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200 hover:border-teal-300"><IconInfographic className="w-4 h-4 text-teal-600" /><span className="text-teal-700">{BLOCK_TYPE_MAPPING['infographic']}</span></button>
 
                         <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
                     </div>
@@ -1325,7 +1251,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     if (isAutoGenerating) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-                <div className="relative mb-6"><div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div></div>
+                <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
                 <h2 className="text-2xl font-bold text-gray-800">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
             </div>
         );
@@ -1481,7 +1407,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         {AI_ACTIONS.map(action => (<button key={action.label} onClick={() => handleAiAction(block.id, block.content, action.prompt)} disabled={loadingBlockId === block.id} className="text-xs bg-white/80 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium shadow-sm disabled:opacity-50">{loadingBlockId === block.id ? '...' : action.label}</button>))}
                                                     </div>
                                                     <div className="flex gap-1 border-r border-blue-200 pr-2">
-                                                        {renderMediaToolbar(block.id, block)}
+                                                        {renderMediaToolbar(block.id)}
                                                     </div>
                                                 </div>
                                                 <div className="mt-2 flex justify-end">
@@ -1499,63 +1425,37 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {block.type === 'image' && (
                                             <div className="p-2">
                                                 {!block.content ? (
-                                                    mediaInputMode[block.id] === 'ai' ? (
-                                                        // AI Generation Mode - Full Width Panel
-                                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-xl">
-                                                            <div className="flex items-center justify-between mb-4">
-                                                                <h4 className="text-base font-bold text-blue-700 flex items-center gap-2">
-                                                                    <IconPalette className="w-5 h-5" /> יצירת תמונה עם AI
-                                                                </h4>
-                                                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-full transition-colors">
-                                                                    <IconX className="w-5 h-5" />
-                                                                </button>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                                                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
+                                                            <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                                                            <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
+                                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                                                        </label>
+                                                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group">
+                                                            <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
+                                                            <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
+                                                        </button>
+                                                        {mediaInputMode[block.id] === 'ai' && (
+                                                            <div className="col-span-2 bg-white p-4 rounded-xl border border-blue-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
+                                                                <h4 className="text-sm font-bold text-blue-700 mb-2">תאר את התמונה שברצונך ליצור:</h4>
+                                                                <textarea className="w-full p-2 border rounded-lg mb-2 text-sm focus:border-blue-400 outline-none" rows={2} placeholder="ילד רץ בשדה חמניות..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}></textarea>
+                                                                <div className="flex gap-2 justify-end">
+                                                                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
+                                                                    <button
+                                                                        onClick={() => handleGenerateAiImage(block.id, 'content')}
+                                                                        disabled={loadingBlockId === block.id}
+                                                                        className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                                                    >
+                                                                        {loadingBlockId === block.id ? (
+                                                                            <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר...</>
+                                                                        ) : (
+                                                                            <> <IconWand className="w-3 h-3" /> צור תמונה</>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <textarea
-                                                                className="w-full p-4 border border-blue-200 rounded-xl text-base focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white mb-4"
-                                                                rows={5}
-                                                                placeholder="תארו את התמונה בפירוט...&#10;&#10;למשל: ילד רץ בשדה חמניות ביום שמשי, בסגנון אילוסטרציה צבעונית לילדים"
-                                                                value={mediaInputValue[block.id] || ''}
-                                                                onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
-                                                                autoFocus
-                                                            ></textarea>
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-sm text-gray-500">💡 טיפ: הוסיפו פרטים על סגנון, צבעים ואווירה לתוצאה טובה יותר</span>
-                                                                <button
-                                                                    onClick={() => handleGenerateAiImage(block.id, 'content')}
-                                                                    disabled={loadingBlockId === block.id}
-                                                                    className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-lg"
-                                                                >
-                                                                    {loadingBlockId === block.id ? (
-                                                                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</>
-                                                                    ) : (
-                                                                        <><IconWand className="w-4 h-4" /> צור תמונה</>
-                                                                    )}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        // Selection Mode - Two Column Grid
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
-                                                            <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
-                                                                <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
-                                                                <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
-                                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
-                                                            </label>
-                                                            <button onClick={() => {
-                                                                // Pre-fill with suggested text if empty
-                                                                if (!mediaInputValue[block.id]) {
-                                                                    const suggestedText = getSuggestedPromptFromBlock(block);
-                                                                    if (suggestedText) {
-                                                                        setMediaInputValue({ ...mediaInputValue, [block.id]: suggestedText });
-                                                                    }
-                                                                }
-                                                                setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' });
-                                                            }} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group">
-                                                                <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
-                                                                <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
-                                                            </button>
-                                                        </div>
-                                                    )
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <div className="relative">
                                                         <img src={block.content} className="w-full h-64 object-cover rounded-xl shadow-md bg-gray-100" alt="Block Media" loading="lazy" decoding="async" />
@@ -1603,7 +1503,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         {mediaInputMode[block.id] === 'link' && (
                                                             <div className="col-span-2 bg-white p-4 rounded-xl border border-red-100 shadow-lg absolute inset-0 z-10 flex flex-col justify-center">
                                                                 <h4 className="text-sm font-bold text-red-700 mb-2">הדבק קישור (YouTube / Vimeo):</h4>
-                                                                <input type="text" dir="ltr" className="w-full p-2 border rounded-lg mb-2 text-sm text-left" placeholder="https://www.youtube.com/watch?v=..." value={mediaInputValue[block.id] || ''} onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
+                                                                <input type="text" dir="ltr" className="w-full p-2 border rounded-lg mb-2 text-sm text-left" placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })} />
                                                                 <div className="flex gap-2 justify-end">
                                                                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-xs hover:bg-gray-100 px-3 py-1 rounded">ביטול</button>
                                                                     <div className="flex flex-col gap-2 w-full">
@@ -1953,7 +1853,31 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex-1 flex gap-2">
                                                         <div className={`mt-1 ${block.type === 'multiple-choice' ? 'text-sky-500' : 'text-teal-500'}`}>{block.type === 'multiple-choice' ? <IconList className="w-5 h-5" /> : <IconEdit className="w-5 h-5" />}</div>
-                                                        <input type="text" className="flex-1 font-bold text-base p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400" value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה או צרו באמצעות AI"} />
+                                                        <textarea
+                                                            className="flex-1 font-bold text-base p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400 resize-none overflow-hidden min-h-[28px]"
+                                                            value={(block.content && block.content.question) || ''}
+                                                            onChange={(e) => {
+                                                                updateBlock(block.id, { ...block.content, question: e.target.value });
+                                                                // Auto-resize textarea
+                                                                e.target.style.height = 'auto';
+                                                                e.target.style.height = e.target.scrollHeight + 'px';
+                                                            }}
+                                                            onInput={(e) => {
+                                                                // Auto-resize on load/paste
+                                                                const target = e.target as HTMLTextAreaElement;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = target.scrollHeight + 'px';
+                                                            }}
+                                                            ref={(el) => {
+                                                                // Initial resize when content loads
+                                                                if (el) {
+                                                                    el.style.height = 'auto';
+                                                                    el.style.height = el.scrollHeight + 'px';
+                                                                }
+                                                            }}
+                                                            placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה או צרו באמצעות AI"}
+                                                            rows={1}
+                                                        />
                                                     </div>
                                                     {showScoring && (<div className="flex flex-col items-center ml-2 bg-white/50 p-1 rounded-lg border border-gray-100"><span className="text-[10px] font-bold text-gray-400 uppercase">ניקוד</span><input type="number" className="w-14 text-center p-1 rounded border-2 border-transparent focus:border-blue-400 bg-white/80 font-bold text-blue-600 focus:bg-white transition-all outline-none" value={block.metadata?.score || 0} onChange={(e) => updateBlock(block.id, block.content, { score: Number(e.target.value) })} /></div>)}
                                                 </div>
@@ -1997,7 +1921,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="mt-3 pt-3 border-t border-gray-200/50 flex justify-between items-center">
                                                     <span className="text-xs text-gray-400 font-bold">הוסיפו מדיה לשאלה:</span>
                                                     {/* השימוש החדש ברכיב המאוחד */}
-                                                    {renderMediaToolbar(block.id, block)}
+                                                    {renderMediaToolbar(block.id)}
                                                 </div>
                                                 <div className="mt-2 flex justify-end">
                                                     <AiRefineToolbar
@@ -2015,7 +1939,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-purple-50/50 p-5 rounded-xl border border-purple-100">
                                                 <div className="flex items-center gap-2 mb-2 text-purple-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconEdit className="w-5 h-5" /> השלמת משפטים (Cloze)</div>
-                                                    <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!block.content && (
+                                                        <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
                                                 <RichTextEditor
@@ -2040,7 +1966,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                                                 <div className="flex items-center gap-2 mb-4 text-blue-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconList className="w-5 h-5" /> סידור רצף</div>
-                                                    <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.instruction || block.content?.correct_order?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <input type="text" className="w-full p-3 mb-4 border border-blue-200 rounded-lg bg-white text-base" placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)" value={(block.content && block.content.instruction) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
                                                 <div className="space-y-2">
@@ -2069,7 +1997,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-teal-50/50 p-5 rounded-xl border border-teal-100">
                                                 <div className="flex items-center gap-2 mb-4 text-teal-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconLayer className="w-5 h-5" /> מיון לקטגוריות</div>
-                                                    <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.question || block.content?.categories?.length > 0 || block.content?.items?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
 
                                                 <input type="text" className="w-full p-3 mb-4 border border-teal-200 rounded-lg bg-white text-base" placeholder="הנחיה..." value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
@@ -2121,7 +2051,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-pink-50/50 p-5 rounded-xl border border-pink-100">
                                                 <div className="flex items-center gap-2 mb-4 text-pink-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconBrain className="w-5 h-5" /> משחק זיכרון</div>
-                                                    <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.pairs?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-4">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
 
@@ -2187,121 +2119,94 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             </div>
                                         )}
 
-                                        {/* INFOGRAPHIC BLOCK */}
-                                        {block.type === 'infographic' && (
-                                            <div className="bg-gradient-to-br from-teal-50 to-cyan-50 p-6 rounded-2xl border border-teal-100 relative overflow-hidden">
-                                                {/* Decorative Background */}
-                                                <div className="absolute top-0 left-0 w-64 h-64 bg-teal-200/20 rounded-full -translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
-
-                                                <div className="relative z-10">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="bg-white p-3 rounded-xl shadow-sm">
-                                                                <IconInfographic className="w-6 h-6 text-teal-600" />
-                                                            </div>
-                                                            <div>
-                                                                <h3 className="text-lg font-bold text-teal-900">{block.content?.title || 'אינפוגרפיקה'}</h3>
-                                                                <p className="text-xs text-teal-600 opacity-80">המחשה ויזואלית של מידע</p>
-                                                            </div>
-                                                        </div>
-                                                        {block.content?.imageUrl && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    const textInput = infographicTextInput[block.id] || '';
-                                                                    handleGenerateInfographic(block.id, 'flowchart', textInput || undefined);
-                                                                }}
-                                                                disabled={generatingInfographicBlockId === block.id}
-                                                                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors flex items-center gap-2 shadow-md disabled:opacity-50"
-                                                            >
-                                                                <IconSparkles className="w-4 h-4" />
-                                                                ייצר מחדש
-                                                            </button>
-                                                        )}
+                                        {/* LOADING PLACEHOLDER - Shows during content generation */}
+                                        {block.type === 'loading-placeholder' && (
+                                            <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-dashed border-blue-200 animate-pulse">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                                                        {(block.content as any)?.stepNumber || '?'}
                                                     </div>
-
-                                                    {block.content?.imageUrl ? (
-                                                        <div className="relative group">
-                                                            <img
-                                                                src={block.content.imageUrl}
-                                                                alt={block.content.title || 'אינפוגרפיקה'}
-                                                                className="w-full rounded-xl shadow-lg"
-                                                                loading="lazy"
-                                                                decoding="async"
-                                                            />
-                                                            {/* Type badge */}
-                                                            {block.content.visualType && (
-                                                                <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-teal-700 shadow-sm">
-                                                                    {block.content.visualType === 'flowchart' ? '🔄 תרשים זרימה' :
-                                                                     block.content.visualType === 'timeline' ? '📅 ציר זמן' :
-                                                                     block.content.visualType === 'comparison' ? '⚖️ השוואה' : '🔁 מחזור'}
-                                                                </div>
-                                                            )}
-                                                            {/* Edit caption */}
-                                                            <div className="mt-3">
-                                                                <input
-                                                                    type="text"
-                                                                    value={block.content.caption || ''}
-                                                                    onChange={(e) => updateBlock(block.id, { ...block.content, caption: e.target.value })}
-                                                                    placeholder="הוסף כיתוב לאינפוגרפיקה..."
-                                                                    className="w-full p-2 border border-teal-200 rounded-lg text-sm bg-white/80 focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center py-8 bg-white/50 rounded-xl border border-teal-100">
-                                                            <div className="text-6xl mb-4">📊</div>
-                                                            <h4 className="text-teal-800 font-bold text-lg mb-2">צור אינפוגרפיקה</h4>
-                                                            <p className="text-teal-600 text-sm mb-4 max-w-md mx-auto">
-                                                                הזן נושא או תוכן ליצירת אינפוגרפיקה אוטומטית
-                                                            </p>
-
-                                                            {/* Text input field */}
-                                                            <textarea
-                                                                value={infographicTextInput[block.id] || ''}
-                                                                onChange={(e) => setInfographicTextInput(prev => ({ ...prev, [block.id]: e.target.value }))}
-                                                                placeholder="לדוגמה: תהליך הפוטוסינתזה בצמחים, שלבי מחזור המים, השוואה בין יונקים לזוחלים..."
-                                                                className="w-full max-w-md h-24 p-3 border border-teal-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent mb-4 mx-auto block"
-                                                                dir="rtl"
-                                                            />
-
-                                                            <button
-                                                                onClick={() => {
-                                                                    const textInput = infographicTextInput[block.id] || '';
-                                                                    const hasTextContent = editedUnit.activityBlocks?.some((b: any) =>
-                                                                        b.type === 'text' &&
-                                                                        (typeof b.content === 'string' ? b.content : ((b.content as any)?.teach_content || (b.content as any)?.text || '')).length > 50
-                                                                    );
-                                                                    if (!textInput && !hasTextContent) {
-                                                                        alert('נא להזין נושא ליצירת האינפוגרפיקה');
-                                                                        return;
-                                                                    }
-                                                                    handleGenerateInfographic(block.id, 'flowchart', textInput || undefined);
-                                                                }}
-                                                                disabled={generatingInfographicBlockId === block.id}
-                                                                className="px-8 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-full font-bold shadow-lg hover:from-teal-700 hover:to-cyan-700 hover:scale-105 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:hover:scale-100"
-                                                            >
-                                                                {generatingInfographicBlockId === block.id ? (
-                                                                    <>
-                                                                        <IconLoader className="w-5 h-5 animate-spin" />
-                                                                        יוצר אינפוגרפיקה...
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <IconSparkles className="w-5 h-5" />
-                                                                        צור אינפוגרפיקה
-                                                                    </>
-                                                                )}
-                                                            </button>
-
-                                                            {editedUnit.activityBlocks?.some((b: any) =>
-                                                                b.type === 'text' &&
-                                                                (typeof b.content === 'string' ? b.content : ((b.content as any)?.teach_content || (b.content as any)?.text || '')).length > 50
-                                                            ) && !infographicTextInput[block.id] && (
-                                                                <p className="text-xs text-teal-400 mt-2">או ישתמש בטקסט מהיחידה</p>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    <span className="text-blue-700 font-medium">{(block.content as any)?.title || 'טוען...'}</span>
                                                 </div>
+                                                <div className="flex items-center gap-2 text-blue-500">
+                                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    <span>{(block.content as any)?.message || 'מייצר תוכן...'}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* ACTIVITY INTRO - Opening context image */}
+                                        {block.type === 'activity-intro' && (
+                                            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                                                <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold">
+                                                    <IconSparkles className="w-5 h-5" /> תמונת פתיחה
+                                                </div>
+                                                {(block.content as any)?.imageUrl ? (
+                                                    <div className="relative">
+                                                        <img
+                                                            src={(block.content as any).imageUrl}
+                                                            alt={(block.content as any)?.title || 'תמונת פתיחה'}
+                                                            className="w-full h-64 object-cover rounded-xl shadow-md"
+                                                            loading="lazy"
+                                                        />
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 rounded-b-xl">
+                                                            <h3 className="text-white font-bold text-lg">{(block.content as any)?.title}</h3>
+                                                            {(block.content as any)?.description && (
+                                                                <p className="text-white/80 text-sm">{(block.content as any).description}</p>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => deleteBlock(block.id)}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-md"
+                                                            title="הסר תמונה"
+                                                        >
+                                                            <IconTrash className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-48 bg-indigo-100/50 rounded-xl flex items-center justify-center text-indigo-400">
+                                                        <div className="text-center">
+                                                            <IconSparkles className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+                                                            <span>מייצר תמונת פתיחה...</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* SCENARIO IMAGE - Dilemma/situation image before question */}
+                                        {block.type === 'scenario-image' && (
+                                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-100">
+                                                <div className="flex items-center gap-2 mb-2 text-amber-700 font-bold text-sm">
+                                                    <IconImage className="w-4 h-4" /> תמונת דילמה
+                                                </div>
+                                                {(block.content as any)?.imageUrl ? (
+                                                    <div className="relative">
+                                                        <img
+                                                            src={(block.content as any).imageUrl}
+                                                            alt={(block.content as any)?.caption || 'תמונת דילמה'}
+                                                            className="w-full h-48 object-cover rounded-lg shadow-sm"
+                                                            loading="lazy"
+                                                        />
+                                                        {(block.content as any)?.caption && (
+                                                            <p className="mt-2 text-center text-amber-800 font-medium text-sm">{(block.content as any).caption}</p>
+                                                        )}
+                                                        <button
+                                                            onClick={() => deleteBlock(block.id)}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+                                                            title="הסר תמונה"
+                                                        >
+                                                            <IconTrash className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-32 bg-amber-100/50 rounded-lg flex items-center justify-center text-amber-400">
+                                                        <span className="animate-pulse">מייצר תמונה...</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -2438,57 +2343,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 topic={editedUnit.title}
                 gradeLevel={gradeLevel}
             />
-
-            {/* Infographic Preview Modal */}
-            {infographicPreview && createPortal(
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" dir="rtl">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-fade-in">
-                        <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-4 text-white flex justify-between items-center">
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <IconInfographic className="w-5 h-5" />
-                                תצוגה מקדימה - אינפוגרפיקה
-                            </h3>
-                            <button
-                                onClick={() => setInfographicPreview(null)}
-                                className="p-1.5 hover:bg-white/20 rounded-full transition-colors"
-                            >
-                                <IconX className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6 overflow-auto max-h-[60vh]">
-                            <img
-                                src={infographicPreview.imageUrl}
-                                alt="תצוגה מקדימה"
-                                className="w-full rounded-xl shadow-lg"
-                            />
-                            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
-                                <span>סוג:</span>
-                                <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full font-bold">
-                                    {infographicPreview.visualType === 'flowchart' ? '🔄 תרשים זרימה' :
-                                     infographicPreview.visualType === 'timeline' ? '📅 ציר זמן' :
-                                     infographicPreview.visualType === 'comparison' ? '⚖️ השוואה' : '🔁 מחזור'}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
-                            <button
-                                onClick={() => setInfographicPreview(null)}
-                                className="px-6 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-100 transition-colors"
-                            >
-                                ביטול
-                            </button>
-                            <button
-                                onClick={handleConfirmInfographic}
-                                className="px-6 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-bold hover:from-teal-700 hover:to-cyan-700 transition-colors flex items-center gap-2"
-                            >
-                                <IconCheck className="w-4 h-4" />
-                                אישור והוספה
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
         </div >
     );
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
     IconSparkles,
     IconChart,
@@ -168,15 +169,29 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     </div>
 
                     {/* Illustration */}
-                    <div className="flex-1 max-w-md hidden lg:block" aria-hidden="true">
+                    <div className="flex-1 max-w-2xl hidden lg:block" aria-hidden="true">
                         <div className="relative">
-                            <div className="absolute -top-4 -right-4 w-20 h-20 bg-wizdi-royal/20 rounded-2xl rotate-12 animate-float motion-reduce:animate-none"></div>
-                            <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-wizdi-royal/15 rounded-full animate-float animation-delay-2000 motion-reduce:animate-none"></div>
+                            {/* Magic Sparkle Stars */}
+                            <svg className="absolute -top-2 -right-6 w-6 h-6 text-wizdi-cyan animate-pulse motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                            </svg>
+                            <svg className="absolute top-1/4 -right-8 w-4 h-4 text-wizdi-lime animate-pulse animation-delay-2000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                            </svg>
+                            <svg className="absolute -bottom-2 -left-4 w-5 h-5 text-wizdi-action animate-pulse animation-delay-4000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                            </svg>
+                            <svg className="absolute top-1/2 -left-8 w-3 h-3 text-wizdi-royal animate-pulse motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                            </svg>
+                            <svg className="absolute bottom-1/4 -right-4 w-4 h-4 text-amber-400 animate-pulse animation-delay-2000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                            </svg>
 
                             <img
                                 src="/images/hero-illustration.png"
                                 alt="AI Education Illustration"
-                                className="relative z-10 w-full max-w-sm h-auto object-contain drop-shadow-xl rotate-180"
+                                className="relative z-10 w-full max-w-2xl h-auto object-contain drop-shadow-xl"
                             />
                         </div>
                     </div>
@@ -519,8 +534,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                     <div className="space-y-2" role="list" aria-label="רשימת פעילויות אחרונות">
                         {loadingActivities ? (
                             <div className="flex items-center justify-center py-4" role="status" aria-label="טוען פעילויות">
-                                <div className="animate-spin w-6 h-6 border-2 border-wizdi-royal border-t-transparent rounded-full motion-reduce:animate-none"></div>
-                                <span className="sr-only">טוען פעילויות...</span>
+                                <AIStarsSpinner size="md" color="primary" label="טוען פעילויות..." />
                             </div>
                         ) : recentActivities.length === 0 ? (
                             <div className="text-center py-4 text-slate-400 dark:text-slate-500">

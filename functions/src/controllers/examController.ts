@@ -75,7 +75,7 @@ export async function generateExam(
             taxonomy: request.taxonomy
         };
 
-        const skeleton = await runExamArchitect(openai, architectContext);
+        const skeleton = await runExamArchitect(architectContext);
 
         if (!skeleton || !skeleton.steps || skeleton.steps.length === 0) {
             throw new Error("Exam Architect failed to generate valid skeleton");
@@ -92,7 +92,7 @@ export async function generateExam(
             sourceText: request.sourceText
         };
 
-        const questions = await generateAllExamQuestions(openai, skeleton, generatorContext);
+        const questions = await generateAllExamQuestions(skeleton, generatorContext);
 
         if (questions.length === 0) {
             throw new Error("Exam Generator failed to create any questions");
@@ -121,7 +121,7 @@ export async function generateExam(
         // ===== STAGE 5: EXAM GUARDIAN (AI VALIDATION) =====
         logger.info(`📋 Stage 5/5: Running Exam Guardian...`);
 
-        const guardianResult = await validateExamIntegrity(openai, repairedQuestions);
+        const guardianResult = await validateExamIntegrity(repairedQuestions);
 
         if (guardianResult.status === 'CRITICAL_FAIL') {
             logger.error(`❌ Exam Guardian: CRITICAL FAIL - ${guardianResult.critical_fail_reason}`);

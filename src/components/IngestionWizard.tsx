@@ -950,8 +950,35 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                 // Calculate total questions based on activity length
                                                 const totalQuestions = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
 
-                                                // Calculate questions per category (rounded, ensuring total matches)
-                                                const getQuestionCount = (percent: number) => Math.round((percent / 100) * totalQuestions);
+                                                // Distribute questions ensuring sum equals total (using largest remainder method)
+                                                const distributeQuestions = () => {
+                                                    const categories = ['knowledge', 'application', 'evaluation'] as const;
+                                                    const percents = categories.map(k => (taxonomy as any)[k] as number);
+                                                    const totalPercent = percents.reduce((a, b) => a + b, 0);
+
+                                                    // Calculate exact (fractional) counts
+                                                    const exactCounts = percents.map(p => (p / totalPercent) * totalQuestions);
+                                                    // Floor each value
+                                                    const floored = exactCounts.map(Math.floor);
+                                                    // Calculate remainders
+                                                    const remainders = exactCounts.map((exact, i) => exact - floored[i]);
+                                                    // How many more do we need to add?
+                                                    let remaining = totalQuestions - floored.reduce((a, b) => a + b, 0);
+
+                                                    // Create result starting from floored values
+                                                    const result = [...floored];
+                                                    // Sort indices by remainder (descending) and add 1 to each until we've distributed all
+                                                    const sortedIndices = [0, 1, 2].sort((a, b) => remainders[b] - remainders[a]);
+                                                    for (const idx of sortedIndices) {
+                                                        if (remaining <= 0) break;
+                                                        result[idx]++;
+                                                        remaining--;
+                                                    }
+
+                                                    return { knowledge: result[0], application: result[1], evaluation: result[2] };
+                                                };
+
+                                                const questionCounts = distributeQuestions();
 
                                                 return (
                                                     <>
@@ -964,7 +991,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                             { k: 'application', l: 'יישום וניתוח', c: 'blue' },
                                                             { k: 'evaluation', l: 'הערכה ויצירה', c: 'purple' }
                                                         ].map((t: any) => {
-                                                            const questionCount = getQuestionCount((taxonomy as any)[t.k]);
+                                                            const questionCount = questionCounts[t.k as keyof typeof questionCounts];
                                                             return (
                                                                 <div key={t.k} className="mb-4">
                                                                     <div className="flex justify-between text-sm mb-1 px-1">

@@ -12,11 +12,10 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
-import OpenAI from "openai";
+import { generateJSON, ChatMessage } from "./services/geminiService";
 
 // Secrets - with fallback to environment variables for local development
 const youtubeApiKey = defineSecret("YOUTUBE_API_KEY");
-const openAiApiKey = defineSecret("OPENAI_API_KEY");
 
 // Helper to get API key (secret or env fallback)
 const getYouTubeApiKey = (): string => {
@@ -24,14 +23,6 @@ const getYouTubeApiKey = (): string => {
         return youtubeApiKey.value();
     } catch {
         return process.env.YOUTUBE_API_KEY || '';
-    }
-};
-
-const getOpenAiApiKey = (): string => {
-    try {
-        return openAiApiKey.value();
-    } catch {
-        return process.env.OPENAI_API_KEY || '';
     }
 };
 
@@ -226,10 +217,9 @@ async function getVideoCaptions(apiKey: string, videoId: string): Promise<string
 }
 
 /**
- * AI-powered educational relevance scoring
+ * AI-powered educational relevance scoring using Gemini 2.5 Pro
  */
 async function scoreVideoRelevance(
-    openai: OpenAI,
     video: any,
     topic: string,
     gradeLevel: string
@@ -262,14 +252,13 @@ Consider:
 - Is the content level appropriate for the grade?
 `;
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.3
-        });
-
-        const result = JSON.parse(response.choices[0].message.content || '{}');
+        const messages: ChatMessage[] = [{ role: "user", content: prompt }];
+        const result = await generateJSON<{
+            educationalScore: number;
+            ageAppropriate: boolean;
+            relevanceScore: number;
+            reasoning: string;
+        }>(messages, { temperature: 0.3 });
 
         return {
             educationalScore: result.educationalScore || 50,
@@ -294,7 +283,7 @@ export const searchYouTubeEducational = onCall(
         cors: true,
         memory: "512MiB",
         timeoutSeconds: 60,
-        secrets: [youtubeApiKey, openAiApiKey]
+        secrets: [youtubeApiKey]
     },
     async (request): Promise<YouTubeSearchResponse> => {
         const { topic, gradeLevel, language = 'he', maxResults = 5, requireCaptions = true, educationalOnly = true } = request.data as YouTubeSearchParams;
@@ -307,7 +296,6 @@ export const searchYouTubeEducational = onCall(
 
         try {
             const ytApiKey = getYouTubeApiKey();
-            const openai = new OpenAI({ apiKey: getOpenAiApiKey() });
 
             // 1. Search YouTube
             const rawVideos = await searchYouTubeVideos(ytApiKey, {
@@ -359,8 +347,8 @@ export const searchYouTubeEducational = onCall(
                     }
                 }
 
-                // AI Scoring
-                const scores = await scoreVideoRelevance(openai, video, topic, gradeLevel);
+                // AI Scoring using Gemini 2.5 Pro
+                const scores = await scoreVideoRelevance(video, topic, gradeLevel);
 
                 // Skip low-quality matches
                 if (scores.relevanceScore < 40 || !scores.ageAppropriate) {

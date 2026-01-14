@@ -1,10 +1,10 @@
 /**
  * Submission Analysis Service
- * Uses OpenAI to analyze student submissions and generate pedagogical insights
+ * Uses Gemini 2.5 Pro to analyze student submissions and generate pedagogical insights
  */
 
-import OpenAI from 'openai';
 import * as logger from 'firebase-functions/logger';
+import { generateJSON, ChatMessage } from './geminiService';
 
 export interface SubmissionData {
     studentId: string;
@@ -161,12 +161,10 @@ function findDifficultQuestions(submissions: SubmissionData[]): Array<{ question
 }
 
 /**
- * Generate AI-powered pedagogical insights
+ * Generate AI-powered pedagogical insights using Gemini 2.5 Pro
  */
 async function generateAIInsights(
-    openai: OpenAI,
     task: TaskData,
-    submissions: SubmissionData[],
     stats: AnalysisResult['stats'],
     difficultQuestions: Array<{ questionNumber: number; topic: string; errorRate: number }>,
     studentsNeedingAttention: Array<{ name: string; issue: string }>
@@ -203,16 +201,11 @@ ${studentsNeedingAttention.length > 0
 - בעברית`;
 
     try {
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' },
-            max_tokens: 500,
-            temperature: 0.5
+        const messages: ChatMessage[] = [{ role: 'user', content: prompt }];
+        const result = await generateJSON<{ recommendations: string[] }>(messages, {
+            temperature: 0.5,
+            maxTokens: 500
         });
-
-        const content = response.choices[0].message.content || '{}';
-        const result = JSON.parse(content);
         return result.recommendations || [];
     } catch (error) {
         logger.error('AI analysis failed:', error);
@@ -222,10 +215,9 @@ ${studentsNeedingAttention.length > 0
 
 /**
  * Main analysis function
- * Analyzes submissions and generates insights with AI
+ * Analyzes submissions and generates insights with Gemini 2.5 Pro
  */
 export async function analyzeSubmissions(
-    openai: OpenAI,
     task: TaskData,
     submissions: SubmissionData[],
     totalAssigned: number
@@ -241,11 +233,9 @@ export async function analyzeSubmissions(
     // Find students needing attention
     const studentsNeedingAttention = findStudentsNeedingAttention(submissions);
 
-    // Generate AI recommendations
+    // Generate AI recommendations using Gemini 2.5 Pro
     const recommendations = await generateAIInsights(
-        openai,
         task,
-        submissions,
         stats,
         difficultQuestions,
         studentsNeedingAttention

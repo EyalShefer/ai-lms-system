@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend } from '../icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
-import { refineBlockContent, generateInfographicFromText, type InfographicType, generateAiImage } from '../services/ai/geminiApi';
+import { refineBlockContent, generateAiImage, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
     generateSingleMultipleChoiceQuestion,
     generateSingleOpenQuestion,
@@ -12,8 +12,10 @@ import {
 } from '../gemini';
 import { detectInfographicType, analyzeInfographicSuitability } from '../utils/infographicDetector';
 import { PEDAGOGICAL_PHASES, getPedagogicalPhase } from '../utils/pedagogicalIcons';
+import { trackPreviewOpened, trackPreviewConfirmed, trackPreviewRejected, trackTypeChanged } from '../services/infographicAnalytics';
 import { createBlock } from '../shared/config/blockDefinitions';
 import { downloadLessonPlanPDF } from '../services/pdfExportService';
+import { uploadGeneratedImage } from '../services/storageService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { RichTextEditor } from './RichTextEditor';
 import { sanitizeHtml } from '../utils/sanitize';
@@ -30,6 +32,9 @@ const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 
 // Lazy load SendActivitiesModal
 const SendActivitiesModal = React.lazy(() => import('./SendActivitiesModal'));
+
+// Lazy load PresentationMode for smart board projection
+const PresentationMode = React.lazy(() => import('./PresentationMode'));
 
 
 interface TeacherCockpitProps {
@@ -118,6 +123,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     const [refiningBlockId, setRefiningBlockId] = useState<string | null>(null); // Separate state for AI refine mode
     const [isRefining, setIsRefining] = useState(false);
     const [refinePrompt, setRefinePrompt] = useState("");
+
+    // Store user's custom prompts per block to preserve them across open/close
+    const userEditedPromptsRef = useRef<Record<string, string>>({});
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
 
     // Track unsaved changes (for share warning)
@@ -145,6 +153,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         visualType: InfographicType;
     } | null>(null);
     const [infographicTextInput, setInfographicTextInput] = useState<Record<string, string>>({});
+    const [selectedInfographicType, setSelectedInfographicType] = useState<Record<string, InfographicType | 'auto'>>({});
 
     // Interactive Preview State - shows questions as students see them
     const [previewBlockIds, setPreviewBlockIds] = useState<Set<string>>(new Set());
@@ -157,6 +166,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     // Full Preview Mode State - shows entire lesson as students see it
     const [isFullPreviewMode, setIsFullPreviewMode] = useState(false);
+
+    // Presentation Mode State - clean projection for smart board
+    const [isPresentationMode, setIsPresentationMode] = useState(false);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -541,18 +553,12 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
         setLoadingBlockId(blockId);
         try {
-            // Using Gemini (Nano Banana / Gemini 3 Pro) instead of DALL-E
-            const imageBlob = await generateAiImage(prompt, 'pro');
-
-            if (imageBlob) {
-                // Convert blob to base64 data URL
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64data = reader.result as string;
-                    updateBlockContent(blockId, base64data);
-                    setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
-                };
-                reader.readAsDataURL(imageBlob);
+            const blob = await generateAiImage(prompt);
+            if (blob) {
+                // Upload to Firebase Storage instead of saving base64 in document
+                const imageUrl = await uploadGeneratedImage(blob, 'ai-image', courseId, unit.id);
+                updateBlockContent(blockId, imageUrl);
+                setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
             } else {
                 alert("שגיאה ביצירת תמונה. נסה שנית.");
             }
@@ -605,25 +611,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             );
 
             if (imageBlob) {
-                // Convert blob to base64 for preview
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64data = reader.result as string;
+                // Upload to Firebase Storage instead of saving base64 in document
+                const imageUrl = await uploadGeneratedImage(imageBlob, 'infographic', courseId, unit.id);
 
-                    // Show preview modal instead of directly inserting
-                    setInfographicPreview({
-                        imageUrl: base64data,
-                        block: block,
-                        visualType: visualType
-                    });
+                // Show preview modal with Storage URL
+                setInfographicPreview({
+                    imageUrl: imageUrl,
+                    block: block,
+                    visualType: visualType
+                });
 
-                    // Track preview opened (with fallback for dynamic import errors)
-                    try {
-                        const { trackPreviewOpened } = await import('../services/infographicAnalytics');
-                        trackPreviewOpened(visualType);
-                    } catch (e) { console.warn('Analytics not available'); }
-                };
-                reader.readAsDataURL(imageBlob);
+                // Track preview opened
+                trackPreviewOpened(visualType);
             } else {
                 alert("שגיאה ביצירת אינפוגרפיקה. נסה שנית.");
             }
@@ -638,11 +637,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     const handleConfirmInfographic = async () => {
         if (!infographicPreview) return;
 
-        // Track preview confirmed (with fallback for dynamic import errors)
-        try {
-            const { trackPreviewConfirmed } = await import('../services/infographicAnalytics');
-            trackPreviewConfirmed(infographicPreview.visualType);
-        } catch (e) { console.warn('Analytics not available'); }
+        // Track preview confirmed
+        trackPreviewConfirmed(infographicPreview.visualType);
 
         const newBlocks = [...(unit.activityBlocks || [])];
         const currentIndex = newBlocks.findIndex(b => b.id === infographicPreview.block.id);
@@ -804,6 +800,79 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         </div>
     );
 
+    /**
+     * Generate a smart default prompt suggestion based on block type and content
+     */
+    const generateDefaultPromptForBlock = (block: ActivityBlock): string => {
+        const blockType = block.type;
+        const content = block.content;
+
+        // Extract text content for context
+        const getTextContent = (): string => {
+            if (!content) return '';
+            if (typeof content === 'string') return content;
+            if ((content as any).question) return (content as any).question;
+            if ((content as any).text) return (content as any).text;
+            if ((content as any).title) return (content as any).title;
+            if ((content as any).prompt) return (content as any).prompt;
+            if ((content as any).teach_content) return (content as any).teach_content;
+            return '';
+        };
+
+        const textContent = getTextContent();
+        const shortContent = textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent;
+
+        switch (blockType) {
+            case 'multiple-choice':
+                return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח כדי שיהיה ברור יותר`;
+            case 'open-question':
+                return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+            case 'ordering':
+                return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+            case 'fill_in_blanks':
+                return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+            case 'text':
+                return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
+            case 'video':
+                return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
+            case 'image':
+                return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
+            case 'interactive-chat':
+                return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
+            case 'categorization':
+                return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
+            case 'memory_game':
+                return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
+            default:
+                if (shortContent) {
+                    return `שפרו את התוכן בנושא "${shortContent}": פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
+                }
+                return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
+        }
+    };
+
+    // Handle refine prompt change and save to ref
+    const handleRefinePromptChange = (blockId: string, value: string) => {
+        setRefinePrompt(value);
+        userEditedPromptsRef.current[blockId] = value;
+    };
+
+    // When opening refine toolbar, set default or restore saved prompt
+    useEffect(() => {
+        if (refiningBlockId) {
+            const savedPrompt = userEditedPromptsRef.current[refiningBlockId];
+            if (savedPrompt !== undefined) {
+                setRefinePrompt(savedPrompt);
+            } else {
+                const block = unit.activityBlocks.find((b: ActivityBlock) => b.id === refiningBlockId);
+                if (block) {
+                    const defaultPrompt = generateDefaultPromptForBlock(block);
+                    setRefinePrompt(defaultPrompt);
+                }
+            }
+        }
+    }, [refiningBlockId, unit.activityBlocks]);
+
     const renderRefineToolbar = (block: ActivityBlock) => {
         if (refiningBlockId !== block.id) return null;
 
@@ -822,7 +891,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     <IconWand className="w-4 h-4" />
                     שיפור עם AI
                 </h4>
-                <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-md">
+                <div className="flex flex-wrap gap-2 justify-center mb-3 max-w-lg">
                     {presets.map(p => (
                         <button
                             key={p}
@@ -834,89 +903,45 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         </button>
                     ))}
                 </div>
-                <div className="flex gap-2 w-full max-w-md">
-                    <input
-                        type="text"
+                <div className="flex flex-col gap-2 w-full max-w-lg">
+                    <textarea
                         value={refinePrompt}
-                        onChange={(e) => setRefinePrompt(e.target.value)}
-                        placeholder="או כתבו בקשה חופשית..."
-                        className="flex-1 p-2 border border-slate-200 rounded-lg focus:border-wizdi-royal outline-none text-sm"
+                        onChange={(e) => handleRefinePromptChange(block.id, e.target.value)}
+                        placeholder="כתבו הנחיות לשיפור התוכן..."
+                        className="w-full p-3 border border-slate-200 rounded-lg focus:border-wizdi-royal outline-none text-sm min-h-[100px] resize-y"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (refinePrompt) handleRefineBlock(block, refinePrompt);
+                            }
+                        }}
                     />
                     <button
                         onClick={() => handleRefineBlock(block, refinePrompt)}
                         disabled={!refinePrompt || isRefining}
-                        className="bg-wizdi-royal text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        className="bg-wizdi-royal text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-bold text-sm self-end"
                     >
-                        {isRefining ? <IconSparkles className="animate-spin w-4 h-4" /> : <IconCheck className="w-4 h-4" />}
+                        {isRefining ? (
+                            <>
+                                <IconSparkles className="animate-spin w-4 h-4" />
+                                משפר...
+                            </>
+                        ) : (
+                            <>
+                                <IconCheck className="w-4 h-4" />
+                                בצע שיפור
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
         );
     };
 
-    // --- Helper: Extract suggested prompt text from block content ---
-    const getSuggestedPromptFromBlock = (block: ActivityBlock): string => {
-        if (!block) return '';
-
-        // For image blocks - use previous prompt, caption, or unit title
-        if (block.type === 'image') {
-            if (block.metadata?.aiPrompt) return block.metadata.aiPrompt;
-            if (block.metadata?.caption) return `תמונה של: ${block.metadata.caption}`;
-        }
-
-        // For text blocks - use first 100 chars of content
-        if (block.type === 'text') {
-            const textContent = typeof block.content === 'string'
-                ? block.content
-                : ((block.content as any)?.teach_content || (block.content as any)?.text || '');
-            if (textContent) {
-                const cleanText = textContent.replace(/<[^>]*>/g, '').trim().substring(0, 100);
-                return `איור המתאר: ${cleanText}`;
-            }
-        }
-
-        // Default - use unit title
-        if (unit?.title) return `איור לנושא: ${unit.title}`;
-
-        return '';
-    };
-
     const renderBlockContent = (block: ActivityBlock) => {
         // --- MEDIA BLOCKS ---
         if (block.type === 'image') {
             if (!block.content) {
-                // Check if AI mode is active
-                if (mediaInputMode[block.id] === 'ai') {
-                    return (
-                        // AI Generation Mode - Full Width Panel
-                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-xl">
-                            <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-base font-bold text-blue-700 flex items-center gap-2">
-                                    <IconPalette className="w-5 h-5" /> יצירת תמונה עם AI
-                                </h4>
-                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-full transition-colors">
-                                    <IconX className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <textarea
-                                className="w-full p-4 border border-blue-200 rounded-xl text-base focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white mb-4"
-                                rows={5}
-                                placeholder="תארו את התמונה בפירוט...&#10;&#10;למשל: מפה עתיקה של ירושלים עם סמלים וכיתובים בעברית"
-                                value={mediaInputValue[block.id] || ''}
-                                onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
-                                autoFocus
-                            />
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-500">💡 טיפ: הוסיפו פרטים על סגנון, צבעים ואווירה לתוצאה טובה יותר</span>
-                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-lg">
-                                    {loadingBlockId === block.id ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</> : <><IconWand className="w-4 h-4" /> צור תמונה</>}
-                                </button>
-                            </div>
-                        </div>
-                    );
-                }
-
-                // Selection Mode - Two Column Grid
                 return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
                         <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
@@ -924,18 +949,28 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>
                             <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
                         </label>
-                        <button onClick={() => {
-                            // Pre-fill with suggested text if empty
-                            if (!mediaInputValue[block.id]) {
-                                const suggestedText = getSuggestedPromptFromBlock(block);
-                                if (suggestedText) {
-                                    setMediaInputValue({ ...mediaInputValue, [block.id]: suggestedText });
-                                }
-                            }
-                            setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' });
-                        }} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group">
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })} className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group relative">
                             <IconPalette className="w-8 h-8 text-blue-400 group-hover:text-blue-600 mb-2" />
                             <span className="font-bold text-blue-500 group-hover:text-blue-700">יצירה ב-AI</span>
+
+                            {mediaInputMode[block.id] === 'ai' && (
+                                <div className="absolute inset-0 bg-white p-4 rounded-xl z-20 flex flex-col justify-center" onClick={e => e.stopPropagation()}>
+                                    <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה:</h4>
+                                    <textarea
+                                        className="w-full p-2 border rounded-lg mb-2 text-sm focus:border-blue-400 outline-none"
+                                        rows={2}
+                                        placeholder="למשל: מפה עתיקה של ירושלים..."
+                                        onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <button onClick={(e) => { e.stopPropagation(); setMediaInputMode({ ...mediaInputMode, [block.id]: null }) }} className="text-gray-500 text-xs px-2">ביטול</button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleGenerateAiImage(block.id) }} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-xs px-3 py-1 rounded-lg">
+                                            {loadingBlockId === block.id ? "יוצר..." : "צור"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </button>
                     </div>
                 );
@@ -946,16 +981,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     {/* Control buttons - always visible */}
                     <div className="absolute top-2 right-2 flex gap-2">
                         <button
-                            onClick={() => {
-                                // Pre-fill with suggested text if empty
-                                if (!mediaInputValue[block.id]) {
-                                    const suggestedText = getSuggestedPromptFromBlock(block);
-                                    if (suggestedText) {
-                                        setMediaInputValue({ ...mediaInputValue, [block.id]: suggestedText });
-                                    }
-                                }
-                                setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' });
-                            }}
+                            onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: 'ai' })}
                             className="bg-white/90 p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-all"
                             title="יצירת תמונה חדשה עם AI"
                         >
@@ -971,27 +997,19 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                     </div>
                     {/* AI regenerate overlay */}
                     {mediaInputMode[block.id] === 'ai' && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/98 to-indigo-50/98 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center z-20 shadow-xl border border-blue-200">
-                            <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2">
-                                    <IconPalette className="w-4 h-4" /> תארו את התמונה החדשה
-                                </h4>
-                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-full transition-colors">
-                                    <IconX className="w-4 h-4" />
-                                </button>
-                            </div>
+                        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl p-6 flex flex-col justify-center z-20">
+                            <h4 className="text-sm font-bold text-blue-700 mb-2">תארו את התמונה החדשה:</h4>
                             <textarea
-                                className="w-full p-3 border border-blue-200 rounded-lg text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none bg-white mb-3"
-                                rows={5}
-                                placeholder="תארו את התמונה בפירוט...&#10;למשל: מפה עתיקה של ירושלים עם סמלים, מבנים היסטוריים וכיתובים בעברית"
-                                value={mediaInputValue[block.id] || ''}
+                                className="w-full p-3 border border-blue-200 rounded-lg mb-3 text-sm focus:border-blue-400 outline-none"
+                                rows={3}
+                                placeholder="למשל: מפה עתיקה של ירושלים..."
                                 onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
                                 autoFocus
                             />
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-400">טיפ: הוסיפו פרטים על סגנון, צבעים ואווירה</span>
-                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-md">
-                                    {loadingBlockId === block.id ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר תמונה...</> : <><IconWand className="w-4 h-4" /> צור תמונה</>}
+                            <div className="flex gap-2 justify-end">
+                                <button onClick={() => setMediaInputMode({ ...mediaInputMode, [block.id]: null })} className="text-gray-500 text-sm px-3 py-2 hover:bg-gray-100 rounded-lg">ביטול</button>
+                                <button onClick={() => handleGenerateAiImage(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                                    {loadingBlockId === block.id ? <><IconSparkles className="w-4 h-4 animate-spin" /> יוצר...</> : <><IconPalette className="w-4 h-4" /> צור תמונה</>}
                                 </button>
                             </div>
                         </div>
@@ -1016,6 +1034,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 );
                 const currentInputText = infographicTextInput[block.id] || '';
 
+                const currentSelectedType = selectedInfographicType[block.id] || 'auto';
+
                 return (
                     <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50 relative">
                         <IconInfographic className="w-8 h-8 text-purple-400 mb-2" />
@@ -1027,9 +1047,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             value={currentInputText}
                             onChange={(e) => setInfographicTextInput(prev => ({ ...prev, [block.id]: e.target.value }))}
                             placeholder="לדוגמה: תהליך הפוטוסינתזה בצמחים, שלבי מחזור המים, השוואה בין יונקים לזוחלים..."
-                            className="w-full max-w-md h-24 p-3 border border-purple-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-4"
+                            className="w-full max-w-md h-24 p-3 border border-purple-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-3"
                             dir="rtl"
                         />
+
+                        {/* Infographic type selector */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-sm text-purple-600">סוג:</span>
+                            <select
+                                value={currentSelectedType}
+                                onChange={(e) => setSelectedInfographicType(prev => ({ ...prev, [block.id]: e.target.value as InfographicType | 'auto' }))}
+                                className="px-3 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                                dir="rtl"
+                            >
+                                <option value="auto">🤖 זיהוי אוטומטי</option>
+                                <option value="flowchart">🔄 תרשים זרימה</option>
+                                <option value="timeline">📅 ציר זמן</option>
+                                <option value="comparison">⚖️ השוואה</option>
+                                <option value="cycle">🔁 מחזור</option>
+                            </select>
+                        </div>
 
                         <button
                             onClick={() => {
@@ -1038,7 +1075,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                     alert('נא להזין נושא ליצירת האינפוגרפיקה');
                                     return;
                                 }
-                                handleGenerateInfographic(block, 'flowchart', textToUse || undefined);
+                                // Use selected type or auto-detect
+                                let typeToUse: InfographicType;
+                                if (currentSelectedType === 'auto') {
+                                    const contentForDetection = textToUse || (block.content?.text as string) || '';
+                                    const detection = detectInfographicType(contentForDetection);
+                                    typeToUse = detection.suggestedType;
+                                } else {
+                                    typeToUse = currentSelectedType;
+                                }
+                                handleGenerateInfographic(block, typeToUse, textToUse || undefined);
                             }}
                             disabled={generatingInfographicBlockId === block.id}
                             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-bold text-sm disabled:opacity-50"
@@ -1123,7 +1169,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                         dir="ltr"
                                         className="w-full p-2 border rounded-lg mb-2 text-sm text-left focus:border-red-400 outline-none"
                                         placeholder="https://youtu.be/..."
-                                        value={mediaInputValue[block.id] || ''}
                                         onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
                                         autoFocus
                                     />
@@ -1273,17 +1318,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 );
             }
 
-            // Teacher Edit View - show structured data with preview button
+            // Teacher Edit View - show structured data
             return (
-                <div className="relative">
-                    <button
-                        onClick={togglePreview}
-                        className="absolute -top-2 -left-2 z-20 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-bold shadow-lg hover:bg-indigo-700 transition-all"
-                    >
-                        <IconEye className="w-3.5 h-3.5" />
-                        להקרנה על הלוח
-                    </button>
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
                         {block.type === 'multiple-choice' && (
                             <div>
                                 <h3 className="text-lg font-bold mb-4">{block.content.question}</h3>
@@ -1371,11 +1408,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                 </ul>
                             </div>
                         )}
-                        <p className="text-xs text-slate-400 mt-4 flex items-center gap-1">
-                            <IconEye className="w-3 h-3" />
-                            לחצו על "להקרנה על הלוח" לראות איך השאלה תיראה לתלמידים
-                        </p>
-                    </div>
                 </div>
             );
         }
@@ -1653,6 +1685,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             <span className="hidden md:inline">תצוגה מקדימה</span>
                         </button>
 
+                        {/* Presentation Mode Button - Project to Smart Board */}
+                        <button
+                            onClick={() => setIsPresentationMode(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition shadow-sm border text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100"
+                            title="הקרנה ללוח - הצג תוכן נקי על הלוח החכם"
+                        >
+                            <IconMaximize className="w-5 h-5" />
+                            <span className="hidden md:inline">הקרן ללוח</span>
+                        </button>
+
                         {/* Share Button */}
                         <button
                             onClick={handleShare}
@@ -1774,24 +1816,29 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             )}
                         </div>
 
-                        {/* Opening Section Anchor */}
-                        <div id="opening" className="scroll-mt-32"></div>
-
                         {/* Insert Initial Block */}
                         <InsertMenu index={0} />
 
                         {/* Blocks Loop */}
-                        <div id="instruction" className="space-y-8 scroll-mt-32">
+                        <div className="space-y-8">
                             {unit.activityBlocks?.filter((block): block is ActivityBlock => block !== null && block !== undefined).map((block: ActivityBlock, idx: number) => {
                                 const totalBlocks = unit.activityBlocks?.length || 0;
                                 const phase = getPedagogicalPhase(idx, totalBlocks, block.type);
                                 const prevBlock = idx > 0 ? unit.activityBlocks?.[idx - 1] : null;
                                 const prevPhase = prevBlock ? getPedagogicalPhase(idx - 1, totalBlocks, prevBlock.type) : null;
+
+                                // Determine which section anchors to show before this block
+                                const showOpeningAnchor = idx === 0; // First block is always opening
+                                const showInstructionAnchor = phase === 'instruction' && prevPhase !== 'instruction' && prevPhase !== null;
                                 const showPracticeAnchor = phase === 'practice' && prevPhase !== 'practice';
                                 const showSummaryAnchor = phase === 'summary' && prevPhase !== 'summary';
 
                                 return (
                                     <React.Fragment key={block.id}>
+                                        {/* Opening Section Anchor - inserted before first block */}
+                                        {showOpeningAnchor && <div id="opening" className="scroll-mt-32"></div>}
+                                        {/* Instruction Section Anchor - inserted before first instruction block */}
+                                        {showInstructionAnchor && <div id="instruction" className="scroll-mt-32"></div>}
                                         {/* Practice Section Anchor - inserted before first practice block */}
                                         {showPracticeAnchor && <div id="practice" className="scroll-mt-32"></div>}
                                         {/* Summary Section Anchor - inserted before first summary block */}
@@ -1877,17 +1924,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             })}
                         </div>
 
-                        {/* Summary Anchor - fallback if no summary block exists */}
+                        {/* Instruction Anchor - fallback if no instruction block exists */}
                         {!unit.activityBlocks?.some((block, idx) => {
                             const totalBlocks = unit.activityBlocks?.length || 0;
-                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'summary';
-                        }) && <div id="summary" className="scroll-mt-32"></div>}
+                            const phase = getPedagogicalPhase(idx, totalBlocks, block?.type || '');
+                            const prevBlock = idx > 0 ? unit.activityBlocks?.[idx - 1] : null;
+                            const prevPhase = prevBlock ? getPedagogicalPhase(idx - 1, totalBlocks, prevBlock?.type || '') : null;
+                            return phase === 'instruction' && prevPhase !== 'instruction' && prevPhase !== null;
+                        }) && <div id="instruction" className="scroll-mt-32"></div>}
 
                         {/* Practice Anchor - fallback if no practice block exists */}
                         {!unit.activityBlocks?.some((block, idx) => {
                             const totalBlocks = unit.activityBlocks?.length || 0;
                             return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'practice';
                         }) && <div id="practice" className="scroll-mt-32"></div>}
+
+                        {/* Summary Anchor - fallback if no summary block exists */}
+                        {!unit.activityBlocks?.some((block, idx) => {
+                            const totalBlocks = unit.activityBlocks?.length || 0;
+                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'summary';
+                        }) && <div id="summary" className="scroll-mt-32"></div>}
                     </div>
                 </div>
             </div>
@@ -1933,12 +1989,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         {/* Actions */}
                         <div className="p-6 bg-slate-50 rounded-b-2xl flex gap-3 justify-end border-t">
                             <button
-                                onClick={async () => {
-                                    // Track preview rejection (with fallback for dynamic import errors)
-                                    try {
-                                        const { trackPreviewRejected } = await import('../services/infographicAnalytics');
-                                        trackPreviewRejected(infographicPreview.visualType);
-                                    } catch (e) { console.warn('Analytics not available'); }
+                                onClick={() => {
+                                    // Track preview rejection
+                                    trackPreviewRejected(infographicPreview.visualType);
                                     setInfographicPreview(null);
                                 }}
                                 className="px-6 py-3 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors font-semibold border border-slate-300"
@@ -1946,13 +1999,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                 ביטול
                             </button>
                             <button
-                                onClick={async () => {
-                                    // Track type change intent (with fallback for dynamic import errors)
+                                onClick={() => {
+                                    // Track type change intent
                                     const oldType = infographicPreview.visualType;
-                                    try {
-                                        const { trackTypeChanged } = await import('../services/infographicAnalytics');
-                                        // trackTypeChanged not used directly here
-                                    } catch (e) { console.warn('Analytics not available'); }
 
                                     // Regenerate with different type
                                     setInfographicPreview(null);
@@ -2118,7 +2167,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
             {/* Full Preview Mode Modal */}
             {isFullPreviewMode && (
-                <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
+                <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col overflow-y-auto">
                     <React.Suspense fallback={
                         <div className="flex-1 flex items-center justify-center text-blue-600 font-bold">
                             <div className="text-center">
@@ -2136,6 +2185,23 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         />
                     </React.Suspense>
                 </div>
+            )}
+
+            {/* Presentation Mode Modal - Smart Board Projection */}
+            {isPresentationMode && (
+                <React.Suspense fallback={
+                    <div className="fixed inset-0 bg-gray-900 z-[200] flex items-center justify-center">
+                        <div className="text-center text-white">
+                            <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+                            טוען מצב הקרנה...
+                        </div>
+                    </div>
+                }>
+                    <PresentationMode
+                        unit={unit}
+                        onClose={() => setIsPresentationMode(false)}
+                    />
+                </React.Suspense>
             )}
 
             {/* Send Activities Modal */}

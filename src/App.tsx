@@ -132,9 +132,11 @@ const IconLogOutSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" f
 const IconEyeSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
 const IconEditSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
 
+import { AIStarsSpinner } from './components/ui/Loading/AIStarsSpinner';
+
 const LoadingSpinner = () => (
   <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-    <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+    <AIStarsSpinner size="lg" color="primary" className="mb-4" />
     <span>טוען רכיב...</span>
   </div>
 );
@@ -526,7 +528,7 @@ const AuthenticatedApp = () => {
     <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
       <header className={headerClass}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={handleBackToList}>
-          <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-12 w-auto object-contain hover:opacity-90 transition-opacity" loading="lazy" decoding="async" />
+          <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-20 w-auto object-contain hover:opacity-90 transition-opacity" loading="lazy" decoding="async" />
         </div>
         <div className="flex items-center gap-4">
           {mode !== 'list' && !isStudentLink && (

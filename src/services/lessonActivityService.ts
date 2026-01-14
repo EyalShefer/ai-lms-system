@@ -7,7 +7,11 @@
 
 import { collection, doc, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { v4 as uuidv4 } from 'uuid';
 import type { ActivityBlock, Course, LearningUnit } from '../shared/types/courseTypes';
+
+// Progress callback type for UI feedback
+export type ProgressCallback = (step: string, progress: number) => void;
 
 // ============ TYPES ============
 
@@ -150,13 +154,21 @@ export const getBlockTypeLabel = (type: string): string => {
 
 /**
  * Extracts selected blocks from a lesson plan and creates a new activity course
+ *
+ * Performance optimizations:
+ * - Parallel database operations (addDoc + getDoc run concurrently)
+ * - UUID-based IDs for better performance
+ * - Optional progress callback for UI feedback
  */
 export const extractActivityFromLesson = async (
     parentCourse: Course,
     parentUnit: LearningUnit,
     selectedBlockIds: string[],
-    activityTitle?: string
+    activityTitle?: string,
+    onProgress?: ProgressCallback
 ): Promise<{ activityCourseId: string; shareUrl: string }> => {
+    onProgress?.('מאתר בלוקים נבחרים...', 10);
+
     // Get the selected blocks
     const selectedBlocks = (parentUnit.activityBlocks || [])
         .filter(b => selectedBlockIds.includes(b.id));
@@ -165,7 +177,12 @@ export const extractActivityFromLesson = async (
         throw new Error('לא נבחרו בלוקים לשליחה');
     }
 
-    // Create the activity course
+    onProgress?.('בונה פעילות...', 20);
+
+    // Create the activity course with UUID-based IDs
+    const moduleId = uuidv4();
+    const unitId = uuidv4();
+
     const activityCourse: Partial<Course> = {
         teacherId: parentCourse.teacherId,
         title: activityTitle || `פעילות: ${parentUnit.title}`,
@@ -174,17 +191,17 @@ export const extractActivityFromLesson = async (
         subject: parentCourse.subject,
         mode: 'learning', // Activity mode
         syllabus: [{
-            id: `module-${Date.now()}`,
+            id: moduleId,
             title: parentUnit.title,
             learningUnits: [{
-                id: `unit-${Date.now()}`,
+                id: unitId,
                 title: parentUnit.title,
                 goals: parentUnit.goals,
                 type: 'practice',
                 baseContent: '',
                 activityBlocks: selectedBlocks.map(b => ({
                     ...b,
-                    id: `${b.id}-copy-${Date.now()}` // New IDs to avoid conflicts
+                    id: `${b.id}-${uuidv4().slice(0, 8)}` // UUID-based unique IDs
                 }))
             }]
         }],
@@ -202,14 +219,20 @@ export const extractActivityFromLesson = async (
         extractedAt: new Date().toISOString()
     };
 
-    // Save to Firestore
-    const docRef = await addDoc(collection(db, 'courses'), activityCourse);
+    onProgress?.('שומר למסד נתונים...', 40);
+
+    // PERFORMANCE: Run addDoc and getDoc in PARALLEL
+    const parentCourseRef = doc(db, 'courses', parentCourse.id);
+    const [docRef, parentDoc] = await Promise.all([
+        addDoc(collection(db, 'courses'), activityCourse),
+        getDoc(parentCourseRef)
+    ]);
+
     const activityCourseId = docRef.id;
 
-    // Update the parent lesson to track extracted activities
-    const parentCourseRef = doc(db, 'courses', parentCourse.id);
-    const parentDoc = await getDoc(parentCourseRef);
+    onProgress?.('מעדכן קישורים...', 70);
 
+    // Update parent with new activity reference
     if (parentDoc.exists()) {
         const existingExtracted = parentDoc.data().extractedActivities || [];
         await updateDoc(parentCourseRef, {
@@ -223,8 +246,12 @@ export const extractActivityFromLesson = async (
         });
     }
 
+    onProgress?.('מייצר קישור שיתוף...', 90);
+
     // Generate share URL
     const shareUrl = `${window.location.origin}/?studentCourseId=${activityCourseId}`;
+
+    onProgress?.('הושלם!', 100);
 
     return { activityCourseId, shareUrl };
 };
@@ -235,7 +262,8 @@ export const extractActivityFromLesson = async (
 export const extractAllActivities = async (
     parentCourse: Course,
     parentUnit: LearningUnit,
-    activityTitle?: string
+    activityTitle?: string,
+    onProgress?: ProgressCallback
 ): Promise<{ activityCourseId: string; shareUrl: string }> => {
     const sendableBlocks = getSendableBlocks(parentUnit);
     const blockIds = sendableBlocks.map(b => b.id);
@@ -244,7 +272,8 @@ export const extractAllActivities = async (
         parentCourse,
         parentUnit,
         blockIds,
-        activityTitle || `כל הפעילויות: ${parentUnit.title}`
+        activityTitle || `כל הפעילויות: ${parentUnit.title}`,
+        onProgress
     );
 };
 

@@ -1,6 +1,6 @@
 /**
- * Gemini 3 Pro Infographic Service
- * Cloud Function to generate infographic HTML using Gemini 3 Pro Preview
+ * Gemini 2.5 Pro Infographic Service
+ * Cloud Function to generate infographic HTML using Gemini 2.5 Pro
  *
  * This endpoint generates high-quality HTML for Hebrew infographics
  * The frontend converts the HTML to an image using html-to-image
@@ -13,7 +13,7 @@ import { generateInfographicHTML, isGemini3TextAvailable } from './services/gemi
 
 /**
  * Cloud Function: generateGemini3Infographic
- * Generates infographic HTML using Gemini 3 Pro Preview via Vertex AI
+ * Generates infographic HTML using Gemini 2.5 Pro via Vertex AI
  *
  * Request body:
  * - content: string (required) - Educational content in Hebrew
@@ -52,10 +52,10 @@ export const generateGemini3Infographic = onRequest(
             return;
         }
 
-        // 3. Check if Gemini 3 Pro is available
+        // 3. Check if Gemini 2.5 Pro is available
         if (!isGemini3TextAvailable()) {
             res.status(503).json({
-                error: 'Gemini 3 Pro is not available',
+                error: 'Gemini 2.5 Pro is not available',
                 code: 'SERVICE_UNAVAILABLE'
             });
             return;
@@ -74,7 +74,7 @@ export const generateGemini3Infographic = onRequest(
             return;
         }
 
-        logger.info('Generating infographic with Gemini 3 Pro', {
+        logger.info('Generating infographic with Gemini 2.5 Pro', {
             contentLength: content.length,
             visualType,
             topic
@@ -106,7 +106,7 @@ export const generateGemini3Infographic = onRequest(
                 success: true,
                 html,
                 metadata: {
-                    model: 'gemini-3-pro-preview',
+                    model: 'gemini-2.5-pro',
                     visualType,
                     generationTime,
                     estimatedCost: 0.002 // Approximate cost per request
@@ -114,7 +114,7 @@ export const generateGemini3Infographic = onRequest(
             });
 
         } catch (error: any) {
-            logger.error('Gemini 3 Pro infographic generation failed:', error);
+            logger.error('Gemini 2.5 Pro infographic generation failed:', error);
 
             if (error.message?.includes('SAFETY')) {
                 res.status(400).json({

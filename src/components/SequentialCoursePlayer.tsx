@@ -25,6 +25,8 @@ import type { GamificationProfile } from '../shared/types/courseTypes';
 import TeacherCockpit from './TeacherCockpit'; // NEW: Teacher View
 import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring'; // CRITICAL FIX: Import scoring system
 import { submitAssignment, type SubmissionData } from '../services/submissionService'; // Student submission
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth';
 
 
 // --- Specialized Sub-Components ---
@@ -427,8 +429,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // 2b. Check Action (The "Lime Button")
     const handleCheck = useCallback(() => {
-        // 1. Check if PASSIVE block (Text, Media) -> Always simple continue
-        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'];
+        // 1. Check if PASSIVE block (Text, Media, Activity Images) -> Always simple continue
+        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image'];
         if (passiveTypes.includes(currentBlock.type)) {
             // Mark as "viewed" implicitly for progress bar (no score, no success banner)
             setStepResults(prev => ({ ...prev, [currentBlock.id]: 'viewed' }));
@@ -558,8 +560,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         // --- ADAPTIVE BRAIN SYNC (Cloud) ---
         // Fire & Forget (or await if critical)
         try {
-            const { getFunctions, httpsCallable } = await import('firebase/functions');
-            const { getAuth } = await import('firebase/auth');
             const functions = getFunctions();
             const auth = getAuth();
             const user = auth.currentUser;
@@ -773,8 +773,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
         // --- ADAPTIVE BRAIN SYNC (Cloud) ---
         try {
-            const { getFunctions, httpsCallable } = await import('firebase/functions');
-            const { getAuth } = await import('firebase/auth');
             const functions = getFunctions();
             const auth = getAuth();
             const user = auth.currentUser;
@@ -922,7 +920,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         let label = "בדיקה";
         let colorClass = "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700"; // Default: Active Check (Manifesto Blue)
 
-        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'];
+        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image'];
 
         // COMPLEX BLOCK LOGIC:
         // If it's a complex interactive block (Cloze, Ordering, etc.) AND we are in 'idle' mode,
@@ -1211,6 +1209,61 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     />
                 );
 
+            // === ACTIVITY MEDIA BLOCKS ===
+            case 'activity-intro': {
+                const introContent = currentBlock.content as any;
+                if (!introContent?.imageUrl) return <div className="p-10 text-center text-gray-500">תמונת פתיחה לא נמצאה</div>;
+                return (
+                    <div className="mb-4">
+                        <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-b from-indigo-500 to-purple-600">
+                            <img
+                                src={introContent.imageUrl}
+                                alt={introContent.title || 'תמונת פתיחה'}
+                                className="w-full h-56 md:h-72 object-cover opacity-90"
+                                loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                            <div className="absolute bottom-0 right-0 p-5 text-white text-right">
+                                <h2 className="text-xl md:text-2xl font-bold mb-1">
+                                    {introContent.title || 'בואו נתחיל!'}
+                                </h2>
+                                {introContent.description && (
+                                    <p className="text-sm opacity-90 max-w-sm">
+                                        {introContent.description}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            case 'scenario-image': {
+                const scenarioContent = currentBlock.content as any;
+                if (!scenarioContent?.imageUrl) return <div className="p-10 text-center text-gray-500">תמונה לא נמצאה</div>;
+                return (
+                    <div className="mb-4">
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3 text-amber-700">
+                                <span className="text-xl">🔍</span>
+                                <span className="font-medium">התבונן בתמונה:</span>
+                            </div>
+                            <img
+                                src={scenarioContent.imageUrl}
+                                alt={scenarioContent.caption || 'תמונת דילמה'}
+                                className="w-full max-h-64 object-contain rounded-xl bg-white"
+                                loading="lazy"
+                            />
+                            {scenarioContent.caption && (
+                                <p className="mt-3 text-center text-amber-800 font-medium">
+                                    {scenarioContent.caption}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
             case 'audio-response':
                 // @ts-ignore
                 return <AudioRecorderBlock block={currentBlock} onAnswer={(url) => handleComplexBlockComplete(100)} />;
@@ -1249,7 +1302,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         let maxPossibleScore = 0;
 
         playbackQueue.forEach(block => {
-            const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast'];
+            const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image'];
             const isPassive = passiveTypes.includes(block.type);
 
             if (isPassive) {
@@ -1551,32 +1604,32 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             // Only show inline context if source panel is closed
                             if (hasContext && !showSourcePanel) {
                                 return (
-                                    <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
+                                    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:min-h-[500px]">
                                         {/* Context Panel (Left/Top) - PDF or Text */}
-                                        <div className="flex-1 bg-white/90 backdrop-blur rounded-[32px] shadow-xl p-6 md:p-8 overflow-y-auto border-4 border-white/50 lg:max-h-none lg:min-h-[500px]">
+                                        <div className="lg:flex-1 lg:w-1/2 bg-white/90 backdrop-blur rounded-[32px] shadow-xl p-4 md:p-6 lg:p-8 overflow-y-auto border-4 border-white/50 max-h-[40vh] lg:max-h-[70vh] lg:min-h-[400px]">
                                             {prevBlock.type === 'pdf' ? (
                                                 <iframe
                                                     src={`${prevBlock.content}#toolbar=0`}
                                                     width="100%"
                                                     height="100%"
                                                     title="PDF Context"
-                                                    className="border-0 rounded-xl min-h-[400px] lg:min-h-full"
+                                                    className="border-0 rounded-xl min-h-[250px] lg:min-h-[350px]"
                                                 />
                                             ) : (
-                                                <div className="prose prose-xl prose-indigo max-w-none text-slate-800 dir-rtl">
+                                                <div className="prose prose-lg lg:prose-xl prose-indigo max-w-none text-slate-800 dir-rtl">
                                                     {prevBlock.content.split('\n').map((line: string, i: number) => {
                                                         if (!line.trim()) return <br key={i} />;
                                                         if (line.startsWith('#')) {
-                                                            return <h3 key={i} className="text-2xl md:text-3xl font-bold mb-4 text-indigo-600">{line.replace(/^#+\s*/, '')}</h3>;
+                                                            return <h3 key={i} className="text-xl lg:text-2xl xl:text-3xl font-bold mb-3 lg:mb-4 text-indigo-600">{line.replace(/^#+\s*/, '')}</h3>;
                                                         }
-                                                        return <p key={i} className="text-xl md:text-2xl leading-relaxed font-medium mb-4">{line}</p>;
+                                                        return <p key={i} className="text-lg lg:text-xl xl:text-2xl leading-relaxed font-medium mb-3 lg:mb-4">{line}</p>;
                                                     })}
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Active Question Panel (Right/Bottom) */}
-                                        <div className="flex-1 bg-white rounded-[32px] shadow-2xl p-6 md:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500">
+                                        <div className="lg:flex-1 lg:w-1/2 bg-white rounded-[32px] shadow-2xl p-4 md:p-6 lg:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500">
                                             {renderBlockContent()}
                                         </div>
                                     </div>

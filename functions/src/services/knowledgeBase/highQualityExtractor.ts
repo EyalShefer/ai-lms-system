@@ -1,10 +1,10 @@
 // highQualityExtractor.ts - High-accuracy PDF text extraction with multi-model consensus
 // This is a ONE-TIME process per book that serves hundreds of thousands of queries
 // Priority: MAXIMUM ACCURACY over speed or cost
+// Uses Gemini 2.5 Pro via Google AI Studio for all extractions
 
 import * as logger from 'firebase-functions/logger';
-import { VertexAI } from '@google-cloud/vertexai';
-import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 import { PDFDocument } from 'pdf-lib';
 
 // Gemini has native PDF support - we send PDFs directly without image conversion
@@ -13,7 +13,7 @@ import { PDFDocument } from 'pdf-lib';
 export interface ExtractionResult {
   pageNumber: number;
   primaryText: string;        // Gemini extraction
-  verificationText: string;   // GPT-4o verification
+  verificationText: string;   // Gemini verification pass
   consensusText: string;      // Final merged text
   confidence: 'high' | 'medium' | 'low';
   agreementScore: number;     // 0-1, how much the models agreed
@@ -73,16 +73,11 @@ const RATE_LIMIT_CONFIG = {
 };
 
 export class HighQualityExtractor {
-  private vertexAI: VertexAI;
-  private openai: OpenAI;
-  private projectId: string;
+  private genAI: GoogleGenAI;
 
-  constructor(openaiApiKey: string, projectId: string = 'ai-lms-pro') {
-    // Use Vertex AI instead of Google AI Studio for higher rate limits
-    // Vertex AI has 60+ RPM vs Google AI Studio's 10-15 RPM
-    this.vertexAI = new VertexAI({ project: projectId, location: 'us-central1' });
-    this.openai = new OpenAI({ apiKey: openaiApiKey });
-    this.projectId = projectId;
+  constructor(_openaiApiKey?: string, _projectId: string = 'ai-lms-pro') {
+    // Use Google AI Studio with Gemini 2.5 Pro for all extractions
+    this.genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   }
 
   /**
@@ -219,86 +214,33 @@ export class HighQualityExtractor {
 חלץ את כל הטקסט מהעמוד:`;
 
     return this.withRetry(async () => {
-      // Use Vertex AI with gemini-2.0-flash-001 model
-      const model = this.vertexAI.getGenerativeModel({
+      // Use Google AI Studio with gemini-2.0-flash-001 model
+      const response = await this.genAI.models.generateContent({
         model: 'gemini-2.0-flash-001',
-        generationConfig: {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: pdfBase64
+                }
+              }
+            ]
+          }
+        ],
+        config: {
           temperature: 0,
           maxOutputTokens: 8192,
         }
       });
 
-      const response = await model.generateContent({
-        contents: [{
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: pdfBase64
-              }
-            }
-          ]
-        }]
-      });
-
       // Extract text from response
-      const result = response.response;
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
       return text;
-    }, `Vertex AI extraction page ${pageNumber}`);
-  }
-
-  /**
-   * Extract text from a single page using GPT-4o (for verification)
-   * Note: GPT-4o needs images, not PDFs directly
-   */
-  private async extractPageWithGPT4o(
-    pageImageBase64: string,
-    pageNumber: number,
-    totalPages: number
-  ): Promise<string> {
-    const prompt = `אתה מחלץ טקסט מספר לימוד מתמטיקה בעברית. זהו עמוד ${pageNumber} מתוך ${totalPages}.
-
-משימתך היא לחלץ את כל הטקסט בדיוק מקסימלי.
-
-כללים קריטיים:
-1. חלץ כל מילה, כל מספר, כל סימן - בדיוק כפי שהם מופיעים
-2. שמור על סדר הקריאה הנכון (ימין לשמאל לעברית)
-3. לכל תרגיל - כתוב את המספר המדויק ואת כל התוכן
-4. משוואות מתמטיות - כתוב בצורה ברורה
-5. טבלאות - שמור על המבנה
-6. תמונות/איורים - תאר בסוגריים מרובעים
-7. אם יש טקסט לא ברור - סמן [?לא ברור?]
-
-חלץ את כל הטקסט:`;
-
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/png;base64,${pageImageBase64}`,
-                detail: 'high'
-              }
-            }
-          ]
-        }],
-        max_tokens: 8000,
-        temperature: 0,
-      });
-
-      return response.choices[0]?.message?.content || '';
-    } catch (error: any) {
-      logger.error(`GPT-4o extraction failed for page ${pageNumber}:`, error.message);
-      throw error;
-    }
+    }, `Google AI Studio extraction page ${pageNumber}`);
   }
 
   /**
@@ -700,35 +642,33 @@ export class HighQualityExtractor {
 
     try {
       return await this.withRetry(async () => {
-        const model = this.vertexAI.getGenerativeModel({
+        const response = await this.genAI.models.generateContent({
           model: 'gemini-2.0-flash-001',
-          generationConfig: {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'application/pdf',
+                    data: pdfBase64
+                  }
+                }
+              ]
+            }
+          ],
+          config: {
             temperature: 0.1, // Slightly different temperature for variation
             maxOutputTokens: 8192,
           }
         });
 
-        const response = await model.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: 'application/pdf',
-                  data: pdfBase64
-                }
-              }
-            ]
-          }]
-        });
-
-        const result = response.response;
-        const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
         return text;
-      }, `Vertex AI verification page ${pageNumber}`);
+      }, `Google AI Studio verification page ${pageNumber}`);
     } catch (error: any) {
-      logger.error(`Vertex AI verification failed for page ${pageNumber}:`, error.message);
+      logger.error(`Google AI Studio verification failed for page ${pageNumber}:`, error.message);
       return ''; // Return empty on failure after all retries
     }
   }

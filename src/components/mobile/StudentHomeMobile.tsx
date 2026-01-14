@@ -13,6 +13,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useMyAssignments, type StudentAssignment } from '../../hooks/useMyAssignments';
 import { formatDueDate } from '../../services/taskAssignmentService';
+import { AIStarsSpinner } from '../ui/Loading/AIStarsSpinner';
 import {
     IconFlame,
     IconDiamond,
@@ -95,7 +96,7 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
                 <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-wizdi-cyan/30 border-t-wizdi-royal rounded-full animate-spin motion-reduce:animate-none mx-auto mb-4" />
+                    <AIStarsSpinner size="lg" color="primary" className="mx-auto mb-4" />
                     <p className="text-wizdi-royal font-bold">טוען...</p>
                 </div>
             </div>

@@ -1,27 +1,26 @@
 /**
  * Imagen 4 Service
- * Uses Google's Imagen 4 for high-quality image generation
+ * Uses Google's Imagen 4 via Google AI Studio for high-quality image generation
  * Model: imagen-4.0-generate-001
  *
  * This is a REAL image generation model (not HTML to image)
  */
 
 import * as logger from 'firebase-functions/logger';
+import { GoogleGenAI } from '@google/genai';
 
 // Configuration for Imagen 4
 export const IMAGEN4_CONFIG = {
-    model: 'imagen-4.0-generate-001',
-    location: 'us-central1',  // Imagen 4 is available in us-central1
-    projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT
+    model: 'imagen-4.0-generate-001'
 };
 
 /**
  * Check if Imagen 4 is available
  */
 export const isImagen4Available = (): boolean => {
-    const hasProjectId = !!IMAGEN4_CONFIG.projectId;
+    const hasApiKey = !!process.env.GEMINI_API_KEY;
     const isEnabled = process.env.ENABLE_IMAGEN4 !== 'false';
-    return hasProjectId && isEnabled;
+    return hasApiKey && isEnabled;
 };
 
 /**
@@ -51,13 +50,9 @@ export const generateInfographicWithImagen4 = async (
 
         const startTime = Date.now();
 
-        // Dynamic import to avoid cold start delays
-        const { VertexAI } = await import('@google-cloud/vertexai');
-
-        // Initialize Vertex AI client
-        const vertexAI = new VertexAI({
-            project: IMAGEN4_CONFIG.projectId!,
-            location: IMAGEN4_CONFIG.location
+        // Initialize Google AI Studio client
+        const client = new GoogleGenAI({
+            apiKey: process.env.GEMINI_API_KEY!
         });
 
         // Build infographic-specific prompt
@@ -101,38 +96,33 @@ Requirements: Clear circular flow, large readable Hebrew text, professional styl
 
         const prompt = promptTemplates[visualType];
 
-        // Use Imagen 4 for image generation
-        // @ts-ignore - Imagen API may have different types
-        const imageModel = vertexAI.preview.getImageGenerationModel({
-            model: IMAGEN4_CONFIG.model
-        });
-
-        // @ts-ignore
-        const result = await imageModel.generateImages({
+        // Use Imagen 4 for image generation via Google AI Studio
+        const result = await client.models.generateImages({
+            model: IMAGEN4_CONFIG.model,
             prompt: prompt,
-            numberOfImages: 1,
-            aspectRatio: '1:1',
-            // @ts-ignore
-            sampleImageStyle: 'digital_art'
+            config: {
+                numberOfImages: 1,
+                aspectRatio: '1:1'
+            }
         });
 
         const generationTime = Date.now() - startTime;
 
-        // @ts-ignore
-        if (result.images && result.images.length > 0) {
-            // @ts-ignore
-            const image = result.images[0];
-            const base64 = image.bytesBase64Encoded;
+        if (result.generatedImages && result.generatedImages.length > 0) {
+            const image = result.generatedImages[0];
+            const base64 = image.image?.imageBytes;
 
-            logger.info('✅ Imagen 4 generation successful', {
-                generationTime: `${generationTime}ms`,
-                imageSize: `${Math.round(base64.length * 0.75 / 1024)}KB`
-            });
+            if (base64) {
+                logger.info('✅ Imagen 4 generation successful', {
+                    generationTime: `${generationTime}ms`,
+                    imageSize: `${Math.round(base64.length * 0.75 / 1024)}KB`
+                });
 
-            return {
-                base64,
-                mimeType: 'image/png'
-            };
+                return {
+                    base64,
+                    mimeType: 'image/png'
+                };
+            }
         }
 
         logger.error('❌ Imagen 4: No image in response');

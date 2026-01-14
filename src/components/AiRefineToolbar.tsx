@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IconSparkles, IconWand, IconX, IconCheck } from '../icons';
 import { refineBlockContent } from '../services/ai/geminiApi';
 
@@ -10,12 +10,102 @@ interface AiRefineToolbarProps {
     className?: string;
 }
 
+/**
+ * Generate a smart default prompt suggestion based on block type and content
+ */
+const generateDefaultPrompt = (blockType: string, content: any): string => {
+    // Extract text content for context
+    const getTextContent = (): string => {
+        if (!content) return '';
+        if (typeof content === 'string') return content;
+        if (content.question) return content.question;
+        if (content.text) return content.text;
+        if (content.title) return content.title;
+        if (content.prompt) return content.prompt;
+        if (content.content) return typeof content.content === 'string' ? content.content : '';
+        return '';
+    };
+
+    const textContent = getTextContent();
+    const shortContent = textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent;
+
+    // Generate contextual suggestions based on block type
+    switch (blockType) {
+        case 'multiple_choice':
+        case 'multipleChoice':
+            return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח כדי שיהיה ברור יותר`;
+
+        case 'open_question':
+        case 'openQuestion':
+            return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+
+        case 'matching':
+            return `שפרו את משחק ההתאמה: הוסיפו זוגות נוספים או שפרו את הקשר בין הפריטים`;
+
+        case 'sorting':
+        case 'ordering':
+            return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+
+        case 'fill_blanks':
+        case 'fillBlanks':
+            return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+
+        case 'info':
+        case 'text':
+        case 'content':
+            return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
+
+        case 'video':
+            return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
+
+        case 'image':
+            return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
+
+        case 'discussion':
+            return `שפרו את נושא הדיון: הוסיפו שאלות מנחות או נקודות למחשבה`;
+
+        case 'interactive_chat':
+        case 'interactiveChat':
+            return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
+
+        case 'summary':
+            return `שפרו את הסיכום: הוסיפו נקודות מפתח או קשרו לנושאים קודמים`;
+
+        default:
+            if (shortContent) {
+                return `שפרו את התוכן בנושא "${shortContent}": פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
+            }
+            return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
+    }
+};
+
 export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, blockType, content, onUpdate, className }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [instruction, setInstruction] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    // Store user's custom prompt to preserve it across open/close
+    const userEditedPromptRef = useRef<string | null>(null);
+
+    // When opening the panel, set default prompt if user hasn't edited one
+    useEffect(() => {
+        if (isOpen && instruction === "") {
+            // If user previously edited a prompt, restore it; otherwise generate default
+            if (userEditedPromptRef.current !== null) {
+                setInstruction(userEditedPromptRef.current);
+            } else {
+                setInstruction(generateDefaultPrompt(blockType, content));
+            }
+        }
+    }, [isOpen, blockType, content]);
+
+    // Track user edits to preserve them
+    const handleInstructionChange = (value: string) => {
+        setInstruction(value);
+        userEditedPromptRef.current = value;
+    };
 
     const handleRefine = async () => {
         if (!instruction.trim()) return;
@@ -38,7 +128,7 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
             setTimeout(() => {
                 setSuccess(false);
                 setIsOpen(false);
-                setInstruction("");
+                // Don't reset instruction - preserve user's prompt for next time
             }, 1000);
 
         } catch (err) {
@@ -79,13 +169,13 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                 </button>
             </div>
 
-            {/* Input Area */}
+            {/* Input Area - Larger textarea to show full paragraph */}
             <div className="relative">
                 <textarea
                     value={instruction}
-                    onChange={(e) => setInstruction(e.target.value)}
+                    onChange={(e) => handleInstructionChange(e.target.value)}
                     placeholder="למשל: 'הוסיפו עוד 2 מסיחים', 'הפכו את השאלה לקשה יותר', 'תנו דוגמאות מעולם החי'..."
-                    className="w-full min-w-[300px] text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[80px] resize-none bg-white/80"
+                    className="w-full min-w-[350px] text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[120px] resize-y bg-white/80"
                     disabled={isLoading}
                     autoFocus
                     onKeyDown={(e) => {

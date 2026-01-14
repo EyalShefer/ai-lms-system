@@ -4,14 +4,13 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { openai } from '../../services/ai/geminiApi';
+import { callGeminiChat, type ChatMessage } from '../../services/ProxyService';
 import { BOT_PERSONAS } from '../../services/ai/prompts';
 import { InlineMathKeyboard } from '../math/MathKeyboard';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  isStreaming?: boolean;
 }
 
 interface InteractiveChatBlockProps {
@@ -25,11 +24,9 @@ interface InteractiveChatBlockProps {
   onAnswerChange?: (answer: any) => void;
 }
 
-const MODEL_NAME = 'gpt-4o-mini';
-
 /**
- * Interactive Chat Block with Streaming Support
- * Provides real-time AI tutor responses with multiple persona options
+ * Interactive Chat Block
+ * Provides AI tutor responses with multiple persona options
  */
 const InteractiveChatBlock = memo(function InteractiveChatBlock({
   context,
@@ -44,7 +41,6 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
   const [showMathKeyboard, setShowMathKeyboard] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -71,9 +67,6 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
     setInput('');
     setIsLoading(true);
 
-    // Create abort controller for cancellation
-    abortControllerRef.current = new AbortController();
-
     try {
       // Get selected persona prompt
       const persona = BOT_PERSONAS[selectedPersona as keyof typeof BOT_PERSONAS] || BOT_PERSONAS.teacher;
@@ -86,83 +79,36 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
 עליך לספק תגובה מועילה המבוססת על הנושא והשלב הנוכחיים.`;
 
       // Prepare messages for API
-      const apiMessages = [
+      const apiMessages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
         ...messages.map((m) => ({
-          role: m.role === 'user' ? 'user' : 'assistant',
+          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
           content: m.content,
         })),
         { role: 'user', content: userMessage.content },
       ];
 
-      // Add empty assistant message for streaming
-      const assistantMessageIndex = messages.length + 1;
+      // Call Gemini API via Cloud Function
+      const response = await callGeminiChat(apiMessages, { temperature: 0.7 });
+
+      // Add assistant response
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: '', isStreaming: true },
+        { role: 'assistant', content: response },
       ]);
-
-      // Call streaming API
-      const stream = await openai.chat.completions.create({
-        model: MODEL_NAME,
-        messages: apiMessages as any,
-        temperature: 0.7,
-        stream: true,
-      });
-
-      let fullContent = '';
-
-      // Process stream chunks
-      for await (const chunk of stream as any) {
-        // Check if aborted
-        if (abortControllerRef.current?.signal.aborted) {
-          break;
-        }
-
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) {
-          fullContent += delta;
-
-          // Update streaming message
-          setMessages((prev) => {
-            const newMessages = [...prev];
-            newMessages[assistantMessageIndex] = {
-              role: 'assistant',
-              content: fullContent,
-              isStreaming: true,
-            };
-            return newMessages;
-          });
-        }
-      }
-
-      // Mark streaming complete
-      setMessages((prev) => {
-        const newMessages = [...prev];
-        newMessages[assistantMessageIndex] = {
-          role: 'assistant',
-          content: fullContent,
-          isStreaming: false,
-        };
-        return newMessages;
-      });
     } catch (error: any) {
       console.error('[Chat Error]:', error);
 
       // Add error message
-      if (!abortControllerRef.current?.signal.aborted) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: '⚠️ אירעה שגיאה. אנא נסה שוב.',
-            isStreaming: false,
-          },
-        ]);
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: '⚠️ אירעה שגיאה. אנא נסה שוב.',
+        },
+      ]);
     } finally {
       setIsLoading(false);
-      abortControllerRef.current = null;
     }
   };
 
@@ -170,13 +116,6 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
-    }
-  };
-
-  const handleCancelStreaming = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsLoading(false);
     }
   };
 
@@ -265,9 +204,6 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
                     >
                       {message.content}
                     </ReactMarkdown>
-                    {message.isStreaming && (
-                      <span className="inline-block w-2 h-4 bg-gray-800 animate-pulse ml-1" />
-                    )}
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
@@ -308,22 +244,13 @@ const InteractiveChatBlock = memo(function InteractiveChatBlock({
                 🔢
               </button>
             </div>
-            {isLoading ? (
-              <button
-                onClick={handleCancelStreaming}
-                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition self-end"
-              >
-                ⏹️ עצור
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed self-end"
-                disabled={!input.trim()}
-              >
-                שלח
-              </button>
-            )}
+            <button
+              onClick={handleSend}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed self-end"
+              disabled={!input.trim() || isLoading}
+            >
+              {isLoading ? 'שולח...' : 'שלח'}
+            </button>
           </div>
 
           {/* Math keyboard */}

@@ -64,13 +64,26 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
     // Extract Question Text (Handle all known variations - Check Root AND Data)
     const questionObj = rawData.question || item.question;
-    const questionText =
-        (typeof questionObj === 'object' ? questionObj?.text : questionObj) || // Handle { question: { text: "..." } }
-        rawData.question_text ||
-        rawData.text ||
-        rawData.instruction ||
-        rawData.text ||
-        rawData.instruction;
+
+    // Handle nested question objects: { question: { text: "..." } } or { question: "..." }
+    let questionText: string | undefined;
+    if (typeof questionObj === 'object' && questionObj !== null) {
+        // If it's an object, try to get text from various properties
+        questionText = questionObj.text || questionObj.question || questionObj.instruction;
+    } else if (typeof questionObj === 'string') {
+        questionText = questionObj;
+    }
+
+    // Fallback to other common fields
+    if (!questionText) {
+        questionText = rawData.question_text || rawData.text || rawData.instruction || item.text || item.instruction;
+    }
+
+    // Final fallback to prevent empty questions
+    if (!questionText || questionText.trim() === '') {
+        console.warn("⚠️ mapSystemItemToBlock: No question text found, using placeholder");
+        questionText = "שאלה ללא טקסט";
+    }
 
     const commonMetadata = {
         bloomLevel: item.bloom_level || "ידע ומיומנויות יסוד",
@@ -170,15 +183,34 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     // === CASE B: OPEN QUESTION ===
     if (typeString === 'open_question' || typeString === 'open_ended') {
         console.log("🎮 Handling as OPEN QUESTION");
+
+        // Robust model answer extraction
+        let modelAnswer: string;
+        const rawAnswer = rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key;
+
+        if (Array.isArray(rawAnswer)) {
+            // Handle array of strings/objects
+            modelAnswer = rawAnswer
+                .map(item => typeof item === 'string' ? item : (item.text || item.point || JSON.stringify(item)))
+                .filter(Boolean)
+                .join('\n- ');
+            if (modelAnswer) modelAnswer = '- ' + modelAnswer; // Add leading bullet
+        } else if (typeof rawAnswer === 'object' && rawAnswer !== null) {
+            // Handle object - extract text fields
+            modelAnswer = rawAnswer.text || rawAnswer.answer || rawAnswer.content || JSON.stringify(rawAnswer);
+        } else if (typeof rawAnswer === 'string') {
+            modelAnswer = rawAnswer;
+        } else {
+            modelAnswer = "התשובה נמצאת בחומר הלימוד.";
+        }
+
         return {
             id: uuidv4(),
             type: 'open-question',
             content: { question: questionText },
             metadata: {
                 ...commonMetadata,
-                modelAnswer: Array.isArray(rawData.model_answer)
-                    ? rawData.model_answer.join('\n- ')
-                    : (rawData.model_answer || rawData.teacher_guidelines || rawData.answer_key || "התשובה נמצאת בחומר הלימוד."),
+                modelAnswer: modelAnswer,
                 score: 20
             }
         };

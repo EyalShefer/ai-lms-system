@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMyAssignments, type StudentAssignment } from '../hooks/useMyAssignments';
 import { formatDueDate } from '../services/taskAssignmentService';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
     IconFlame,
     IconDiamond,
@@ -289,7 +290,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
     if (loading) {
         return (
             <div className="h-screen flex flex-col items-center justify-center">
-                <div className="w-16 h-16 border-4 border-wizdi-cyan/30 border-t-wizdi-royal rounded-full animate-spin mb-4" />
+                <AIStarsSpinner size="xl" color="primary" className="mb-4" />
                 <p className="text-wizdi-royal font-bold animate-pulse">טוען את המשימות שלך...</p>
             </div>
         );

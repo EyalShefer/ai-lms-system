@@ -79,7 +79,7 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ script, initialAud
     if (!ElevenLabsService.isConfigured()) {
         return (
             <div className="bg-red-50 text-red-600 p-4 rounded-xl text-center text-sm border border-red-200">
-                חסר מפתח API של ElevenLabs. אנא הגדר את `VITE_ELEVENLABS_API_KEY`.
+                נדרשת התחברות לשימוש בפודקאסט.
             </div>
         );
     }

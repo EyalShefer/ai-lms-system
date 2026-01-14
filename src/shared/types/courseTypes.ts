@@ -21,7 +21,10 @@ export type ActivityBlockType =
     | 'drag_and_drop'
     | 'hotspot'
     | 'mindmap'
-    | 'infographic';
+    | 'infographic'
+    // Activity-specific blocks
+    | 'activity-intro'     // Context image for student activities (The Setting)
+    | 'scenario-image';    // Scenario image within questions (The Dilemma)
 
 export interface MultipleChoiceContent {
     question: string;
@@ -109,6 +112,23 @@ export interface MindMapMetadata {
     lastEditedAt?: number;
     sourceContentHash?: string; // For cache invalidation
     aiModel?: string;
+}
+
+// --- Activity Media Types ---
+// For standalone student activities (context and scenario images)
+
+export interface ActivityIntroContent {
+    imageUrl: string;           // Generated or uploaded image URL
+    title: string;              // Short title like "אתה המהנדס!"
+    description?: string;       // Optional longer description
+    imagePrompt?: string;       // The prompt used to generate (for regeneration)
+}
+
+export interface ScenarioImageContent {
+    imageUrl: string;           // Generated or uploaded image URL
+    caption?: string;           // What the student should notice
+    imagePrompt?: string;       // The prompt used to generate
+    relatedBlockId?: string;    // The question block this image relates to
 }
 
 // Union of all strict content types
@@ -242,6 +262,17 @@ export interface MindMapBlock extends ActivityBlockBase {
     metadata?: ActivityBlockMetadata & MindMapMetadata;
 }
 
+// Activity-specific blocks for student activities
+export interface ActivityIntroBlock extends ActivityBlockBase {
+    type: 'activity-intro';
+    content: ActivityIntroContent;
+}
+
+export interface ScenarioImageBlock extends ActivityBlockBase {
+    type: 'scenario-image';
+    content: ScenarioImageContent;
+}
+
 export type ActivityBlock =
     | MultipleChoiceBlock
     | OpenQuestionBlock
@@ -251,7 +282,9 @@ export type ActivityBlock =
     | GenericBlock
     | PodcastBlock
     | AudioResponseBlock
-    | MindMapBlock;
+    | MindMapBlock
+    | ActivityIntroBlock
+    | ScenarioImageBlock;
 
 export interface LearningUnit {
     id: string;

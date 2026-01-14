@@ -12,9 +12,9 @@ import {
   initWizdiListener,
   notifyApplicationLoaded,
   notifyError,
-  onWizdiCommand,
-  WizdiCommand
+  onWizdiCommand
 } from '../../services/wizdiIntegration';
+import type { WizdiCommand } from '../../services/wizdiIntegration';
 
 // Lazy load the actual components
 const StudentHome = React.lazy(() => import('../StudentHome'));

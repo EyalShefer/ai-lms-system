@@ -1,7 +1,7 @@
 /**
- * Gemini 3 Pro Text Service
- * Uses Gemini 3 Pro Preview via Google GenAI SDK for high-quality HTML generation
- * Model: gemini-3-pro-preview
+ * Gemini 2.5 Pro Text Service
+ * Uses Gemini 2.5 Pro via Google AI Studio for high-quality HTML generation
+ * Model: gemini-2.5-pro
  *
  * This service generates HTML for infographics which can then be converted to images
  */
@@ -9,25 +9,22 @@
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI } from '@google/genai';
 
-// Configuration for Gemini 3 Pro (Text)
-// IMPORTANT: gemini-3-pro-preview is only available on GLOBAL endpoints
-export const GEMINI3_TEXT_CONFIG = {
-    model: 'gemini-3-pro-preview',
-    location: 'global',  // Must be 'global' for Gemini 3 Pro Preview
-    projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT
+// Configuration for Gemini 2.5 Pro (Text)
+export const GEMINI_TEXT_CONFIG = {
+    model: 'gemini-2.5-pro'
 };
 
 /**
- * Check if Gemini 3 Pro is available
+ * Check if Gemini 2.5 Pro is available
  */
 export const isGemini3TextAvailable = (): boolean => {
-    const hasProjectId = !!GEMINI3_TEXT_CONFIG.projectId;
-    const isEnabled = process.env.ENABLE_GEMINI3 !== 'false';
-    return hasProjectId && isEnabled;
+    const hasApiKey = !!process.env.GEMINI_API_KEY;
+    const isEnabled = process.env.ENABLE_GEMINI !== 'false';
+    return hasApiKey && isEnabled;
 };
 
 /**
- * Generate HTML for infographic using Gemini 3 Pro
+ * Generate HTML for infographic using Gemini 2.5 Pro
  *
  * @param content - Educational content in Hebrew
  * @param visualType - Type of infographic
@@ -40,12 +37,12 @@ export const generateInfographicHTML = async (
     topic?: string
 ): Promise<string | null> => {
     if (!isGemini3TextAvailable()) {
-        logger.warn('Gemini 3 Pro is not available');
+        logger.warn('Gemini 2.5 Pro is not available');
         return null;
     }
 
     try {
-        logger.info('🎨 Generating infographic HTML with Gemini 3 Pro...', {
+        logger.info('🎨 Generating infographic HTML with Gemini 2.5 Pro...', {
             visualType,
             topic,
             contentLength: content.length
@@ -53,11 +50,9 @@ export const generateInfographicHTML = async (
 
         const startTime = Date.now();
 
-        // Initialize Google GenAI client with Vertex AI (supports global endpoint)
+        // Initialize Google AI Studio client
         const client = new GoogleGenAI({
-            vertexai: true,
-            project: GEMINI3_TEXT_CONFIG.projectId!,
-            location: GEMINI3_TEXT_CONFIG.location  // 'global' for Gemini 3 Pro
+            apiKey: process.env.GEMINI_API_KEY!
         });
 
         // Build the prompt
@@ -111,7 +106,7 @@ Generate ONLY the HTML code, no explanations.`;
         // Generate content using Google GenAI SDK
         const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
         const response = await client.models.generateContent({
-            model: GEMINI3_TEXT_CONFIG.model,
+            model: GEMINI_TEXT_CONFIG.model,
             contents: fullPrompt,
             config: {
                 temperature: 0.5,
@@ -129,7 +124,7 @@ Generate ONLY the HTML code, no explanations.`;
                 .replace(/```\n?/g, '')
                 .trim();
 
-            logger.info('✅ Gemini 3 Pro HTML generation successful', {
+            logger.info('✅ Gemini 2.5 Pro HTML generation successful', {
                 generationTime: `${generationTime}ms`,
                 htmlLength: htmlCode.length
             });
@@ -137,11 +132,11 @@ Generate ONLY the HTML code, no explanations.`;
             return htmlCode;
         }
 
-        logger.error('❌ Gemini 3 Pro: No text in response');
+        logger.error('❌ Gemini 2.5 Pro: No text in response');
         return null;
 
     } catch (error: any) {
-        logger.error('❌ Gemini 3 Pro text generation failed:', {
+        logger.error('❌ Gemini 2.5 Pro text generation failed:', {
             error: error.message,
             code: error.code
         });

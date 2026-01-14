@@ -161,6 +161,18 @@ service firebase.storage {
                    && request.resource.size < 5 * 1024 * 1024; // Max 5MB for infographics
     }
 
+    // ===== GENERATED IMAGES =====
+    // AI-generated images and infographics uploaded from client
+    match /generated_images/{allPaths=**} {
+      // Read: Any authenticated user can read generated images
+      allow read: if isAuthenticated();
+
+      // Write: Any authenticated user can write (teachers generating content)
+      allow write: if isAuthenticated()
+                   && isValidImage()
+                   && request.resource.size < 10 * 1024 * 1024; // Max 10MB
+    }
+
     // ===== TEMPORARY UPLOADS =====
     // For processing uploads before moving to final location
     match /temp/{userId}/{fileName} {

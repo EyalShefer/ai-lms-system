@@ -26,8 +26,7 @@ const LandingPageMobile: React.FC<LandingPageMobileProps> = ({ onLogin }) => {
             {/* Mobile Navbar */}
             <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex justify-between items-center safe-area-inset-top">
                 <div className="flex items-center gap-2">
-                    <img src="/WizdiLogo.png" alt="Wizdi" className="h-8 w-auto" loading="eager" decoding="async" />
-                    <span className="font-black text-lg text-wizdi-royal">Wizdi</span>
+                    <img src="/WizdiLogo.png" alt="Wizdi" className="h-16 w-auto" loading="eager" decoding="async" />
                 </div>
                 <button
                     onClick={onLogin}

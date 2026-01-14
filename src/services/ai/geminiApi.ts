@@ -22,22 +22,96 @@ import type { UnitSkeleton, StepContentResponse, DialogueScript } from "../../sh
 import { v4 as uuidv4 } from 'uuid';
 import type { ValidationResult } from "../../shared/types/courseTypes";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase";
+import { functions, auth } from "../../firebase";
+import {
+    generateInfographicHash,
+    getCachedInfographic,
+    setCachedInfographic,
+    getFromFirebaseCache,
+    saveToFirebaseCache
+} from '../../utils/infographicCache';
+import {
+    trackGenerationStart,
+    trackCacheHit,
+    trackCacheMiss,
+    trackGenerationComplete,
+    trackGenerationFailed
+} from '../infographicAnalytics';
 
-export const MODEL_NAME = "gpt-4o-mini";
+export const MODEL_NAME = "gemini-2.5-pro"; // Using Gemini via Cloud Function
 
-// Gemini Image Models (Nano Banana + Gemini 3 Pro)
-export const GEMINI_IMAGE_MODELS = {
-    flash: 'gemini-2.5-flash-image',      // Nano Banana - Fast, cheaper
-    pro: 'gemini-3-pro-image-preview'     // Gemini 3 Pro - Higher quality
+// Gemini 3 Pro Image for infographics (Real AI Image Generation)
+export const INFOGRAPHIC_MODEL = "gemini-3-pro-image";
+
+/**
+ * Call Gemini 3 Pro Image via Cloud Function for real AI image generation
+ * Uses Gemini for high-quality Hebrew infographic images
+ */
+const callGeminiInfographicCloudFunction = async (
+    content: string,
+    visualType: 'flowchart' | 'timeline' | 'comparison' | 'cycle',
+    topic?: string
+): Promise<Blob | null> => {
+    try {
+        console.log(`🚀 Calling Gemini 3 Pro Image Cloud Function for infographic...`);
+
+        // Get auth token
+        const user = auth.currentUser;
+        if (!user) {
+            console.error('❌ User not authenticated');
+            return null;
+        }
+        const idToken = await user.getIdToken();
+
+        // Call the Cloud Function (HTTP endpoint)
+        const functionUrl = `https://us-central1-ai-lms-pro.cloudfunctions.net/generateGeminiInfographic`;
+
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+                content,
+                visualType,
+                topic
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ Gemini 3 Pro Image Cloud Function error:', error);
+            return null;
+        }
+
+        const data = await response.json();
+        if (data.success && data.image?.base64) {
+            console.log('✅ Gemini 3 Pro Image received from Cloud Function');
+
+            // Convert base64 to Blob
+            const byteCharacters = atob(data.image.base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: data.image.mimeType || 'image/png' });
+        }
+
+        return null;
+    } catch (error) {
+        console.error('❌ Gemini 3 Pro Image Cloud Function call failed:', error);
+        return null;
+    }
 };
 
-// Internal OpenAI Client Wrapper ensuring Proxy usage (for text completions only)
+// Gemini Client Wrapper using Cloud Function
 export const openai = {
     chat: {
         completions: {
             create: async (params: any) => {
-                // Using standard chat completions endpoint
+                // Uses callAI which now routes to Gemini Cloud Function
                 return await callAI("/chat/completions", params);
             }
         }
@@ -218,40 +292,31 @@ export const refineContentWithPedagogy = async (content: string, instruction: st
 };
 
 
-/**
- * Generate AI image using Gemini (Nano Banana or Gemini 3 Pro)
- *
- * @param prompt - Image generation prompt
- * @param model - 'flash' for Nano Banana (default), 'pro' for Gemini 3 Pro
- * @returns Promise<Blob | null> - PNG image blob or null on failure
- */
 export const generateAiImage = async (
     prompt: string,
-    model: 'flash' | 'pro' = 'flash'
+    preferredProvider: 'gemini3' | 'imagen' | 'auto' = 'auto'
 ): Promise<Blob | null> => {
     // Dynamic import of Gemini Image service
     const { isGeminiImageAvailable, generateGeminiImage } = await import('./imagenService');
 
+    // Always use Gemini for image generation
+    console.log('🎨 Generating with Gemini Image via Cloud Function...');
+
     if (!isGeminiImageAvailable()) {
-        console.warn('⚠️ Gemini Image is not configured. Set VITE_ENABLE_GEMINI_IMAGE=true');
+        console.error('❌ Gemini Image not available');
         return null;
     }
 
     try {
-        const modelName = model === 'pro' ? 'Gemini 3 Pro' : 'Nano Banana (Gemini 2.5 Flash)';
-        console.log(`🎨 Generating image with ${modelName}...`);
-
-        const result = await generateGeminiImage(prompt, model);
-
+        const result = await generateGeminiImage(prompt);
         if (result) {
-            console.log(`✅ ${modelName} generation successful`);
+            console.log('✅ Gemini Image generation successful');
             return result;
         }
-
-        console.warn(`⚠️ ${modelName} generation failed`);
+        console.error('❌ Gemini Image generation returned null');
         return null;
     } catch (e) {
-        console.error("❌ Gemini image generation failed:", e);
+        console.error("❌ Gemini Image generation failed:", e);
         return null;
     }
 };
@@ -333,8 +398,7 @@ Requirements: Circular arrangement, directional arrows, clear Hebrew text.`
 };
 
 /**
- * Generates an educational infographic from text content using Gemini
- * Uses Gemini 2.5 Flash Image (Nano Banana) or Gemini 3 Pro Image
+ * Generates an educational infographic from text content using DALL-E 3
  * Optimized prompts for Hebrew educational content
  * Includes smart caching to prevent duplicate generation
  *
@@ -350,14 +414,7 @@ export const generateInfographicFromText = async (
     topic?: string,
     skipCache: boolean = false
 ): Promise<Blob | null> => {
-    // Import cache utilities dynamically
-    const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
-
-    // Import analytics utilities
-    const { trackGenerationStart, trackCacheHit, trackCacheMiss, trackGenerationComplete, trackGenerationFailed } =
-        await import('../infographicAnalytics');
-
-    // Truncate text if too long (Gemini prompt limit)
+    // Truncate text if too long (DALL-E prompt limit ~4000 chars)
     const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;
 
     // Track generation start
@@ -387,7 +444,6 @@ export const generateInfographicFromText = async (
         }
 
         // 2. Check Firebase Storage (persistent)
-        const { getFromFirebaseCache } = await import('../../utils/infographicCache');
         const firebaseUrl = await getFromFirebaseCache(cacheHash);
         if (firebaseUrl) {
             console.log(`☁️ Firebase Storage Cache HIT for ${visualType} infographic`);
@@ -416,32 +472,34 @@ export const generateInfographicFromText = async (
     }
 
     try {
-        console.log(`🎨 Generating ${visualType} infographic with Gemini (Nano Banana)...`);
+        console.log(`🎨 Generating ${visualType} infographic with Gemini 3 Pro Image...`);
         const startTime = Date.now();
         let imageBlob: Blob | null = null;
-        let actualCost = 0.02; // Gemini Flash cost
+        let actualCost = 0.04; // Gemini 3 Pro Image cost
 
-        // STRATEGY: Gemini (Nano Banana) for infographic images
+        // STRATEGY: Gemini 3 Pro Image for REAL AI-generated infographic images
+
+        // PRIMARY: Gemini 3 Pro Image via Cloud Function
         try {
-            console.log('🎯 Using Gemini (Nano Banana) for infographic image generation...');
+            console.log('🎯 Using Gemini 3 Pro Image for real infographic image generation...');
 
-            // Use generateGemini3InfographicFromText which calls the Cloud Function
-            imageBlob = await generateGemini3InfographicFromText(truncatedText, visualType, topic);
+            // Call Cloud Function to generate image with Gemini 3 Pro Image
+            imageBlob = await callGeminiInfographicCloudFunction(truncatedText, visualType, topic);
 
             if (imageBlob) {
-                console.log('✅ Gemini infographic generated successfully!');
+                console.log('✅ Gemini 3 Pro Image infographic generated successfully!');
             }
         } catch (geminiError) {
-            console.error('❌ Gemini infographic generation failed:', geminiError);
+            console.error('❌ Gemini 3 Pro Image infographic generation failed:', geminiError);
         }
 
         const generationTime = Date.now() - startTime;
 
         if (imageBlob) {
-            console.log(`✅ ${visualType} infographic generated successfully with Gemini`);
+            console.log(`✅ ${visualType} infographic generated successfully with Gemini 3 Pro Image`);
 
             // Track successful generation
-            trackGenerationComplete(visualType, 'gemini-flash', generationTime, actualCost);
+            trackGenerationComplete(visualType, 'gemini3', generationTime, actualCost);
 
             // Cache the result for future use (two-tier: memory + Firebase Storage)
             if (!skipCache) {
@@ -458,7 +516,6 @@ export const generateInfographicFromText = async (
 
                 // 2. Save to Firebase Storage (persistent, cross-session)
                 try {
-                    const { saveToFirebaseCache } = await import('../../utils/infographicCache');
                     await saveToFirebaseCache(cacheHash, imageBlob);
                     console.log(`☁️ Firebase Storage cache saved (persistent)`);
                 } catch (error) {
@@ -467,10 +524,10 @@ export const generateInfographicFromText = async (
                 }
             }
         } else {
-            console.warn(`⚠️ ${visualType} infographic generation failed`);
+            console.warn(`⚠️ ${visualType} infographic generation failed - Gemini 3 Pro only mode`);
 
             // Track failed generation
-            trackGenerationFailed(visualType, 'gemini-flash');
+            trackGenerationFailed(visualType, 'gemini3');
         }
 
         return imageBlob;
@@ -478,7 +535,7 @@ export const generateInfographicFromText = async (
         console.error(`Error generating ${visualType} infographic:`, e);
 
         // Track failed generation
-        trackGenerationFailed(visualType, 'gemini-flash');
+        trackGenerationFailed(visualType, 'gemini3');
 
         return null;
     }

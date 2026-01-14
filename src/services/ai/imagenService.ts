@@ -1,11 +1,7 @@
 /**
  * Gemini Image Generation Service
- * Uses Gemini 2.5 Flash Image (Nano Banana) or Gemini 3 Pro Image
- * for high-quality Hebrew infographics
- *
- * Models:
- * - flash: Gemini 2.5 Flash Image (Nano Banana) - Fast, cheaper
- * - pro: Gemini 3 Pro Image Preview - Higher quality, better Hebrew
+ * Uses Gemini 3 Pro Image for high-quality Hebrew infographics
+ * Falls back to DALL-E 3 if Gemini fails
  *
  * Setup Instructions:
  * 1. Enable Vertex AI in Google Cloud Console
@@ -17,15 +13,10 @@ import { auth } from '../../firebase';
 
 /**
  * Gemini Image configuration
- * Note: Model selection is handled by the Cloud Function
  */
 export const GEMINI_IMAGE_CONFIG = {
-    models: {
-        flash: 'gemini-2.5-flash-preview-05-20',  // Nano Banana - Fast, cheaper
-        pro: 'gemini-2.0-flash-exp'                // Gemini 2.0 Flash Exp - Higher quality
-    },
-    endpoint: 'generateGeminiImage',
-    defaultModel: 'pro' as const
+    model: 'gemini-3-pro-image',
+    endpoint: 'generateGeminiImage'
 };
 
 // Legacy export for backwards compatibility
@@ -48,12 +39,10 @@ export const isGeminiImageAvailable = isImagenAvailable;
  * Best for Hebrew text and educational infographics
  *
  * @param prompt - Image generation prompt
- * @param model - 'flash' for speed, 'pro' for quality (default: 'pro')
  * @returns Promise<Blob | null> - PNG image blob or null on failure
  */
 export const generateGeminiImage = async (
-    prompt: string,
-    model: 'flash' | 'pro' = 'pro'
+    prompt: string
 ): Promise<Blob | null> => {
     if (!isGeminiImageAvailable()) {
         console.warn('⚠️ Gemini Image is not configured. Set VITE_ENABLE_GEMINI_IMAGE=true');
@@ -61,7 +50,7 @@ export const generateGeminiImage = async (
     }
 
     try {
-        console.log(`🎨 Generating image with Gemini ${model === 'pro' ? '3 Pro' : '2.5 Flash'} Image...`);
+        console.log(`🎨 Generating image with Gemini 3 Pro Image...`);
 
         // Get Firebase auth token for authentication
         const user = auth.currentUser;
@@ -83,10 +72,7 @@ export const generateGeminiImage = async (
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({
-                prompt,
-                model
-            })
+            body: JSON.stringify({ prompt })
         });
 
         if (!response.ok) {
@@ -94,7 +80,7 @@ export const generateGeminiImage = async (
 
             // Handle specific error codes
             if (response.status === 429) {
-                console.warn('⚠️ Rate limited by Gemini Image API');
+                console.warn('⚠️ Rate limited, will fall back to DALL-E');
                 return null;
             }
 
@@ -131,19 +117,14 @@ export const generateGeminiImage = async (
 export const generateImagenImage = generateGeminiImage;
 
 /**
- * Cost comparison helper
- * Only Gemini models supported (Nano Banana + Gemini 3 Pro)
+ * Cost helper - Gemini 3 Pro Image only
  */
-export const getImageGenerationCost = (provider: 'gemini-flash' | 'gemini-pro'): {
+export const getImageGenerationCost = (): {
     perImage: number;
     per1000: number;
     currency: string;
 } => {
-    const costs = {
-        'gemini-flash': { perImage: 0.020, per1000: 20, currency: 'USD' },  // Nano Banana
-        'gemini-pro': { perImage: 0.040, per1000: 40, currency: 'USD' }     // Gemini 3 Pro
-    };
-    return costs[provider];
+    return { perImage: 0.040, per1000: 40, currency: 'USD' };
 };
 
 /**
