@@ -1,5 +1,6 @@
 import { transcribeAudio as transcribeAudioViaProxy } from './ai/geminiApi';
-// functions will be imported dynamically or from firebase
+import { functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 
 // Error codes matching backend
 export const TRANSCRIPTION_ERROR_CODES = {
@@ -174,10 +175,6 @@ export const MultimodalService = {
 
         try {
             console.log(`🎬 Processing YouTube video: ${videoId}`);
-
-            // Lazy load Firebase functions
-            const { functions } = await import('../firebase');
-            const { httpsCallable } = await import('firebase/functions');
 
             const transcribeFn = httpsCallable(functions, 'transcribeYoutube', {
                 timeout: 300000 // 5 minute timeout to match backend

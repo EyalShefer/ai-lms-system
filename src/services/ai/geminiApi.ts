@@ -22,7 +22,21 @@ import type { UnitSkeleton, StepContentResponse, DialogueScript } from "../../sh
 import { v4 as uuidv4 } from 'uuid';
 import type { ValidationResult } from "../../shared/types/courseTypes";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase";
+import { functions, auth } from "../../firebase";
+import {
+    generateInfographicHash,
+    getCachedInfographic,
+    setCachedInfographic,
+    getFromFirebaseCache,
+    saveToFirebaseCache
+} from '../../utils/infographicCache';
+import {
+    trackGenerationStart,
+    trackCacheHit,
+    trackCacheMiss,
+    trackGenerationComplete,
+    trackGenerationFailed
+} from '../infographicAnalytics';
 
 export const MODEL_NAME = "gemini-2.5-pro"; // Using Gemini via Cloud Function
 
@@ -42,7 +56,6 @@ const callGeminiInfographicCloudFunction = async (
         console.log(`🚀 Calling Gemini 3 Pro Image Cloud Function for infographic...`);
 
         // Get auth token
-        const { auth } = await import('../../firebase');
         const user = auth.currentUser;
         if (!user) {
             console.error('❌ User not authenticated');
@@ -401,13 +414,6 @@ export const generateInfographicFromText = async (
     topic?: string,
     skipCache: boolean = false
 ): Promise<Blob | null> => {
-    // Import cache utilities dynamically
-    const { generateInfographicHash, getCachedInfographic, setCachedInfographic } = await import('../../utils/infographicCache');
-
-    // Import analytics utilities
-    const { trackGenerationStart, trackCacheHit, trackCacheMiss, trackGenerationComplete, trackGenerationFailed } =
-        await import('../infographicAnalytics');
-
     // Truncate text if too long (DALL-E prompt limit ~4000 chars)
     const truncatedText = text.length > 2000 ? text.substring(0, 2000) + "..." : text;
 
@@ -438,7 +444,6 @@ export const generateInfographicFromText = async (
         }
 
         // 2. Check Firebase Storage (persistent)
-        const { getFromFirebaseCache } = await import('../../utils/infographicCache');
         const firebaseUrl = await getFromFirebaseCache(cacheHash);
         if (firebaseUrl) {
             console.log(`☁️ Firebase Storage Cache HIT for ${visualType} infographic`);
@@ -511,7 +516,6 @@ export const generateInfographicFromText = async (
 
                 // 2. Save to Firebase Storage (persistent, cross-session)
                 try {
-                    const { saveToFirebaseCache } = await import('../../utils/infographicCache');
                     await saveToFirebaseCache(cacheHash, imageBlob);
                     console.log(`☁️ Firebase Storage cache saved (persistent)`);
                 } catch (error) {

@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { AIStarsSpinner } from '../ui/Loading/AIStarsSpinner';
 import {
     IconSparkles,
     IconChart,
@@ -276,7 +277,7 @@ const HomePageRedesignMobile = ({
                     <div className="space-y-2">
                         {loadingActivities ? (
                             <div className="flex items-center justify-center py-8">
-                                <div className="w-8 h-8 border-2 border-wizdi-royal border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
+                                <AIStarsSpinner size="md" color="primary" />
                             </div>
                         ) : recentActivities.length === 0 ? (
                             <div className="text-center py-8 bg-white dark:bg-slate-800 rounded-2xl">

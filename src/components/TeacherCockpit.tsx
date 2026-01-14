@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend } from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
 import { refineBlockContent, generateAiImage, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
@@ -12,8 +12,10 @@ import {
 } from '../gemini';
 import { detectInfographicType, analyzeInfographicSuitability } from '../utils/infographicDetector';
 import { PEDAGOGICAL_PHASES, getPedagogicalPhase } from '../utils/pedagogicalIcons';
+import { trackPreviewOpened, trackPreviewConfirmed, trackPreviewRejected, trackTypeChanged } from '../services/infographicAnalytics';
 import { createBlock } from '../shared/config/blockDefinitions';
 import { downloadLessonPlanPDF } from '../services/pdfExportService';
+import { uploadGeneratedImage } from '../services/storageService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { RichTextEditor } from './RichTextEditor';
 import { sanitizeHtml } from '../utils/sanitize';
@@ -30,6 +32,9 @@ const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 
 // Lazy load SendActivitiesModal
 const SendActivitiesModal = React.lazy(() => import('./SendActivitiesModal'));
+
+// Lazy load PresentationMode for smart board projection
+const PresentationMode = React.lazy(() => import('./PresentationMode'));
 
 
 interface TeacherCockpitProps {
@@ -148,6 +153,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         visualType: InfographicType;
     } | null>(null);
     const [infographicTextInput, setInfographicTextInput] = useState<Record<string, string>>({});
+    const [selectedInfographicType, setSelectedInfographicType] = useState<Record<string, InfographicType | 'auto'>>({});
 
     // Interactive Preview State - shows questions as students see them
     const [previewBlockIds, setPreviewBlockIds] = useState<Set<string>>(new Set());
@@ -160,6 +166,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     // Full Preview Mode State - shows entire lesson as students see it
     const [isFullPreviewMode, setIsFullPreviewMode] = useState(false);
+
+    // Presentation Mode State - clean projection for smart board
+    const [isPresentationMode, setIsPresentationMode] = useState(false);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -546,14 +555,10 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         try {
             const blob = await generateAiImage(prompt);
             if (blob) {
-                // Convert blob to base64 data URL
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const dataUrl = reader.result as string;
-                    updateBlockContent(blockId, dataUrl);
-                    setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
-                };
-                reader.readAsDataURL(blob);
+                // Upload to Firebase Storage instead of saving base64 in document
+                const imageUrl = await uploadGeneratedImage(blob, 'ai-image', courseId, unit.id);
+                updateBlockContent(blockId, imageUrl);
+                setMediaInputMode(prev => ({ ...prev, [blockId]: null }));
             } else {
                 alert("שגיאה ביצירת תמונה. נסה שנית.");
             }
@@ -606,25 +611,18 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             );
 
             if (imageBlob) {
-                // Convert blob to base64 for preview
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64data = reader.result as string;
+                // Upload to Firebase Storage instead of saving base64 in document
+                const imageUrl = await uploadGeneratedImage(imageBlob, 'infographic', courseId, unit.id);
 
-                    // Show preview modal instead of directly inserting
-                    setInfographicPreview({
-                        imageUrl: base64data,
-                        block: block,
-                        visualType: visualType
-                    });
+                // Show preview modal with Storage URL
+                setInfographicPreview({
+                    imageUrl: imageUrl,
+                    block: block,
+                    visualType: visualType
+                });
 
-                    // Track preview opened (with fallback for dynamic import errors)
-                    try {
-                        const { trackPreviewOpened } = await import('../services/infographicAnalytics');
-                        trackPreviewOpened(visualType);
-                    } catch (e) { console.warn('Analytics not available'); }
-                };
-                reader.readAsDataURL(imageBlob);
+                // Track preview opened
+                trackPreviewOpened(visualType);
             } else {
                 alert("שגיאה ביצירת אינפוגרפיקה. נסה שנית.");
             }
@@ -639,11 +637,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     const handleConfirmInfographic = async () => {
         if (!infographicPreview) return;
 
-        // Track preview confirmed (with fallback for dynamic import errors)
-        try {
-            const { trackPreviewConfirmed } = await import('../services/infographicAnalytics');
-            trackPreviewConfirmed(infographicPreview.visualType);
-        } catch (e) { console.warn('Analytics not available'); }
+        // Track preview confirmed
+        trackPreviewConfirmed(infographicPreview.visualType);
 
         const newBlocks = [...(unit.activityBlocks || [])];
         const currentIndex = newBlocks.findIndex(b => b.id === infographicPreview.block.id);
@@ -1039,6 +1034,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 );
                 const currentInputText = infographicTextInput[block.id] || '';
 
+                const currentSelectedType = selectedInfographicType[block.id] || 'auto';
+
                 return (
                     <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50/50 relative">
                         <IconInfographic className="w-8 h-8 text-purple-400 mb-2" />
@@ -1050,9 +1047,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             value={currentInputText}
                             onChange={(e) => setInfographicTextInput(prev => ({ ...prev, [block.id]: e.target.value }))}
                             placeholder="לדוגמה: תהליך הפוטוסינתזה בצמחים, שלבי מחזור המים, השוואה בין יונקים לזוחלים..."
-                            className="w-full max-w-md h-24 p-3 border border-purple-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-4"
+                            className="w-full max-w-md h-24 p-3 border border-purple-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-3"
                             dir="rtl"
                         />
+
+                        {/* Infographic type selector */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-sm text-purple-600">סוג:</span>
+                            <select
+                                value={currentSelectedType}
+                                onChange={(e) => setSelectedInfographicType(prev => ({ ...prev, [block.id]: e.target.value as InfographicType | 'auto' }))}
+                                className="px-3 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                                dir="rtl"
+                            >
+                                <option value="auto">🤖 זיהוי אוטומטי</option>
+                                <option value="flowchart">🔄 תרשים זרימה</option>
+                                <option value="timeline">📅 ציר זמן</option>
+                                <option value="comparison">⚖️ השוואה</option>
+                                <option value="cycle">🔁 מחזור</option>
+                            </select>
+                        </div>
 
                         <button
                             onClick={() => {
@@ -1061,7 +1075,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                     alert('נא להזין נושא ליצירת האינפוגרפיקה');
                                     return;
                                 }
-                                handleGenerateInfographic(block, 'flowchart', textToUse || undefined);
+                                // Use selected type or auto-detect
+                                let typeToUse: InfographicType;
+                                if (currentSelectedType === 'auto') {
+                                    const contentForDetection = textToUse || (block.content?.text as string) || '';
+                                    const detection = detectInfographicType(contentForDetection);
+                                    typeToUse = detection.suggestedType;
+                                } else {
+                                    typeToUse = currentSelectedType;
+                                }
+                                handleGenerateInfographic(block, typeToUse, textToUse || undefined);
                             }}
                             disabled={generatingInfographicBlockId === block.id}
                             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-bold text-sm disabled:opacity-50"
@@ -1295,17 +1318,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 );
             }
 
-            // Teacher Edit View - show structured data with preview button
+            // Teacher Edit View - show structured data
             return (
-                <div className="relative">
-                    <button
-                        onClick={togglePreview}
-                        className="absolute -top-2 -left-2 z-20 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-bold shadow-lg hover:bg-indigo-700 transition-all"
-                    >
-                        <IconEye className="w-3.5 h-3.5" />
-                        להקרנה על הלוח
-                    </button>
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
                         {block.type === 'multiple-choice' && (
                             <div>
                                 <h3 className="text-lg font-bold mb-4">{block.content.question}</h3>
@@ -1393,11 +1408,6 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                 </ul>
                             </div>
                         )}
-                        <p className="text-xs text-slate-400 mt-4 flex items-center gap-1">
-                            <IconEye className="w-3 h-3" />
-                            לחצו על "להקרנה על הלוח" לראות איך השאלה תיראה לתלמידים
-                        </p>
-                    </div>
                 </div>
             );
         }
@@ -1675,6 +1685,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             <span className="hidden md:inline">תצוגה מקדימה</span>
                         </button>
 
+                        {/* Presentation Mode Button - Project to Smart Board */}
+                        <button
+                            onClick={() => setIsPresentationMode(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition shadow-sm border text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100"
+                            title="הקרנה ללוח - הצג תוכן נקי על הלוח החכם"
+                        >
+                            <IconMaximize className="w-5 h-5" />
+                            <span className="hidden md:inline">הקרן ללוח</span>
+                        </button>
+
                         {/* Share Button */}
                         <button
                             onClick={handleShare}
@@ -1796,24 +1816,29 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             )}
                         </div>
 
-                        {/* Opening Section Anchor */}
-                        <div id="opening" className="scroll-mt-32"></div>
-
                         {/* Insert Initial Block */}
                         <InsertMenu index={0} />
 
                         {/* Blocks Loop */}
-                        <div id="instruction" className="space-y-8 scroll-mt-32">
+                        <div className="space-y-8">
                             {unit.activityBlocks?.filter((block): block is ActivityBlock => block !== null && block !== undefined).map((block: ActivityBlock, idx: number) => {
                                 const totalBlocks = unit.activityBlocks?.length || 0;
                                 const phase = getPedagogicalPhase(idx, totalBlocks, block.type);
                                 const prevBlock = idx > 0 ? unit.activityBlocks?.[idx - 1] : null;
                                 const prevPhase = prevBlock ? getPedagogicalPhase(idx - 1, totalBlocks, prevBlock.type) : null;
+
+                                // Determine which section anchors to show before this block
+                                const showOpeningAnchor = idx === 0; // First block is always opening
+                                const showInstructionAnchor = phase === 'instruction' && prevPhase !== 'instruction' && prevPhase !== null;
                                 const showPracticeAnchor = phase === 'practice' && prevPhase !== 'practice';
                                 const showSummaryAnchor = phase === 'summary' && prevPhase !== 'summary';
 
                                 return (
                                     <React.Fragment key={block.id}>
+                                        {/* Opening Section Anchor - inserted before first block */}
+                                        {showOpeningAnchor && <div id="opening" className="scroll-mt-32"></div>}
+                                        {/* Instruction Section Anchor - inserted before first instruction block */}
+                                        {showInstructionAnchor && <div id="instruction" className="scroll-mt-32"></div>}
                                         {/* Practice Section Anchor - inserted before first practice block */}
                                         {showPracticeAnchor && <div id="practice" className="scroll-mt-32"></div>}
                                         {/* Summary Section Anchor - inserted before first summary block */}
@@ -1899,17 +1924,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             })}
                         </div>
 
-                        {/* Summary Anchor - fallback if no summary block exists */}
+                        {/* Instruction Anchor - fallback if no instruction block exists */}
                         {!unit.activityBlocks?.some((block, idx) => {
                             const totalBlocks = unit.activityBlocks?.length || 0;
-                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'summary';
-                        }) && <div id="summary" className="scroll-mt-32"></div>}
+                            const phase = getPedagogicalPhase(idx, totalBlocks, block?.type || '');
+                            const prevBlock = idx > 0 ? unit.activityBlocks?.[idx - 1] : null;
+                            const prevPhase = prevBlock ? getPedagogicalPhase(idx - 1, totalBlocks, prevBlock?.type || '') : null;
+                            return phase === 'instruction' && prevPhase !== 'instruction' && prevPhase !== null;
+                        }) && <div id="instruction" className="scroll-mt-32"></div>}
 
                         {/* Practice Anchor - fallback if no practice block exists */}
                         {!unit.activityBlocks?.some((block, idx) => {
                             const totalBlocks = unit.activityBlocks?.length || 0;
                             return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'practice';
                         }) && <div id="practice" className="scroll-mt-32"></div>}
+
+                        {/* Summary Anchor - fallback if no summary block exists */}
+                        {!unit.activityBlocks?.some((block, idx) => {
+                            const totalBlocks = unit.activityBlocks?.length || 0;
+                            return getPedagogicalPhase(idx, totalBlocks, block?.type || '') === 'summary';
+                        }) && <div id="summary" className="scroll-mt-32"></div>}
                     </div>
                 </div>
             </div>
@@ -1955,12 +1989,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         {/* Actions */}
                         <div className="p-6 bg-slate-50 rounded-b-2xl flex gap-3 justify-end border-t">
                             <button
-                                onClick={async () => {
-                                    // Track preview rejection (with fallback for dynamic import errors)
-                                    try {
-                                        const { trackPreviewRejected } = await import('../services/infographicAnalytics');
-                                        trackPreviewRejected(infographicPreview.visualType);
-                                    } catch (e) { console.warn('Analytics not available'); }
+                                onClick={() => {
+                                    // Track preview rejection
+                                    trackPreviewRejected(infographicPreview.visualType);
                                     setInfographicPreview(null);
                                 }}
                                 className="px-6 py-3 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors font-semibold border border-slate-300"
@@ -1968,13 +1999,9 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                 ביטול
                             </button>
                             <button
-                                onClick={async () => {
-                                    // Track type change intent (with fallback for dynamic import errors)
+                                onClick={() => {
+                                    // Track type change intent
                                     const oldType = infographicPreview.visualType;
-                                    try {
-                                        const { trackTypeChanged } = await import('../services/infographicAnalytics');
-                                        // trackTypeChanged not used directly here
-                                    } catch (e) { console.warn('Analytics not available'); }
 
                                     // Regenerate with different type
                                     setInfographicPreview(null);
@@ -2140,7 +2167,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
             {/* Full Preview Mode Modal */}
             {isFullPreviewMode && (
-                <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col">
+                <div className="fixed inset-0 bg-white z-[100] animate-fade-in flex flex-col overflow-y-auto">
                     <React.Suspense fallback={
                         <div className="flex-1 flex items-center justify-center text-blue-600 font-bold">
                             <div className="text-center">
@@ -2158,6 +2185,23 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         />
                     </React.Suspense>
                 </div>
+            )}
+
+            {/* Presentation Mode Modal - Smart Board Projection */}
+            {isPresentationMode && (
+                <React.Suspense fallback={
+                    <div className="fixed inset-0 bg-gray-900 z-[200] flex items-center justify-center">
+                        <div className="text-center text-white">
+                            <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+                            טוען מצב הקרנה...
+                        </div>
+                    </div>
+                }>
+                    <PresentationMode
+                        unit={unit}
+                        onClose={() => setIsPresentationMode(false)}
+                    />
+                </React.Suspense>
             )}
 
             {/* Send Activities Modal */}

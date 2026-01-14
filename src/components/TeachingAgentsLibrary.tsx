@@ -15,13 +15,12 @@ import {
   IconChevronDown
 } from '@tabler/icons-react';
 import {
-  TeachingAgent,
   MOCK_AGENTS,
   AGENT_CATEGORIES,
   CAPABILITY_LABELS,
-  SUBJECT_LABELS,
-  AgentCategory
+  SUBJECT_LABELS
 } from '../types/teachingAgent';
+import type { TeachingAgent, AgentCategory } from '../types/teachingAgent';
 import { Timestamp } from 'firebase/firestore';
 
 interface TeachingAgentsLibraryProps {

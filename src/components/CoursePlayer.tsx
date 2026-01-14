@@ -1009,6 +1009,28 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         const mediaSrc = getMediaSrc();
 
         switch (block.type) {
+            // Loading placeholder - shows animated skeleton while content is being generated
+            case 'loading-placeholder': {
+                const placeholderContent = block.content as { stepNumber?: number; title?: string; message?: string };
+                return (
+                    <div key={block.id} className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-dashed border-blue-200 animate-pulse">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                                {placeholderContent?.stepNumber || '?'}
+                            </div>
+                            <span className="text-blue-700 font-medium">{placeholderContent?.title || 'טוען...'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-blue-500">
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>{placeholderContent?.message || 'מייצר תוכן...'}</span>
+                        </div>
+                    </div>
+                );
+            }
+
             case 'text': {
                 const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
                 // Check if content contains HTML tags
@@ -1142,6 +1164,66 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         )}
                     </div>
                 );
+
+            // === ACTIVITY MEDIA BLOCKS ===
+            // Context image for student activities (The Setting)
+            case 'activity-intro': {
+                const introContent = block.content as any;
+                if (!introContent?.imageUrl) return null;
+                return (
+                    <div key={block.id} className="mb-8">
+                        {/* Hero-style context image */}
+                        <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-b from-indigo-500 to-purple-600">
+                            <img
+                                src={introContent.imageUrl}
+                                alt={introContent.title || 'תמונת פתיחה'}
+                                className="w-full h-64 md:h-80 object-cover opacity-90"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                            <div className="absolute bottom-0 right-0 p-6 text-white text-right">
+                                <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                                    {introContent.title || 'בואו נתחיל!'}
+                                </h2>
+                                {introContent.description && (
+                                    <p className="text-sm md:text-base opacity-90 max-w-md">
+                                        {introContent.description}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Scenario image within questions (The Dilemma)
+            case 'scenario-image': {
+                const scenarioContent = block.content as any;
+                if (!scenarioContent?.imageUrl) return null;
+                return (
+                    <div key={block.id} className="mb-6">
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3 text-amber-700">
+                                <span className="text-xl">🔍</span>
+                                <span className="font-medium">התבונן בתמונה:</span>
+                            </div>
+                            <img
+                                src={scenarioContent.imageUrl}
+                                alt={scenarioContent.caption || 'תמונת דילמה'}
+                                className="w-full max-h-72 object-contain rounded-xl bg-white"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                            {scenarioContent.caption && (
+                                <p className="mt-3 text-center text-amber-800 font-medium">
+                                    {scenarioContent.caption}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
 
             case 'multiple-choice':
                 const mcMedia = getMediaSrc();
@@ -1638,13 +1720,11 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             )}
 
 
-            <div className={"flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 " + (showSplitView ? 'flex gap-6 items-start' : '')}>
+            <div className={"flex-1 w-full max-w-7xl mx-auto p-4 transition-all duration-500 " + (showSplitView ? 'flex flex-col md:flex-row gap-6 items-start' : '')}>
 
-                <div className="flex-1">
-
-                    {/* --- Split View Side Panel (Source Text) --- */}
+                    {/* --- Split View Side Panel (Source Text) - Desktop only when split view is open --- */}
                     {showSplitView && (
-                        <div className="fixed inset-0 z-[100] md:z-auto md:static w-full md:w-1/2 h-full md:h-[85vh] md:sticky md:top-24 bg-white md:rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col animate-slide-in-left">
+                        <div className="hidden md:flex w-full md:w-1/2 h-[50vh] md:h-[85vh] md:sticky md:top-24 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex-col animate-slide-in-left">
                             <div className="bg-gray-50 border-b p-2 md:p-4 flex justify-between items-center shrink-0">
                                 <h3 className="font-bold text-gray-700 flex items-center gap-2"><IconBook className="w-5 h-5 text-blue-500" /> טקסט המקור</h3>
                                 <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600 p-2"><IconX className="w-5 h-5" /></button>
@@ -1685,7 +1765,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                     )}
 
                     {/* --- Main Content Area --- */}
-                    <main className={"transition-all duration-500 " + (showSplitView ? "w-full md:w-1/2 hidden md:block" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "p-4 md:p-0" : "p-4 md:p-10") + " pb-48"}>
+                    <main className={"transition-all duration-500 " + (showSplitView ? "w-full md:w-1/2" : "w-full max-w-3xl mx-auto") + " " + (showSplitView ? "p-4 md:p-0" : "p-4 md:p-10") + " pb-48"}>
                         {activeUnit ? (
                             <>
                                 <header className="mb-8 text-center">
@@ -1772,7 +1852,6 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         )}
                     </main>
-                </div>
             </div>
         </div>
     );

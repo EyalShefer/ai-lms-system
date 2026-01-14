@@ -13,6 +13,7 @@
 import React, { lazy, Suspense } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import type { Assignment } from '../shared/types/courseTypes';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 
 // Lazy load mobile components to reduce initial bundle size
 const SequentialCoursePlayerMobile = lazy(() => import('./mobile/SequentialCoursePlayerMobile'));
@@ -30,7 +31,7 @@ import LandingPage from './LandingPage';
 const MobileLoadingFallback = () => (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900">
         <div className="text-center">
-            <div className="w-10 h-10 border-3 border-wizdi-royal/30 border-t-wizdi-royal rounded-full animate-spin mx-auto mb-3" />
+            <AIStarsSpinner size="lg" color="primary" className="mx-auto mb-3" />
             <p className="text-slate-500 dark:text-slate-400 text-sm">טוען...</p>
         </div>
     </div>

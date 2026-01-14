@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
+import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
@@ -19,6 +20,9 @@ import { MultimodalService } from '../services/multimodalService'; // Restore Im
 import {
     enrichUnitBlocks, enrichActivityBlock
 } from '../services/adaptiveContentService';
+import {
+    enrichActivityWithImages, isActivityEnriched, generateContextImageBlock
+} from '../services/activityMediaService';
 import { createBlock } from '../shared/config/blockDefinitions'; // DECOUPLER FIX
 
 // ... (existing imports)
@@ -332,13 +336,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 console.log("✅ Skeleton Ready:", skeleton.steps.length, "steps");
 
+                // 🖼️ START CONTEXT IMAGE GENERATION IN PARALLEL (for activities only)
+                // This runs concurrently with content generation to reduce total time
+                let contextImagePromise: Promise<ActivityBlock | null> | null = null;
+                if (productType === 'activity') {
+                    const topic = unit.title || course?.title || '';
+                    const subject = settings.subject || 'כללי';
+                    console.log("🖼️ [Parallel] Starting context image generation alongside content...");
+                    contextImagePromise = generateContextImageBlock(topic, subject, gradeLevel);
+                }
+
                 // 2. PLACEHOLDER PHASE (Immediate Feedback)
                 const placeholderBlocks = skeleton.steps.map((step: any) => ({
                     id: `step-${step.step_number}`, // Temporary ID
-                    type: 'text', // Generic type until filled
-                    content: `### ${step.step_number}. ${step.title}\n_(כותב תוכן...)_`,
+                    type: 'loading-placeholder', // Special type for loading state
+                    content: {
+                        stepNumber: step.step_number,
+                        title: step.title,
+                        message: 'כותב תוכן...'
+                    },
                     metadata: {
-                        isLoading: true, // Custom flag we can use for styling
+                        isLoading: true,
                         stepInfo: step
                     }
                 }));
@@ -434,6 +452,26 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 await Promise.all(promises);
 
                 console.log("🏁 All steps generated. Auto-Saving to Firestore...");
+                console.log("🔍 DEBUG: productType =", productType, "| Expected: 'activity'");
+
+                // 🖼️ WAIT FOR CONTEXT IMAGE (started in parallel earlier)
+                // This should be ready by now or very soon since it ran alongside content
+                let contextImageBlock: ActivityBlock | null = null;
+                if (contextImagePromise) {
+                    console.log("🖼️ [Parallel] Waiting for context image to complete...");
+                    contextImageBlock = await contextImagePromise;
+
+                    if (contextImageBlock) {
+                        console.log("✅ [Parallel] Context image ready! Inserting at beginning...");
+                        // Insert context image as first block
+                        setEditedUnit((prev: any) => ({
+                            ...prev,
+                            activityBlocks: [contextImageBlock, ...prev.activityBlocks]
+                        }));
+                    } else {
+                        console.warn("⚠️ [Parallel] Context image not available, continuing without it");
+                    }
+                }
 
                 // Safe Save: Read from Ref instead of inside setState
                 // Small timeout to allow last render to flush
@@ -443,6 +481,39 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                 // Mark generation as done
                 setIsAutoGenerating(false);
+
+                // 🖼️ FALLBACK: Only if parallel context image failed
+                // We track success with a variable, not by checking state (which is async)
+                if (productType === 'activity' && !contextImageBlock) {
+                    // Parallel context image failed, try full enrichment as fallback
+                    console.log("🖼️ [Fallback] Context image failed, trying full enrichment...");
+                    const topic = unit.title || course?.title || '';
+                    const subject = settings.subject || 'כללי';
+
+                    // Need to get fresh unit from ref after state updates
+                    setTimeout(() => {
+                        const currentUnit = editedUnitRef.current;
+                        if (currentUnit && !isActivityEnriched(currentUnit)) {
+                            enrichActivityWithImages(
+                                currentUnit,
+                                topic,
+                                subject,
+                                gradeLevel,
+                                (step, current, total) => {
+                                    console.log(`🖼️ Media Generation: ${step} (${current}/${total})`);
+                                }
+                            ).then(enrichedUnit => {
+                                console.log("✅ Activity enriched with images!");
+                                setEditedUnit(enrichedUnit);
+                                setTimeout(() => {
+                                    onSave(enrichedUnit);
+                                }, 100);
+                            }).catch(err => {
+                                console.warn("⚠️ Image enrichment failed (activity still works):", err);
+                            });
+                        }
+                    }, 200);
+                }
 
             } catch (error) {
                 console.error("Incremental Auto Generation Failed", error);
@@ -1180,7 +1251,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     if (isAutoGenerating) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-                <div className="relative mb-6"><div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div></div>
+                <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
                 <h2 className="text-2xl font-bold text-gray-800">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
             </div>
         );
@@ -1782,7 +1853,31 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex-1 flex gap-2">
                                                         <div className={`mt-1 ${block.type === 'multiple-choice' ? 'text-sky-500' : 'text-teal-500'}`}>{block.type === 'multiple-choice' ? <IconList className="w-5 h-5" /> : <IconEdit className="w-5 h-5" />}</div>
-                                                        <input type="text" className="flex-1 font-bold text-base p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400" value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה או צרו באמצעות AI"} />
+                                                        <textarea
+                                                            className="flex-1 font-bold text-base p-1 bg-transparent border-b border-transparent focus:border-gray-300 outline-none text-gray-800 placeholder-gray-400 resize-none overflow-hidden min-h-[28px]"
+                                                            value={(block.content && block.content.question) || ''}
+                                                            onChange={(e) => {
+                                                                updateBlock(block.id, { ...block.content, question: e.target.value });
+                                                                // Auto-resize textarea
+                                                                e.target.style.height = 'auto';
+                                                                e.target.style.height = e.target.scrollHeight + 'px';
+                                                            }}
+                                                            onInput={(e) => {
+                                                                // Auto-resize on load/paste
+                                                                const target = e.target as HTMLTextAreaElement;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = target.scrollHeight + 'px';
+                                                            }}
+                                                            ref={(el) => {
+                                                                // Initial resize when content loads
+                                                                if (el) {
+                                                                    el.style.height = 'auto';
+                                                                    el.style.height = el.scrollHeight + 'px';
+                                                                }
+                                                            }}
+                                                            placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה או צרו באמצעות AI"}
+                                                            rows={1}
+                                                        />
                                                     </div>
                                                     {showScoring && (<div className="flex flex-col items-center ml-2 bg-white/50 p-1 rounded-lg border border-gray-100"><span className="text-[10px] font-bold text-gray-400 uppercase">ניקוד</span><input type="number" className="w-14 text-center p-1 rounded border-2 border-transparent focus:border-blue-400 bg-white/80 font-bold text-blue-600 focus:bg-white transition-all outline-none" value={block.metadata?.score || 0} onChange={(e) => updateBlock(block.id, block.content, { score: Number(e.target.value) })} /></div>)}
                                                 </div>
@@ -1844,7 +1939,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-purple-50/50 p-5 rounded-xl border border-purple-100">
                                                 <div className="flex items-center gap-2 mb-2 text-purple-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconEdit className="w-5 h-5" /> השלמת משפטים (Cloze)</div>
-                                                    <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!block.content && (
+                                                        <button onClick={() => handleAutoGenerateFillInBlanks(block.id)} disabled={loadingBlockId === block.id} className="bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-2">כתבו את הטקסט המלא, והקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
                                                 <RichTextEditor
@@ -1869,7 +1966,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                                                 <div className="flex items-center gap-2 mb-4 text-blue-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconList className="w-5 h-5" /> סידור רצף</div>
-                                                    <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.instruction || block.content?.correct_order?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <input type="text" className="w-full p-3 mb-4 border border-blue-200 rounded-lg bg-white text-base" placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)" value={(block.content && block.content.instruction) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
                                                 <div className="space-y-2">
@@ -1898,7 +1997,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-teal-50/50 p-5 rounded-xl border border-teal-100">
                                                 <div className="flex items-center gap-2 mb-4 text-teal-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconLayer className="w-5 h-5" /> מיון לקטגוריות</div>
-                                                    <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.question || block.content?.categories?.length > 0 || block.content?.items?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-teal-200 hover:bg-teal-300 text-teal-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
 
                                                 <input type="text" className="w-full p-3 mb-4 border border-teal-200 rounded-lg bg-white text-base" placeholder="הנחיה..." value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
@@ -1950,7 +2051,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="bg-pink-50/50 p-5 rounded-xl border border-pink-100">
                                                 <div className="flex items-center gap-2 mb-4 text-pink-700 font-bold justify-between">
                                                     <div className="flex items-center gap-2"><IconBrain className="w-5 h-5" /> משחק זיכרון</div>
-                                                    <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    {!(block.content?.pairs?.length > 0) && (
+                                                        <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-pink-200 hover:bg-pink-300 text-pink-800 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-gray-500 mb-4">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
 
@@ -2013,6 +2116,97 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* LOADING PLACEHOLDER - Shows during content generation */}
+                                        {block.type === 'loading-placeholder' && (
+                                            <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-dashed border-blue-200 animate-pulse">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                                                        {(block.content as any)?.stepNumber || '?'}
+                                                    </div>
+                                                    <span className="text-blue-700 font-medium">{(block.content as any)?.title || 'טוען...'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-blue-500">
+                                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    <span>{(block.content as any)?.message || 'מייצר תוכן...'}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* ACTIVITY INTRO - Opening context image */}
+                                        {block.type === 'activity-intro' && (
+                                            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                                                <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold">
+                                                    <IconSparkles className="w-5 h-5" /> תמונת פתיחה
+                                                </div>
+                                                {(block.content as any)?.imageUrl ? (
+                                                    <div className="relative">
+                                                        <img
+                                                            src={(block.content as any).imageUrl}
+                                                            alt={(block.content as any)?.title || 'תמונת פתיחה'}
+                                                            className="w-full h-64 object-cover rounded-xl shadow-md"
+                                                            loading="lazy"
+                                                        />
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 rounded-b-xl">
+                                                            <h3 className="text-white font-bold text-lg">{(block.content as any)?.title}</h3>
+                                                            {(block.content as any)?.description && (
+                                                                <p className="text-white/80 text-sm">{(block.content as any).description}</p>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => deleteBlock(block.id)}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-md"
+                                                            title="הסר תמונה"
+                                                        >
+                                                            <IconTrash className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-48 bg-indigo-100/50 rounded-xl flex items-center justify-center text-indigo-400">
+                                                        <div className="text-center">
+                                                            <IconSparkles className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+                                                            <span>מייצר תמונת פתיחה...</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* SCENARIO IMAGE - Dilemma/situation image before question */}
+                                        {block.type === 'scenario-image' && (
+                                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-100">
+                                                <div className="flex items-center gap-2 mb-2 text-amber-700 font-bold text-sm">
+                                                    <IconImage className="w-4 h-4" /> תמונת דילמה
+                                                </div>
+                                                {(block.content as any)?.imageUrl ? (
+                                                    <div className="relative">
+                                                        <img
+                                                            src={(block.content as any).imageUrl}
+                                                            alt={(block.content as any)?.caption || 'תמונת דילמה'}
+                                                            className="w-full h-48 object-cover rounded-lg shadow-sm"
+                                                            loading="lazy"
+                                                        />
+                                                        {(block.content as any)?.caption && (
+                                                            <p className="mt-2 text-center text-amber-800 font-medium text-sm">{(block.content as any).caption}</p>
+                                                        )}
+                                                        <button
+                                                            onClick={() => deleteBlock(block.id)}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+                                                            title="הסר תמונה"
+                                                        >
+                                                            <IconTrash className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-32 bg-amber-100/50 rounded-lg flex items-center justify-center text-amber-400">
+                                                        <span className="animate-pulse">מייצר תמונה...</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>

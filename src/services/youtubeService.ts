@@ -4,6 +4,9 @@
  * Frontend service for searching and embedding YouTube videos in lessons
  */
 
+import { functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+
 // Types
 export interface YouTubeVideoResult {
     videoId: string;
@@ -69,10 +72,6 @@ export async function searchYouTubeVideos(params: YouTubeSearchParams): Promise<
     }
 
     try {
-        // Lazy load Firebase functions
-        const { functions } = await import('../firebase');
-        const { httpsCallable } = await import('firebase/functions');
-
         const searchFn = httpsCallable(functions, 'searchYouTubeEducational');
         const result = await searchFn(params);
 
@@ -95,9 +94,6 @@ export async function searchYouTubeVideos(params: YouTubeSearchParams): Promise<
  */
 export async function getVideoDetails(videoId: string): Promise<YouTubeVideoResult | null> {
     try {
-        const { functions } = await import('../firebase');
-        const { httpsCallable } = await import('firebase/functions');
-
         const detailsFn = httpsCallable(functions, 'getYouTubeVideoDetails');
         const result = await detailsFn({ videoId });
 

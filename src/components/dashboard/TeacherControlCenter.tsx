@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { AIStarsSpinner } from '../ui/Loading/AIStarsSpinner';
 import {
     IconArrowRight,
     IconUsers,
@@ -647,7 +648,7 @@ export const TeacherControlCenter: React.FC<ControlCenterProps> = ({ courseId, o
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center" dir="rtl">
                 <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <AIStarsSpinner size="xl" color="primary" className="mx-auto mb-4" />
                     <p className="text-slate-500">טוען נתונים...</p>
                 </div>
             </div>
