@@ -21,6 +21,7 @@ import {
 // --- Lazy Load CoursePlayer ---
 const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 const TeacherControlCenter = React.lazy(() => import('./dashboard/TeacherControlCenter').then(m => ({ default: m.TeacherControlCenter })));
+const TaskDetailDashboard = React.lazy(() => import('./dashboard/TaskDetailDashboard').then(m => ({ default: m.TaskDetailDashboard })));
 import { SmartGroupingPanel } from './SmartGroupingPanel';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
@@ -1661,18 +1662,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 />
             )}
 
-            {/* Teacher Control Center Modal */}
+            {/* Adaptive Task Detail Dashboard */}
             {viewingControlCenter && (
-                <div className="fixed inset-0 z-[100] bg-slate-50">
+                <div className="fixed inset-0 z-[100] bg-slate-50 overflow-auto">
                     <React.Suspense fallback={
                         <div className="h-full flex items-center justify-center">
                             <div className="text-center">
                                 <AIStarsSpinner size="xl" color="primary" className="mx-auto mb-4" />
-                                <p className="text-slate-500">טוען לוח בקרה...</p>
+                                <p className="text-slate-500">טוען לוח בקרה אדפטיבי...</p>
                             </div>
                         </div>
                     }>
-                        <TeacherControlCenter
+                        <TaskDetailDashboard
                             courseId={viewingControlCenter}
                             onBack={() => setViewingControlCenter(null)}
                             onViewStudent={(studentId) => {
@@ -1687,6 +1688,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                             onEditCourse={(courseId) => {
                                 setViewingControlCenter(null);
                                 if (onEditCourse) onEditCourse(courseId);
+                            }}
+                            onCreateRemediation={(studentId, type) => {
+                                // TODO: Integrate with remediation unit creation
+                                console.log('Create remediation:', { studentId, type });
+                                alert(`יצירת יחידת ${type || 'תגבור'} ${studentId ? 'לתלמיד' : 'לכיתה'} - יתווסף בקרוב`);
                             }}
                         />
                     </React.Suspense>

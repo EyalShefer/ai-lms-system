@@ -216,20 +216,30 @@ export const getActivityMediaStats = (unit: LearningUnit): ActivityMediaUsage =>
  * Generates ONLY the context (opening) image for an activity
  * Can be called in parallel with content generation for better performance
  *
+ * @param topic - The activity topic (used as fallback if no custom prompt)
+ * @param subject - The subject area
+ * @param gradeLevel - Target grade level
+ * @param customImagePrompt - AI-generated prompt from skeleton (preferred)
+ * @param onProgress - Progress callback
  * @returns ActivityBlock of type 'activity-intro' or null if generation fails
  */
 export const generateContextImageBlock = async (
     topic: string,
     subject: string,
     gradeLevel: string,
+    customImagePrompt?: string,
     onProgress?: MediaProgressCallback
 ): Promise<ActivityBlock | null> => {
     const { createContextImagePrompt } = await import('../utils/mediaBudget');
 
-    const prompt = createContextImagePrompt(topic, subject, gradeLevel);
+    // Use AI-generated prompt if available, otherwise fall back to generic prompt
+    const prompt = customImagePrompt || createContextImagePrompt(topic, subject, gradeLevel);
     onProgress?.('יוצר תמונת פתיחה...', 1, 1);
 
     console.log(`🖼️ [Parallel] Starting context image generation for: ${topic}`);
+    if (customImagePrompt) {
+        console.log(`🎯 [Parallel] Using AI-generated prompt from skeleton`);
+    }
     const startTime = Date.now();
 
     try {

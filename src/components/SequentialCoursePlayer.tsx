@@ -1215,24 +1215,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 if (!introContent?.imageUrl) return <div className="p-10 text-center text-gray-500">תמונת פתיחה לא נמצאה</div>;
                 return (
                     <div className="mb-4">
-                        <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-b from-indigo-500 to-purple-600">
+                        <div className="rounded-2xl overflow-hidden shadow-lg">
                             <img
                                 src={introContent.imageUrl}
                                 alt={introContent.title || 'תמונת פתיחה'}
-                                className="w-full h-56 md:h-72 object-cover opacity-90"
+                                className="w-full h-56 md:h-72 object-cover"
                                 loading="lazy"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                            <div className="absolute bottom-0 right-0 p-5 text-white text-right">
-                                <h2 className="text-xl md:text-2xl font-bold mb-1">
-                                    {introContent.title || 'בואו נתחיל!'}
-                                </h2>
-                                {introContent.description && (
-                                    <p className="text-sm opacity-90 max-w-sm">
-                                        {introContent.description}
-                                    </p>
-                                )}
-                            </div>
                         </div>
                     </div>
                 );

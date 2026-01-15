@@ -1172,26 +1172,15 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 if (!introContent?.imageUrl) return null;
                 return (
                     <div key={block.id} className="mb-8">
-                        {/* Hero-style context image */}
-                        <div className="relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-b from-indigo-500 to-purple-600">
+                        {/* Clean intro image without overlay text - title is shown in activity header */}
+                        <div className="rounded-2xl overflow-hidden shadow-lg">
                             <img
                                 src={introContent.imageUrl}
                                 alt={introContent.title || 'תמונת פתיחה'}
-                                className="w-full h-64 md:h-80 object-cover opacity-90"
+                                className="w-full h-64 md:h-80 object-cover"
                                 loading="lazy"
                                 decoding="async"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                            <div className="absolute bottom-0 right-0 p-6 text-white text-right">
-                                <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                                    {introContent.title || 'בואו נתחיל!'}
-                                </h2>
-                                {introContent.description && (
-                                    <p className="text-sm md:text-base opacity-90 max-w-md">
-                                        {introContent.description}
-                                    </p>
-                                )}
-                            </div>
                         </div>
                     </div>
                 );

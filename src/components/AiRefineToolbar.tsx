@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { IconSparkles, IconWand, IconX, IconCheck, IconArrowDown } from '../icons';
-import { refineBlockContent } from '../services/ai/geminiApi';
+import { refineBlockContent, refineActivityIntroImage } from '../services/ai/geminiApi';
 
 interface AiRefineToolbarProps {
     blockId: string;
@@ -110,6 +110,14 @@ const generateDefaultPrompt = (blockType: string, content: any): string => {
         case 'image':
             return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
 
+        case 'activity-intro': {
+            const title = content?.title || '';
+            if (title) {
+                return `צרו תמונת פתיחה חדשה עבור "${title}" - שנו את הסגנון, הוסיפו אלמנטים, או שפרו את האווירה`;
+            }
+            return `שפרו את תמונת הפתיחה: שנו את הסגנון, הוסיפו אלמנטים, או צרו תמונה חדשה`;
+        }
+
         case 'discussion':
             if (shortContent) {
                 return `עבור הדיון בנושא "${shortContent}" - הוסיפו שאלות מנחות או נקודות למחשבה`;
@@ -198,7 +206,18 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
 
         try {
             console.log(`🚀 Refining block ${blockId} (${blockType})...`);
-            const refinedContent = await refineBlockContent(blockType, content, instruction);
+
+            let refinedContent;
+
+            // Special handling for activity-intro - generates new image
+            if (blockType === 'activity-intro') {
+                refinedContent = await refineActivityIntroImage(content, instruction);
+                if (!refinedContent) {
+                    throw new Error('Failed to generate new image');
+                }
+            } else {
+                refinedContent = await refineBlockContent(blockType, content, instruction);
+            }
 
             // Check if content actually changed (deep compare or just naive check)
             if (JSON.stringify(refinedContent) === JSON.stringify(content)) {
@@ -237,7 +256,7 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
 
     if (!isOpen) {
         return (
-            <div className={`flex items-center gap-2 ${className || ''}`}>
+            <div className={`flex items-center gap-2 justify-end ${className || ''}`}>
                 <button
                     onClick={() => setIsOpen(true)}
                     className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all shadow-sm

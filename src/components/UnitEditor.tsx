@@ -355,8 +355,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 if (productType === 'activity') {
                     const topic = unit.title || course?.title || '';
                     const subject = settings.subject || 'כללי';
+                    // Use AI-generated context_image_prompt from skeleton if available
+                    const customImagePrompt = skeleton.context_image_prompt;
                     console.log("🖼️ [Parallel] Starting context image generation alongside content...");
-                    contextImagePromise = generateContextImageBlock(topic, subject, gradeLevel);
+                    if (customImagePrompt) {
+                        console.log("🎯 Using AI-generated prompt from skeleton:", customImagePrompt.substring(0, 80) + "...");
+                    }
+                    contextImagePromise = generateContextImageBlock(topic, subject, gradeLevel, customImagePrompt);
                 }
 
                 // 2. PLACEHOLDER PHASE (Immediate Feedback)
@@ -1102,7 +1107,23 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             return (
                 <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
                     <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="image/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
-                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' })} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
+                    <button onClick={() => {
+                        const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+                        let defaultPrompt = '';
+                        if (block) {
+                            const content = block.content;
+                            if (typeof content === 'string') {
+                                defaultPrompt = content.substring(0, 100);
+                            } else if (content) {
+                                defaultPrompt = content.question || content.text || content.title || content.prompt || content.teach_content || '';
+                                if (defaultPrompt.length > 100) defaultPrompt = defaultPrompt.substring(0, 100);
+                            }
+                        }
+                        if (defaultPrompt) {
+                            setMediaInputValue({ ...mediaInputValue, [blockId]: `תמונה להמחשה עבור: ${defaultPrompt}` });
+                        }
+                        setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' });
+                    }} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
                 </div>
             );
@@ -1120,20 +1141,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             );
         }
 
-        // 4. ממשק יצירת AI (פרומפט)
+        // 4. ממשק יצירת AI - מחזיר null כי יוצג ב-renderMediaInputPanel
         if (mode === 'image_ai') {
-            return (
-                <div className="flex flex-col gap-2 w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
-                    <span className="text-xs font-bold text-blue-600">תיאור התמונה ליצירה:</span>
-                    <div className="flex gap-2">
-                        <input type="text" className="flex-1 p-2 border rounded text-sm" placeholder="למשל: תא ביולוגי מתחת למיקרוסקופ..." onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
-                        <button onClick={() => handleGenerateAiImage(blockId, 'metadata')} disabled={loadingBlockId === blockId} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap flex items-center gap-2">
-                            {loadingBlockId === blockId ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר...</> : 'צור'}
-                        </button>
-                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-5 h-5" /></button>
-                    </div>
-                </div>
-            );
+            return null;
         }
 
         // 5. ממשק קישור לוידאו
@@ -1198,6 +1208,29 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return null;
     };
 
+    // פאנל קלט מדיה - מוצג ברוחב מלא מתחת ל-toolbar
+    const renderMediaInputPanel = (blockId: string) => {
+        const mode = mediaInputMode[blockId];
+
+        if (mode === 'image_ai') {
+            return (
+                <div className="w-full bg-blue-50 p-3 rounded-lg border border-blue-100 animate-scale-in mt-2">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-blue-600">תיאור התמונה ליצירה:</span>
+                        <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
+                    </div>
+                    <div className="flex gap-2 items-end">
+                        <textarea rows={2} className="flex-1 p-2 border rounded text-sm resize-none" placeholder="למשל: תא ביולוגי מתחת למיקרוסקופ..." value={mediaInputValue[blockId] || ''} onChange={(e) => setMediaInputValue({ ...mediaInputValue, [blockId]: e.target.value })} />
+                        <button onClick={() => handleGenerateAiImage(blockId, 'metadata')} disabled={loadingBlockId === blockId} className="bg-blue-600 text-white px-3 py-2 rounded text-xs font-bold whitespace-nowrap flex items-center gap-2">
+                            {loadingBlockId === blockId ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> יוצר...</> : 'צור'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
+    };
 
     const InsertMenu = ({ index }: { index: number }) => (
         <div className="relative py-4 flex justify-center z-20">
@@ -1433,7 +1466,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         {renderMediaToolbar(block.id)}
                                                     </div>
                                                 </div>
-                                                <div className="mt-2 flex justify-end">
+                                                {renderMediaInputPanel(block.id)}
+                                                <div className="mt-2">
                                                     <AiRefineToolbar
                                                         blockId={block.id}
                                                         blockType="text"
@@ -1946,7 +1980,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     {/* השימוש החדש ברכיב המאוחד */}
                                                     {renderMediaToolbar(block.id)}
                                                 </div>
-                                                <div className="mt-2 flex justify-end">
+                                                {renderMediaInputPanel(block.id)}
+                                                <div className="mt-2">
                                                     <AiRefineToolbar
                                                         blockId={block.id}
                                                         blockType={block.type}
@@ -1973,7 +2008,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     placeholder="כתבו את הטקסט המלא עם [מילים להסתרה]..."
                                                     minHeight="160px"
                                                 />
-                                                <div className="mt-2 flex justify-end">
+                                                <div className="mt-2">
                                                     <AiRefineToolbar
                                                         blockId={block.id}
                                                         blockType="fill_in_blanks"
@@ -2195,6 +2230,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                             <IconSparkles className="w-8 h-8 mx-auto mb-2 animate-pulse" />
                                                             <span>מייצר תמונת פתיחה...</span>
                                                         </div>
+                                                    </div>
+                                                )}
+                                                {/* AI Refine button for activity-intro */}
+                                                {(block.content as any)?.imageUrl && (
+                                                    <div className="mt-3 flex justify-end">
+                                                        <AiRefineToolbar
+                                                            blockId={block.id}
+                                                            blockType="activity-intro"
+                                                            content={block.content}
+                                                            onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                        />
                                                     </div>
                                                 )}
                                             </div>

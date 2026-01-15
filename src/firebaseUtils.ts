@@ -217,8 +217,13 @@ export const uploadMediaFile = async (file: File, folder: string = 'media'): Pro
     const storagePath = `course_assets/${folder}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, storagePath);
 
+    // חשוב: חייבים להעביר metadata עם contentType כדי שחוקי Storage יעבדו
+    const metadata = {
+        contentType: file.type || 'application/octet-stream',
+    };
+
     try {
-        const snapshot = await uploadBytes(storageRef, file);
+        const snapshot = await uploadBytes(storageRef, file, metadata);
         const downloadURL = await getDownloadURL(snapshot.ref);
         return downloadURL;
     } catch (error) {

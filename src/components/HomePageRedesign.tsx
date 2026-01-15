@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
@@ -7,7 +7,7 @@ import {
     IconList,
     IconMagicWand
 } from '../icons';
-import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2, IconHistory } from '@tabler/icons-react';
+import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2, IconHistory, IconSend, IconArrowUp } from '@tabler/icons-react';
 import AIBlogWidget from './AIBlogWidget';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -26,6 +26,89 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
+
+    // Smart Prompt State
+    const [smartPromptValue, setSmartPromptValue] = useState('');
+    const [placeholderText, setPlaceholderText] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    const placeholderExamples = [
+        "צרו מבחן בחשבון לכיתה ד׳...",
+        "בנו שיעור על מלחמת העולם השנייה...",
+        "הכינו פעילות אינטראקטיבית באנגלית...",
+        "סכמו פרק בביולוגיה לכיתה י׳...",
+        "צרו חידון בגיאוגרפיה על יבשות...",
+        "בנו מערך שיעור בספרות על ביאליק..."
+    ];
+
+    // Typing animation effect for placeholder
+    useEffect(() => {
+        if (smartPromptValue) return; // Don't animate if user is typing
+
+        let currentIndex = 0;
+        let charIndex = 0;
+        let isDeleting = false;
+        let timeoutId: NodeJS.Timeout;
+
+        const type = () => {
+            const currentText = placeholderExamples[currentIndex];
+
+            if (!isDeleting) {
+                setPlaceholderText(currentText.substring(0, charIndex + 1));
+                charIndex++;
+
+                if (charIndex === currentText.length) {
+                    isDeleting = true;
+                    timeoutId = setTimeout(type, 2000); // Pause before deleting
+                    return;
+                }
+            } else {
+                setPlaceholderText(currentText.substring(0, charIndex - 1));
+                charIndex--;
+
+                if (charIndex === 0) {
+                    isDeleting = false;
+                    currentIndex = (currentIndex + 1) % placeholderExamples.length;
+                }
+            }
+
+            timeoutId = setTimeout(type, isDeleting ? 30 : 80);
+        };
+
+        type();
+        return () => clearTimeout(timeoutId);
+    }, [smartPromptValue]);
+
+    // Intent classification and action handler
+    const handleSmartPromptSubmit = () => {
+        if (!smartPromptValue.trim()) return;
+
+        const input = smartPromptValue.toLowerCase();
+
+        // Intent classification based on keywords
+        if (input.includes('מבחן') || input.includes('בוחן') || input.includes('מבדק') || input.includes('חידון')) {
+            onCreateNew('learning', 'exam');
+        } else if (input.includes('שיעור') || input.includes('מערך') || input.includes('יחידת לימוד')) {
+            onCreateNew('learning', 'lesson');
+        } else if (input.includes('פעילות') || input.includes('תרגול') || input.includes('משחק') || input.includes('אינטראקטיב')) {
+            onCreateNew('learning', 'activity');
+        } else if (input.includes('סוכן') || input.includes('חונך') || input.includes('מורה פרטי')) {
+            window.open('https://wizdi-gen.web.app/', '_blank');
+        } else {
+            // Default to lesson for general content creation
+            onCreateNew('learning', 'lesson');
+        }
+
+        setSmartPromptValue('');
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSmartPromptSubmit();
+        }
+    };
 
     // Fetch recent activities
     useEffect(() => {
@@ -241,6 +324,39 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                 <span className="bg-wizdi-action-light text-wizdi-action-dark text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
                             </div>
 
+                            {/* Smart Prompt Section */}
+                            <div className="mb-6">
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white text-center mb-4">
+                                    הפכו את הרעיונות שלכם לתוכן לימודי
+                                </h3>
+                                <div className="relative bg-white dark:bg-slate-700 rounded-2xl border-2 border-slate-100 dark:border-slate-600 focus-within:border-wizdi-royal transition-all">
+                                    <textarea
+                                        ref={inputRef}
+                                        value={smartPromptValue}
+                                        onChange={(e) => setSmartPromptValue(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder={placeholderText || "תארו מה תרצו ליצור..."}
+                                        className="w-full bg-transparent text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-lg p-4 pb-14 resize-none focus:outline-none min-h-[100px] text-right"
+                                        dir="rtl"
+                                        rows={2}
+                                    />
+                                    <div className="absolute bottom-3 left-3 flex items-center">
+                                        {/* Submit button */}
+                                        <button
+                                            onClick={handleSmartPromptSubmit}
+                                            disabled={!smartPromptValue.trim()}
+                                            className="w-10 h-10 bg-wizdi-royal hover:bg-wizdi-royal/90 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-xl flex items-center justify-center transition-colors disabled:cursor-not-allowed"
+                                            aria-label="צור תוכן"
+                                        >
+                                            <IconArrowUp className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-3">
+                                    או בחרו מהאפשרויות המוכנות למטה
+                                </p>
+                            </div>
+
                             {/* 4 Sub-buttons Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4" role="group" aria-label="סוגי תוכן ליצירה">
                                 {/* מערך שיעור */}
@@ -255,7 +371,7 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-slate-800 dark:text-white mb-1">מערך שיעור</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">בניית יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">
@@ -264,19 +380,19 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                     </div>
                                 </button>
 
-                                {/* פודקאסט AI */}
+                                {/* סוכן הוראה */}
                                 <button
-                                    onClick={() => handleCardClick("Podcast", () => onCreateNew('learning', 'podcast'))}
+                                    onClick={() => handleCardClick("TeachingAgent", () => window.open('https://wizdi-gen.web.app/', '_blank'))}
                                     className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
-                                    aria-label="יצירת פודקאסט AI - פרק אודיו מבוסס על התוכן"
+                                    aria-label="סוכן הוראה - מורה פרטי אישי"
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="icon-container w-12 h-12 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors" aria-hidden="true">
-                                            <IconMicrophone className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
+                                            <IconRobot className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">פודקאסט AI</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">יצירת פרק אודיו המבוסס על התוכן, להאזנה ולמידה</p>
+                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">סוכן הוראה</h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">חונך אישי מנהל דיאלוג לימודי המקנה ידע ומתרגל אותו, תוך התאמה אישית לרמת הלומד</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">

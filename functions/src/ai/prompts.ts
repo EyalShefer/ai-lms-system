@@ -98,9 +98,30 @@ export const getSkeletonPrompt = (
        - **Diversity Algorithm:** If Step N uses "multiple_choice", Step N+1 MUST use a DIFFERENT type.
        - **Distribution Target:** For ${stepCount} steps, aim for at least 3 different interaction types.
 
+    10. **CONTEXT IMAGE (ACTIVITY OPENING) - EXTRACT FROM SOURCE TEXT:**
+       Generate a "context_image_prompt" for an opening illustration.
+
+       **CRITICAL PROCESS:**
+       1. READ the source text carefully
+       2. IDENTIFY the main topic/subject matter (what is this text actually about?)
+       3. CREATE an image prompt that shows a REAL-WORLD SCENE directly related to THAT topic
+
+       **Guidelines:**
+       - The image must visually represent the ACTUAL content of the source text
+       - Show people engaged in activities related to the topic
+       - Include relevant objects, tools, or environment from the topic
+       - NO text in the image, NO Hebrew characters
+       - Style: Semi-realistic educational illustration, warm colors
+       - Age-appropriate for ${gradeLevel}
+       - Write the prompt in English (2-3 sentences)
+
+       **DO NOT use generic "scientist with microscope" or "student reading" images!**
+       The image must be SPECIFIC to whatever the source text discusses.
+
     Output JSON Structure:
     {
       "unit_title": "String",
+      "context_image_prompt": "English description for AI image generation (2-3 sentences, professional scenario related to the topic)",
       "steps": [
         {
           "step_number": 1,
@@ -217,38 +238,78 @@ export const getStepContentPrompt = (
     : `- **Level 1 Hint:** Point to the specific text part.\n- **Level 2 Hint:** Rephrase content.`}
        - **Feedback:** Explain WHY specific wrong choice is incorrect.
 
+    9. **MEDIA SUGGESTION GUIDELINES (IMAGE/INFOGRAPHIC DECISION):**
+       Decide whether this step would benefit from a generated image or infographic.
+
+       **ADD image suggestion ("suggested_media") when ALL conditions are met:**
+       - Bloom Level is Application, Analysis, Evaluation, or Creation (NOT Remember/Understand)
+       - Interaction Type is "multiple_choice" or "open_question"
+       - The question presents a real-world scenario, dilemma, or problem to solve
+       - Visualization would help students understand the situation BEFORE answering
+
+       **DO NOT add image for:**
+       - "categorization" questions (the items themselves are the visual element)
+       - "memory_game" questions (matching pairs are self-explanatory)
+       - "ordering" questions (sequence is the focus, not visualization)
+       - "fill_in_blanks" questions (text-based by nature)
+       - "true_false" questions (simple fact verification)
+       - Simple fact recall at Remember/Understand levels
+
+       **ADD infographic suggestion when:**
+       - Content explains a PROCESS with clear steps → type: "flowchart"
+       - Content describes HISTORICAL events or chronological sequence → type: "timeline"
+       - Content COMPARES two or more concepts/options → type: "comparison"
+       - Content describes a RECURRING/CYCLICAL process → type: "cycle"
+
+       **If you suggest media, include in the JSON:**
+       \`"suggested_media": {
+          "needed": true,
+          "type": "scenario_image" | "infographic",
+          "infographic_type": "flowchart" | "timeline" | "comparison" | "cycle" (only if type is infographic),
+          "prompt_hint": "Brief description of what the image/infographic should show (in English, 2-3 sentences)"
+       }\`
+
+       **If no media is needed:**
+       \`"suggested_media": { "needed": false }\`
+
     Output FORMAT (JSON ONLY):
     {
        "step_number": ${stepInfo.step_number},
-       "bloom_level": "${stepInfo.bloom_level}", 
+       "bloom_level": "${stepInfo.bloom_level}",
        "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
-       "selected_interaction": "${stepInfo.suggested_interaction_type}", 
+       "selected_interaction": "${stepInfo.suggested_interaction_type}",
+       "suggested_media": {
+          "needed": true | false,
+          "type": "scenario_image" | "infographic",
+          "infographic_type": "flowchart" | "timeline" | "comparison" | "cycle",
+          "prompt_hint": "English description of what to generate (if needed=true)"
+       },
        "data": {
           "progressive_hints": ["Hint 1", "Hint 2"],
           "source_reference_hint": "See section '...'",
           // DYNAMIC STRUCTURE BASED ON INTERACTION TYPE:
           // 1. MULTIPLE CHOICE / TRUE_FALSE:
           // { "question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "A" }
-          
+
           // 2. CATEGORIZATION:
           // { "question": "Sort the items...", "categories": ["Cat1", "Cat2"], "items": [{ "text": "Item1", "category": "Cat1" }] }
-          
+
           // 3. ORDERING:
           // { "instruction": "Order the events...", "correct_order": ["Event 1", "Event 2", "Event 3"] }
-          
+
           // 4. FILL IN BLANKS:
           // { "text": "The [Sun] is hot." } (MUST use brackets [] for hidden words, do NOT use underscores)
-          
+
           // 5. MEMORY GAME:
           // { "question": "Match the pairs...", "pairs": [{ "card_a": "Term", "card_b": "Def" }] }
-          
+
           // 6. OPEN QUESTION:
           // {
           //   "question": "...",
           //   "model_answer": "...",
           //   "points": 10
           // }
-          
+
           // 7. AUDIO RESPONSE (Simulated Oral Exam):
           // { "question": "Explain in your own words...", "max_duration": 60 }
        }

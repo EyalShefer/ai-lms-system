@@ -103,6 +103,17 @@ export interface SkeletonStep {
 export interface UnitSkeleton {
     unit_title: string;
     steps: SkeletonStep[];
+    context_image_prompt?: string; // AI-generated prompt for opening image
+}
+
+/**
+ * Media suggestion returned by AI for each step
+ */
+export interface SuggestedMedia {
+    needed: boolean;
+    type?: 'scenario_image' | 'infographic';
+    infographic_type?: 'flowchart' | 'timeline' | 'comparison' | 'cycle';
+    prompt_hint?: string;
 }
 
 /**
@@ -114,6 +125,7 @@ export interface StepContentResponse {
     teach_content: string;
     selected_interaction: string;
     data: RawAiItem; // This is the raw data we map later
+    suggested_media?: SuggestedMedia; // AI suggestion for image/infographic
 }
 
 // --- AUDIO OVERVIEW TYPES (NotebookLM Features) ---

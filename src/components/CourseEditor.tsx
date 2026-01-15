@@ -8,7 +8,7 @@ import TeacherCockpit from './TeacherCockpit';
 import { IconEye, IconX } from '../icons';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel, extractTopicFromText } from '../gemini';
 // import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -1029,8 +1029,6 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         // console.log("📦 Full Wizard Data Output:", JSON.stringify(data, null, 2));
 
         try {
-            const topicToUse = data.topic || course.title || "נושא כללי";
-
             const extractedGrade =
                 (Array.isArray(data.targetAudience) ? data.targetAudience[0] : data.targetAudience) ||
                 (Array.isArray(data.gradeLevel) ? data.gradeLevel[0] : data.gradeLevel) ||
@@ -1079,6 +1077,15 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
             // DEBUG: Log what we're sending to AI
             console.log("🔍 DEBUG - processedSourceText:", processedSourceText ? `${processedSourceText.substring(0, 200)}... (${processedSourceText.length} chars)` : "UNDEFINED");
+
+            // --- חילוץ נושא מטקסט מודבק אם לא סופק נושא ---
+            let topicToUse = data.topic || data.title || course.title;
+            if ((!topicToUse || topicToUse === "פעילות טקסט חופשי" || topicToUse === "נושא כללי") && processedSourceText && processedSourceText.length > 100) {
+                console.log("🔍 No topic provided, extracting from pasted text...");
+                topicToUse = await extractTopicFromText(processedSourceText);
+                console.log("✅ Extracted topic:", topicToUse);
+            }
+            topicToUse = topicToUse || "נושא כללי";
 
             const updatedCourseState = {
                 ...course,

@@ -750,6 +750,71 @@ export const refineBlockContent = async (_blockType: string, content: any, instr
     }
 };
 
+/**
+ * Refine activity-intro image by generating a new image based on instructions
+ */
+export const refineActivityIntroImage = async (
+    content: { imageUrl?: string; title?: string; description?: string; imagePrompt?: string },
+    instruction: string
+): Promise<{ imageUrl: string; title: string; description: string; imagePrompt: string } | null> => {
+    try {
+        console.log(`🎨 Refining activity-intro image with instruction: ${instruction}`);
+
+        const { generateGeminiImage } = await import('./imagenService');
+        const { uploadGeneratedImage } = await import('../storageService');
+
+        const baseContext = content.imagePrompt || content.title || content.description || 'תמונת פתיחה';
+
+        // Ask AI to create an improved image prompt
+        const promptGenerationPrompt = `אתה מומחה ליצירת תמונות AI.
+בהתבסס על התמונה המקורית וההוראה של המשתמש, צור prompt חדש ומשופר לייצור תמונה.
+
+תיאור התמונה המקורית: ${baseContext}
+הוראת המשתמש: ${instruction}
+
+צור prompt באנגלית (4-5 משפטים) שמתאר תמונה חדשה בסגנון איור דיגיטלי, ללא טקסט בתמונה.
+הפורמט: החזר רק את ה-prompt החדש, ללא הסברים.`;
+
+        const promptResponse = await openaiClient.chat.completions.create({
+            model: MODEL_NAME,
+            messages: [{ role: "user", content: promptGenerationPrompt }],
+            temperature: 0.7
+        });
+
+        const newImagePrompt = promptResponse.choices[0].message.content?.trim() || '';
+        if (!newImagePrompt) {
+            console.error('❌ Failed to generate new image prompt');
+            return null;
+        }
+
+        console.log(`📝 New image prompt: ${newImagePrompt.substring(0, 100)}...`);
+
+        const imageBlob = await generateGeminiImage(newImagePrompt);
+        if (!imageBlob) {
+            console.error('❌ Failed to generate new image');
+            return null;
+        }
+
+        const newImageUrl = await uploadGeneratedImage(imageBlob, 'ai-image');
+        if (!newImageUrl) {
+            console.error('❌ Failed to upload new image');
+            return null;
+        }
+
+        console.log(`✅ New activity-intro image generated and uploaded`);
+
+        return {
+            imageUrl: newImageUrl,
+            title: content.title || 'תמונת פתיחה',
+            description: content.description || '',
+            imagePrompt: newImagePrompt
+        };
+    } catch (error) {
+        console.error('❌ Error refining activity-intro image:', error);
+        return null;
+    }
+};
+
 export const attemptAutoFix = async (originalJson: any, validationResult: ValidationResult): Promise<any> => {
     const prompt = getAutoFixPrompt(JSON.stringify(validationResult.issues), JSON.stringify(originalJson));
     try {

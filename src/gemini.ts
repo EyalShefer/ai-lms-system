@@ -2337,6 +2337,52 @@ export const generateCourseSyllabus = async (
   }
 };
 
+// --- פונקציה לחילוץ נושא מטקסט מודבק ---
+export const extractTopicFromText = async (text: string): Promise<string> => {
+  if (!text || text.length < 50) {
+    return "נושא כללי";
+  }
+
+  const sampleText = text.substring(0, 3000); // Take first 3000 chars for analysis
+
+  const prompt = `
+    Task: Extract the main topic/subject from the following text.
+
+    TEXT:
+    """
+    ${sampleText}
+    """
+
+    RULES:
+    - Return ONLY the topic name in Hebrew (2-6 words maximum)
+    - Focus on the CONTENT topic, not meta-descriptions
+    - Examples of good outputs: "מחזור פסולת", "מלחמת העולם השנייה", "משוואות ממעלה שנייה"
+    - Examples of BAD outputs: "ניתוח טקסט", "הבנת הנקרא", "מאמר על..."
+    - If the text is about multiple topics, pick the most prominent one
+    - If you can't determine a topic, return "נושא כללי"
+
+    Output: Just the topic name, nothing else.
+  `;
+
+  try {
+    const result = await callGeminiChat([{ role: 'user', content: prompt }], {
+      temperature: 0.3,
+      maxTokens: 50
+    });
+
+    const topic = result?.trim().replace(/["""]/g, '').trim();
+
+    // Validate: not too long, not empty
+    if (topic && topic.length > 2 && topic.length < 100) {
+      return topic;
+    }
+    return "נושא כללי";
+  } catch (e) {
+    console.error("Topic extraction error:", e);
+    return "נושא כללי";
+  }
+};
+
 // --- פונקציה 1: יצירת סילבוס (גרסת ענן - Firestore Queue) ---
 export const generateCoursePlan = async (
   topic: string,
