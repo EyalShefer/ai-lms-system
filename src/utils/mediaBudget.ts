@@ -296,7 +296,7 @@ The scene should:
 - Include relevant professional tools or environment
 - Be age-appropriate for grade ${gradeLevel} students
 - Convey "you are the expert" feeling
-- NO text, NO labels, NO Hebrew characters
+- CRITICAL: NO TEXT AT ALL - no labels, no signs, no writing, no letters, no words in any language
 - Warm, inviting colors
 - Semi-realistic style (not cartoon, not photorealistic)`;
 };
@@ -314,7 +314,7 @@ The scene should:
 - Depict a moment BEFORE resolution (the problem state)
 - Show visual tension or something that needs fixing
 - Be clear enough that students can identify what's wrong
-- NO text, NO labels, NO Hebrew characters
+- CRITICAL: NO TEXT AT ALL - no labels, no signs, no writing, no letters, no words in any language
 - Related to this question context: "${questionText.slice(0, 100)}..."
 - Semi-realistic educational style`;
 };

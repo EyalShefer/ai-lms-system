@@ -434,7 +434,7 @@ const AuthenticatedApp = () => {
           title: "פעילות חדשה",
           learningUnits: [{
             id: crypto.randomUUID(),
-            title: topicForAI,
+            title: courseTitle, // Use courseTitle (teacher-defined) instead of topicForAI (may be filename)
             type: 'practice',
             activityBlocks: [] // Empty blocks trigger the UnitEditor's useEffect!
           }]

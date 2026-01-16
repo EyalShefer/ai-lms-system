@@ -185,9 +185,11 @@ service firebase.storage {
 
     // ===== WIZARD UPLOADS =====
     // User uploads from the content creation wizard
+    // These files may be used as source documents for courses shared with students
     match /uploads/{userId}/{allPaths=**} {
-      // Read: Only owner can read their uploads
-      allow read: if isOwner(userId);
+      // Read: Any authenticated user can read uploads
+      // (PDF source files are shared with students as part of course content)
+      allow read: if isAuthenticated();
 
       // Write: Only owner can write, with validation
       allow write: if isOwner(userId)

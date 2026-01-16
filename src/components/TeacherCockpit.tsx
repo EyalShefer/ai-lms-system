@@ -19,6 +19,7 @@ import { uploadGeneratedImage } from '../services/storageService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { RichTextEditor } from './RichTextEditor';
 import { sanitizeHtml } from '../utils/sanitize';
+import { TypewriterLoader } from './ui/Loading/TypewriterLoader';
 
 // Interactive Question Components for preview mode
 import MultipleChoiceQuestion from './MultipleChoiceQuestion';
@@ -785,9 +786,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             </div>
             <div className="relative bg-[#f0f4f8] px-4">
                 {generatingBlockIndex === index ? (
-                    <div className="glass border border-indigo-200 shadow-xl rounded-2xl p-4 flex items-center gap-3 animate-pulse backdrop-blur-xl bg-indigo-50/95 ring-4 ring-indigo-100/50">
-                        <IconSparkles className="w-5 h-5 text-indigo-600 animate-spin" />
-                        <span className="text-sm font-bold text-indigo-700">מייצר תוכן עם AI...</span>
+                    <div className="glass border border-indigo-200 shadow-xl rounded-2xl p-6 flex flex-col items-center gap-3 backdrop-blur-xl bg-indigo-50/95 ring-4 ring-indigo-100/50">
+                        <TypewriterLoader contentType="activity" isVisible={true} showSpinner={true} />
                     </div>
                 ) : activeInsertIndex === index ? (
                     <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto" onClick={(e) => e.stopPropagation()}>
@@ -829,110 +829,71 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     /**
      * Generate a smart default prompt suggestion based on block type and content
-     * The suggestions are contextual and include specific references to the block's content
+     * Returns a ready-to-use prompt that requires minimal editing from the teacher
      */
     const generateDefaultPromptForBlock = (block: ActivityBlock): string => {
         const blockType = block.type;
         const content = block.content;
 
-        // Extract text content for context
-        const getTextContent = (): string => {
-            if (!content) return '';
-            if (typeof content === 'string') return content;
-            if ((content as any).question) return (content as any).question;
-            if ((content as any).text) return (content as any).text;
-            if ((content as any).title) return (content as any).title;
-            if ((content as any).prompt) return (content as any).prompt;
-            if ((content as any).teach_content) return (content as any).teach_content;
-            return '';
-        };
-
-        // Extract question for question-type blocks
-        const getQuestion = (): string => {
-            if (!content || typeof content === 'string') return '';
-            return (content as any).question || '';
-        };
-
         // Extract options count for multiple choice
-        const getOptionsInfo = (): { count: number; hasDistractors: boolean } => {
-            if (!content || typeof content === 'string') return { count: 0, hasDistractors: false };
-            const options = (content as any).options || [];
-            return {
-                count: options.length,
-                hasDistractors: options.length > 2
-            };
+        const getOptionsCount = (): number => {
+            if (!content || typeof content === 'string') return 0;
+            return ((content as any).options || []).length;
         };
 
         // Extract items count for ordering/categorization
         const getItemsCount = (): number => {
             if (!content || typeof content === 'string') return 0;
-            const items = (content as any).items || (content as any).pairs || [];
-            return items.length;
+            return ((content as any).items || (content as any).pairs || []).length;
         };
-
-        const textContent = getTextContent();
-        const question = getQuestion();
-        const shortContent = textContent.length > 60 ? textContent.substring(0, 60) + '...' : textContent;
-        const shortQuestion = question.length > 50 ? question.substring(0, 50) + '...' : question;
 
         switch (blockType) {
             case 'multiple-choice': {
-                const { count } = getOptionsInfo();
-                if (shortQuestion) {
-                    return `עבור השאלה "${shortQuestion}" - הוסיפו מסיחים מתוחכמים יותר${count < 4 ? ` (כרגע יש ${count} תשובות)` : ''}, או שפרו את ניסוח השאלה`;
+                const count = getOptionsCount();
+                if (count < 4) {
+                    return `הוסף עוד ${4 - count} מסיחים שגויים אבל הגיוניים`;
                 }
-                return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח`;
+                return `הפוך את המסיחים למתוחכמים יותר - שיהיו קרובים לתשובה הנכונה`;
             }
             case 'open-question':
-                if (shortQuestion) {
-                    return `עבור השאלה "${shortQuestion}" - הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
-                }
-                return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+                return `הפוך את השאלה למאתגרת יותר והוסף הנחיות ברורות לתשובה`;
             case 'categorization': {
                 const itemsCount = getItemsCount();
-                if (itemsCount > 0) {
-                    return `שפרו את פעילות המיון (${itemsCount} פריטים): הוסיפו פריטים או קטגוריות נוספות`;
+                if (itemsCount < 6) {
+                    return `הוסף עוד פריטים לכל קטגוריה`;
                 }
-                return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
+                return `הוסף קטגוריה נוספת עם פריטים מתאימים`;
             }
             case 'memory_game': {
                 const itemsCount = getItemsCount();
-                if (itemsCount > 0) {
-                    return `שפרו את משחק הזיכרון (${itemsCount} זוגות): הוסיפו זוגות או שפרו את התוכן`;
+                if (itemsCount < 6) {
+                    return `הוסף עוד 3 זוגות למשחק`;
                 }
-                return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
+                return `שפר את הניסוח של הזוגות כדי שיהיו מאתגרים יותר`;
             }
             case 'ordering': {
                 const itemsCount = getItemsCount();
-                if (itemsCount > 0) {
-                    return `שפרו את פעילות הסידור (${itemsCount} פריטים): הוסיפו פריטים או הבהירו את קריטריון המיון`;
+                if (itemsCount < 5) {
+                    return `הוסף עוד שלבים לרצף`;
                 }
-                return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+                return `הוסף הסברים קצרים לכל שלב`;
             }
             case 'fill_in_blanks':
-                if (shortContent) {
-                    return `עבור הטקסט "${shortContent}" - הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
-                }
-                return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+                return `הוסף רמזים בסוגריים ליד כל מילה חסרה`;
             case 'text':
-                if (shortContent) {
-                    return `עבור הטקסט "${shortContent}" - פשטו את השפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
-                }
-                return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
+                return `פשט את השפה והוסף דוגמה מחיי היומיום`;
             case 'video':
-                return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
+                return `הוסף 3 שאלות מנחות לצפייה בסרטון`;
             case 'image':
-                return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
+                return `הוסף תיאור לתמונה ושאלת התבוננות אחת`;
             case 'interactive-chat':
-                if (shortContent) {
-                    return `עבור השיחה בנושא "${shortContent}" - הוסיפו תרחישים או שאלות העמקה`;
-                }
-                return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
+                return `הוסף תרחיש נוסף לשיחה`;
+            case 'podcast':
+                return `הוסף נקודות מפתח לדיון בסוף הפודקאסט`;
+            case 'infographic':
+                return `הוסף עוד נתון אחד לאינפוגרפיקה`;
             default:
-                if (shortContent) {
-                    return `עבור התוכן "${shortContent}" - פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
-                }
-                return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
+                return `פשט את השפה והוסף דוגמה`;
         }
     };
 
@@ -1024,6 +985,34 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     };
 
     const renderBlockContent = (block: ActivityBlock) => {
+        // --- LOADING BLOCKS (Skeleton with Typewriter) ---
+        if (block.metadata?.isLoading) {
+            // Main loader block with full typewriter animation
+            if (block.metadata?.isMainLoader) {
+                return (
+                    <div className="py-8 flex flex-col items-center justify-center min-h-[200px]">
+                        <TypewriterLoader contentType="lesson" isVisible={true} />
+                        <div className="mt-6 flex flex-wrap gap-2 justify-center">
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">🪝 פתיחה מעניינת</span>
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">🎓 הוראה פרונטלית</span>
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">🧑‍🏫 תרגול מודרך</span>
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">💻 פעילויות אינטראקטיביות</span>
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">💬 דיון</span>
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">📝 סיכום</span>
+                        </div>
+                    </div>
+                );
+            }
+            // Secondary skeleton blocks - simple shimmer animation
+            return (
+                <div className="animate-pulse space-y-3">
+                    <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                    <div className="h-4 bg-slate-200 rounded w-5/6"></div>
+                </div>
+            );
+        }
+
         // --- MEDIA BLOCKS ---
         if (block.type === 'image') {
             if (!block.content) {

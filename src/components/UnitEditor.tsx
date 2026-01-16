@@ -3,12 +3,14 @@ import type { LearningUnit, ActivityBlock } from '../shared/types/courseTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { useCourseStore } from '../context/CourseContext';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
+import { TypewriterLoader } from './ui/Loading/TypewriterLoader';
 import {
     refineContentWithPedagogy,
     generateSingleOpenQuestion, generateSingleMultipleChoiceQuestion,
     generateCategorizationQuestion, generateOrderingQuestion, generateFillInBlanksQuestion, generateMemoryGame,
     generateTrueFalseQuestion,
-    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent
+    generateAiImage, BOT_PERSONAS, generateUnitSkeleton, generateStepContent,
+    generateInfographicFromText, type InfographicType
 } from '../gemini';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
@@ -71,6 +73,13 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'matching': 'התאמה',
     'audio-response': 'תשובה קולית',
     'mindmap': 'מפת חשיבה'
+};
+
+// Helper to strip HTML tags for plain text
+const stripHtml = (html: string): string => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
 };
 
 // --- הגדרות מקומיות ---
@@ -337,7 +346,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     targetLength,
                     sourceText,
                     course.mode || settings.courseMode || 'learning', // Robust Fallback
-                    settings.taxonomy // Pass Dynamic Bloom Preferences
+                    settings.taxonomy, // Pass Dynamic Bloom Preferences
+                    productType as 'lesson' | 'activity' | 'exam' // Pass Product Type for context_image_prompt
                 );
 
                 if (!skeleton || !skeleton.steps) {
@@ -359,7 +369,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     const customImagePrompt = skeleton.context_image_prompt;
                     console.log("🖼️ [Parallel] Starting context image generation alongside content...");
                     if (customImagePrompt) {
-                        console.log("🎯 Using AI-generated prompt from skeleton:", customImagePrompt.substring(0, 80) + "...");
+                        console.log("🎯 Using AI-generated prompt from skeleton:", customImagePrompt.substring(0, 100) + "...");
+                    } else {
+                        console.warn("⚠️ No context_image_prompt from skeleton - using generic fallback. Topic:", topic, "Subject:", subject);
                     }
                     contextImagePromise = generateContextImageBlock(topic, subject, gradeLevel, customImagePrompt);
                 }
@@ -1113,9 +1125,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         if (block) {
                             const content = block.content;
                             if (typeof content === 'string') {
-                                defaultPrompt = content.substring(0, 100);
+                                defaultPrompt = stripHtml(content).substring(0, 100);
                             } else if (content) {
-                                defaultPrompt = content.question || content.text || content.title || content.prompt || content.teach_content || '';
+                                const rawText = content.question || content.text || content.title || content.prompt || content.teach_content || '';
+                                defaultPrompt = stripHtml(rawText);
                                 if (defaultPrompt.length > 100) defaultPrompt = defaultPrompt.substring(0, 100);
                             }
                         }
@@ -1295,6 +1308,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         'podcast': 'מצב האזנה'
     }[productType as string] || 'מצב פעילות';
 
+    // Map productType to TypewriterLoader contentType
+    const typewriterContentType = {
+        'lesson': 'lesson',
+        'activity': 'activity',
+        'exam': 'exam',
+        'podcast': 'general'
+    }[productType as string] as 'lesson' | 'exam' | 'activity' | 'general' || 'activity';
+
     // --- Dynamic Source Text ---
     const sourceMode = (course as any)?.wizardData?.mode || 'topic';
     const sourceTextHebrew = {
@@ -1308,7 +1329,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
                 <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
-                <h2 className="text-2xl font-bold text-gray-800">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
+                {/* Typewriter status messages */}
+                <div className="min-h-[2rem]">
+                    <TypewriterLoader
+                        contentType={typewriterContentType}
+                        isVisible={true}
+                        showSpinner={false}
+                        className="text-indigo-600"
+                    />
+                </div>
             </div>
         );
     }
@@ -1443,10 +1473,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {block.type === 'text' && (
                                             <div>
                                                 {block.metadata?.isLoading || block.metadata?.isSkeleton ? (
-                                                    <div className="w-full p-6 border border-blue-100 bg-blue-50/40 rounded-xl flex flex-col items-center justify-center text-center gap-3 animate-pulse min-h-[120px]">
-                                                        <IconSparkles className="w-6 h-6 text-blue-400" />
-                                                        <div className="text-blue-600 font-bold text-lg">{block.content}</div>
-                                                        <div className="text-blue-300 text-xs">ה-AI עובד על זה...</div>
+                                                    <div className="w-full p-8 border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-2xl flex flex-col items-center justify-center text-center gap-4 min-h-[180px]">
+                                                        <TypewriterLoader contentType={typewriterContentType} isVisible={true} />
                                                     </div>
                                                 ) : (
                                                     <RichTextEditor
@@ -2179,20 +2207,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                         {/* LOADING PLACEHOLDER - Shows during content generation */}
                                         {block.type === 'loading-placeholder' && (
-                                            <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-dashed border-blue-200 animate-pulse">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-600 font-bold">
-                                                        {(block.content as any)?.stepNumber || '?'}
+                                            <div className="p-8 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-2xl border border-indigo-100 flex flex-col items-center justify-center min-h-[180px]">
+                                                <TypewriterLoader contentType={typewriterContentType} isVisible={true} />
+                                                {(block.content as any)?.title && (
+                                                    <div className="mt-4 text-indigo-600 text-sm font-medium">
+                                                        {(block.content as any)?.title}
                                                     </div>
-                                                    <span className="text-blue-700 font-medium">{(block.content as any)?.title || 'טוען...'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-blue-500">
-                                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                    </svg>
-                                                    <span>{(block.content as any)?.message || 'מייצר תוכן...'}</span>
-                                                </div>
+                                                )}
                                             </div>
                                         )}
 
@@ -2274,6 +2295,135 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 ) : (
                                                     <div className="h-32 bg-amber-100/50 rounded-lg flex items-center justify-center text-amber-400">
                                                         <span className="animate-pulse">מייצר תמונה...</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* INFOGRAPHIC BLOCK */}
+                                        {block.type === 'infographic' && (
+                                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-5 rounded-xl border border-purple-100">
+                                                <div className="flex items-center gap-2 mb-3 text-purple-700 font-bold text-sm">
+                                                    <IconInfographic className="w-4 h-4" /> אינפוגרפיקה
+                                                </div>
+                                                {(block.content as any)?.imageUrl ? (
+                                                    <div className="relative">
+                                                        <img
+                                                            src={(block.content as any).imageUrl}
+                                                            alt={(block.content as any)?.title || 'אינפוגרפיקה'}
+                                                            className="w-full rounded-lg shadow-sm bg-white"
+                                                            loading="lazy"
+                                                        />
+                                                        <div className="mt-3 space-y-2">
+                                                            <input
+                                                                type="text"
+                                                                className="w-full bg-white/80 border border-purple-200 rounded-lg p-2 text-sm focus:border-purple-400 outline-none"
+                                                                placeholder="כותרת האינפוגרפיקה..."
+                                                                value={(block.content as any)?.title || ''}
+                                                                onChange={(e) => updateBlock(block.id, { ...(block.content as any), title: e.target.value })}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="w-full bg-white/80 border border-purple-200 rounded-lg p-2 text-sm focus:border-purple-400 outline-none"
+                                                                placeholder="כיתוב (אופציונלי)..."
+                                                                value={(block.content as any)?.caption || ''}
+                                                                onChange={(e) => updateBlock(block.id, { ...(block.content as any), caption: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            onClick={() => updateBlock(block.id, { imageUrl: '', title: 'אינפוגרפיקה', caption: '', visualType: 'flowchart' })}
+                                                            className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+                                                            title="הסר אינפוגרפיקה"
+                                                        >
+                                                            <IconTrash className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-4">
+                                                        {/* Infographic Type Selection */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-purple-600 mb-2">סוג ויזואליזציה:</label>
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                                {[
+                                                                    { type: 'flowchart', label: 'תרשים זרימה', icon: '🔄' },
+                                                                    { type: 'timeline', label: 'ציר זמן', icon: '📅' },
+                                                                    { type: 'comparison', label: 'השוואה', icon: '⚖️' },
+                                                                    { type: 'cycle', label: 'מחזור', icon: '🔁' }
+                                                                ].map(({ type, label, icon }) => (
+                                                                    <button
+                                                                        key={type}
+                                                                        onClick={() => updateBlock(block.id, { ...(block.content as any), visualType: type })}
+                                                                        className={`p-2 rounded-lg border text-xs font-medium transition-all ${
+                                                                            (block.content as any)?.visualType === type
+                                                                                ? 'bg-purple-100 border-purple-400 text-purple-700'
+                                                                                : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300'
+                                                                        }`}
+                                                                    >
+                                                                        <span className="text-lg">{icon}</span>
+                                                                        <div>{label}</div>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Text Input for Generation */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-purple-600 mb-2">תוכן ליצירת האינפוגרפיקה:</label>
+                                                            <textarea
+                                                                className="w-full bg-white border border-purple-200 rounded-lg p-3 text-sm focus:border-purple-400 outline-none resize-none"
+                                                                rows={4}
+                                                                placeholder="הכניסו את הטקסט או הנתונים שיוצגו באינפוגרפיקה...&#10;לדוגמה: שלבי מחזור המים, השוואה בין יונקים לזוחלים, תהליך הפוטוסינתזה..."
+                                                                value={mediaInputValue[block.id] || ''}
+                                                                onChange={(e) => setMediaInputValue({ ...mediaInputValue, [block.id]: e.target.value })}
+                                                            />
+                                                        </div>
+
+                                                        {/* Generate Button */}
+                                                        <button
+                                                            onClick={async () => {
+                                                                const text = mediaInputValue[block.id];
+                                                                if (!text || text.trim().length < 10) {
+                                                                    alert('נא להזין תוכן (לפחות 10 תווים) ליצירת האינפוגרפיקה');
+                                                                    return;
+                                                                }
+                                                                setLoadingBlockId(block.id);
+                                                                try {
+                                                                    const visualType = (block.content as any)?.visualType || 'flowchart';
+                                                                    const imageBlob = await generateInfographicFromText(text, visualType as InfographicType, unit?.title);
+                                                                    if (imageBlob) {
+                                                                        const imageUrl = await uploadMediaFile(imageBlob, `infographic_${block.id}.png`, 'image/png');
+                                                                        updateBlock(block.id, {
+                                                                            imageUrl,
+                                                                            title: unit?.title || 'אינפוגרפיקה',
+                                                                            caption: '',
+                                                                            visualType
+                                                                        }, { infographicType: visualType });
+                                                                        setMediaInputValue({ ...mediaInputValue, [block.id]: '' });
+                                                                    } else {
+                                                                        alert('שגיאה ביצירת האינפוגרפיקה. נסו שוב.');
+                                                                    }
+                                                                } catch (err) {
+                                                                    console.error('Infographic generation error:', err);
+                                                                    alert('שגיאה ביצירת האינפוגרפיקה');
+                                                                } finally {
+                                                                    setLoadingBlockId(null);
+                                                                }
+                                                            }}
+                                                            disabled={loadingBlockId === block.id || !mediaInputValue[block.id]?.trim()}
+                                                            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 px-4 rounded-lg font-bold hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                        >
+                                                            {loadingBlockId === block.id ? (
+                                                                <>
+                                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                                    יוצר אינפוגרפיקה...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <IconWand className="w-4 h-4" />
+                                                                    צור אינפוגרפיקה
+                                                                </>
+                                                            )}
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>

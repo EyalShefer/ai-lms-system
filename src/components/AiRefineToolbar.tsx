@@ -12,28 +12,9 @@ interface AiRefineToolbarProps {
 
 /**
  * Generate a smart default prompt suggestion based on block type and content
- * Suggestions are contextual and include specific references to the block's content
+ * Returns a ready-to-use prompt that requires minimal editing from the teacher
  */
 const generateDefaultPrompt = (blockType: string, content: any): string => {
-    // Extract text content for context
-    const getTextContent = (): string => {
-        if (!content) return '';
-        if (typeof content === 'string') return content;
-        if (content.question) return content.question;
-        if (content.text) return content.text;
-        if (content.title) return content.title;
-        if (content.prompt) return content.prompt;
-        if (content.teach_content) return content.teach_content;
-        if (content.content) return typeof content.content === 'string' ? content.content : '';
-        return '';
-    };
-
-    // Extract question for question-type blocks
-    const getQuestion = (): string => {
-        if (!content || typeof content === 'string') return '';
-        return content.question || '';
-    };
-
     // Extract options count for multiple choice
     const getOptionsCount = (): number => {
         if (!content || typeof content === 'string') return 0;
@@ -46,118 +27,93 @@ const generateDefaultPrompt = (blockType: string, content: any): string => {
         return (content.items || content.pairs || []).length;
     };
 
-    const textContent = getTextContent();
-    const question = getQuestion();
-    const shortContent = textContent.length > 60 ? textContent.substring(0, 60) + '...' : textContent;
-    const shortQuestion = question.length > 50 ? question.substring(0, 50) + '...' : question;
-
-    // Generate contextual suggestions based on block type
+    // Generate ready-to-use suggestions based on block type
     switch (blockType) {
         case 'multiple_choice':
         case 'multipleChoice':
         case 'multiple-choice': {
             const count = getOptionsCount();
-            if (shortQuestion) {
-                return `עבור השאלה "${shortQuestion}" - הוסיפו מסיחים מתוחכמים יותר${count < 4 ? ` (כרגע יש ${count} תשובות)` : ''}, או שפרו את ניסוח השאלה`;
+            if (count < 4) {
+                return `הוסף עוד ${4 - count} מסיחים שגויים אבל הגיוניים`;
             }
-            return `שפרו את השאלה: הוסיפו מסיחים מתוחכמים יותר, או שפרו את הניסוח`;
+            return `הפוך את המסיחים למתוחכמים יותר - שיהיו קרובים לתשובה הנכונה`;
         }
 
         case 'open_question':
         case 'openQuestion':
         case 'open-question':
-            if (shortQuestion) {
-                return `עבור השאלה "${shortQuestion}" - הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
-            }
-            return `שפרו את השאלה הפתוחה: הפכו אותה למאתגרת יותר או הוסיפו הנחיות ברורות לתשובה`;
+            return `הפוך את השאלה למאתגרת יותר והוסף הנחיות ברורות לתשובה`;
 
         case 'matching': {
             const count = getItemsCount();
-            if (count > 0) {
-                return `שפרו את משחק ההתאמה (${count} זוגות): הוסיפו זוגות נוספים או שפרו את הקשר בין הפריטים`;
+            if (count < 5) {
+                return `הוסף עוד 2 זוגות להתאמה`;
             }
-            return `שפרו את משחק ההתאמה: הוסיפו זוגות נוספים או שפרו את הקשר בין הפריטים`;
+            return `שפר את הניסוח כדי שההתאמה תהיה מאתגרת יותר`;
         }
 
         case 'sorting':
         case 'ordering': {
             const count = getItemsCount();
-            if (count > 0) {
-                return `שפרו את פעילות הסידור (${count} פריטים): הוסיפו פריטים או הבהירו את קריטריון המיון`;
+            if (count < 5) {
+                return `הוסף עוד שלבים לרצף`;
             }
-            return `שפרו את פעילות המיון: הוסיפו פריטים או הבהירו את קריטריון המיון`;
+            return `הוסף הסברים קצרים לכל שלב`;
         }
 
         case 'fill_blanks':
         case 'fillBlanks':
         case 'fill_in_blanks':
-            if (shortContent) {
-                return `עבור הטקסט "${shortContent}" - הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
-            }
-            return `שפרו את ההשלמה: הוסיפו רמזים או שפרו את ההקשר סביב החסר`;
+            return `הוסף רמזים בסוגריים ליד כל מילה חסרה`;
 
         case 'info':
         case 'text':
         case 'content':
-            if (shortContent) {
-                return `עבור הטקסט "${shortContent}" - פשטו את השפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
-            }
-            return `שפרו את הטקסט: פשטו את השפה, הוסיפו דוגמאות, או הפכו אותו למרתק יותר`;
+            return `פשט את השפה והוסף דוגמה מחיי היומיום`;
 
         case 'video':
-            return `הוסיפו שאלות מנחות לצפייה בסרטון או סיכום של נקודות המפתח`;
+            return `הוסף 3 שאלות מנחות לצפייה בסרטון`;
 
         case 'image':
-            return `הוסיפו תיאור לתמונה או שאלות התבוננות`;
+            return `הוסף תיאור לתמונה ושאלת התבוננות אחת`;
 
-        case 'activity-intro': {
-            const title = content?.title || '';
-            if (title) {
-                return `צרו תמונת פתיחה חדשה עבור "${title}" - שנו את הסגנון, הוסיפו אלמנטים, או שפרו את האווירה`;
-            }
-            return `שפרו את תמונת הפתיחה: שנו את הסגנון, הוסיפו אלמנטים, או צרו תמונה חדשה`;
-        }
+        case 'activity-intro':
+            return `צור תמונה בסגנון אחר - יותר צבעונית ומזמינה`;
 
         case 'discussion':
-            if (shortContent) {
-                return `עבור הדיון בנושא "${shortContent}" - הוסיפו שאלות מנחות או נקודות למחשבה`;
-            }
-            return `שפרו את נושא הדיון: הוסיפו שאלות מנחות או נקודות למחשבה`;
+            return `הוסף 3 שאלות מנחות לדיון`;
 
         case 'interactive_chat':
         case 'interactiveChat':
         case 'interactive-chat':
-            if (shortContent) {
-                return `עבור השיחה בנושא "${shortContent}" - הוסיפו תרחישים או שאלות העמקה`;
-            }
-            return `שפרו את השיחה האינטראקטיבית: הוסיפו תרחישים או שאלות העמקה`;
+            return `הוסף תרחיש נוסף לשיחה`;
 
         case 'summary':
-            if (shortContent) {
-                return `עבור הסיכום "${shortContent}" - הוסיפו נקודות מפתח או קשרו לנושאים קודמים`;
-            }
-            return `שפרו את הסיכום: הוסיפו נקודות מפתח או קשרו לנושאים קודמים`;
+            return `הוסף 3 נקודות מפתח לסיכום`;
 
         case 'categorization': {
             const count = getItemsCount();
-            if (count > 0) {
-                return `שפרו את פעילות המיון (${count} פריטים): הוסיפו פריטים או קטגוריות נוספות`;
+            if (count < 6) {
+                return `הוסף עוד פריטים לכל קטגוריה`;
             }
-            return `שפרו את פעילות המיון לקטגוריות: הוסיפו פריטים או קטגוריות`;
+            return `הוסף קטגוריה נוספת עם פריטים מתאימים`;
         }
 
         case 'memory_game': {
             const count = getItemsCount();
-            if (count > 0) {
-                return `שפרו את משחק הזיכרון (${count} זוגות): הוסיפו זוגות או שפרו את התוכן`;
+            if (count < 6) {
+                return `הוסף עוד 3 זוגות למשחק`;
             }
-            return `שפרו את משחק הזיכרון: הוסיפו זוגות או שפרו את התוכן`;
+            return `שפר את הניסוח של הזוגות כדי שיהיו מאתגרים יותר`;
         }
 
+        case 'podcast':
+            return `הוסף נקודות מפתח לדיון בסוף הפודקאסט`;
+
+        case 'infographic':
+            return `הוסף עוד נתון אחד לאינפוגרפיקה`;
+
         default:
-            if (shortContent) {
-                return `עבור התוכן "${shortContent}" - פשטו שפה, הוסיפו דוגמאות, או הפכו למרתק יותר`;
-            }
             return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
     }
 };

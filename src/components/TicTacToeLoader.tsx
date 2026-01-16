@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { TypewriterLoaderInline } from './ui/Loading/TypewriterLoader';
+import type { ContentType } from './ui/Loading/TypewriterLoader';
 
 type Player = 'X' | 'O' | null;
 
@@ -176,6 +178,15 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
 
     const loadingMessage = `${productTypeHebrew} ${sourceTextHebrew} בבניה`;
 
+    // Map productType to ContentType for TypewriterLoader
+    const contentTypeMap: Record<string, ContentType> = {
+        'lesson': 'lesson',
+        'activity': 'activity',
+        'exam': 'exam',
+        'podcast': 'general'
+    };
+    const typewriterContentType = contentTypeMap[productType || 'lesson'] || 'general';
+
     return (
         <div className="fixed inset-0 z-[200] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center font-sans animate-fade-in" dir="ltr">
 
@@ -185,6 +196,14 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
                 <h2 className="text-2xl md:text-3xl font-bold text-center px-4 leading-relaxed" style={{ color: '#0ea5e9' }}>
                     {loadingMessage}<br />בואו נשחק קצת...
                 </h2>
+                {/* Typewriter status messages */}
+                <div className="mt-4 min-h-[1.5rem]">
+                    <TypewriterLoaderInline
+                        contentType={typewriterContentType}
+                        isVisible={isLoading}
+                        className="text-sm text-indigo-600 font-medium"
+                    />
+                </div>
                 <p className="text-sm text-gray-400 mt-2 font-medium bg-white/50 px-3 py-1 rounded-full backdrop-blur-sm">
                     זמן היצירה עשוי להימשך בין דקה לדקה וחצי
                 </p>

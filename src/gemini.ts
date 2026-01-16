@@ -292,6 +292,7 @@ ${stepNumber > 1 && stepNumber < totalSteps ? `   - שלב ביניים - בנה
  * NOW IMPORTED FROM SHARED UTILS
  */
 export { mapSystemItemToBlock };
+export { generateInfographicFromText, type InfographicType };
 
 // === PERFORMANCE OPTIMIZATION START ===
 
@@ -440,10 +441,21 @@ export const generateUnitSkeleton = async (
     6. **Structure Guide:**
     ${structureGuide}
 
+    ${productType === 'activity' ? `7. **OPENING IMAGE PROMPT (CRITICAL FOR ACTIVITIES):**
+       - You MUST generate a "context_image_prompt" field that describes an engaging opening image.
+       - The image should show the SPECIFIC subject matter of this activity - NOT a generic professional.
+       - For example: If the topic is "children from different historical periods", show children in period clothing, NOT an archaeologist.
+       - Focus on the MAIN CHARACTERS or SUBJECTS of the content, not observers or researchers.
+       - The prompt should be in English and describe a visually engaging scene that draws students into the topic.
+       - Include specific visual details: clothing, setting, objects, actions.
+       - Style: Semi-realistic educational illustration, warm colors, age-appropriate.
+       - CRITICAL: NO TEXT AT ALL in the image - no labels, no signs, no writing, no letters, no words in ANY language. The image must be purely visual with no text elements.` : ''}
+
     Output JSON Structure:
     {
       "unit_title": "String (DO NOT prefix with 'יחידת לימוד:' - just the topic name)",
       "goals": ["Goal 1 (Understand)", "Goal 2 (Practice)", "Goal 3 (Analyze)"],
+      ${productType === 'activity' ? `"context_image_prompt": "English prompt describing the opening image - focus on the ACTUAL SUBJECT (e.g., 'Children from different eras: a Roman child in toga, a medieval child, and a modern child, standing together in a magical setting, comparing their toys and clothes')",` : ''}
       "steps": [
         {
           "step_number": 1,

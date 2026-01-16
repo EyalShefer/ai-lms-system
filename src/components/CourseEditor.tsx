@@ -7,6 +7,7 @@ import UnitEditor from './UnitEditor';
 import TeacherCockpit from './TeacherCockpit';
 import { IconEye, IconX } from '../icons';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
+import { TypewriterLoaderInline } from './ui/Loading/TypewriterLoader';
 import IngestionWizard from './IngestionWizard';
 import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel, extractTopicFromText } from '../gemini';
 // import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
@@ -1551,10 +1552,22 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         onBack={onBack}
                     />
                 ) : (
-                    // Classic Loading State
+                    // Classic Loading State with Typewriter effect
                     <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-center px-4">
                         <AIStarsSpinner size="xl" color="primary" className="mb-4" />
-                        <p className="text-gray-600 font-medium text-lg">טוען את הפעילות...</p>
+                        <p className="text-gray-600 font-medium text-lg mb-3">טוען את הפעילות...</p>
+                        {/* Typewriter status messages */}
+                        <div className="min-h-[1.5rem] mb-3">
+                            <TypewriterLoaderInline
+                                contentType={
+                                    course.wizardData?.settings?.productType === 'exam' ? 'exam' :
+                                    course.wizardData?.settings?.productType === 'lesson' ? 'lesson' :
+                                    'activity'
+                                }
+                                isVisible={true}
+                                className="text-indigo-600 font-medium"
+                            />
+                        </div>
                         <p className="text-gray-400 text-sm mt-2 max-w-md">הנתונים מתעדכנים מהענן. אם זה לוקח זמן רב, נסה לרענן.</p>
                         <button onClick={() => window.location.reload()} className="mt-6 text-indigo-600 hover:text-indigo-800 text-sm font-bold underline">
                             רענן עמוד
