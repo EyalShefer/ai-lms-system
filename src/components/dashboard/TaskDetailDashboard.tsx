@@ -33,7 +33,9 @@ import {
     IconHelpCircle,
     IconEdit,
     IconList,
-    IconKey
+    IconKey,
+    IconTrophy,
+    IconBulb
 } from '@tabler/icons-react';
 import type { Course } from '../../shared/types/courseTypes';
 
@@ -41,7 +43,7 @@ import type { Course } from '../../shared/types/courseTypes';
 import { SafetyBanner, type SafetyAlert } from './SafetyBanner';
 import { OnlineIndicator } from './OnlineIndicator';
 import { ExportDropdown } from './ExportPanel';
-import { BloomHeatmap, BloomClassSummary, BloomStudentBars } from './BloomHeatmap';
+import { BloomHeatmap, BloomStudentBars } from './BloomHeatmap';
 import { BloomRadarChart } from './BloomRadarChart';
 import { GradeOverrideModal } from './GradeOverride';
 import { MotivationBadge, MotivationMeter } from './MotivationMeter';
@@ -56,7 +58,8 @@ import {
     analyzeClassBloom,
     type StudentBloomProfile,
     type ClassBloomSummary,
-    BLOOM_LEVELS_ORDERED
+    BLOOM_LEVELS_ORDERED,
+    BLOOM_LABELS_HE
 } from '../../services/bloomAnalyticsService';
 import type { BloomLevel } from '../../shared/types/courseTypes';
 
@@ -89,12 +92,12 @@ const formatTime = (seconds: number): string => {
 
 // At Risk Students Count Card
 const AtRiskCard: React.FC<{ count: number }> = ({ count }) => (
-    <div className="bg-white border border-slate-200 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-        <div className={`w-14 h-14 rounded-full flex items-center justify-center ${count > 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${count > 0 ? 'bg-gradient-to-br from-wizdi-action to-red-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
             <IconAlertTriangle className="w-7 h-7" />
         </div>
         <div>
-            <div className="text-4xl font-black text-slate-800">{count}</div>
+            <div className={`text-4xl font-black ${count > 0 ? 'text-wizdi-action' : 'text-slate-800'}`}>{count}</div>
             <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">תלמידים בסיכון</div>
         </div>
     </div>
@@ -162,7 +165,7 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                         <span className="text-xs">כישלונות</span>
                     </div>
                     <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-xl">
-                        <span>🛠️</span>
+                        <IconRefresh size={16} />
                         <span className="font-black text-lg">{stats.remediation}</span>
                         <span className="text-xs">תגבורים</span>
                     </div>
@@ -185,10 +188,10 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                 {/* Additional Info */}
                 <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
                     <span className="flex items-center gap-1">
-                        💡 רמזים: <strong className="text-slate-700">{hintsUsed} שימושים</strong>
+                        <IconBulb size={14} className="text-amber-500" /> רמזים: <strong className="text-slate-700">{hintsUsed} שימושים</strong>
                     </span>
                     <span className="flex items-center gap-1">
-                        ⏱️ זמן ממוצע: <strong className="text-slate-700">{student.performance?.avgResponseTime || 0}s</strong>
+                        <IconClock size={14} className="text-slate-400" /> זמן ממוצע: <strong className="text-slate-700">{student.performance?.avgResponseTime || 0}s</strong>
                     </span>
                 </div>
             </div>
@@ -257,7 +260,7 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                                                             node.type === 'remediation' ? 'bg-indigo-200 border-indigo-300' : 'bg-slate-200 border-slate-300'}
                                                     transition-transform hover:scale-110 cursor-pointer shrink-0
                                                 `}>
-                                                    {isRemediation ? '🛠️' : node.status === 'success' ? <IconCheck size={24} className="text-white" stroke={3} /> : <IconX size={24} className="text-white" stroke={3} />}
+                                                    {isRemediation ? <IconRefresh size={24} className="text-indigo-600" stroke={2} /> : node.status === 'success' ? <IconCheck size={24} className="text-white" stroke={3} /> : <IconX size={24} className="text-white" stroke={3} />}
                                                 </div>
 
                                                 {/* Step number */}
@@ -268,10 +271,10 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                                                 {/* Tooltip */}
                                                 <div className="absolute top-full mt-3 text-center w-36 -left-12 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <div className="bg-white px-3 py-2 rounded-xl shadow-xl border border-slate-200 text-right">
-                                                        <div className="text-xs font-bold text-slate-700">
-                                                            {node.type === 'question' ? '📝 שאלה' :
-                                                                node.type === 'content' ? '📖 תוכן' :
-                                                                    node.type === 'remediation' ? '🛠️ תגבור' : node.type}
+                                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                            {node.type === 'question' ? <><IconHelpCircle size={12} /> שאלה</> :
+                                                                node.type === 'content' ? <><IconBook size={12} /> תוכן</> :
+                                                                    node.type === 'remediation' ? <><IconRefresh size={12} /> תגבור</> : node.type}
                                                         </div>
                                                         <div className={`text-xs mt-1 ${node.status === 'success' ? 'text-indigo-600' : node.status === 'failure' ? 'text-slate-500' : 'text-slate-500'}`}>
                                                             {node.status === 'success' ? '✓ הצליח' : node.status === 'failure' ? '✗ נכשל' : 'צפה'}
@@ -312,9 +315,11 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                                             <tr key={idx} className="hover:bg-white">
                                                 <td className="px-4 py-2 font-bold text-slate-500">{idx + 1}</td>
                                                 <td className="px-4 py-2">
-                                                    {node.type === 'question' ? '📝 שאלה' :
-                                                        node.type === 'content' ? '📖 תוכן' :
-                                                            node.type === 'remediation' ? '🛠️ תגבור' : node.type}
+                                                    <span className="flex items-center gap-1">
+                                                        {node.type === 'question' ? <><IconHelpCircle size={14} className="text-slate-500" /> שאלה</> :
+                                                            node.type === 'content' ? <><IconBook size={14} className="text-slate-500" /> תוכן</> :
+                                                                node.type === 'remediation' ? <><IconRefresh size={14} className="text-indigo-500" /> תגבור</> : node.type}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold
@@ -344,7 +349,9 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
 const ClassAnalyticsOverview: React.FC<{
     students: StudentAnalytics[];
     onCreateGroupRemediation: (groupType: string) => void;
-}> = ({ students, onCreateGroupRemediation }) => {
+    classBloomSummary?: ClassBloomSummary | null;
+    bloomLoading?: boolean;
+}> = ({ students, onCreateGroupRemediation, classBloomSummary, bloomLoading }) => {
 
     // Calculate class-wide statistics
     const classStats = useMemo(() => {
@@ -406,50 +413,196 @@ const ClassAnalyticsOverview: React.FC<{
     if (!classStats) return null;
 
     return (
-        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mb-8">
+        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-indigo-50 to-white">
+            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-wizdi-royal/5 to-white">
                 <h2 className="text-xl font-bold flex items-center gap-3">
-                    <IconChartBar className="w-6 h-6 text-indigo-600" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                        <IconChartBar className="w-6 h-6 text-white" />
+                    </div>
                     תובנות כיתתיות - מבט על
                     <span className="text-sm font-normal text-slate-400 mr-auto">({classStats.total} תלמידים)</span>
                 </h2>
             </div>
 
             <div className="p-6">
-                {/* Top Row - Key Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-2xl border border-indigo-200">
-                        <div className="text-3xl font-black text-indigo-700">{classStats.avgAccuracy}%</div>
-                        <div className="text-xs text-indigo-600 font-bold">דיוק ממוצע כיתתי</div>
+                {/* Top Row - Task-Specific Insights (Score, Completion, Alerts) */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                    {/* Class Average Score */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
+                        <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                            <IconChartBar className="w-5 h-5 text-wizdi-royal" />
+                            ציון כיתתי ממוצע
+                        </h4>
+                        <div className="flex items-center gap-4">
+                            <div className="text-4xl font-black text-wizdi-royal">{classStats.avgAccuracy}%</div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 text-xs mb-1">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    <span className="text-slate-600">עברו ({classStats.advanced.length + classStats.average.length})</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                    <span className="text-slate-600">נכשלו ({classStats.struggling.length})</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-wizdi-royal rounded-full transition-all"
+                                style={{ width: `${classStats.avgAccuracy}%` }}
+                            />
+                        </div>
                     </div>
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-2xl border border-slate-200">
-                        <div className="text-3xl font-black text-slate-700">{classStats.avgResponseTime}s</div>
-                        <div className="text-xs text-slate-600 font-bold">זמן תגובה ממוצע</div>
+
+                    {/* Completion Status */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
+                        <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                            <IconUsers className="w-5 h-5 text-slate-500" />
+                            סטטוס השלמה
+                        </h4>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-600 flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    סיימו
+                                </span>
+                                <span className="font-bold text-green-600">{students.filter(s => (s.performance?.accuracy || 0) > 0).length}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-600 flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                    בתהליך
+                                </span>
+                                <span className="font-bold text-blue-600">0</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-600 flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-slate-300 rounded-full"></span>
+                                    לא התחילו
+                                </span>
+                                <span className="font-bold text-slate-500">{classStats.total - students.filter(s => (s.performance?.accuracy || 0) > 0).length}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-2xl border border-slate-200">
-                        <div className="text-3xl font-black text-slate-700">{classStats.avgHintUsage}%</div>
-                        <div className="text-xs text-slate-600 font-bold">שימוש ברמזים</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-2xl border border-indigo-200">
-                        <div className="text-3xl font-black text-indigo-700">{classStats.topErrors.length}</div>
-                        <div className="text-xs text-indigo-600 font-bold">סוגי שגיאות נפוצות</div>
+
+                    {/* Alerts - Students requiring attention */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
+                        <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                            <IconAlertTriangle className={`w-5 h-5 ${classStats.struggling.length > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
+                            דורשים תשומת לב
+                        </h4>
+                        {classStats.struggling.length > 0 ? (
+                            <div className="space-y-2">
+                                {classStats.struggling.slice(0, 3).map(student => (
+                                    <div key={student.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg">
+                                        <span className="text-sm text-slate-700 font-medium">{student.name}</span>
+                                        <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
+                                            {Math.round((student.performance?.accuracy || 0) * 100)}%
+                                        </span>
+                                    </div>
+                                ))}
+                                {classStats.struggling.length > 3 && (
+                                    <p className="text-xs text-slate-500 text-center">+{classStats.struggling.length - 3} נוספים</p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <IconCheck className="w-5 h-5 text-green-500" />
+                                </div>
+                                <p className="text-sm text-slate-500">אין תלמידים בסיכון</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Groups Distribution + Actions */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                {/* Bloom Taxonomy Row - Integrated */}
+                {bloomLoading ? (
+                    <div className="mb-6 bg-white rounded-2xl p-4 border border-slate-200">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center animate-pulse">
+                                <IconBrain className="w-4 h-4 text-purple-500" />
+                            </div>
+                            <span className="text-sm text-slate-500">טוען נתוני בלום...</span>
+                        </div>
+                    </div>
+                ) : classBloomSummary ? (
+                    <div className="mb-6 bg-white rounded-2xl p-4 border border-slate-200">
+                        <div className="flex items-center gap-4">
+                            {/* Title */}
+                            <div className="flex items-center gap-2 min-w-fit">
+                                <IconBrain className="w-5 h-5 text-purple-500" />
+                                <span className="text-sm font-bold text-slate-700">בלום</span>
+                            </div>
+
+                            {/* Levels - Inline compact */}
+                            <div className="flex-1 flex items-center gap-2">
+                                {BLOOM_LEVELS_ORDERED.map(level => {
+                                    const avg = classBloomSummary.averageByLevel[level];
+                                    const isWeakest = classBloomSummary.commonWeakness === level;
+                                    const isStrongest = classBloomSummary.commonStrength === level;
+
+                                    return (
+                                        <div
+                                            key={level}
+                                            className={`
+                                                flex-1 text-center py-2 px-1 rounded-lg transition-all bg-slate-50
+                                                ${isWeakest ? 'ring-1 ring-red-300' : ''}
+                                                ${isStrongest ? 'ring-1 ring-green-300' : ''}
+                                            `}
+                                            title={BLOOM_LABELS_HE[level]}
+                                        >
+                                            <div
+                                                className="text-sm font-black"
+                                                style={{ color: avg >= 70 ? '#059669' : avg >= 50 ? '#f59e0b' : '#ef4444' }}
+                                            >
+                                                {avg}%
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate">
+                                                {BLOOM_LABELS_HE[level]}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Insights - compact */}
+                            {(classBloomSummary.commonWeakness || classBloomSummary.commonStrength) && (
+                                <div className="flex items-center gap-2 text-xs">
+                                    {classBloomSummary.commonWeakness && (
+                                        <span className="flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                                            <IconAlertTriangle className="w-3 h-3" />
+                                            {BLOOM_LABELS_HE[classBloomSummary.commonWeakness]}
+                                        </span>
+                                    )}
+                                    {classBloomSummary.commonStrength && (
+                                        <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                                            <IconTrophy className="w-3 h-3" />
+                                            {BLOOM_LABELS_HE[classBloomSummary.commonStrength]}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+
+                {/* Bottom Row - Groups Distribution + Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Struggling Group */}
-                    <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-200">
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-2xl">📚</span>
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                                    <IconTrendingDown className="w-5 h-5 text-amber-500" />
+                                </div>
                                 <div>
                                     <div className="font-bold text-slate-800">מתקשים</div>
                                     <div className="text-xs text-slate-500">צריכים תגבור</div>
                                 </div>
                             </div>
-                            <div className="text-3xl font-black text-slate-700">{classStats.struggling.length}</div>
+                            <div className="text-3xl font-black text-amber-500">{classStats.struggling.length}</div>
                         </div>
                         <div className="text-xs text-slate-500 mb-3 max-h-16 overflow-y-auto">
                             {classStats.struggling.slice(0, 4).map(s => s.name).join(', ')}
@@ -458,25 +611,27 @@ const ClassAnalyticsOverview: React.FC<{
                         {classStats.struggling.length > 0 && (
                             <button
                                 onClick={() => onCreateGroupRemediation('scaffolding')}
-                                className="w-full py-2 px-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
-                                <IconSparkles size={14} />
+                                <IconSparkles size={14} className="text-amber-500" />
                                 צור משימת תגבור לקבוצה
                             </button>
                         )}
                     </div>
 
                     {/* Average Group */}
-                    <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-200">
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-2xl">📖</span>
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                                    <IconUsers className="w-5 h-5 text-slate-500" />
+                                </div>
                                 <div>
                                     <div className="font-bold text-slate-800">רמת כיתה</div>
                                     <div className="text-xs text-slate-500">מסלול סטנדרטי</div>
                                 </div>
                             </div>
-                            <div className="text-3xl font-black text-slate-700">{classStats.average.length}</div>
+                            <div className="text-3xl font-black text-slate-600">{classStats.average.length}</div>
                         </div>
                         <div className="text-xs text-slate-500 mb-3 max-h-16 overflow-y-auto">
                             {classStats.average.slice(0, 4).map(s => s.name).join(', ')}
@@ -485,95 +640,43 @@ const ClassAnalyticsOverview: React.FC<{
                         {classStats.average.length > 0 && (
                             <button
                                 onClick={() => onCreateGroupRemediation('standard')}
-                                className="w-full py-2 px-3 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
-                                <IconSparkles size={14} />
+                                <IconSparkles size={14} className="text-slate-500" />
                                 צור משימה מותאמת לקבוצה
                             </button>
                         )}
                     </div>
 
                     {/* Advanced Group */}
-                    <div className="bg-indigo-50 rounded-2xl p-4 border-2 border-indigo-200">
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-2xl">🚀</span>
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                                    <IconTrendingUp className="w-5 h-5 text-wizdi-action" />
+                                </div>
                                 <div>
-                                    <div className="font-bold text-indigo-800">מתקדמים</div>
-                                    <div className="text-xs text-indigo-600">מוכנים להעשרה</div>
+                                    <div className="font-bold text-slate-800">מתקדמים</div>
+                                    <div className="text-xs text-slate-500">מוכנים להעשרה</div>
                                 </div>
                             </div>
-                            <div className="text-3xl font-black text-indigo-700">{classStats.advanced.length}</div>
+                            <div className="text-3xl font-black text-wizdi-action">{classStats.advanced.length}</div>
                         </div>
-                        <div className="text-xs text-indigo-600 mb-3 max-h-16 overflow-y-auto">
+                        <div className="text-xs text-slate-500 mb-3 max-h-16 overflow-y-auto">
                             {classStats.advanced.slice(0, 4).map(s => s.name).join(', ')}
                             {classStats.advanced.length > 4 && ` +${classStats.advanced.length - 4}`}
                         </div>
                         {classStats.advanced.length > 0 && (
                             <button
                                 onClick={() => onCreateGroupRemediation('enrichment')}
-                                className="w-full py-2 px-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
-                                <IconSparkles size={14} />
+                                <IconSparkles size={14} className="text-wizdi-action" />
                                 צור משימת העשרה לקבוצה
                             </button>
                         )}
                     </div>
                 </div>
-
-                {/* Bottom Row - Insights */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Common Errors */}
-                    {classStats.topErrors.length > 0 && (
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-                            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-                                <IconAlertTriangle className="w-5 h-5 text-slate-500" />
-                                שגיאות נפוצות בכיתה
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {classStats.topErrors.map(([error, count]) => (
-                                    <span key={error} className="bg-white px-3 py-1.5 rounded-lg text-sm border border-slate-200 flex items-center gap-2">
-                                        <span className="text-slate-700">{error}</span>
-                                        <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Topic Analysis */}
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-                        <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-                            <IconBrain className="w-5 h-5 text-indigo-500" />
-                            ניתוח נושאים
-                        </h4>
-                        <div className="space-y-2">
-                            {classStats.weakestTopic && (
-                                <div className="flex items-center justify-between bg-slate-100 px-3 py-2 rounded-lg border border-slate-200">
-                                    <span className="text-sm text-slate-700 font-medium">
-                                        ⚠️ נושא חלש: <strong>{classStats.weakestTopic.topic}</strong>
-                                    </span>
-                                    <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">
-                                        {Math.round(classStats.weakestTopic.avg * 100)}%
-                                    </span>
-                                </div>
-                            )}
-                            {classStats.strongestTopic && (
-                                <div className="flex items-center justify-between bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100">
-                                    <span className="text-sm text-indigo-700 font-medium">
-                                        ✓ נושא חזק: <strong>{classStats.strongestTopic.topic}</strong>
-                                    </span>
-                                    <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-bold">
-                                        {Math.round(classStats.strongestTopic.avg * 100)}%
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bloom's Taxonomy Heatmap - Coming Soon */}
-                {/* Note: BloomHeatmap requires StudentBloomProfile data which needs to be computed from actual submission data */}
             </div>
         </div>
     );
@@ -588,10 +691,10 @@ const StudentListPanel: React.FC<{
 
     const getLevelLabel = (riskLevel: string) => {
         switch (riskLevel) {
-            case 'high': return { label: 'מתקשה', color: 'bg-slate-100 text-slate-700 border-slate-200', icon: '📚' };
-            case 'medium': return { label: 'רמת כיתה', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: '📖' };
-            case 'low': return { label: 'מתקדם', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: '🚀' };
-            default: return { label: 'לא ידוע', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: '❓' };
+            case 'high': return { label: 'מתקשה', color: 'bg-amber-100 text-amber-600 border-amber-200', icon: <IconTrendingDown className="w-3.5 h-3.5" /> };
+            case 'medium': return { label: 'רמת כיתה', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <IconUsers className="w-3.5 h-3.5" /> };
+            case 'low': return { label: 'מתקדם', color: 'bg-wizdi-action/10 text-wizdi-action border-wizdi-action/20', icon: <IconTrendingUp className="w-3.5 h-3.5" /> };
+            default: return { label: 'לא ידוע', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <IconHelpCircle className="w-3.5 h-3.5" /> };
         }
     };
 
@@ -613,11 +716,13 @@ const StudentListPanel: React.FC<{
     }
 
     return (
-        <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm overflow-hidden h-full">
+        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 rounded-3xl shadow-sm overflow-hidden h-full">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-slate-50 to-white">
+            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-wizdi-royal/5 to-white">
                 <h2 className="text-xl font-bold flex items-center gap-3">
-                    <span className="w-1.5 h-7 bg-indigo-600 rounded-full" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                        <IconUsers className="w-6 h-6 text-white" />
+                    </div>
                     רשימת תלמידים
                     <span className="text-sm font-normal text-slate-400">({students.length})</span>
                 </h2>
@@ -627,9 +732,9 @@ const StudentListPanel: React.FC<{
             <div className="grid grid-cols-12 gap-2 px-5 py-3 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
                 <div className="col-span-3">תלמיד/ה</div>
                 <div className="col-span-2 text-center">ציון</div>
+                <div className="col-span-2 text-center">סטטוס</div>
                 <div className="col-span-2 text-center">רמה</div>
-                <div className="col-span-2 text-center">דיוק</div>
-                <div className="col-span-2 text-center">הגשה</div>
+                <div className="col-span-2 text-center">מוטיבציה</div>
                 <div className="col-span-1 text-center">התראות</div>
             </div>
 
@@ -642,13 +747,38 @@ const StudentListPanel: React.FC<{
                         : 0;
                     const accuracy = Math.round((s.performance?.accuracy || 0) * 100);
 
+                    // Calculate submission status
+                    const totalQuestions = s.performance?.totalQuestions || 0;
+                    const completedQuestions = s.performance?.correctAnswers !== undefined
+                        ? s.performance.correctAnswers + (s.performance.totalQuestions || 0) - (s.performance.correctAnswers || 0)
+                        : 0;
+                    const hasStarted = totalQuestions > 0 || s.journey?.length > 0;
+                    const isComplete = s.journey?.length > 0 && s.journey.every(j => j.status === 'success' || j.status === 'failure');
+                    const lastActiveDate = s.lastActive ? new Date(s.lastActive) : null;
+                    const isLate = lastActiveDate && lastActiveDate < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+
+                    const getSubmissionStatus = () => {
+                        if (isComplete) {
+                            return { label: 'הוגש', color: 'bg-green-100 text-green-700', icon: <IconCheck className="w-3.5 h-3.5" /> };
+                        }
+                        if (hasStarted && !isComplete) {
+                            return { label: 'בתהליך', color: 'bg-blue-100 text-blue-700', icon: <IconClock className="w-3.5 h-3.5" /> };
+                        }
+                        if (isLate) {
+                            return { label: 'איחור', color: 'bg-red-100 text-red-700', icon: <IconAlertTriangle className="w-3.5 h-3.5" /> };
+                        }
+                        return { label: 'לא התחיל', color: 'bg-slate-100 text-slate-500', icon: <IconClock className="w-3.5 h-3.5" /> };
+                    };
+
+                    const submissionStatus = getSubmissionStatus();
+
                     return (
                         <div
                             key={s.id}
                             onClick={() => onSelectStudent(s.id)}
                             className={`grid grid-cols-12 gap-2 px-5 py-4 items-center cursor-pointer transition-all border-b border-slate-50
                                 ${selectedStudentId === s.id
-                                    ? 'bg-indigo-50 border-r-4 border-r-indigo-500'
+                                    ? 'bg-wizdi-royal/5 border-r-4 border-r-wizdi-royal'
                                     : 'hover:bg-slate-50'}
                             `}
                         >
@@ -671,42 +801,36 @@ const StudentListPanel: React.FC<{
 
                             {/* Score */}
                             <div className="col-span-2 text-center">
-                                <div className={`text-lg font-black ${avgMastery >= 70 ? 'text-indigo-600' : 'text-slate-600'}`}>
+                                <div className={`text-lg font-black ${avgMastery >= 70 ? 'text-wizdi-royal' : 'text-slate-600'}`}>
                                     {avgMastery}%
                                 </div>
                                 <div className="text-[10px] text-slate-400">ממוצע</div>
                             </div>
 
-                            {/* Level + Motivation */}
-                            <div className="col-span-2 text-center flex flex-col items-center gap-1">
+                            {/* Submission Status */}
+                            <div className="col-span-2 text-center">
+                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${submissionStatus.color}`}>
+                                    {submissionStatus.icon}
+                                    <span>{submissionStatus.label}</span>
+                                </span>
+                                {lastActiveDate && (
+                                    <div className="text-[10px] text-slate-400 mt-1">
+                                        {formatDate(s.lastActive)}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Level */}
+                            <div className="col-span-2 text-center">
                                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${level.color}`}>
-                                    <span>{level.icon}</span>
+                                    {level.icon}
                                     <span>{level.label}</span>
                                 </span>
+                            </div>
+
+                            {/* Motivation */}
+                            <div className="col-span-2 text-center">
                                 <MotivationBadge student={s} />
-                            </div>
-
-                            {/* Accuracy */}
-                            <div className="col-span-2 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                    <div className="w-12 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full bg-indigo-500"
-                                            style={{ width: `${accuracy}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-slate-600">{accuracy}%</span>
-                                </div>
-                            </div>
-
-                            {/* Submission Date */}
-                            <div className="col-span-2 text-center">
-                                <div className="text-xs text-slate-600 font-medium">
-                                    {formatDate(s.lastActive)}
-                                </div>
-                                <div className="text-[10px] text-slate-400">
-                                    {s.performance?.totalQuestions || 0} שאלות
-                                </div>
                             </div>
 
                             {/* Gaming Alerts */}
@@ -734,15 +858,15 @@ const StudentListPanel: React.FC<{
             <div className="p-4 bg-slate-50 border-t border-slate-100">
                 <div className="flex justify-between text-xs text-slate-500">
                     <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1"></span>
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1"></span>
                         מתקשים: {students.filter(s => s.riskLevel === 'high').length}
                     </span>
                     <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-slate-300 mr-1"></span>
+                        <span className="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1"></span>
                         רמת כיתה: {students.filter(s => s.riskLevel === 'medium').length}
                     </span>
                     <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 mr-1"></span>
+                        <span className="inline-block w-2 h-2 rounded-full bg-wizdi-action mr-1"></span>
                         מתקדמים: {students.filter(s => s.riskLevel === 'low').length}
                     </span>
                 </div>
@@ -777,21 +901,21 @@ const StudentDetailPanel: React.FC<{
             return {
                 label: 'צור יחידת חיזוק אישית',
                 icon: <IconAlertTriangle className="w-5 h-5" />,
-                color: 'bg-indigo-100 text-indigo-900 border-indigo-200 hover:bg-indigo-200',
+                color: 'bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-200',
                 type: 'Scaffolding'
             };
         } else if (student.riskLevel === 'low') {
             return {
                 label: 'צור יחידת אתגר',
                 icon: <IconActivity className="w-5 h-5" />,
-                color: 'bg-indigo-100 text-indigo-900 border-indigo-200 hover:bg-indigo-200',
+                color: 'bg-wizdi-action/10 text-wizdi-action border-wizdi-action/20 hover:bg-wizdi-action/20',
                 type: 'Enrichment'
             };
         }
         return {
             label: 'צור יחידה מותאמת',
             icon: <IconBrain className="w-5 h-5" />,
-            color: 'bg-indigo-100 text-indigo-900 border-indigo-200 hover:bg-indigo-200',
+            color: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200',
             type: 'Adaptive'
         };
     };
@@ -801,10 +925,10 @@ const StudentDetailPanel: React.FC<{
     return (
         <div className="animate-in fade-in duration-300">
             {/* Navigation Bar */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex items-center justify-between">
+            <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-2xl border border-slate-200/80 shadow-sm p-4 mb-6 flex items-center justify-between">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-bold transition-colors"
+                    className="flex items-center gap-2 text-slate-600 hover:text-wizdi-royal font-bold transition-colors"
                 >
                     <IconList className="w-5 h-5" />
                     חזרה לרשימת התלמידים
@@ -840,24 +964,24 @@ const StudentDetailPanel: React.FC<{
                 {/* Left Column - Student Info & Actions */}
                 <div className="lg:col-span-1 space-y-6">
                     {/* Student Profile Card */}
-                    <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm">
+                    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
                         <div className="text-center mb-6">
                             <img src={student.avatar} alt={student.name} className="w-24 h-24 rounded-3xl border-4 border-white shadow-lg mx-auto" loading="lazy" decoding="async" />
                             <h2 className="text-2xl font-black text-slate-800 mt-4">{student.name}</h2>
                             <div className="text-sm text-slate-500 mt-1">
                                 פעילות אחרונה: {new Date(student.lastActive).toLocaleTimeString('he-IL')}
                             </div>
-                            <div className="text-xs text-indigo-600 font-mono bg-indigo-50 px-2 py-1 rounded-lg inline-block mt-2">
+                            <div className="text-xs text-wizdi-royal font-mono bg-wizdi-royal/10 px-2 py-1 rounded-lg inline-block mt-2">
                                 ID: {student.id.substring(0, 12)}
                             </div>
                         </div>
 
                         {/* Score */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-5 rounded-2xl border border-indigo-200 text-center mb-4">
-                            <div className="text-4xl font-black font-mono text-indigo-600">
+                        <div className="bg-gradient-to-br from-wizdi-royal/10 to-wizdi-cyan/10 p-5 rounded-2xl border border-wizdi-royal/20 text-center mb-4">
+                            <div className="text-4xl font-black font-mono text-wizdi-royal">
                                 {avgMastery}%
                             </div>
-                            <div className="text-indigo-500 uppercase font-bold text-xs tracking-wider mt-1">שליטה ממוצעת</div>
+                            <div className="text-wizdi-royal/70 uppercase font-bold text-xs tracking-wider mt-1">שליטה ממוצעת</div>
                         </div>
 
                         {/* Actions */}
@@ -884,17 +1008,17 @@ const StudentDetailPanel: React.FC<{
 
                     {/* Performance Metrics */}
                     {student.performance && (
-                        <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm">
+                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
                             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                <IconChartBar className="w-5 h-5 text-indigo-500" />
+                                <IconChartBar className="w-5 h-5 text-wizdi-royal" />
                                 מדדי ביצוע
                             </h3>
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-indigo-50 p-3 rounded-xl text-center">
-                                    <div className="text-xl font-black text-indigo-600">
+                                <div className="bg-wizdi-royal/10 p-3 rounded-xl text-center">
+                                    <div className="text-xl font-black text-wizdi-royal">
                                         {Math.round(student.performance.accuracy * 100)}%
                                     </div>
-                                    <div className="text-[10px] text-indigo-500 font-bold uppercase">דיוק</div>
+                                    <div className="text-[10px] text-wizdi-royal/70 font-bold uppercase">דיוק</div>
                                 </div>
                                 <div className="bg-slate-50 p-3 rounded-xl text-center">
                                     <div className="text-xl font-black text-slate-700">
@@ -929,16 +1053,16 @@ const StudentDetailPanel: React.FC<{
                 <div className="lg:col-span-2 space-y-6">
                     {/* Error Patterns */}
                     {student.errorPatterns && Object.keys(student.errorPatterns).length > 0 && (
-                        <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm">
+                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
                             <h4 className="text-slate-700 font-bold mb-4 flex items-center gap-2">
-                                <IconAlertTriangle className="w-5 h-5 text-amber-500" />
+                                <IconAlertTriangle className="w-5 h-5 text-wizdi-action" />
                                 דפוסי שגיאות נפוצים
                             </h4>
                             <div className="flex flex-wrap gap-2">
                                 {Object.entries(student.errorPatterns).map(([pattern, count]) => (
                                     <span key={pattern} className="bg-slate-50 px-4 py-2 rounded-xl text-sm border border-slate-200 flex items-center gap-2">
                                         <span className="font-medium text-slate-700">{pattern}</span>
-                                        <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
+                                        <span className="bg-wizdi-royal/10 text-wizdi-royal px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
                                     </span>
                                 ))}
                             </div>
@@ -974,7 +1098,7 @@ const StudentDetailPanel: React.FC<{
                         {/* Motivation Meter - Compact */}
                         <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm">
                             <h4 className="text-slate-700 font-bold mb-3 flex items-center gap-2 text-base">
-                                <span className="text-amber-500">🔥</span>
+                                <IconActivity className="w-5 h-5 text-amber-500" />
                                 מד מוטיבציה
                             </h4>
                             <MotivationMeter student={student} size="md" />
@@ -982,12 +1106,12 @@ const StudentDetailPanel: React.FC<{
                     </div>
 
                     {/* AI Insights Section */}
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 p-6 rounded-[24px] flex gap-4">
-                        <div className="bg-white p-3 rounded-xl h-fit text-indigo-500 shadow-sm shrink-0">
+                    <div className="bg-gradient-to-br from-wizdi-royal/5 to-wizdi-cyan/5 border border-wizdi-royal/20 p-6 rounded-3xl flex gap-4">
+                        <div className="bg-gradient-to-br from-wizdi-royal to-wizdi-cyan p-3 rounded-xl h-fit text-white shadow-lg shrink-0">
                             <IconBrain className="w-7 h-7" />
                         </div>
                         <div>
-                            <strong className="block text-lg font-bold mb-2 text-indigo-800">תובנות המערכת (AI)</strong>
+                            <strong className="block text-lg font-bold mb-2 text-wizdi-royal">תובנות המערכת (AI)</strong>
                             <p className="leading-relaxed text-slate-700">
                                 {student.riskLevel === 'high'
                                     ? `התלמיד מגלה קושי (דיוק ${Math.round((student.performance?.accuracy || 0) * 100)}%). ${student.performance?.hintDependency && student.performance.hintDependency > 0.5 ? 'תלות גבוהה ברמזים.' : ''} מומלץ: תוכן מותאם עם פיגומים. ${Object.keys(student.errorPatterns || {}).length > 0 ? `שגיאות נפוצות: ${Object.keys(student.errorPatterns || {}).slice(0, 2).join(', ')}.` : ''}`
@@ -997,19 +1121,19 @@ const StudentDetailPanel: React.FC<{
                                 }
                             </p>
                             <div className="mt-4 flex items-center gap-3">
-                                <span className="text-sm font-bold text-indigo-600">מסלול מומלץ:</span>
-                                <span className={`px-3 py-1.5 rounded-xl font-bold text-sm ${student.riskLevel === 'high' ? 'bg-amber-100 text-amber-700' :
-                                        student.riskLevel === 'low' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
+                                <span className="text-sm font-bold text-wizdi-royal">מסלול מומלץ:</span>
+                                <span className={`px-3 py-1.5 rounded-xl font-bold text-sm flex items-center gap-1.5 ${student.riskLevel === 'high' ? 'bg-amber-100 text-amber-600' :
+                                        student.riskLevel === 'low' ? 'bg-wizdi-action/10 text-wizdi-action' : 'bg-slate-100 text-slate-700'
                                     }`}>
-                                    {student.riskLevel === 'high' ? '📚 Scaffolding' :
-                                        student.riskLevel === 'low' ? '🚀 Enrichment' : '📖 Original'}
+                                    {student.riskLevel === 'high' ? <><IconTrendingDown className="w-4 h-4" /> Scaffolding</> :
+                                        student.riskLevel === 'low' ? <><IconTrendingUp className="w-4 h-4" /> Enrichment</> : <><IconUsers className="w-4 h-4" /> Original</>}
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     {/* Journey Trace */}
-                    <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
                         <div className="p-6">
                             <JourneySummary student={student} />
                         </div>
@@ -1182,7 +1306,7 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
             <div className="min-h-screen bg-slate-50 flex items-center justify-center" dir="rtl">
                 <div className="text-center">
                     <AIStarsSpinner size="xl" color="primary" className="mx-auto mb-4" />
-                    <p className="text-slate-500">טוען לוח בקרה אדפטיבי...</p>
+                    <p className="text-slate-500">טוען לוח משימה...</p>
                 </div>
             </div>
         );
@@ -1205,20 +1329,6 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                 </div>
             )}
 
-            {/* AI Assistant Banner - Prominent at top with example questions */}
-            <div className="max-w-7xl mx-auto mb-6">
-                <AiAssistantBanner
-                    context={{
-                        courseTitle: course?.title,
-                        studentCount: students.length,
-                        avgAccuracy: students.length > 0
-                            ? Math.round(students.reduce((sum, s) => sum + (s.performance?.accuracy || 0), 0) / students.length * 100)
-                            : 0,
-                        atRiskStudents: students.filter(s => s.riskLevel === 'high').map(s => s.name)
-                    }}
-                />
-            </div>
-
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8 border-b border-slate-200 pb-6 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
@@ -1231,16 +1341,38 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                             חזרה לדשבורד
                         </button>
                         <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-2 flex items-center gap-3">
-                            <IconBrain className="w-10 h-10 text-indigo-600" />
-                            לוח משימות מורה
+                            <div className="w-14 h-14 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                                <IconClipboardCheck className="w-7 h-7 text-white" />
+                            </div>
+                            לוח משימה
                         </h1>
                         <p className="text-slate-500 text-lg">
                             {course?.title ? (
-                                <span className="font-semibold text-indigo-600">{course.title}</span>
+                                <span className="font-semibold text-wizdi-royal">{course.title}</span>
                             ) : 'מבט על כיתתי בזמן אמת'}
                             {' • '}
                             <span>ביצועים, מסלולי למידה וזיהוי פערים</span>
                         </p>
+                        {/* Class/Group Tags */}
+                        {course && (course.gradeLevel || course.subject || course.targetAudience) && (
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                {course.gradeLevel && (
+                                    <span className="px-3 py-1 bg-wizdi-royal/10 text-wizdi-royal rounded-full text-sm font-bold">
+                                        {course.gradeLevel}
+                                    </span>
+                                )}
+                                {course.subject && (
+                                    <span className="px-3 py-1 bg-wizdi-cyan/10 text-wizdi-cyan rounded-full text-sm font-bold">
+                                        {course.subject}
+                                    </span>
+                                )}
+                                {course.targetAudience && course.targetAudience !== course.gradeLevel && (
+                                    <span className="px-3 py-1 bg-wizdi-action/10 text-wizdi-action rounded-full text-sm font-bold">
+                                        {course.targetAudience}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* KPI Cards & Actions */}
@@ -1273,51 +1405,30 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                     </div>
                 </div>
 
+                {/* AI Assistant Banner - Under header and tags */}
+                <div className="mb-8">
+                    <AiAssistantBanner
+                        context={{
+                            courseTitle: course?.title,
+                            studentCount: students.length,
+                            avgAccuracy: students.length > 0
+                                ? Math.round(students.reduce((sum, s) => sum + (s.performance?.accuracy || 0), 0) / students.length * 100)
+                                : 0,
+                            atRiskStudents: students.filter(s => s.riskLevel === 'high').map(s => s.name)
+                        }}
+                    />
+                </div>
+
                 {/* View Mode: List or Detail */}
                 {viewMode === 'list' ? (
                     <>
-                        {/* Class Analytics Overview - Bird's Eye View */}
+                        {/* Class Analytics Overview - Bird's Eye View (includes Bloom) */}
                         <ClassAnalyticsOverview
                             students={students}
                             onCreateGroupRemediation={handleCreateGroupRemediation}
+                            classBloomSummary={classBloomSummary}
+                            bloomLoading={bloomLoading}
                         />
-
-                        {/* Bloom's Taxonomy Heatmap - Class Level */}
-                        <div className="mb-8">
-                            {bloomLoading ? (
-                                <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8 text-center">
-                                    <div className="animate-pulse">
-                                        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <IconBrain className="w-8 h-8 text-purple-400" />
-                                        </div>
-                                        <p className="text-slate-500">טוען נתוני בלום...</p>
-                                    </div>
-                                </div>
-                            ) : classBloomSummary ? (
-                                <BloomClassSummary
-                                    summary={classBloomSummary}
-                                    showLegend={true}
-                                />
-                            ) : (
-                                <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
-                                    <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-purple-50 to-white">
-                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <IconBrain className="w-5 h-5 text-purple-500" />
-                                            מפת חום - רמות בלום
-                                        </h3>
-                                    </div>
-                                    <div className="p-8 text-center">
-                                        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <IconBrain className="w-8 h-8 text-purple-400" />
-                                        </div>
-                                        <p className="text-slate-500 mb-2">אין נתוני בלום זמינים</p>
-                                        <p className="text-xs text-slate-400">
-                                            נתוני רמות בלום יהיו זמינים לאחר שתלמידים ישלימו שאלות בפעילות
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
 
                         {/* Student List - Full Width */}
                         <StudentListPanel
@@ -1347,12 +1458,12 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                             classBloomAverage={classBloomSummary?.averageByLevel}
                         />
                     ) : (
-                        <div className="bg-white rounded-[32px] p-12 border border-slate-200 shadow-sm text-center">
+                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-12 border border-slate-200/80 shadow-sm text-center">
                             <IconUsers className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                             <p className="text-slate-500 text-lg">לא נבחר תלמיד</p>
                             <button
                                 onClick={handleBackToList}
-                                className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+                                className="mt-4 px-6 py-2 bg-wizdi-royal text-white rounded-xl font-bold hover:bg-wizdi-royal/90 transition-colors"
                             >
                                 חזרה לרשימה
                             </button>

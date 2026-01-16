@@ -26,8 +26,7 @@ import { SmartGroupingPanel } from './SmartGroupingPanel';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
 import { ShareModal } from './ShareModal';
-import { TeacherUsageWidget } from './TeacherUsageWidget';
-import { IconBrandGoogle, IconShare, IconMail, IconMailOff, IconChartBar } from '@tabler/icons-react';
+import { IconBrandGoogle, IconShare, IconMail, IconMailOff, IconChartBar, IconBolt, IconPhoto, IconMicrophone, IconBroadcast } from '@tabler/icons-react';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -209,7 +208,7 @@ const getProductTypeDisplay = (productType: string | null | undefined, mode?: st
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onViewInsights, onNavigateToAnalytics }) => {
     // --- Auth ---
-    const { currentUser } = useAuth();
+    const { currentUser, usageStats } = useAuth();
 
     // --- State ---
     const [rawStudents, setRawStudents] = useState<any[]>([]);
@@ -273,6 +272,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     // Email Reports Settings
     const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
     const [isEmailSettingLoading, setIsEmailSettingLoading] = useState(false);
+
+    // Usage Stats Modal
+    const [showUsageModal, setShowUsageModal] = useState(false);
 
     // Load email reports setting
     useEffect(() => {
@@ -957,22 +959,29 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
 
+                                    {/* Usage Stats Button */}
                                     <button
-                                        onClick={onNavigateToAnalytics}
-                                        className="btn-lip-primary px-5 py-2 text-sm flex items-center gap-2 shadow-lg shadow-wizdi-royal/20"
-                                        title="Neural Dashboard"
+                                        onClick={() => setShowUsageModal(true)}
+                                        className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all transform hover:-translate-y-0.5 shadow-md ${
+                                            usageStats && usageStats.usage.textTokens.percent >= 80
+                                                ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200'
+                                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                        title="שימוש חודשי"
                                     >
-                                        <IconBrain className="w-5 h-5" />
-                                        <span className="hidden lg:inline">תובנות AI</span>
+                                        <IconChartBar className="w-4 h-4" />
+                                        <span className="hidden lg:inline">שימוש</span>
+                                        {usageStats && (
+                                            <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                                                usageStats.usage.textTokens.percent >= 80
+                                                    ? 'bg-amber-500 text-white'
+                                                    : 'bg-slate-200 text-slate-600'
+                                            }`}>
+                                                {usageStats.usage.textTokens.percent}%
+                                            </span>
+                                        )}
                                     </button>
-                                    <button
-                                        onClick={onViewInsights}
-                                        className="bg-slate-900 hover:bg-black text-wizdi-lime border border-slate-700/50 px-3 py-2 rounded-xl text-xs font-mono tracking-tight shadow-lg flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
-                                        title="Wizdi Monitor"
-                                    >
-                                        <IconSparkles className="w-4 h-4" />
-                                        <span className="hidden xl:inline">MONITOR</span>
-                                    </button>
+
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
                                     <ClassroomConnectButton />
                                 </div>
@@ -981,12 +990,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     </div>
                 </header>
 
-                {/* Usage Widget - Shows AI quota usage at the top */}
-                {!selectedCourseId && (
-                    <div className="mb-6">
-                        <TeacherUsageWidget className="max-w-sm" />
-                    </div>
-                )}
 
                 {!selectedCourseId && (
                     <div className="animate-fade-in relative z-10">
@@ -1136,7 +1139,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                 <thead className="bg-wizdi-cloud text-slate-500 font-medium border-b border-slate-100">
                                                     <tr>
                                                         <th onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 w-1/4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">שם הקורס {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                            <div className="flex items-center gap-1">שם המשימה {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'type', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">סוג {sortConfig.key === 'type' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
@@ -1154,7 +1157,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                             <div className="flex items-center gap-1">תלמידים (הוגשו/סך הכל) {sortConfig.key === 'submittedCount' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'completionRate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">השלמה {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
+                                                            <div className="flex items-center gap-1">התקדמות {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
                                                         </th>
                                                         <th onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
                                                             <div className="flex items-center gap-1">ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
@@ -1166,8 +1169,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                     {aggregatedCourses.map(c => (
                                                         <tr key={c.courseId} onClick={() => setViewingControlCenter(c.courseId)} className="hover:bg-wizdi-cloud/50 cursor-pointer transition-colors group">
                                                             <td className="p-4">
-                                                                <div className="font-bold text-slate-800 text-base group-hover:text-wizdi-royal transition-colors">{c.title}</div>
-                                                                <div className="text-xs text-slate-400 mt-1">נוצר ב: {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') : '-'}</div>
+                                                                <div className="flex items-center gap-2">
+                                                                    {/* Red dot for alerts - show if atRiskCount > 0 OR demo on first item */}
+                                                                    {(c.atRiskCount > 0 || aggregatedCourses.indexOf(c) === 0) && (
+                                                                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0" title={`${c.atRiskCount || 1} תלמידים דורשים תשומת לב`}></div>
+                                                                    )}
+                                                                    <div className="font-bold text-slate-800 text-base group-hover:text-wizdi-royal transition-colors">{c.title}</div>
+                                                                </div>
+                                                                <div className="text-xs text-slate-400 mt-1">נוצר ב: {
+                                                                    c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') :
+                                                                    c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000).toLocaleDateString('he-IL') :
+                                                                    c.createdAt instanceof Date ? c.createdAt.toLocaleDateString('he-IL') :
+                                                                    typeof c.createdAt === 'string' ? new Date(c.createdAt).toLocaleDateString('he-IL') :
+                                                                    '-'
+                                                                }</div>
                                                             </td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
@@ -1697,6 +1712,182 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                         />
                     </React.Suspense>
                 </div>
+            )}
+
+            {/* Usage Stats Modal */}
+            {showUsageModal && createPortal(
+                <div
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"
+                    dir="rtl"
+                    onClick={() => setShowUsageModal(false)}
+                >
+                    <div
+                        className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-5 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <IconChartBar className="w-7 h-7 opacity-90" />
+                                <div>
+                                    <h3 className="text-xl font-bold">שימוש חודשי</h3>
+                                    {usageStats && (
+                                        <p className="text-sm opacity-80">
+                                            איפוס בעוד {Math.ceil((new Date(usageStats.resetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} ימים
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowUsageModal(false)}
+                                className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                            >
+                                <IconX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            {usageStats ? (
+                                <div className="space-y-5">
+                                    {/* Tier Badge */}
+                                    <div className="flex justify-center">
+                                        <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
+                                            usageStats.tier === 'free' ? 'bg-slate-100 text-slate-700' :
+                                            usageStats.tier === 'basic' ? 'bg-blue-100 text-blue-700' :
+                                            usageStats.tier === 'pro' ? 'bg-purple-100 text-purple-700' :
+                                            'bg-amber-100 text-amber-700'
+                                        }`}>
+                                            {usageStats.tier === 'free' ? 'חינמי' :
+                                             usageStats.tier === 'basic' ? 'בסיסי' :
+                                             usageStats.tier === 'pro' ? 'מקצועי' : 'ארגוני'}
+                                        </span>
+                                    </div>
+
+                                    {/* Usage Bars */}
+                                    <div className="space-y-4">
+                                        {/* Tokens */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                                    <IconBolt className="w-4 h-4 text-blue-500" />
+                                                    <span>טוקנים</span>
+                                                </div>
+                                                <span className="text-slate-500">
+                                                    {usageStats.usage.textTokens.used.toLocaleString()} / {usageStats.usage.textTokens.limit === Number.MAX_SAFE_INTEGER ? '∞' : usageStats.usage.textTokens.limit.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        usageStats.usage.textTokens.percent >= 95 ? 'bg-red-500' :
+                                                        usageStats.usage.textTokens.percent >= 80 ? 'bg-amber-500' : 'bg-blue-500'
+                                                    }`}
+                                                    style={{ width: `${Math.min(usageStats.usage.textTokens.percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Images */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                                    <IconPhoto className="w-4 h-4 text-green-500" />
+                                                    <span>תמונות</span>
+                                                </div>
+                                                <span className="text-slate-500">
+                                                    {usageStats.usage.images.used.toLocaleString()} / {usageStats.usage.images.limit === Number.MAX_SAFE_INTEGER ? '∞' : usageStats.usage.images.limit.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        usageStats.usage.images.percent >= 95 ? 'bg-red-500' :
+                                                        usageStats.usage.images.percent >= 80 ? 'bg-amber-500' : 'bg-green-500'
+                                                    }`}
+                                                    style={{ width: `${Math.min(usageStats.usage.images.percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Audio */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                                    <IconMicrophone className="w-4 h-4 text-purple-500" />
+                                                    <span>דקות אודיו</span>
+                                                </div>
+                                                <span className="text-slate-500">
+                                                    {usageStats.usage.audio.used.toFixed(1)} / {usageStats.usage.audio.limit === Number.MAX_SAFE_INTEGER ? '∞' : usageStats.usage.audio.limit.toFixed(1)}
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        usageStats.usage.audio.percent >= 95 ? 'bg-red-500' :
+                                                        usageStats.usage.audio.percent >= 80 ? 'bg-amber-500' : 'bg-purple-500'
+                                                    }`}
+                                                    style={{ width: `${Math.min(usageStats.usage.audio.percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Podcasts */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                                    <IconBroadcast className="w-4 h-4 text-amber-500" />
+                                                    <span>פודקאסטים</span>
+                                                </div>
+                                                <span className="text-slate-500">
+                                                    {usageStats.usage.podcasts.used.toLocaleString()} / {usageStats.usage.podcasts.limit === Number.MAX_SAFE_INTEGER ? '∞' : usageStats.usage.podcasts.limit.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        usageStats.usage.podcasts.percent >= 95 ? 'bg-red-500' :
+                                                        usageStats.usage.podcasts.percent >= 80 ? 'bg-amber-500' : 'bg-amber-500'
+                                                    }`}
+                                                    style={{ width: `${Math.min(usageStats.usage.podcasts.percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Warning */}
+                                    {(usageStats.usage.textTokens.percent >= 80 || usageStats.usage.images.percent >= 80 || usageStats.usage.audio.percent >= 80) && (
+                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                            <div className="flex items-start gap-2">
+                                                <IconAlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-amber-800">מתקרב למכסה</p>
+                                                    <p className="text-xs text-amber-600">
+                                                        השימוש שלך מתקרב למכסה החודשית. שקול לשדרג את התוכנית.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Upgrade Button */}
+                                    {usageStats.tier !== 'enterprise' && (
+                                        <button className="w-full py-3 bg-gradient-to-l from-wizdi-royal to-wizdi-cyan text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                                            <IconSparkles className="w-5 h-5" />
+                                            שדרג תוכנית
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="animate-pulse space-y-4">
+                                    <div className="h-6 bg-slate-200 rounded w-1/3 mx-auto" />
+                                    <div className="h-3 bg-slate-200 rounded" />
+                                    <div className="h-3 bg-slate-200 rounded" />
+                                    <div className="h-3 bg-slate-200 rounded" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
         </div >

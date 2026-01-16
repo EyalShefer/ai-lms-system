@@ -29,19 +29,17 @@ export const BloomClassSummary: React.FC<BloomClassSummaryProps> = ({
     showLegend = true
 }) => {
     return (
-        <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-indigo-50 to-white">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
-                    ניתוח טקסונומיית בלום
-                </h3>
-                <p className="text-sm text-slate-500 mt-1">ממוצע כיתתי לפי 6 רמות קוגניטיביות</p>
-            </div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Compact Header with inline levels */}
+            <div className="p-4 flex items-center gap-4">
+                {/* Title */}
+                <div className="flex items-center gap-2 min-w-fit">
+                    <span className="w-1.5 h-5 bg-indigo-500 rounded-full"></span>
+                    <span className="text-sm font-bold text-slate-700">בלום</span>
+                </div>
 
-            {/* Class Average - Main Display */}
-            <div className="p-5">
-                <div className="grid grid-cols-6 gap-3">
+                {/* Levels - Inline compact */}
+                <div className="flex-1 flex items-center gap-2">
                     {BLOOM_LEVELS_ORDERED.map(level => {
                         const avg = summary.averageByLevel[level];
                         const isWeakest = summary.commonWeakness === level;
@@ -51,71 +49,45 @@ export const BloomClassSummary: React.FC<BloomClassSummaryProps> = ({
                             <div
                                 key={level}
                                 className={`
-                                    text-center p-4 rounded-xl transition-all
-                                    ${isWeakest ? 'ring-2 ring-red-300' : ''}
-                                    ${isStrongest ? 'ring-2 ring-green-300' : ''}
+                                    flex-1 text-center py-2 px-1 rounded-lg transition-all
+                                    ${isWeakest ? 'ring-1 ring-red-300' : ''}
+                                    ${isStrongest ? 'ring-1 ring-green-300' : ''}
                                 `}
-                                style={{ backgroundColor: getBloomColor(avg) + '15' }}
+                                style={{ backgroundColor: getBloomColor(avg) + '20' }}
+                                title={BLOOM_LABELS_HE[level]}
                             >
                                 <div
-                                    className="text-2xl font-black mb-1"
+                                    className="text-sm font-black"
                                     style={{ color: getBloomColor(avg) }}
                                 >
                                     {avg}%
                                 </div>
-                                <div className="text-xs font-bold text-slate-600 flex items-center justify-center gap-1">
-                                    {isWeakest && <IconAlertTriangle className="w-3 h-3 text-red-500" />}
-                                    {isStrongest && <IconTrophy className="w-3 h-3 text-green-500" />}
+                                <div className="text-[10px] text-slate-500 truncate">
                                     {BLOOM_LABELS_HE[level]}
                                 </div>
                             </div>
                         );
                     })}
                 </div>
-            </div>
 
-            {/* Legend & Insights */}
-            {showLegend && (
-                <div className="px-5 py-4 bg-slate-50 border-t border-slate-100">
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">מקרא צבעים:</span>
-                        <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }}></span>
-                                חלש (&lt;40%)
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded" style={{ backgroundColor: '#f59e0b' }}></span>
-                                בינוני (40-60%)
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded" style={{ backgroundColor: '#22c55e' }}></span>
-                                טוב (60-80%)
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded" style={{ backgroundColor: '#059669' }}></span>
-                                מצוין (&gt;80%)
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Insights */}
-                    <div className="mt-3 flex items-center gap-4 text-xs">
+                {/* Insights - compact */}
+                {showLegend && (summary.commonWeakness || summary.commonStrength) && (
+                    <div className="flex items-center gap-2 text-xs">
                         {summary.commonWeakness && (
-                            <span className="flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-lg whitespace-nowrap">
                                 <IconAlertTriangle className="w-3 h-3" />
-                                נושא לחיזוק: {BLOOM_LABELS_HE[summary.commonWeakness]}
+                                {BLOOM_LABELS_HE[summary.commonWeakness]}
                             </span>
                         )}
                         {summary.commonStrength && (
-                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-lg whitespace-nowrap">
                                 <IconTrophy className="w-3 h-3" />
-                                נושא חזק: {BLOOM_LABELS_HE[summary.commonStrength]}
+                                {BLOOM_LABELS_HE[summary.commonStrength]}
                             </span>
                         )}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };

@@ -1,6 +1,6 @@
 /**
  * AI Assistant Banner Component
- * באנר עוזר AI למורה בראש הדף - בולט עם דוגמאות לשאלות
+ * באנר עוזר AI למורה - בסגנון דף הבית עם טקסט רץ
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -18,7 +18,8 @@ import {
     IconChevronDown,
     IconChevronUp,
     IconCopy,
-    IconCheck
+    IconCheck,
+    IconArrowUp
 } from '@tabler/icons-react';
 import { refineContentWithPedagogy } from '../../services/ai/geminiApi';
 
@@ -83,6 +84,15 @@ const TEACHER_SYSTEM_PROMPT = `אתה עוזר AI מקצועי למורים במ
 - הצע פתרונות מעשיים ובני ביצוע
 - היה תומך ומקצועי`;
 
+// Placeholder examples for typing animation
+const PLACEHOLDER_EXAMPLES = [
+    "מי מהתלמידים צריך חיזוק?",
+    "הצע פעילות העשרה לכיתה...",
+    "נתח לי את ביצועי הכיתה...",
+    "עזור לי לנסח משוב לתלמיד...",
+    "איזה נושאים הכיתה מתקשה בהם?"
+];
+
 export const AiAssistantBanner: React.FC<AiAssistantBannerProps> = ({
     context,
     className = ''
@@ -92,9 +102,48 @@ export const AiAssistantBanner: React.FC<AiAssistantBannerProps> = ({
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [placeholderText, setPlaceholderText] = useState('');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    // Typing animation effect for placeholder
+    useEffect(() => {
+        if (inputValue) return; // Don't animate if user is typing
+
+        let currentIndex = 0;
+        let charIndex = 0;
+        let isDeleting = false;
+        let timeoutId: NodeJS.Timeout;
+
+        const type = () => {
+            const currentText = PLACEHOLDER_EXAMPLES[currentIndex];
+
+            if (!isDeleting) {
+                setPlaceholderText(currentText.substring(0, charIndex + 1));
+                charIndex++;
+
+                if (charIndex === currentText.length) {
+                    isDeleting = true;
+                    timeoutId = setTimeout(type, 2000); // Pause before deleting
+                    return;
+                }
+            } else {
+                setPlaceholderText(currentText.substring(0, charIndex - 1));
+                charIndex--;
+
+                if (charIndex === 0) {
+                    isDeleting = false;
+                    currentIndex = (currentIndex + 1) % PLACEHOLDER_EXAMPLES.length;
+                }
+            }
+
+            timeoutId = setTimeout(type, isDeleting ? 30 : 80);
+        };
+
+        type();
+        return () => clearTimeout(timeoutId);
+    }, [inputValue]);
 
     // Auto scroll to bottom when messages change
     useEffect(() => {
@@ -201,52 +250,65 @@ ${conversationHistory ? `היסטוריית שיחה:\n${conversationHistory}\n\
     };
 
     return (
-        <div className={`bg-gradient-to-l from-indigo-600 to-purple-700 rounded-[24px] shadow-xl overflow-hidden ${className}`}>
-            {/* Header - Always Visible */}
+        <div className={`card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl shadow-lg border border-slate-200/80 overflow-hidden ${className}`} dir="rtl">
+            {/* Main Input Section - Homepage Style */}
             <div className="p-5">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        {/* AI Icon */}
-                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                            <IconSparkles className="w-8 h-8 text-white" />
-                        </div>
-
-                        {/* Title & Description */}
-                        <div className="text-white">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                עוזר AI למורים
-                                <span className="text-xs bg-white/20 px-2 py-1 rounded-full font-normal">
-                                    Beta
-                                </span>
-                            </h2>
-                            <p className="text-white/70 text-sm">
-                                שאל אותי כל שאלה על הכיתה שלך - אני כאן לעזור!
-                            </p>
-                        </div>
+                {/* Title */}
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                        <IconSparkles className="w-6 h-6 text-white" />
                     </div>
-
-                    {/* Expand/Collapse Button */}
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-                    >
-                        {isExpanded ? (
-                            <IconChevronUp className="w-5 h-5 text-white" />
-                        ) : (
-                            <IconChevronDown className="w-5 h-5 text-white" />
-                        )}
-                    </button>
+                    <div>
+                        <h3 className="font-bold text-slate-800">עוזר AI למורים</h3>
+                        <p className="text-xs text-slate-500">שאלו אותי כל שאלה על הכיתה</p>
+                    </div>
                 </div>
 
-                {/* Quick Actions - Always Visible */}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-white/60 text-sm ml-2">שאלות לדוגמה:</span>
+                {/* Input with running placeholder - Homepage Style */}
+                <div className="relative bg-slate-50 rounded-2xl border-2 border-slate-100 focus-within:border-wizdi-royal transition-all">
+                    <textarea
+                        ref={inputRef}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={placeholderText || "שאלו שאלה..."}
+                        className="w-full bg-transparent text-slate-800 placeholder-slate-400 text-base p-4 pb-14 resize-none focus:outline-none min-h-[80px] text-right"
+                        rows={2}
+                    />
+                    <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                        {/* Clear button */}
+                        {messages.length > 0 && (
+                            <button
+                                onClick={clearChat}
+                                className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                נקה שיחה
+                            </button>
+                        )}
+                        {/* Submit button */}
+                        <button
+                            onClick={() => sendMessage(inputValue)}
+                            disabled={!inputValue.trim() || isLoading}
+                            className="w-10 h-10 bg-wizdi-royal hover:bg-wizdi-royal/90 disabled:bg-slate-300 text-white rounded-xl flex items-center justify-center transition-colors disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? (
+                                <IconLoader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <IconArrowUp className="w-5 h-5" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Quick Actions - Small chips */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-400">או נסו:</span>
                     {QUICK_ACTIONS.map((action) => (
                         <button
                             key={action.id}
                             onClick={() => handleQuickAction(action)}
                             disabled={isLoading}
-                            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-wizdi-royal/10 rounded-full text-slate-600 hover:text-wizdi-royal text-xs font-medium transition-all disabled:opacity-50"
                         >
                             {action.icon}
                             {action.label}
@@ -255,44 +317,55 @@ ${conversationHistory ? `היסטוריית שיחה:\n${conversationHistory}\n\
                 </div>
             </div>
 
-            {/* Expandable Chat Section */}
-            {isExpanded && (
-                <div className="bg-white rounded-t-[24px]">
-                    {/* Messages Area */}
-                    <div className="max-h-[400px] overflow-y-auto p-5 space-y-4">
-                        {messages.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400">
-                                <IconRobot className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                <p className="text-sm">
-                                    לחץ על אחת השאלות למעלה או הקלד שאלה משלך
-                                </p>
-                            </div>
+            {/* Messages Section - Expandable */}
+            {messages.length > 0 && (
+                <div className="border-t border-slate-100">
+                    {/* Toggle Messages */}
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="w-full p-3 flex items-center justify-center gap-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <IconChevronUp className="w-4 h-4" />
+                                הסתר שיחה
+                            </>
                         ) : (
-                            messages.map((message) => (
+                            <>
+                                <IconChevronDown className="w-4 h-4" />
+                                הצג שיחה ({messages.length} הודעות)
+                            </>
+                        )}
+                    </button>
+
+                    {/* Messages Area */}
+                    {isExpanded && (
+                        <div className="max-h-[300px] overflow-y-auto p-4 space-y-3 bg-slate-50">
+                            {messages.map((message) => (
                                 <div
                                     key={message.id}
                                     className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
                                 >
                                     {/* Avatar */}
                                     <div className={`
-                                        w-9 h-9 rounded-full flex items-center justify-center shrink-0
+                                        w-8 h-8 rounded-full flex items-center justify-center shrink-0
                                         ${message.role === 'user'
-                                            ? 'bg-indigo-100 text-indigo-600'
-                                            : 'bg-purple-100 text-purple-600'
+                                            ? 'bg-wizdi-royal/10 text-wizdi-royal'
+                                            : 'bg-wizdi-cyan/10 text-wizdi-cyan'
                                         }
                                     `}>
                                         {message.role === 'user'
-                                            ? <IconUser className="w-5 h-5" />
-                                            : <IconRobot className="w-5 h-5" />
+                                            ? <IconUser className="w-4 h-4" />
+                                            : <IconRobot className="w-4 h-4" />
                                         }
                                     </div>
 
                                     {/* Message Bubble */}
                                     <div className={`
-                                        max-w-[80%] rounded-2xl p-4 group relative
+                                        max-w-[80%] rounded-2xl p-3 group relative
                                         ${message.role === 'user'
-                                            ? 'bg-indigo-500 text-white rounded-tr-none'
-                                            : 'bg-slate-100 text-slate-700 rounded-tl-none'
+                                            ? 'bg-wizdi-royal text-white rounded-tr-none'
+                                            : 'bg-white text-slate-700 rounded-tl-none shadow-sm border border-slate-100'
                                         }
                                     `}>
                                         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
@@ -301,76 +374,37 @@ ${conversationHistory ? `היסטוריית שיחה:\n${conversationHistory}\n\
                                         {message.role === 'assistant' && (
                                             <button
                                                 onClick={() => handleCopy(message.content, message.id)}
-                                                className="absolute -bottom-2 -left-2 p-2 bg-white rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="absolute -bottom-2 -left-2 p-1.5 bg-white rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-100"
                                             >
                                                 {copiedId === message.id ? (
-                                                    <IconCheck className="w-4 h-4 text-green-500" />
+                                                    <IconCheck className="w-3 h-3 text-green-500" />
                                                 ) : (
-                                                    <IconCopy className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+                                                    <IconCopy className="w-3 h-3 text-slate-400" />
                                                 )}
                                             </button>
                                         )}
                                     </div>
                                 </div>
-                            ))
-                        )}
+                            ))}
 
-                        {/* Loading indicator */}
-                        {isLoading && (
-                            <div className="flex gap-3">
-                                <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center">
-                                    <IconRobot className="w-5 h-5 text-purple-600" />
-                                </div>
-                                <div className="bg-slate-100 rounded-2xl rounded-tl-none p-4">
-                                    <div className="flex items-center gap-2 text-slate-500">
-                                        <IconLoader2 className="w-4 h-4 animate-spin" />
-                                        <span className="text-sm">חושב...</span>
+                            {/* Loading indicator */}
+                            {isLoading && (
+                                <div className="flex gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-wizdi-cyan/10 flex items-center justify-center">
+                                        <IconRobot className="w-4 h-4 text-wizdi-cyan" />
+                                    </div>
+                                    <div className="bg-white rounded-2xl rounded-tl-none p-3 shadow-sm border border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-500">
+                                            <IconLoader2 className="w-4 h-4 animate-spin" />
+                                            <span className="text-sm">חושב...</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-[24px]">
-                        <div className="flex items-end gap-3">
-                            <textarea
-                                ref={inputRef}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder="הקלד שאלה..."
-                                className="flex-1 resize-none rounded-xl border border-slate-200 p-3 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none max-h-24"
-                                rows={1}
-                                dir="rtl"
-                            />
-                            <button
-                                onClick={() => sendMessage(inputValue)}
-                                disabled={!inputValue.trim() || isLoading}
-                                className={`
-                                    p-3 rounded-xl transition-all
-                                    ${!inputValue.trim() || isLoading
-                                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                    }
-                                `}
-                            >
-                                <IconSend className="w-5 h-5" />
-                            </button>
+                            <div ref={messagesEndRef} />
                         </div>
-
-                        {/* Clear chat button */}
-                        {messages.length > 0 && (
-                            <button
-                                onClick={clearChat}
-                                className="mt-2 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-                            >
-                                נקה שיחה
-                            </button>
-                        )}
-                    </div>
+                    )}
                 </div>
             )}
         </div>
