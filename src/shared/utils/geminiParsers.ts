@@ -414,6 +414,151 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         };
     }
 
+    // === CASE: MATCHING (התאמה / מתיחת קו) ===
+    if (typeString === 'matching_lines' || (typeString === 'matching' && rawData.leftItems)) {
+        console.log("🎮 Handling as MATCHING (line drawing)");
+        const leftItems = rawData.leftItems || rawData.left_items || [];
+        const rightItems = rawData.rightItems || rawData.right_items || [];
+        const correctMatches = rawData.correctMatches || rawData.correct_matches || [];
+
+        return {
+            id: uuidv4(),
+            type: 'matching' as ActivityBlockType,
+            content: {
+                instruction: questionText || "התאימו בין הפריטים:",
+                leftItems: leftItems.length > 0 ? leftItems : [{ id: '1', text: 'פריט 1' }],
+                rightItems: rightItems.length > 0 ? rightItems : [{ id: 'a', text: 'התאמה 1' }],
+                correctMatches: correctMatches,
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('matching', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: HIGHLIGHT (הקפה / סימון) ===
+    if (typeString === 'highlight' || typeString === 'circle' || typeString === 'underline') {
+        console.log("🎮 Handling as HIGHLIGHT");
+        return {
+            id: uuidv4(),
+            type: 'highlight' as ActivityBlockType,
+            content: {
+                instruction: questionText || "סמנו את התשובות הנכונות בטקסט:",
+                text: rawData.text || rawData.content || "טקסט לסימון",
+                correctHighlights: rawData.correctHighlights || rawData.correct_highlights || [],
+                highlightType: rawData.highlightType || rawData.highlight_type || 'background',
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('highlight', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: SENTENCE BUILDER (סידור משפטים) ===
+    if (typeString === 'sentence_builder' || typeString === 'word_order' || typeString === 'scrambled_sentence') {
+        console.log("🎮 Handling as SENTENCE BUILDER");
+        const words = rawData.words || rawData.items || [];
+        const correctSentence = rawData.correctSentence || rawData.correct_sentence || words.join(' ');
+
+        return {
+            id: uuidv4(),
+            type: 'sentence_builder' as ActivityBlockType,
+            content: {
+                instruction: questionText || "סדרו את המילים למשפט:",
+                words: words.length > 0 ? words : ["מילה1", "מילה2", "מילה3"],
+                correctSentence: correctSentence,
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('sentence_builder', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: IMAGE LABELING (תיוג תמונה) ===
+    if (typeString === 'image_labeling' || typeString === 'diagram_labeling' || typeString === 'label_image') {
+        console.log("🎮 Handling as IMAGE LABELING");
+        return {
+            id: uuidv4(),
+            type: 'image_labeling' as ActivityBlockType,
+            content: {
+                instruction: questionText || "גררו את התוויות למקומות המתאימים:",
+                imageUrl: rawData.imageUrl || rawData.image_url || '',
+                labels: rawData.labels || [],
+                dropZones: rawData.dropZones || rawData.drop_zones || [],
+                hints: rawData.hints || rawData.progressive_hints || [],
+                imageDescription: rawData.imageDescription || rawData.image_description || ''
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('image_labeling', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: TABLE COMPLETION (השלמת טבלה) ===
+    if (typeString === 'table_completion' || typeString === 'fill_table' || typeString === 'complete_table') {
+        console.log("🎮 Handling as TABLE COMPLETION");
+        return {
+            id: uuidv4(),
+            type: 'table_completion' as ActivityBlockType,
+            content: {
+                instruction: questionText || "השלימו את הטבלה:",
+                headers: rawData.headers || ["עמודה 1", "עמודה 2"],
+                rows: rawData.rows || [],
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('table_completion', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: TEXT SELECTION (בחירת טקסט) ===
+    if (typeString === 'text_selection' || typeString === 'select_words' || typeString === 'select_text') {
+        console.log("🎮 Handling as TEXT SELECTION");
+        return {
+            id: uuidv4(),
+            type: 'text_selection' as ActivityBlockType,
+            content: {
+                instruction: questionText || "בחרו את הטקסטים המתאימים:",
+                text: rawData.text || rawData.content || "טקסט לבחירה",
+                selectableUnits: rawData.selectableUnits || rawData.selectable_units || 'word',
+                correctSelections: rawData.correctSelections || rawData.correct_selections || [],
+                minSelections: rawData.minSelections || rawData.min_selections || 1,
+                maxSelections: rawData.maxSelections || rawData.max_selections,
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('text_selection', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: RATING SCALE (סקאלת דירוג) ===
+    if (typeString === 'rating_scale' || typeString === 'scale' || typeString === 'likert') {
+        console.log("🎮 Handling as RATING SCALE");
+        return {
+            id: uuidv4(),
+            type: 'rating_scale' as ActivityBlockType,
+            content: {
+                question: questionText || "דרגו:",
+                minValue: rawData.minValue || rawData.min_value || 1,
+                maxValue: rawData.maxValue || rawData.max_value || 5,
+                minLabel: rawData.minLabel || rawData.min_label || "נמוך",
+                maxLabel: rawData.maxLabel || rawData.max_label || "גבוה",
+                correctAnswer: rawData.correct_answer,
+                showNumbers: rawData.showNumbers !== undefined ? rawData.showNumbers : true
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('rating_scale', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: MATRIX (מטריקס) ===
+    if (typeString === 'matrix' || typeString === 'grid' || typeString === 'multi_true_false') {
+        console.log("🎮 Handling as MATRIX");
+        return {
+            id: uuidv4(),
+            type: 'matrix' as ActivityBlockType,
+            content: {
+                instruction: questionText || "ענו על כל השאלות:",
+                columns: rawData.columns || ["נכון", "לא נכון"],
+                rows: rawData.rows || [],
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('matrix', commonMetadata.bloomLevel) }
+        };
+    }
+
     // If no type matched, log a warning
     console.warn("❌ mapSystemItemToBlock: Unknown type -", typeString);
     return null;

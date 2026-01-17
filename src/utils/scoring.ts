@@ -36,6 +36,15 @@ export const BASE_WEIGHTS: Record<string, number> = {
     'open-question': 15,
     'audio_response': 10,
     'audio-response': 10,
+    // 8 New Question Types
+    'matching': 8,
+    'highlight': 6,
+    'sentence_builder': 8,
+    'image_labeling': 10,
+    'table_completion': 10,
+    'text_selection': 7,
+    'rating_scale': 5,
+    'matrix': 10,
 };
 
 /**
@@ -83,6 +92,15 @@ export const DEFAULT_BLOOM_LEVELS: Record<string, string> = {
     'open-question': 'Analyze',
     'audio_response': 'Apply',
     'audio-response': 'Apply',
+    // 8 New Question Types
+    'matching': 'Understand',
+    'highlight': 'Understand',
+    'sentence_builder': 'Apply',
+    'image_labeling': 'Apply',
+    'table_completion': 'Apply',
+    'text_selection': 'Analyze',
+    'rating_scale': 'Evaluate',
+    'matrix': 'Understand',
 };
 
 /**

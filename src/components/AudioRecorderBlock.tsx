@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { AudioResponseBlock } from '../courseTypes';
 import { uploadStudentAudio } from '../services/storageService';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface AudioRecorderBlockProps {
     block: AudioResponseBlock;
@@ -121,7 +122,7 @@ export const AudioRecorderBlock: React.FC<AudioRecorderBlockProps> = ({
     if (isReadOnly && userAnswer) {
         return (
             <div className="p-4 bg-gray-50 border rounded-lg">
-                <h3 className="font-bold text-lg mb-2">{block.content.question}</h3>
+                <h3 className="font-bold text-lg mb-2" dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
                 <p className="text-sm text-gray-600 mb-4">{block.content.description}</p>
                 <div className="flex items-center gap-2">
                     <audio controls src={userAnswer} className="w-full" />
@@ -132,7 +133,7 @@ export const AudioRecorderBlock: React.FC<AudioRecorderBlockProps> = ({
 
     return (
         <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
-            <h3 className="font-bold text-xl mb-2 text-gray-800">{block.content.question}</h3>
+            <h3 className="font-bold text-xl mb-2 text-gray-800" dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
             {block.content.description && (
                 <p className="text-gray-600 mb-4">{block.content.description}</p>
             )}

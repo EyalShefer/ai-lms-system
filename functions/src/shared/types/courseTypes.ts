@@ -18,7 +18,16 @@ export type ActivityBlockType =
     | 'true_false_speed'
     | 'true_false_speed'
     | 'podcast'
-    | 'audio-response';
+    | 'audio-response'
+    // 8 New Question Types
+    | 'matching'           // Connect items with lines (התאמה)
+    | 'highlight'          // Circle/underline correct answers in text (הקפה/סימון)
+    | 'sentence_builder'   // Build sentence from scrambled words (סידור משפטים)
+    | 'image_labeling'     // Drag labels onto image (תיוג תמונה)
+    | 'table_completion'   // Fill in missing cells in table (השלמת טבלה)
+    | 'text_selection'     // Select words/sentences from text (בחירת טקסט)
+    | 'rating_scale'       // Rate on a scale 1-5 or 1-10 (סקאלת דירוג)
+    | 'matrix';            // Matrix/grid with multiple rows and options (מטריקס)
 
 export interface MultipleChoiceContent {
     question: string;

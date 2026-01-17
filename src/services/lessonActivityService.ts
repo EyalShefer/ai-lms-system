@@ -50,9 +50,17 @@ const INTERACTIVE_BLOCK_TYPES = [
     'true_false_speed',
     'drag_and_drop',
     'hotspot',
-    'matching',
     'audio-response',
-    'interactive-chat'
+    'interactive-chat',
+    // 8 New Question Types
+    'matching',
+    'highlight',
+    'sentence_builder',
+    'image_labeling',
+    'table_completion',
+    'text_selection',
+    'rating_scale',
+    'matrix'
 ];
 
 /**
@@ -136,7 +144,6 @@ export const getBlockTypeLabel = (type: string): string => {
         'true_false_speed': 'נכון/לא נכון',
         'drag_and_drop': 'גרור ושחרר',
         'hotspot': 'נקודות חמות',
-        'matching': 'התאמה',
         'audio-response': 'תשובה קולית',
         'interactive-chat': 'צ\'אט אינטראקטיבי',
         'text': 'טקסט',
@@ -145,7 +152,16 @@ export const getBlockTypeLabel = (type: string): string => {
         'pdf': 'מסמך PDF',
         'infographic': 'אינפוגרפיקה',
         'mindmap': 'מפת חשיבה',
-        'podcast': 'פודקאסט'
+        'podcast': 'פודקאסט',
+        // 8 New Question Types
+        'matching': 'התאמה',
+        'highlight': 'סימון בטקסט',
+        'sentence_builder': 'בניית משפט',
+        'image_labeling': 'תיוג תמונה',
+        'table_completion': 'השלמת טבלה',
+        'text_selection': 'בחירה מטקסט',
+        'rating_scale': 'סקאלת דירוג',
+        'matrix': 'מטריקס'
     };
     return labels[type] || type;
 };
@@ -211,6 +227,7 @@ export const extractActivityFromLesson = async (
 
     // Add metadata to link back to parent
     (activityCourse as any).productType = 'activity';
+    (activityCourse as any).shareableLink = true; // Allow anyone with link to access
     (activityCourse as any).parentLesson = {
         courseId: parentCourse.id,
         unitId: parentUnit.id,

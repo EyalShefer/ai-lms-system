@@ -143,6 +143,12 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     };
 
     const checkAnswers = () => {
+        // אם כבר בדק ולחץ "בדוק שוב" - לאפשר תיקון
+        if (isSubmitted) {
+            setIsSubmitted(false);
+            return;
+        }
+
         setIsSubmitted(true);
         attemptsRef.current += 1;
 

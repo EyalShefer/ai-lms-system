@@ -312,6 +312,13 @@ import type { UnitSkeleton, SkeletonStep, TeacherLessonPlan } from './shared/typ
  * @param sourceText - (Optional) Grounding text.
  * @returns {Promise<UnitSkeleton | null>} Strict JSON structure or null.
  */
+// Type for question preferences from wizard
+interface QuestionPreferencesInput {
+  profile: 'balanced' | 'educational' | 'game' | 'custom';
+  allowedTypes: string[];
+  priorityTypes: string[];
+}
+
 export const generateUnitSkeleton = async (
   topic: string,
   gradeLevel: string,
@@ -320,7 +327,8 @@ export const generateUnitSkeleton = async (
   mode: 'learning' | 'exam' = 'learning',
   bloomPreferences?: Record<string, number>,
   productType: 'lesson' | 'activity' | 'exam' = 'lesson',
-  studentProfile?: any // StudentAnalyticsProfile (Using any to avoid circular dependency issues if strict)
+  studentProfile?: any, // StudentAnalyticsProfile (Using any to avoid circular dependency issues if strict)
+  questionPreferences?: QuestionPreferencesInput // 🆕 הגדרות מתקדמות לסוגי שאלות
 ): Promise<UnitSkeleton | null> => {
   // console.log(`🤖 gemini.ts: Generating Skeleton. Mode: ${mode}, Product: ${productType}, Length: ${activityLength}`);
 
@@ -329,6 +337,26 @@ export const generateUnitSkeleton = async (
   if (studentProfile?.confirmedTraits && studentProfile.confirmedTraits.length > 0) {
     personalityInstruction = `\n    PERSONALIZATION OVERRIDE:\n    The student has confirmed traits: ${JSON.stringify(studentProfile.confirmedTraits)}.\n    ADAPT THE SKELETON TO THESE PREFERENCES (e.g. if 'Visual Learner', prefer visual blocks. If 'Competitive', increase difficulty).`;
     // console.log("Injecting Personality:", personalityInstruction);
+  }
+
+  // 🆕 Question Type Preferences Instruction
+  let questionTypeInstruction = "";
+  if (questionPreferences && questionPreferences.profile !== 'balanced') {
+    const { profile, allowedTypes, priorityTypes } = questionPreferences;
+
+    const profileDescriptions: Record<string, string> = {
+      educational: 'EDUCATIONAL MODE (לימודי): Focus on measurable questions with clear right/wrong answers. NO games like memory_game. Prefer: multiple_choice, true_false, fill_in_blanks, ordering, open_question.',
+      game: 'GAME MODE (משחקי): Focus on interactive, engaging activities. Prefer: memory_game, matching, categorization, ordering. Make it fun!',
+      custom: 'CUSTOM MODE (מותאם אישית): User has selected specific question types.'
+    };
+
+    questionTypeInstruction = `
+    QUESTION TYPE PREFERENCES (Teacher Selection):
+    ${profileDescriptions[profile] || ''}
+    ALLOWED TYPES: ${allowedTypes.join(', ')}
+    PRIORITY TYPES (use these first): ${priorityTypes.join(', ')}
+    FORBIDDEN: Do NOT use question types outside the allowed list.
+    `;
   }
 
   let stepCount = 5;
@@ -346,22 +374,56 @@ export const generateUnitSkeleton = async (
       `;
   } else if (productType === 'activity') {
     // === ACTIVITY PRODUCT STRUCTURE ===
-    // Focus on INTERACTIVE blocks only.
-    if (activityLength === 'short') {
-      stepCount = 3;
+    // Apply question preferences if provided
+    if (questionPreferences?.profile === 'educational') {
+      // EDUCATIONAL: No games, measurable only
+      stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
       structureGuide = `
-        STEP 1: Speed Challenge. Type: true_false_speed OR memory_game.
+        EDUCATIONAL ACTIVITY (NO GAMES):
+        STEP 1: Foundation Check. Type: multiple_choice OR true_false.
+        STEP 2: Understanding. Type: fill_in_blanks OR ordering.
+        ${stepCount > 3 ? `STEPS 3-${stepCount - 1}: Application. Type: categorization / ordering / matching.` : ''}
+        STEP ${stepCount}: Synthesis. Type: open_question.
+        FORBIDDEN: memory_game, highlight, sentence_builder (games).
+      `;
+    } else if (questionPreferences?.profile === 'game') {
+      // GAME: Interactive, fun
+      stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
+      structureGuide = `
+        GAME ACTIVITY (INTERACTIVE & FUN):
+        STEP 1: Warmup Game. Type: memory_game OR matching.
         STEP 2: Puzzle Challenge. Type: ordering OR categorization.
-        STEP 3: Master Challenge. Type: memory_game OR categorization (Hard).
+        ${stepCount > 3 ? `STEPS 3-${stepCount - 1}: Boss Challenges. Type: memory_game / categorization / matching (Complex).` : ''}
+        STEP ${stepCount}: Final Challenge. Type: categorization OR sentence_builder.
+        PRIORITY: Keep it engaging and gamified!
+      `;
+    } else if (questionPreferences?.profile === 'custom' && questionPreferences.allowedTypes.length > 0) {
+      // CUSTOM: User-selected types only
+      stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
+      structureGuide = `
+        CUSTOM ACTIVITY (User Selection):
+        USE ONLY THESE TYPES: ${questionPreferences.allowedTypes.join(', ')}
+        PRIORITIZE: ${questionPreferences.priorityTypes.join(', ')}
+        Distribute the ${stepCount} steps across the allowed types.
       `;
     } else {
-      // Medium/Long
-      stepCount = activityLength === 'long' ? 7 : 5;
-      structureGuide = `
-        STEPS 1-2: Warmup Games. Type: memory_game / true_false_speed.
-        STEPS 3-4: Logic Puzzles. Type: ordering / categorization / matching.
-        STEPS 5-${stepCount}: Boss Levels. Type: categorization / matching (Complex).
-      `;
+      // DEFAULT: Focus on INTERACTIVE blocks (original behavior)
+      if (activityLength === 'short') {
+        stepCount = 3;
+        structureGuide = `
+          STEP 1: Speed Challenge. Type: true_false_speed OR memory_game.
+          STEP 2: Puzzle Challenge. Type: ordering OR categorization.
+          STEP 3: Master Challenge. Type: memory_game OR categorization (Hard).
+        `;
+      } else {
+        // Medium/Long
+        stepCount = activityLength === 'long' ? 7 : 5;
+        structureGuide = `
+          STEPS 1-2: Warmup Games. Type: memory_game / true_false_speed.
+          STEPS 3-4: Logic Puzzles. Type: ordering / categorization / matching.
+          STEPS 5-${stepCount}: Boss Levels. Type: categorization / matching (Complex).
+        `;
+      }
     }
   } else {
     // === STANDARD LESSON STRUCTURE ===
@@ -401,10 +463,11 @@ export const generateUnitSkeleton = async (
     ${contextPart}
     Target Audience: ${gradeLevel}.
     ${personalityInstruction}
+    ${questionTypeInstruction}
     Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'activity' ? 'INTERACTIVE ACTIVITY MODE' : 'Learning/Tutorial Mode')}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
-    
+
     BLOOM TAXONOMY REQUIREMENTS:
     ${JSON.stringify(bloomSteps)}
 
@@ -2405,7 +2468,8 @@ export const generateCoursePlan = async (
   includeBot: boolean = true, // האם לכלול בוט
   productType?: string, // 🆕 Product Type (lesson/exam/game/podcast)
   activityLength?: string, // 🆕 Activity Length
-  taxonomy?: any // 🆕 Taxonomy settings
+  taxonomy?: any, // 🆕 Taxonomy settings
+  questionPreferences?: QuestionPreferencesInput // 🆕 הגדרות מתקדמות לסוגי שאלות
 ) => {
   // console.log("Starting cloud generation for:", topic);
 
@@ -2430,6 +2494,7 @@ export const generateCoursePlan = async (
       activityLength: activityLength || 'medium', // 🆕
       taxonomy: taxonomy || null, // 🆕
       productType: productType || null, // 🆕
+      questionPreferences: questionPreferences || null, // 🆕 הגדרות מתקדמות לסוגי שאלות
       status: "pending",
       createdAt: new Date(),
     });

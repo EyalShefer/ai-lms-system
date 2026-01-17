@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize } from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize, IconBalance } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
 import { refineBlockContent, generateAiImage, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
@@ -66,7 +66,14 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'hotspot': 'נקודות חמות',
     'matching': 'התאמה',
     'audio-response': 'תשובה קולית',
-    'podcast': 'פודקאסט AI'
+    'podcast': 'פודקאסט AI',
+    'highlight': 'סימון בטקסט',
+    'sentence_builder': 'בניית משפט',
+    'image_labeling': 'תיוג תמונה',
+    'table_completion': 'השלמת טבלה',
+    'text_selection': 'בחירה מטקסט',
+    'rating_scale': 'סקאלת דירוג',
+    'matrix': 'מטריקס'
 };
 
 const getBlockTitle = (block: ActivityBlock): string | null => {
@@ -807,6 +814,14 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matching', index); }} className="insert-btn"><IconLink className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matching']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('highlight', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['highlight']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('sentence_builder', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['sentence_builder']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image_labeling', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image_labeling']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('table_completion', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['table_completion']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text_selection', index); }} className="insert-btn"><IconCheck className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text_selection']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('rating_scale', index); }} className="insert-btn"><IconBalance className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['rating_scale']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matrix', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matrix']}</span></button>
 
                         <div className="w-px bg-slate-200 mx-2"></div>
                         <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
@@ -892,6 +907,23 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 return `הוסף נקודות מפתח לדיון בסוף הפודקאסט`;
             case 'infographic':
                 return `הוסף עוד נתון אחד לאינפוגרפיקה`;
+            // New question types
+            case 'matching':
+                return `הוסף עוד 2 זוגות להתאמה`;
+            case 'highlight':
+                return `הוסף עוד 2 מילים או ביטויים לסימון`;
+            case 'sentence_builder':
+                return `הוסף עוד משפט אחד לבנייה`;
+            case 'image_labeling':
+                return `הוסף עוד 2 תוויות לתמונה`;
+            case 'table_completion':
+                return `הוסף עוד שורה אחת לטבלה`;
+            case 'text_selection':
+                return `הוסף עוד קטע טקסט לבחירה`;
+            case 'rating_scale':
+                return `הוסף תיאור לכל רמה בסקאלה`;
+            case 'matrix':
+                return `הוסף עוד שורה ועמודה למטריצה`;
             default:
                 return `פשט את השפה והוסף דוגמה`;
         }
@@ -1397,7 +1429,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setEditingBlockId(block.id)}>
                         {block.type === 'multiple-choice' && (
                             <div>
-                                <h3 className="text-lg font-bold mb-4">{block.content.question}</h3>
+                                <h3 className="text-lg font-bold mb-4" dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
                                 <ul className="list-disc pr-5 space-y-2">
                                     {block.content.options?.map((opt: any, idx: number) => (
                                         <li key={idx} className={opt === block.content.correctAnswer ? 'text-green-600 font-bold' : ''}>
@@ -1489,7 +1521,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         if (block.type === 'open-question') {
             return (
                 <div onClick={() => setEditingBlockId(block.id)} className="cursor-pointer hover:ring-2 hover:ring-blue-100 rounded-xl p-2 transition-all -m-2">
-                    <h3 className="text-lg font-bold mb-4">שאלה לדיון: {block.content.question}</h3>
+                    <h3 className="text-lg font-bold mb-4">שאלה לדיון: <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} /></h3>
                     <p className="text-sm bg-slate-50 p-4 rounded-lg italic border-r-2 border-slate-300">
                         {(block.content as any).model_answer || (block.content as any).modelAnswer || "תשובה לדוגמה לא זמינה"}
                     </p>

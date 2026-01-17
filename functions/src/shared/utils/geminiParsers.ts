@@ -367,6 +367,156 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             };
         }
 
+        // === CASE: MATCHING (Draw Lines) ===
+        if (typeString === 'matching_lines' || (typeString === 'matching' && rawData.leftItems)) {
+            const leftItems = rawData.leftItems || [];
+            const rightItems = rawData.rightItems || [];
+            const correctMatches = rawData.correctMatches || [];
+
+            if (leftItems.length < 2 || rightItems.length < 2) {
+                console.warn("Matching items missing or too few.");
+                return null;
+            }
+
+            return {
+                id: uuidv4(),
+                type: 'matching',
+                content: {
+                    instruction: questionText || rawData.instruction || "התאימו בין הפריטים:",
+                    leftItems,
+                    rightItems,
+                    correctMatches,
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matching') }
+            };
+        }
+
+        // === CASE: HIGHLIGHT ===
+        if (typeString === 'highlight' || typeString === 'circle' || typeString === 'underline') {
+            return {
+                id: uuidv4(),
+                type: 'highlight',
+                content: {
+                    instruction: rawData.instruction || questionText || "סמנו את המילים הנכונות:",
+                    text: rawData.text || "",
+                    correctHighlights: rawData.correctHighlights || [],
+                    highlightType: rawData.highlightType || 'background',
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'highlight') }
+            };
+        }
+
+        // === CASE: SENTENCE BUILDER ===
+        if (typeString === 'sentence_builder' || typeString === 'word_order' || typeString === 'scrambled_sentence') {
+            const words = rawData.words || [];
+            const correctSentence = rawData.correctSentence || rawData.correct_sentence || words.join(' ');
+
+            if (words.length < 3) {
+                console.warn("Sentence builder words missing or too few.");
+                return null;
+            }
+
+            return {
+                id: uuidv4(),
+                type: 'sentence_builder',
+                content: {
+                    instruction: rawData.instruction || questionText || "סדרו את המילים למשפט:",
+                    words,
+                    correctSentence,
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'sentence_builder') }
+            };
+        }
+
+        // === CASE: IMAGE LABELING ===
+        if (typeString === 'image_labeling' || typeString === 'diagram_labeling' || typeString === 'label_image') {
+            return {
+                id: uuidv4(),
+                type: 'image_labeling',
+                content: {
+                    instruction: rawData.instruction || questionText || "גררו את התוויות למקומות המתאימים:",
+                    imageUrl: rawData.imageUrl || rawData.image_url || '',
+                    labels: rawData.labels || [],
+                    dropZones: rawData.dropZones || rawData.drop_zones || [],
+                    hints: rawData.hints || []
+                },
+                metadata: {
+                    ...commonMetadata,
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, 'image_labeling'),
+                    imageDescription: rawData.imageDescription || rawData.image_description || ''
+                }
+            };
+        }
+
+        // === CASE: TABLE COMPLETION ===
+        if (typeString === 'table_completion' || typeString === 'fill_table' || typeString === 'complete_table') {
+            return {
+                id: uuidv4(),
+                type: 'table_completion',
+                content: {
+                    instruction: rawData.instruction || questionText || "השלימו את הטבלה:",
+                    headers: rawData.headers || [],
+                    rows: rawData.rows || [],
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'table_completion') }
+            };
+        }
+
+        // === CASE: TEXT SELECTION ===
+        if (typeString === 'text_selection' || typeString === 'select_words' || typeString === 'select_text') {
+            return {
+                id: uuidv4(),
+                type: 'text_selection',
+                content: {
+                    instruction: rawData.instruction || questionText || "בחרו את המילים הנכונות:",
+                    text: rawData.text || "",
+                    selectableUnits: rawData.selectableUnits || rawData.selectable_units || 'word',
+                    correctSelections: rawData.correctSelections || rawData.correct_selections || [],
+                    minSelections: rawData.minSelections || rawData.min_selections || 1,
+                    maxSelections: rawData.maxSelections || rawData.max_selections,
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'text_selection') }
+            };
+        }
+
+        // === CASE: RATING SCALE ===
+        if (typeString === 'rating_scale' || typeString === 'scale' || typeString === 'likert') {
+            return {
+                id: uuidv4(),
+                type: 'rating_scale',
+                content: {
+                    question: questionText || rawData.question || "דרגו:",
+                    minValue: rawData.minValue || rawData.min_value || 1,
+                    maxValue: rawData.maxValue || rawData.max_value || 5,
+                    minLabel: rawData.minLabel || rawData.min_label || "נמוך",
+                    maxLabel: rawData.maxLabel || rawData.max_label || "גבוה",
+                    correctAnswer: rawData.correct_answer,
+                    showNumbers: rawData.showNumbers !== undefined ? rawData.showNumbers : true
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'rating_scale') }
+            };
+        }
+
+        // === CASE: MATRIX ===
+        if (typeString === 'matrix' || typeString === 'grid' || typeString === 'multi_true_false') {
+            return {
+                id: uuidv4(),
+                type: 'matrix',
+                content: {
+                    instruction: rawData.instruction || questionText || "ענו על כל השאלות:",
+                    columns: rawData.columns || ["נכון", "לא נכון"],
+                    rows: rawData.rows || [],
+                    hints: rawData.hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matrix') }
+            };
+        }
+
         return null;
     } catch (error) {
         console.error("Critical Mapping Error in mapSystemItemToBlock:", error);

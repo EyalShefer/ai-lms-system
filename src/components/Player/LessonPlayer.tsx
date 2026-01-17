@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 // Simplified types for the test component
 export interface LessonPlayerProps {
@@ -47,7 +48,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonData, onComple
             <h2>{lessonData.title}</h2>
 
             <div className="block-content">
-                <h3>{currentBlock.content.question}</h3>
+                <h3 dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content.question || '') }} />
 
                 {currentBlock.type === 'multiple-choice' && (
                     <div className="options">

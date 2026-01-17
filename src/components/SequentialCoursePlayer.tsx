@@ -40,6 +40,7 @@ import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { InfographicViewer } from './InfographicViewer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { sanitizeHtml } from '../utils/sanitize';
 
 
 interface SequentialPlayerProps {
@@ -80,6 +81,20 @@ const StreakFlame = ({ count }: { count: number }) => (
 
 const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, onExit, onEdit, simulateGuest = false }) => {
     const { course } = useCourseStore();
+
+    // DEBUG: Track render count
+    const renderCount = React.useRef(0);
+    renderCount.current++;
+
+    useEffect(() => {
+        console.log(`🔄 SequentialCoursePlayer MOUNTED. CourseId: ${course?.id}`);
+        return () => console.log(`❌ SequentialCoursePlayer UNMOUNTED. CourseId: ${course?.id}`);
+    }, []);
+
+    if (renderCount.current < 10 || renderCount.current % 100 === 0) {
+        console.log(`🔄 SequentialCoursePlayer Render #${renderCount.current}`, { courseId: course?.id });
+    }
+
     const playSound = useSound();
     const { currentUser } = useAuth(); // for FeedbackWidget
 
@@ -112,15 +127,19 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
     }, []);
 
+    // Use course.id as dependency to prevent infinite re-renders
+    // The syllabus content is loaded once when course.id changes
     useEffect(() => {
-        if (course?.syllabus) {
+        if (course?.syllabus && course.id !== 'loading') {
             const initialBlocks = course.syllabus.flatMap(m => m.learningUnits.flatMap(u => (u.activityBlocks || []) as ActivityBlock[]));
             setPlaybackQueue(initialBlocks);
         }
-    }, [course]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [course?.id]);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [historyStack, setHistoryStack] = useState<number[]>([]);
+    const [isNavigatingBack, setIsNavigatingBack] = useState(false); // Track back navigation to disable auto-skip
 
     const currentBlock = playbackQueue[currentIndex];
     const isLast = currentIndex === playbackQueue.length - 1;
@@ -191,8 +210,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
             // --- ADAPTIVE: Load existing profile to set personalized starting level ---
             const currentTopicId = playbackQueue[0]?.metadata?.tags?.[0] ||
-                                   playbackQueue[0]?.metadata?.topic ||
-                                   'general';
+                playbackQueue[0]?.metadata?.topic ||
+                'general';
 
             getInitialStudentState(currentUser.uid, currentTopicId).then(({ mastery, accuracy }) => {
                 setCurrentMastery(mastery);
@@ -222,7 +241,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 }
             });
         }
-    }, [currentUser, playbackQueue]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentUser?.uid]);
 
 
     // Reset or Restore status when moving to new block
@@ -231,7 +251,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         if (!currentBlock) return;
 
         // --- ADAPTIVE: Select appropriate variant based on student performance ---
-        const questionTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering'];
+        const questionTypes = [
+            'multiple-choice', 'open-question', 'fill_in_blanks', 'ordering',
+            'categorization', 'memory_game', 'true_false_speed',
+            // 8 New Question Types
+            'matching', 'highlight', 'sentence_builder', 'image_labeling',
+            'table_completion', 'text_selection', 'rating_scale', 'matrix'
+        ];
         if (questionTypes.includes(currentBlock.type) && !activeVariants[currentBlock.id]) {
             // Check if this block has variants available
             const hasScaffolding = !!currentBlock.metadata?.scaffolding_id;
@@ -293,10 +319,16 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         // If current block is passive text/pdf AND next block is interactive (question),
         // skip this block because the text will be displayed in split-view anyway
         const passiveContextTypes = ['text', 'pdf'];
-        const interactiveTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed'];
+        const interactiveTypes = [
+            'multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed',
+            // 8 New Question Types
+            'matching', 'highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix'
+        ];
         const nextBlock = playbackQueue[currentIndex + 1];
 
-        if (passiveContextTypes.includes(currentBlock.type) &&
+        // Don't auto-skip if user is navigating back - they want to see this content
+        if (!isNavigatingBack &&
+            passiveContextTypes.includes(currentBlock.type) &&
             nextBlock &&
             interactiveTypes.includes(nextBlock.type)) {
             // Auto-skip: mark as viewed and move to next
@@ -304,6 +336,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             setHistoryStack(prev => [...prev, currentIndex]);
             setCurrentIndex(prev => prev + 1);
             return;
+        }
+        // Reset back navigation flag after processing
+        if (isNavigatingBack) {
+            setIsNavigatingBack(false);
         }
         // --- END AUTO-SKIP ---
 
@@ -330,13 +366,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             setHintsVisible(prev => ({ ...prev, [currentBlock.id]: 0 }));
 
             // --- ADAPTIVE: Start telemetry tracking for interactive blocks ---
-            const interactiveTypes = ['multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed'];
+            const interactiveTypes = [
+                'multiple-choice', 'open-question', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed',
+                // 8 New Question Types
+                'matching', 'highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix'
+            ];
             if (interactiveTypes.includes(currentBlock.type)) {
                 telemetry.onQuestionStart(currentBlock.id, currentBlock.type);
             }
         }
-    }, [currentIndex, currentBlock?.id, playbackQueue, telemetry]); // Only when ID changes, not necessarily stepResults deep change
-    // Note: Removed stepResults dependency to avoid loop, we only check on mount of new index.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentIndex, currentBlock?.id]); // Removed playbackQueue to prevent infinite loop - setPlaybackQueue is called inside
 
 
     // --- Handlers ---
@@ -899,6 +939,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         if (historyStack.length === 0) return;
         const prev = historyStack[historyStack.length - 1];
         setHistoryStack(stk => stk.slice(0, -1));
+        setIsNavigatingBack(true); // Prevent auto-skip when going back
         setCurrentIndex(prev);
     };
 
@@ -920,7 +961,14 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         let label = "בדיקה";
         let colorClass = "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700"; // Default: Active Check (Manifesto Blue)
 
-        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image'];
+        const passiveTypes = ['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image', 'infographic'];
+
+        // PASSIVE BLOCK LOGIC:
+        // For passive blocks (non-questions), hide the check button entirely.
+        // Navigation is handled by the arrow buttons only.
+        if (passiveTypes.includes(currentBlock.type)) {
+            return null;
+        }
 
         // COMPLEX BLOCK LOGIC:
         // If it's a complex interactive block (Cloze, Ordering, etc.) AND we are in 'idle' mode,
@@ -940,17 +988,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             colorClass = "bg-slate-700 text-slate-500 border-slate-700 cursor-not-allowed transform-none";
         }
 
-        // Passive content override
-        if (passiveTypes.includes(currentBlock.type)) {
-            label = "המשך";
-            colorClass = "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700";
-        }
-
         return (
             <button
                 key={stepStatus} // Re-trigger animation on status change
                 onClick={handleCheck}
-                disabled={!passiveTypes.includes(currentBlock.type) && !isChecked && stepStatus === 'idle' && currentBlock.type === 'multiple-choice' && !userAnswers[currentBlock.id]}
+                disabled={!isChecked && stepStatus === 'idle' && currentBlock.type === 'multiple-choice' && !userAnswers[currentBlock.id]}
                 className={`w-full py-4 rounded-2xl font-black text-xl tracking-wide uppercase transition-all active:translate-y-1 active:border-b-0 border-b-4 shadow-lg animate-pop ${colorClass}`}
             >
                 {label}
@@ -1007,9 +1049,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 return (
                     <div className="space-y-6">
                         {renderProgressiveHints(currentBlock)}
-                        <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center" dir="auto">
-                            {currentBlock.content.question}
-                        </h2>
+                        <h2
+                            className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center"
+                            dir="auto"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content.question || '') }}
+                        />
                         <div className="grid gap-4">
                             {currentBlock.content.options?.map((opt: any, idx: number) => {
                                 const text = typeof opt === 'string' ? opt : opt.value || opt.answer;
@@ -1051,17 +1095,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 const openQuestionAttemptCount = openQuestionAttempts[currentBlock.id] || 0;
                 return (
                     <div className="space-y-6 w-full max-w-4xl mx-auto">
-                        <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center" dir="auto">
-                            {currentBlock.content.question}
-                        </h2>
+                        <h2
+                            className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center"
+                            dir="auto"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content.question || '') }}
+                        />
                         <textarea
-                            className={`w-full p-4 rounded-2xl border-2 focus:ring-4 min-h-[200px] text-lg resize-none transition-all ${
-                                stepStatus === 'success'
+                            className={`w-full p-4 rounded-2xl border-2 focus:ring-4 min-h-[200px] text-lg resize-none transition-all ${stepStatus === 'success'
                                     ? 'border-green-400 bg-green-50 focus:border-green-500 focus:ring-green-500/10'
                                     : feedbackMsg && stepStatus === 'ready_to_check'
                                         ? 'border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/10'
                                         : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'
-                            }`}
+                                }`}
                             placeholder="הקלד את תשובתך כאן..."
                             dir="auto"
                             disabled={stepStatus === 'success'}
@@ -1070,14 +1115,20 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         />
 
                         {/* Scaffolded Feedback Display */}
-                        {feedbackMsg && stepStatus !== 'success' && stepStatus !== 'failure' && (
-                            <div className="animate-in slide-in-from-top-2 bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-amber-900">
+                        {feedbackMsg && stepStatus !== 'failure' && (
+                            <div className={`animate-in slide-in-from-top-2 border-2 rounded-2xl p-4 ${
+                                stepStatus === 'success'
+                                    ? 'bg-green-50 border-green-200 text-green-900'
+                                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                            }`}>
                                 <div className="flex items-start gap-3">
-                                    <span className="text-2xl">💭</span>
+                                    <span className="text-2xl">{stepStatus === 'success' ? '🎉' : '💭'}</span>
                                     <div className="flex-1">
-                                        <p className="font-bold text-lg mb-1">משוב מהמורה:</p>
+                                        <p className="font-bold text-lg mb-1">
+                                            {stepStatus === 'success' ? 'כל הכבוד!' : 'משוב מהמורה:'}
+                                        </p>
                                         <p className="whitespace-pre-line">{feedbackMsg}</p>
-                                        {openQuestionAttemptCount > 0 && (
+                                        {openQuestionAttemptCount > 0 && stepStatus !== 'success' && (
                                             <p className="text-sm mt-2 text-amber-700">
                                                 ניסיון {openQuestionAttemptCount} • נסה לשפר את התשובה ולחץ שוב על "בדיקה"
                                             </p>
@@ -1113,11 +1164,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             case 'text':
                 return (
                     <div className="space-y-8 text-right w-full max-w-4xl mx-auto" dir="rtl">
-                        <div className="text-slate-800 prose prose-lg md:prose-2xl max-w-none prose-headings:text-indigo-600 prose-headings:font-black prose-p:text-slate-700 prose-p:font-bold prose-p:leading-relaxed prose-strong:text-indigo-700">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {currentBlock.content}
-                            </ReactMarkdown>
-                        </div>
+                        <div
+                            className="text-slate-800 prose prose-lg md:prose-2xl max-w-none prose-headings:text-indigo-600 prose-headings:font-black prose-p:text-slate-700 prose-p:font-bold prose-p:leading-relaxed prose-strong:text-indigo-700"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content) }}
+                        />
                     </div>
                 );
             case 'video':
@@ -1272,10 +1322,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // --- Submission Handler ---
     const handleSubmitActivity = async () => {
-        if (isSubmitting || hasSubmitted) return;
+        console.log("🚀 handleSubmitActivity called!", { isSubmitting, hasSubmitted, courseId: course?.id });
+        if (isSubmitting || hasSubmitted) {
+            console.log("⚠️ Submission blocked - isSubmitting:", isSubmitting, "hasSubmitted:", hasSubmitted);
+            return;
+        }
 
         const courseId = course?.id;
         if (!courseId) {
+            console.log("⚠️ No courseId found!");
             alert('שגיאה: לא נמצא מזהה קורס');
             return;
         }
@@ -1341,7 +1396,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 }
             };
 
+            console.log("📤 Submitting data:", submissionData);
             const result = await submitAssignment(submissionData);
+            console.log("✅ Submission result:", result);
 
             if (result.success) {
                 setHasSubmitted(true);
@@ -1349,7 +1406,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 alert(`הפעילות הוגשה בהצלחה! ציון: ${finalScore}%`);
             }
         } catch (error) {
-            console.error('Submission error:', error);
+            console.error('❌ Submission error:', error);
             alert('שגיאה בהגשת הפעילות. נסה שוב.');
         } finally {
             setIsSubmitting(false);
@@ -1407,13 +1464,12 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         <button
                             onClick={handleSubmitActivity}
                             disabled={isSubmitting || hasSubmitted}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${
-                                hasSubmitted
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${hasSubmitted
                                     ? 'bg-green-500 text-white cursor-default'
                                     : isSubmitting
                                         ? 'bg-white/30 text-white/70 cursor-wait'
                                         : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 border border-green-300/30'
-                            }`}
+                                }`}
                             title="הגש פעילות"
                         >
                             {hasSubmitted ? (
@@ -1455,16 +1511,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         {shouldShowSource && (
                             <button
                                 onClick={() => setShowSourcePanel(!showSourcePanel)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition border ${
-                                    showSourcePanel
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition border ${showSourcePanel
                                         ? 'bg-white text-blue-600 border-white'
                                         : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-                                }`}
-                                title={showSourcePanel ? 'סגור מסמך מקור' : 'הצג מסמך מקור'}
+                                    }`}
+                                title={showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
                             >
                                 <IconBook className="w-5 h-5" />
                                 <span className="font-bold text-sm hidden sm:inline">
-                                    {showSourcePanel ? 'סגור מקור' : 'הצג מקור'}
+                                    {showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
                                 </span>
                             </button>
                         )}
@@ -1755,13 +1810,12 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             {/* Adaptive Toast Notification (Challenge Mode / Mastery Skip) */}
             {adaptiveToast?.show && (
                 <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top-5 fade-in duration-500">
-                    <div className={`px-6 py-4 rounded-2xl shadow-2xl border-2 flex items-center gap-4 min-w-[300px] ${
-                        adaptiveToast.type === 'challenge'
+                    <div className={`px-6 py-4 rounded-2xl shadow-2xl border-2 flex items-center gap-4 min-w-[300px] ${adaptiveToast.type === 'challenge'
                             ? 'bg-gradient-to-r from-purple-500 to-indigo-600 border-purple-300 text-white'
                             : adaptiveToast.type === 'success'
                                 ? 'bg-gradient-to-r from-green-500 to-emerald-600 border-green-300 text-white'
                                 : 'bg-gradient-to-r from-blue-500 to-cyan-600 border-blue-300 text-white'
-                    }`}>
+                        }`}>
                         <span className="text-3xl">
                             {adaptiveToast.type === 'challenge' ? '🚀' : adaptiveToast.type === 'success' ? '🏆' : 'ℹ️'}
                         </span>

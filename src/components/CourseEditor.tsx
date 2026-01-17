@@ -1156,7 +1156,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     data.settings?.includeBot !== false, // includeBot
                     data.settings?.productType, // 🆕 Product Type (will route to exam_generation_queue if 'exam')
                     data.settings?.activityLength, // 🆕 Activity Length
-                    data.settings?.taxonomy // 🆕 Taxonomy
+                    data.settings?.taxonomy, // 🆕 Taxonomy
+                    data.settings?.questionPreferences // 🆕 הגדרות מתקדמות לסוגי שאלות
                 );
             }
 

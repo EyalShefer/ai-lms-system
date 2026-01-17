@@ -90,11 +90,11 @@ export const getSkeletonPrompt = (
     9. **INTERACTION DIVERSITY RULE (CRITICAL - NO REPETITION):**
        - You MUST vary the interaction types across steps. NEVER use the same type twice in a row.
        - **Available Types by Bloom Level:**
-         * Remember: memory_game, multiple_choice, true_false, fill_in_blank
-         * Understand: multiple_choice, fill_in_blank, matching
-         * Apply: categorization, ordering, fill_in_blank
-         * Analyze: categorization, ordering, open_question
-         * Evaluate/Create: open_question
+         * Remember: memory_game, multiple_choice, true_false, fill_in_blank, matching, highlight
+         * Understand: multiple_choice, fill_in_blank, matching, sentence_builder, highlight, matrix
+         * Apply: categorization, ordering, fill_in_blank, sentence_builder, table_completion, image_labeling
+         * Analyze: categorization, ordering, open_question, text_selection, table_completion
+         * Evaluate/Create: open_question, rating_scale, text_selection
        - **Diversity Algorithm:** If Step N uses "multiple_choice", Step N+1 MUST use a DIFFERENT type.
        - **Distribution Target:** For ${stepCount} steps, aim for at least 3 different interaction types.
 
@@ -312,6 +312,79 @@ export const getStepContentPrompt = (
 
           // 7. AUDIO RESPONSE (Simulated Oral Exam):
           // { "question": "Explain in your own words...", "max_duration": 60 }
+
+          // === 8 NEW QUESTION TYPES ===
+
+          // 8. MATCHING (מתיחת קו / התאמה):
+          // {
+          //   "instruction": "התאימו בין הפריטים...",
+          //   "leftItems": [{ "id": "1", "text": "פריט 1" }, { "id": "2", "text": "פריט 2" }],
+          //   "rightItems": [{ "id": "a", "text": "התאמה 1" }, { "id": "b", "text": "התאמה 2" }],
+          //   "correctMatches": [{ "left": "1", "right": "a" }, { "left": "2", "right": "b" }]
+          // }
+
+          // 9. HIGHLIGHT (הקפה / סימון בטקסט):
+          // {
+          //   "instruction": "סמנו את המילים הנכונות...",
+          //   "text": "הטקסט המלא עם המילים לסימון",
+          //   "correctHighlights": [{ "start": 0, "end": 5, "text": "מילה" }],
+          //   "highlightType": "background" | "circle" | "underline"
+          // }
+
+          // 10. SENTENCE_BUILDER (בניית משפט ממילים):
+          // {
+          //   "instruction": "סדרו את המילים למשפט תקין...",
+          //   "words": ["היום", "יפה", "מאוד", "השמש"],
+          //   "correctSentence": "השמש היום יפה מאוד"
+          // }
+
+          // 11. IMAGE_LABELING (תיוג תמונה):
+          // {
+          //   "instruction": "גררו את התוויות למקומות המתאימים...",
+          //   "imageUrl": "https://...",
+          //   "labels": [{ "id": "1", "text": "תווית 1" }],
+          //   "dropZones": [{ "id": "zone1", "x": 50, "y": 100, "correctLabelId": "1" }]
+          // }
+
+          // 12. TABLE_COMPLETION (השלמת טבלה):
+          // {
+          //   "instruction": "השלימו את הטבלה...",
+          //   "headers": ["עמודה 1", "עמודה 2"],
+          //   "rows": [
+          //     { "cells": [{ "value": "ערך", "editable": false }, { "value": "", "editable": true, "correctAnswer": "תשובה" }] }
+          //   ]
+          // }
+
+          // 13. TEXT_SELECTION (בחירה מטקסט):
+          // {
+          //   "instruction": "בחרו את המילים המתאימות...",
+          //   "text": "טקסט ארוך עם מילים לבחירה",
+          //   "selectableUnits": "word" | "sentence" | "paragraph",
+          //   "correctSelections": ["מילה1", "מילה2"],
+          //   "minSelections": 1,
+          //   "maxSelections": 3
+          // }
+
+          // 14. RATING_SCALE (סקאלת דירוג):
+          // {
+          //   "question": "דרגו את רמת ההסכמה שלכם...",
+          //   "minValue": 1,
+          //   "maxValue": 5,
+          //   "minLabel": "לא מסכים כלל",
+          //   "maxLabel": "מסכים מאוד",
+          //   "correctAnswer": 4,  // Optional - for questions with correct answer
+          //   "showNumbers": true
+          // }
+
+          // 15. MATRIX (מטריקס / טבלת שאלות):
+          // {
+          //   "instruction": "ענו על כל השאלות...",
+          //   "columns": ["נכון", "לא נכון", "לא ניתן לדעת"],
+          //   "rows": [
+          //     { "question": "שאלה 1", "correctAnswer": "נכון" },
+          //     { "question": "שאלה 2", "correctAnswer": "לא נכון" }
+          //   ]
+          // }
        }
     }
 `;
@@ -1143,4 +1216,236 @@ ${textbookContext}
 
 **חשוב:** התוכן שנוצר חייב להתבסס על חומר הספר לעיל.
 השתמש באותה שפה, מונחים ודוגמאות.
+`;
+
+// ============================================
+// NEW QUESTION TYPE PROMPTS (8 New Types)
+// ============================================
+
+export const getMatchingPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Matching Activity (connect items from two columns).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Create pairs that students need to match.
+Rules:
+1. Create 4-6 pairs of related items.
+2. Left column could be: terms, events, people, causes.
+3. Right column could be: definitions, dates, descriptions, effects.
+4. Each left item has exactly ONE correct match on the right.
+5. Make sure matches are unambiguous.
+
+JSON Output:
+{
+  "instruction": "התאימו בין הפריטים בעמודה השמאלית לפריטים בעמודה הימנית:",
+  "leftItems": [
+    { "id": "l1", "text": "Item 1" },
+    { "id": "l2", "text": "Item 2" }
+  ],
+  "rightItems": [
+    { "id": "r1", "text": "Match 1" },
+    { "id": "r2", "text": "Match 2" }
+  ],
+  "correctMatches": [
+    { "left": "l1", "right": "r1" },
+    { "left": "l2", "right": "r2" }
+  ]
+}
+`;
+
+export const getHighlightPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Text Highlighting Activity (mark correct words/phrases in text).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Write a short paragraph where students need to highlight specific words/phrases.
+Rules:
+1. Write 2-4 sentences of text.
+2. Include 2-5 words/phrases that need to be highlighted.
+3. Give clear instruction about WHAT to highlight (e.g., "סמנו את כל הפעלים", "סמנו את הסיבות").
+4. Provide exact character positions for correct highlights.
+
+JSON Output:
+{
+  "instruction": "סמנו את המילים שמתארות [קריטריון]:",
+  "text": "הטקסט המלא כאן עם מילים לסימון",
+  "correctHighlights": [
+    { "start": 5, "end": 10, "text": "מילה1" },
+    { "start": 20, "end": 28, "text": "מילה2" }
+  ],
+  "highlightType": "background"
+}
+`;
+
+export const getSentenceBuilderPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Sentence Building Activity (arrange scrambled words into correct sentence).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Create a meaningful sentence that students need to reconstruct.
+Rules:
+1. Sentence should be 5-10 words long (appropriate for grade level).
+2. Sentence should convey an important concept from the topic.
+3. Provide words in scrambled order (not the correct order).
+4. For younger grades: shorter sentences, simpler vocabulary.
+
+JSON Output:
+{
+  "instruction": "סדרו את המילים למשפט תקין:",
+  "words": ["word3", "word1", "word4", "word2"],
+  "correctSentence": "word1 word2 word3 word4"
+}
+`;
+
+export const getImageLabelingPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create an Image Labeling Activity (drag labels onto an image).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Design labels for a diagram or image.
+Rules:
+1. Create 3-6 labels for different parts of an image/diagram.
+2. Labels should be short (1-3 words).
+3. Provide approximate positions (x,y as percentages 0-100).
+4. Describe what image would be needed.
+
+JSON Output:
+{
+  "instruction": "גררו את התוויות למקומות המתאימים בתמונה:",
+  "imageDescription": "תיאור התמונה הדרושה",
+  "labels": [
+    { "id": "label1", "text": "תווית 1" },
+    { "id": "label2", "text": "תווית 2" },
+    { "id": "label3", "text": "תווית 3" }
+  ],
+  "dropZones": [
+    { "id": "zone1", "x": 20, "y": 30, "correctLabelId": "label1" },
+    { "id": "zone2", "x": 50, "y": 50, "correctLabelId": "label2" },
+    { "id": "zone3", "x": 70, "y": 20, "correctLabelId": "label3" }
+  ]
+}
+`;
+
+export const getTableCompletionPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Table Completion Activity (fill in missing cells).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Create a table with some cells for students to fill in.
+Rules:
+1. Table should have 2-4 columns and 2-4 rows.
+2. Include a mix of given values and cells to complete.
+3. Make headers clear and descriptive.
+4. Answers should be inferable from context or knowledge.
+
+JSON Output:
+{
+  "instruction": "השלימו את התאים החסרים בטבלה:",
+  "headers": ["עמודה 1", "עמודה 2", "עמודה 3"],
+  "rows": [
+    {
+      "cells": [
+        { "value": "נתון", "editable": false },
+        { "value": "", "editable": true, "correctAnswer": "תשובה" },
+        { "value": "נתון", "editable": false }
+      ]
+    },
+    {
+      "cells": [
+        { "value": "", "editable": true, "correctAnswer": "תשובה" },
+        { "value": "נתון", "editable": false },
+        { "value": "", "editable": true, "correctAnswer": "תשובה" }
+      ]
+    }
+  ]
+}
+`;
+
+export const getTextSelectionPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Text Selection Activity (select correct words/sentences from text).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Write text where students need to select specific parts.
+Rules:
+1. Write 3-5 sentences of educational content.
+2. Define what students should select (e.g., "all adjectives", "main ideas", "causes").
+3. List the exact words/sentences that should be selected.
+4. Specify the unit of selection (word, sentence, or paragraph).
+
+JSON Output:
+{
+  "instruction": "בחרו את כל [הקריטריון] מתוך הטקסט:",
+  "text": "הטקסט המלא. עם כמה משפטים. וחלקים לבחירה.",
+  "selectableUnits": "word",
+  "correctSelections": ["מילה1", "מילה2", "מילה3"],
+  "minSelections": 1,
+  "maxSelections": 5
+}
+`;
+
+export const getRatingScalePrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Rating Scale Question (rate on a scale).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Create a rating scale question.
+Rules:
+1. Question can be opinion-based (no correct answer) or knowledge-based (with correct answer).
+2. Use scale 1-5 for simple ratings, 1-10 for precise ratings.
+3. Provide clear labels for min and max values.
+4. If there's a correct answer, include it.
+
+JSON Output (opinion-based):
+{
+  "question": "עד כמה אתם מסכימים עם הטענה: [טענה]?",
+  "minValue": 1,
+  "maxValue": 5,
+  "minLabel": "לא מסכים בכלל",
+  "maxLabel": "מסכים מאוד",
+  "showNumbers": true
+}
+
+JSON Output (with correct answer):
+{
+  "question": "מה רמת החשיבות של [נושא]?",
+  "minValue": 1,
+  "maxValue": 5,
+  "minLabel": "לא חשוב",
+  "maxLabel": "חשוב מאוד",
+  "correctAnswer": 5,
+  "showNumbers": true
+}
+`;
+
+export const getMatrixPrompt = (topic: string, gradeLevel: string, sourceText?: string) => `
+Create a Matrix Question (multiple rows with same options).
+${sourceText ? `BASE ON THIS TEXT: """${sourceText.substring(0, 3000)}"""\nIgnore outside knowledge.` : `Topic: "${topic}"`}
+Target Audience: ${gradeLevel}.
+Language: Hebrew.
+
+Task: Create a matrix/grid question.
+Rules:
+1. Create 3-5 sub-questions (rows).
+2. All rows share the same answer options (columns).
+3. Options should be 2-4 choices (e.g., "נכון/לא נכון", "תמיד/לפעמים/אף פעם").
+4. Each row has exactly one correct answer.
+
+JSON Output:
+{
+  "instruction": "סמנו את התשובה הנכונה עבור כל שאלה:",
+  "columns": ["נכון", "לא נכון", "לא ניתן לקבוע"],
+  "rows": [
+    { "question": "טענה ראשונה", "correctAnswer": "נכון" },
+    { "question": "טענה שנייה", "correctAnswer": "לא נכון" },
+    { "question": "טענה שלישית", "correctAnswer": "נכון" }
+  ]
+}
 `;

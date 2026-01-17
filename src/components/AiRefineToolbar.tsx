@@ -113,8 +113,30 @@ const generateDefaultPrompt = (blockType: string, content: any): string => {
         case 'infographic':
             return `הוסף עוד נתון אחד לאינפוגרפיקה`;
 
+        // New question types
+        case 'highlight':
+            return `הוסף עוד 2 מילים או ביטויים לסימון`;
+
+        case 'sentence_builder':
+            return `הוסף עוד משפט אחד לבנייה`;
+
+        case 'image_labeling':
+            return `הוסף עוד 2 תוויות לתמונה`;
+
+        case 'table_completion':
+            return `הוסף עוד שורה אחת לטבלה`;
+
+        case 'text_selection':
+            return `הוסף עוד קטע טקסט לבחירה`;
+
+        case 'rating_scale':
+            return `הוסף תיאור לכל רמה בסקאלה`;
+
+        case 'matrix':
+            return `הוסף עוד שורה ועמודה למטריצה`;
+
         default:
-            return `שפרו את התוכן: פשטו שפה, הוסיפו דוגמאות, או שנו את הניסוח`;
+            return `פשט את השפה והוסף דוגמה`;
     }
 };
 

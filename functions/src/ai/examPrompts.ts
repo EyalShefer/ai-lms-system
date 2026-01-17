@@ -289,7 +289,7 @@ Output JSON Structure (STRICT):
       "assessment_focus": "Test ONLY [Specific Concept A]. E.g., 'Verify understanding of photosynthesis process.'",
       "forbidden_topics": ["Concept B", "Concept C"],
       "bloom_level": "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create",
-      "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question",
+      "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question" | "matching" | "highlight" | "sentence_builder" | "table_completion" | "text_selection" | "matrix",
       "points": number,
       "estimated_time_minutes": number,
       "difficulty_level": "easy" | "medium" | "hard"
@@ -420,7 +420,7 @@ Output JSON Structure (STRICT):
       "assessment_focus": "What is being tested",
       "forbidden_topics": ["Concept B"],
       "bloom_level": "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create",
-      "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question",
+      "suggested_interaction_type": "multiple_choice" | "true_false" | "ordering" | "categorization" | "fill_in_blanks" | "open_question" | "matching" | "highlight" | "sentence_builder" | "table_completion" | "text_selection" | "matrix",
       "points": number,
       "estimated_time_minutes": number,
       "difficulty_level": "easy" | "medium" | "hard"
@@ -789,25 +789,25 @@ export const getExamStructureGuide = (stepCount: number): string => {
         // Short Exam
         return `
 SHORT EXAM STRUCTURE (${stepCount} questions):
-- Question 1: Foundation (Remember/Understand) - Type: multiple_choice OR true_false
-- Question 2: Application (Apply/Analyze) - Type: categorization OR ordering OR fill_in_blanks
-- Question 3: Higher-Order (Evaluate/Create) - Type: open_question OR complex multiple_choice
+- Question 1: Foundation (Remember/Understand) - Type: multiple_choice, true_false, matching
+- Question 2: Application (Apply/Analyze) - Type: categorization, ordering, fill_in_blanks, table_completion
+- Question 3: Higher-Order (Evaluate/Create) - Type: open_question, text_selection, matrix
         `;
     } else if (stepCount >= 7) {
         // Long Exam
         return `
 LONG EXAM STRUCTURE (${stepCount} questions):
-- Questions 1-2: Foundation (Remember) - Type: multiple_choice, true_false, fill_in_blanks
-- Questions 3-5: Application (Apply/Analyze) - Type: ordering, categorization, multiple_choice
-- Questions 6-7: Higher-Order (Evaluate/Create) - Type: open_question, complex scenarios
+- Questions 1-2: Foundation (Remember) - Type: multiple_choice, true_false, fill_in_blanks, matching, highlight
+- Questions 3-5: Application (Apply/Analyze) - Type: ordering, categorization, multiple_choice, sentence_builder, table_completion
+- Questions 6-7: Higher-Order (Evaluate/Create) - Type: open_question, text_selection, matrix, complex scenarios
         `;
     } else {
         // Medium Exam (5 questions)
         return `
 MEDIUM EXAM STRUCTURE (${stepCount} questions):
-- Questions 1-2: Foundation (Remember/Understand) - Type: multiple_choice, true_false
-- Questions 3-4: Application (Apply/Analyze) - Type: categorization, ordering, fill_in_blanks
-- Question 5: Higher-Order (Evaluate/Create) - Type: open_question
+- Questions 1-2: Foundation (Remember/Understand) - Type: multiple_choice, true_false, matching, highlight
+- Questions 3-4: Application (Apply/Analyze) - Type: categorization, ordering, fill_in_blanks, sentence_builder, table_completion
+- Question 5: Higher-Order (Evaluate/Create) - Type: open_question, text_selection, matrix
         `;
     }
 };
@@ -905,7 +905,16 @@ export const calculateQuestionPoints = (bloomLevel: string, questionType: string
         'open_question': 15,
         'open-question': 15,
         'audio_response': 10,
-        'audio-response': 10
+        'audio-response': 10,
+        // New question types
+        'matching': 8,
+        'highlight': 6,
+        'sentence_builder': 8,
+        'image_labeling': 10,
+        'table_completion': 10,
+        'text_selection': 7,
+        'rating_scale': 5,
+        'matrix': 10
     };
 
     const multiplier = bloomMultipliers[bloomLevel] || 1.0;
@@ -926,7 +935,16 @@ export const estimateQuestionTime = (bloomLevel: string, questionType: string): 
         'fill_in_blanks': 3,
         'ordering': 4,
         'categorization': 5,
-        'open_question': 8
+        'open_question': 8,
+        // New question types
+        'matching': 3,
+        'highlight': 2,
+        'sentence_builder': 3,
+        'image_labeling': 4,
+        'table_completion': 4,
+        'text_selection': 3,
+        'rating_scale': 1,
+        'matrix': 4
     };
 
     const bloomModifiers: { [key: string]: number } = {

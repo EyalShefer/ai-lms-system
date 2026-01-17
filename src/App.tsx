@@ -23,10 +23,10 @@ const IngestionWizard = React.lazy(() => import('./components/IngestionWizard'))
 
 // --- Responsive Components (auto-switch between desktop/mobile) ---
 import {
-    ResponsiveHomePage as HomePage,
-    ResponsiveStudentHome as StudentHome,
-    ResponsiveSequentialCoursePlayer as SequentialCoursePlayer,
-    ResponsiveLandingPage as LandingPage
+  ResponsiveHomePage as HomePage,
+  ResponsiveStudentHome as StudentHome,
+  ResponsiveSequentialCoursePlayer as SequentialCoursePlayer,
+  ResponsiveLandingPage as LandingPage
 } from './components/ResponsiveWrappers';
 const AdaptiveDashboard = React.lazy(() => import('./components/dashboard/AdaptiveDashboard').then(module => ({ default: module.AdaptiveDashboard })));
 const TeacherControlCenter = React.lazy(() => import('./components/dashboard/TeacherControlCenter').then(module => ({ default: module.TeacherControlCenter })));
@@ -528,7 +528,7 @@ const AuthenticatedApp = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
       <header className={headerClass}>
-        <div className="flex items-center gap-3 cursor-pointer" onClick={handleBackToList}>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={isStudentLink ? undefined : handleBackToList}>
           <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-20 w-auto object-contain hover:opacity-90 transition-opacity" loading="lazy" decoding="async" />
         </div>
         <div className="flex items-center gap-4">
@@ -578,7 +578,7 @@ const AuthenticatedApp = () => {
             </button>
           )}
 
-          {mode === 'student-dashboard' && (
+          {mode === 'student-dashboard' && !isStudentLink && (
             <button
               onClick={() => setMode('list')}
               className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl transition-colors font-bold text-sm"
@@ -606,19 +606,25 @@ const AuthenticatedApp = () => {
               <>
                 {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
-                {mode === 'student' && <SequentialCoursePlayer
-                  assignment={currentAssignment || undefined}
-                  simulateGuest={isGuestMode}
-                  onExit={() => {
-                    if (cameFromStudentDashboard) {
-                      setCameFromStudentDashboard(false);
-                      setMode('student-dashboard');
-                    } else {
-                      setMode('editor');
-                    }
-                  }}
-                  onEdit={() => setMode('editor')}
-                />}
+                {mode === 'student' && (() => {
+                  console.log("📱 App: Rendering SequentialCoursePlayer in STUDENT mode");
+                  return (
+                    <SequentialCoursePlayer
+                      assignment={currentAssignment || undefined}
+                      simulateGuest={isGuestMode}
+                      onExit={() => {
+                        console.log("🔙 App: onExit called from SequentialCoursePlayer");
+                        if (cameFromStudentDashboard) {
+                          setCameFromStudentDashboard(false);
+                          setMode('student-dashboard');
+                        } else {
+                          setMode('editor');
+                        }
+                      }}
+                      onEdit={() => setMode('editor')}
+                    />
+                  );
+                })()}
                 {mode === 'dashboard' && (
                   <TeacherDashboard
                     onEditCourse={handleCourseSelect}

@@ -3,11 +3,14 @@ import { useDropzone } from 'react-dropzone';
 import {
     IconBrain, IconArrowBack, IconSparkles,
     IconCheck, IconX, IconBook, IconWand, IconCloudUpload, IconVideo,
-    IconHeadphones, IconTarget, IconJoystick, IconLibrary
+    IconHeadphones, IconTarget, IconJoystick, IconLibrary, IconBalance,
+    IconChevronDown, IconChevronUp
 } from '../icons';
 import { MultimodalService, TRANSCRIPTION_ERROR_CODES } from '../services/multimodalService';
 import TextbookSelector from './TextbookSelector';
 import type { TextbookSelection } from '../services/textbookService';
+import { auth, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -25,6 +28,76 @@ const SUBJECTS = [
 ];
 
 type ProductType = 'lesson' | 'podcast' | 'exam' | 'activity' | null;
+
+// === פרופילי סוגי שאלות ===
+type QuestionProfile = 'balanced' | 'educational' | 'game' | 'custom';
+
+interface QuestionTypeConfig {
+    enabled: boolean;
+    priority: number; // 1-3 (1 = גבוה)
+}
+
+interface QuestionPreferences {
+    profile: QuestionProfile;
+    customSettings?: Record<string, QuestionTypeConfig>;
+}
+
+const QUESTION_PROFILES: Record<QuestionProfile, {
+    label: string;
+    description: string;
+    icon: 'balance' | 'book' | 'joystick' | 'wand';
+    color: string;
+    allowedTypes: string[];
+    priorityTypes: string[];
+}> = {
+    balanced: {
+        label: 'מאוזן',
+        description: 'שילוב מגוון של כל סוגי השאלות',
+        icon: 'balance',
+        color: 'blue',
+        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'open_question', 'matching', 'highlight', 'sentence_builder'],
+        priorityTypes: ['multiple_choice', 'fill_in_blanks', 'categorization']
+    },
+    educational: {
+        label: 'לימודי',
+        description: 'שאלות מדידות עם משוב מפורט, ללא משחקים',
+        icon: 'book',
+        color: 'indigo',
+        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'open_question', 'matching', 'table_completion', 'text_selection'],
+        priorityTypes: ['multiple_choice', 'open_question', 'fill_in_blanks', 'ordering']
+    },
+    game: {
+        label: 'משחקי',
+        description: 'אינטראקטיבי וחוויתי, משחקי זיכרון ואתגרים',
+        icon: 'joystick',
+        color: 'pink',
+        allowedTypes: ['memory_game', 'ordering', 'categorization', 'matching', 'sentence_builder', 'true_false', 'highlight'],
+        priorityTypes: ['memory_game', 'categorization', 'matching', 'ordering']
+    },
+    custom: {
+        label: 'מותאם אישית',
+        description: 'בחירה ידנית של סוגי השאלות',
+        icon: 'wand',
+        color: 'purple',
+        allowedTypes: [], // מוגדר על ידי המשתמש
+        priorityTypes: []
+    }
+};
+
+const ALL_QUESTION_TYPES = [
+    { id: 'multiple_choice', label: 'בחירה מרובה', category: 'basic' },
+    { id: 'true_false', label: 'נכון/לא נכון', category: 'basic' },
+    { id: 'fill_in_blanks', label: 'השלמת חסר', category: 'basic' },
+    { id: 'ordering', label: 'סידור בסדר', category: 'logic' },
+    { id: 'categorization', label: 'מיון לקטגוריות', category: 'logic' },
+    { id: 'matching', label: 'התאמה', category: 'logic' },
+    { id: 'memory_game', label: 'משחק זיכרון', category: 'game' },
+    { id: 'open_question', label: 'שאלה פתוחה', category: 'advanced' },
+    { id: 'sentence_builder', label: 'בניית משפט', category: 'advanced' },
+    { id: 'highlight', label: 'סימון בטקסט', category: 'advanced' },
+    { id: 'table_completion', label: 'השלמת טבלה', category: 'advanced' },
+    { id: 'text_selection', label: 'בחירת טקסט', category: 'advanced' }
+];
 
 const PRODUCT_CONFIG: Record<string, {
     titleLabel: string;
@@ -286,6 +359,71 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     const [isDifferentiated, setIsDifferentiated] = useState(false);
 
+    // הגדרות מתקדמות לסוגי שאלות
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+    const [questionProfile, setQuestionProfile] = useState<QuestionProfile>('balanced');
+    const [customQuestionTypes, setCustomQuestionTypes] = useState<string[]>(
+        ALL_QUESTION_TYPES.map(t => t.id) // ברירת מחדל: הכל מופעל
+    );
+    const [savedProfileLoaded, setSavedProfileLoaded] = useState(false); // האם נטען פרופיל שמור
+
+    // טעינת העדפות המורה מ-Firestore
+    useEffect(() => {
+        const loadTeacherPreferences = async () => {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                const prefDoc = await getDoc(doc(db, 'teacher_preferences', user.uid));
+                if (prefDoc.exists()) {
+                    const data = prefDoc.data();
+                    if (data.questionProfile) {
+                        setQuestionProfile(data.questionProfile);
+                        setSavedProfileLoaded(true);
+                    }
+                    if (data.customQuestionTypes && Array.isArray(data.customQuestionTypes)) {
+                        setCustomQuestionTypes(data.customQuestionTypes);
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to load teacher preferences:', err);
+            }
+        };
+
+        loadTeacherPreferences();
+    }, []);
+
+    // שמירת העדפות המורה כשמשנה פרופיל
+    const saveTeacherPreferences = async (profile: QuestionProfile, customTypes: string[]) => {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        try {
+            await setDoc(doc(db, 'teacher_preferences', user.uid), {
+                questionProfile: profile,
+                customQuestionTypes: customTypes,
+                updatedAt: new Date()
+            }, { merge: true });
+            setSavedProfileLoaded(true);
+        } catch (err) {
+            console.warn('Failed to save teacher preferences:', err);
+        }
+    };
+
+    // עדכון פרופיל עם שמירה
+    const handleProfileChange = (newProfile: QuestionProfile) => {
+        setQuestionProfile(newProfile);
+        saveTeacherPreferences(newProfile, customQuestionTypes);
+    };
+
+    // עדכון סוגי שאלות מותאמים אישית עם שמירה
+    const handleCustomTypesChange = (newTypes: string[]) => {
+        setCustomQuestionTypes(newTypes);
+        if (questionProfile === 'custom') {
+            saveTeacherPreferences(questionProfile, newTypes);
+        }
+    };
+
     useEffect(() => {
         console.log("DEBUG: IngestionWizard MOUNTED");
         return () => { };
@@ -472,7 +610,17 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     courseMode,
                     // showSourceToStudent,
                     productType: selectedProduct, // Pass the product type!
-                    isDifferentiated // Pass new flag
+                    isDifferentiated, // Pass new flag
+                    // הגדרות מתקדמות לסוגי שאלות
+                    questionPreferences: {
+                        profile: questionProfile,
+                        allowedTypes: questionProfile === 'custom'
+                            ? customQuestionTypes
+                            : QUESTION_PROFILES[questionProfile].allowedTypes,
+                        priorityTypes: questionProfile === 'custom'
+                            ? customQuestionTypes.slice(0, 4)
+                            : QUESTION_PROFILES[questionProfile].priorityTypes
+                    }
                 },
                 targetAudience: grade
             };
@@ -854,6 +1002,106 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                         })}
                                     </div>
                                 </div>
+
+                                {/* === הגדרות מתקדמות - סוגי שאלות === */}
+                                {selectedProduct !== 'podcast' && (
+                                    <div className="mt-4 pt-4 border-t border-slate-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                                            className="flex items-center gap-2 text-sm text-slate-500 hover:text-wizdi-royal transition-colors w-full"
+                                        >
+                                            {showAdvancedSettings ? <IconChevronUp className="w-4 h-4" /> : <IconChevronDown className="w-4 h-4" />}
+                                            <span className="font-medium">הגדרות מתקדמות</span>
+                                            <span className="text-xs text-slate-400 mr-auto flex items-center gap-1">
+                                                פרופיל: {QUESTION_PROFILES[questionProfile].label}
+                                                {savedProfileLoaded && <span className="text-green-500">(הפרופיל שלך)</span>}
+                                            </span>
+                                        </button>
+
+                                        {showAdvancedSettings && (
+                                            <div className="mt-4 animate-fade-in">
+                                                <label className="block text-sm font-bold text-slate-700 mb-3">סגנון שאלות</label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {(Object.entries(QUESTION_PROFILES) as [QuestionProfile, typeof QUESTION_PROFILES['balanced']][]).map(([key, profile]) => {
+                                                        const IconComponent = profile.icon === 'balance' ? IconBalance
+                                                            : profile.icon === 'book' ? IconBook
+                                                            : profile.icon === 'joystick' ? IconJoystick
+                                                            : IconWand;
+
+                                                        return (
+                                                            <button
+                                                                key={key}
+                                                                type="button"
+                                                                onClick={() => handleProfileChange(key)}
+                                                                className={`
+                                                                    p-3 rounded-xl border-2 transition-all text-right flex items-start gap-3
+                                                                    ${questionProfile === key
+                                                                        ? `border-${profile.color}-500 bg-${profile.color}-50 shadow-sm`
+                                                                        : 'border-slate-100 bg-white hover:border-slate-200'}
+                                                                `}
+                                                            >
+                                                                <div className={`
+                                                                    p-2 rounded-lg shrink-0
+                                                                    ${questionProfile === key ? `bg-${profile.color}-100 text-${profile.color}-600` : 'bg-slate-100 text-slate-400'}
+                                                                `}>
+                                                                    <IconComponent className="w-5 h-5" />
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className={`font-bold text-sm ${questionProfile === key ? 'text-slate-800' : 'text-slate-600'}`}>
+                                                                        {profile.label}
+                                                                    </div>
+                                                                    <div className="text-xs text-slate-400 leading-tight mt-0.5">
+                                                                        {profile.description}
+                                                                    </div>
+                                                                </div>
+                                                                {questionProfile === key && (
+                                                                    <IconCheck className={`w-4 h-4 text-${profile.color}-500 shrink-0`} />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* בחירה מותאמת אישית */}
+                                                {questionProfile === 'custom' && (
+                                                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                        <label className="block text-sm font-medium text-slate-600 mb-3">בחר סוגי שאלות:</label>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {ALL_QUESTION_TYPES.map(qType => (
+                                                                <label
+                                                                    key={qType.id}
+                                                                    className={`
+                                                                        flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors
+                                                                        ${customQuestionTypes.includes(qType.id)
+                                                                            ? 'bg-purple-50 border border-purple-200'
+                                                                            : 'bg-white border border-slate-100 hover:bg-slate-50'}
+                                                                    `}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={customQuestionTypes.includes(qType.id)}
+                                                                        onChange={(e) => {
+                                                                            const newTypes = e.target.checked
+                                                                                ? [...customQuestionTypes, qType.id]
+                                                                                : customQuestionTypes.filter(t => t !== qType.id);
+                                                                            handleCustomTypesChange(newTypes);
+                                                                        }}
+                                                                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                                                    />
+                                                                    <span className="text-sm text-slate-700">{qType.label}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                        {customQuestionTypes.length === 0 && (
+                                                            <p className="text-xs text-orange-500 mt-2">⚠️ בחר לפחות סוג שאלה אחד</p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm transition-all duration-300">

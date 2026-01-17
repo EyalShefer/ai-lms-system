@@ -121,6 +121,120 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
                 visualType: 'flowchart' // 'flowchart' | 'timeline' | 'comparison' | 'cycle'
             };
             break;
+        case 'matching':
+            content = {
+                instruction: 'התאימו בין הפריטים בעמודה השמאלית לפריטים בעמודה הימנית:',
+                leftItems: [
+                    { id: 'l1', text: 'פריט שמאל 1' },
+                    { id: 'l2', text: 'פריט שמאל 2' },
+                    { id: 'l3', text: 'פריט שמאל 3' }
+                ],
+                rightItems: [
+                    { id: 'r1', text: 'פריט ימין 1' },
+                    { id: 'r2', text: 'פריט ימין 2' },
+                    { id: 'r3', text: 'פריט ימין 3' }
+                ],
+                correctMatches: [
+                    { left: 'l1', right: 'r1' },
+                    { left: 'l2', right: 'r2' },
+                    { left: 'l3', right: 'r3' }
+                ],
+                hints: []
+            };
+            break;
+        case 'highlight':
+            content = {
+                instruction: 'סמנו את המילה או הביטוי הנכון בטקסט:',
+                text: 'בירת ישראל היא ירושלים. העיר הגדולה ביותר היא תל אביב.',
+                correctHighlights: [
+                    { start: 15, end: 22, text: 'ירושלים' }
+                ],
+                highlightType: 'background',
+                hints: []
+            };
+            break;
+        case 'sentence_builder':
+            content = {
+                instruction: 'סדרו את המילים למשפט תקין:',
+                words: ['הולך', 'לבית הספר', 'הילד', 'בבוקר'],
+                correctSentence: 'הילד הולך לבית הספר בבוקר',
+                hints: []
+            };
+            break;
+        case 'image_labeling':
+            content = {
+                instruction: 'גררו את התוויות למקומות המתאימים בתמונה:',
+                imageUrl: '',
+                labels: [
+                    { id: 'label1', text: 'תווית 1' },
+                    { id: 'label2', text: 'תווית 2' },
+                    { id: 'label3', text: 'תווית 3' }
+                ],
+                dropZones: [
+                    { id: 'zone1', x: 20, y: 30, width: 15, height: 10, correctLabelId: 'label1' },
+                    { id: 'zone2', x: 50, y: 50, width: 15, height: 10, correctLabelId: 'label2' },
+                    { id: 'zone3', x: 70, y: 20, width: 15, height: 10, correctLabelId: 'label3' }
+                ],
+                hints: []
+            };
+            break;
+        case 'table_completion':
+            content = {
+                instruction: 'השלימו את התאים החסרים בטבלה:',
+                headers: ['עמודה א׳', 'עמודה ב׳', 'עמודה ג׳'],
+                rows: [
+                    {
+                        cells: [
+                            { value: 'נתון 1', editable: false },
+                            { value: '', editable: true, correctAnswer: 'תשובה 1' },
+                            { value: 'נתון 2', editable: false }
+                        ]
+                    },
+                    {
+                        cells: [
+                            { value: '', editable: true, correctAnswer: 'תשובה 2' },
+                            { value: 'נתון 3', editable: false },
+                            { value: '', editable: true, correctAnswer: 'תשובה 3' }
+                        ]
+                    }
+                ],
+                hints: []
+            };
+            break;
+        case 'text_selection':
+            content = {
+                instruction: 'בחרו את כל המילים שמתארות רגשות:',
+                text: 'הילד היה שמח מאוד כשקיבל את המתנה. הוא הרגיש נרגש וגאה בעצמו.',
+                selectableUnits: 'word',
+                correctSelections: ['שמח', 'נרגש', 'גאה'],
+                minSelections: 1,
+                maxSelections: 5,
+                hints: []
+            };
+            break;
+        case 'rating_scale':
+            content = {
+                question: 'עד כמה אתם מסכימים עם הטענה הבאה?',
+                minValue: 1,
+                maxValue: 5,
+                minLabel: 'לא מסכים בכלל',
+                maxLabel: 'מסכים מאוד',
+                correctAnswer: undefined,
+                showNumbers: true
+            };
+            break;
+        case 'matrix':
+            content = {
+                instruction: 'סמנו את התשובה הנכונה עבור כל שאלה:',
+                columns: ['נכון', 'לא נכון', 'לא בטוח'],
+                rows: [
+                    { question: 'השמש זורחת במזרח', correctAnswer: 'נכון' },
+                    { question: 'הירח גדול מכדור הארץ', correctAnswer: 'לא נכון' },
+                    { question: 'יש חיים על מאדים', correctAnswer: 'לא בטוח' }
+                ],
+                hints: []
+            };
+            break;
         case 'text':
             content = '<h3>כותרת</h3><p>לחצו כאן כדי לערוך את התוכן...</p>';
             break;

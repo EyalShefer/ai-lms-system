@@ -71,26 +71,19 @@ service cloud.firestore {
       // Teachers can create courses
       allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
 
-      // Only the teacher who created the course can read/update/delete it
-      // OR students who are explicitly assigned to this course
-      // OR QA testers for testing purposes
-      allow read: if isAuthenticated() && (
-        resource.data.teacherId == request.auth.uid ||
-        (resource.data.studentIds != null && request.auth.uid in resource.data.studentIds) ||
-        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith) ||
-        isQATester()
-      );
+      // Read access:
+      // - Teachers can read their own courses
+      // - Students can access via shared links (any authenticated user)
+      // - QA testers for testing purposes
+      // NOTE: For student links (studentCourseId), we allow any authenticated user to read
+      allow read: if isAuthenticated();
 
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
 
       // Units sub-collection - inherits course permissions
       match /units/{unitId} {
-        allow read: if isAuthenticated() && (
-          get(/databases/$(database)/documents/courses/$(courseId)).data.teacherId == request.auth.uid ||
-          (get(/databases/$(database)/documents/courses/$(courseId)).data.studentIds != null &&
-           request.auth.uid in get(/databases/$(database)/documents/courses/$(courseId)).data.studentIds) ||
-          isQATester()
-        );
+        // Any authenticated user can read units (for student links)
+        allow read: if isAuthenticated();
 
         allow write: if isAuthenticated() &&
           get(/databases/$(database)/documents/courses/$(courseId)).data.teacherId == request.auth.uid;
@@ -113,15 +106,8 @@ service cloud.firestore {
       // Teachers can create assignments
       allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
 
-      // Teachers can read their own assignments
-      // Students can read assignments assigned to them
-      // QA testers can read all assignments
-      allow read: if isAuthenticated() && (
-        resource.data.teacherId == request.auth.uid ||
-        resource.data.studentId == request.auth.uid ||
-        (resource.data.studentIds != null && request.auth.uid in resource.data.studentIds) ||
-        isQATester()
-      );
+      // Any authenticated user can read assignments (for student links)
+      allow read: if isAuthenticated();
 
       // Only the teacher can update/delete
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
@@ -132,13 +118,8 @@ service cloud.firestore {
       // Teachers can create student tasks
       allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
 
-      // Teachers and assigned students can read
-      // QA testers can read all tasks
-      allow read: if isAuthenticated() && (
-        resource.data.teacherId == request.auth.uid ||
-        resource.data.studentId == request.auth.uid ||
-        isQATester()
-      );
+      // Any authenticated user can read tasks (for student links)
+      allow read: if isAuthenticated();
 
       // Teachers can update/delete
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;

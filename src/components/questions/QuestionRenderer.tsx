@@ -12,6 +12,16 @@ const TrueFalseSpeedQuestion = lazy(() => import('./TrueFalseSpeedQuestion'));
 const OpenQuestion = lazy(() => import('./OpenQuestion'));
 const InteractiveChatBlock = lazy(() => import('./InteractiveChatBlock'));
 
+// New question types
+const MatchingQuestion = lazy(() => import('./MatchingQuestion'));
+const HighlightQuestion = lazy(() => import('./HighlightQuestion'));
+const SentenceBuilderQuestion = lazy(() => import('./SentenceBuilderQuestion'));
+const ImageLabelingQuestion = lazy(() => import('./ImageLabelingQuestion'));
+const TableCompletionQuestion = lazy(() => import('./TableCompletionQuestion'));
+const TextSelectionQuestion = lazy(() => import('./TextSelectionQuestion'));
+const RatingScaleQuestion = lazy(() => import('./RatingScaleQuestion'));
+const MatrixQuestion = lazy(() => import('./MatrixQuestion'));
+
 interface QuestionRendererProps {
   block: ActivityBlock;
   currentStepIndex: number;
@@ -86,6 +96,30 @@ export const QuestionRenderer = memo(function QuestionRenderer({
       case 'open-question':
       case 'audio-response':
         return <OpenQuestion {...commonProps} />;
+
+      case 'matching':
+        return <MatchingQuestion {...commonProps} />;
+
+      case 'highlight':
+        return <HighlightQuestion {...commonProps} />;
+
+      case 'sentence_builder':
+        return <SentenceBuilderQuestion {...commonProps} />;
+
+      case 'image_labeling':
+        return <ImageLabelingQuestion {...commonProps} />;
+
+      case 'table_completion':
+        return <TableCompletionQuestion {...commonProps} />;
+
+      case 'text_selection':
+        return <TextSelectionQuestion {...commonProps} />;
+
+      case 'rating_scale':
+        return <RatingScaleQuestion {...commonProps} />;
+
+      case 'matrix':
+        return <MatrixQuestion {...commonProps} />;
 
       case 'interactive-chat':
         return (

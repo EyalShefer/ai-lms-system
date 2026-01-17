@@ -57,6 +57,69 @@ export interface RawAiItem {
 
     // Fill in Blanks
     word_bank?: string[];
+
+    // === NEW QUESTION TYPES (8 additional types) ===
+
+    // Matching (התאמה / מתיחת קו)
+    leftItems?: { id: string; text: string }[];
+    rightItems?: { id: string; text: string }[];
+    correctMatches?: { left: string; right: string }[];
+    left_items?: { id: string; text: string }[];
+    right_items?: { id: string; text: string }[];
+    correct_matches?: { left: string; right: string }[];
+
+    // Highlight (הקפה / סימון)
+    correctHighlights?: { start: number; end: number; text: string }[];
+    correct_highlights?: { start: number; end: number; text: string }[];
+    highlightType?: 'circle' | 'underline' | 'background';
+    highlight_type?: 'circle' | 'underline' | 'background';
+
+    // Sentence Builder (סידור משפטים)
+    words?: string[];
+    correctSentence?: string;
+    correct_sentence?: string;
+
+    // Image Labeling (תיוג תמונה)
+    imageUrl?: string;
+    image_url?: string;
+    labels?: { id: string; text: string }[];
+    dropZones?: { id: string; x: number; y: number; correctLabelId: string }[];
+    drop_zones?: { id: string; x: number; y: number; correctLabelId: string }[];
+    imageDescription?: string;
+    image_description?: string;
+
+    // Table Completion (השלמת טבלה)
+    headers?: string[];
+    rows?: { cells: { value: string; editable: boolean; correctAnswer?: string }[] }[] | any[];
+
+    // Text Selection (בחירת טקסט)
+    selectableUnits?: 'word' | 'sentence' | 'paragraph';
+    selectable_units?: 'word' | 'sentence' | 'paragraph';
+    correctSelections?: string[];
+    correct_selections?: string[];
+    minSelections?: number;
+    min_selections?: number;
+    maxSelections?: number;
+    max_selections?: number;
+
+    // Rating Scale (סקאלת דירוג)
+    minValue?: number;
+    min_value?: number;
+    maxValue?: number;
+    max_value?: number;
+    minLabel?: string;
+    min_label?: string;
+    maxLabel?: string;
+    max_label?: string;
+    showNumbers?: boolean;
+    show_numbers?: boolean;
+
+    // Matrix (מטריקס)
+    columns?: string[];
+    // rows already defined above for table_completion
+
+    // Generic hints (used by all new types)
+    hints?: string[];
 }
 
 // Moved to courseTypes.ts

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 import { MathRenderer } from './MathRenderer';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface MultipleChoiceQuestionProps {
     block: ActivityBlock;
@@ -95,7 +96,7 @@ const MultipleChoiceQuestion: React.FC<MultipleChoiceQuestionProps> = ({
                 {hasMath(block.content.question) ? (
                     <MathRenderer content={block.content.question} />
                 ) : (
-                    block.content.question
+                    <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
                 )}
             </h3>
 

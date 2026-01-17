@@ -283,7 +283,12 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         // Default assumptions
                         let isCorrect = false;
                         let score = 0;
-                        const isMultipleChoice = ['multiple-choice', 'cloze', 'ordering', 'categorization'].includes(block.type);
+                        const isMultipleChoice = [
+                            'multiple-choice', 'cloze', 'ordering', 'categorization',
+                            // 8 New Question Types with correct answer
+                            'matching', 'highlight', 'sentence_builder', 'image_labeling',
+                            'table_completion', 'text_selection', 'matrix'
+                        ].includes(block.type);
 
                         if (block.type === 'open-question') {
                             // Check for persisted score
@@ -713,7 +718,11 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
                     // Identify Scorable Blocks (ALL Types in Exam Mode)
-                    const scorableTypes = ['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game', 'audio-response'];
+                    const scorableTypes = [
+                        'multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game', 'audio-response',
+                        // 8 New Question Types
+                        'matching', 'highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix'
+                    ];
                     const isScorable = scorableTypes.includes(block.type) || block.metadata?.relatedQuestion;
 
                     if (isScorable) {
@@ -853,7 +862,11 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         course?.syllabus?.forEach(module => {
             module.learningUnits.forEach(unit => {
                 unit.activityBlocks?.forEach(block => {
-                    if (['multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game'].includes(block.type)) {
+                    if ([
+                        'multiple-choice', 'cloze', 'ordering', 'categorization', 'open-question', 'memory_game',
+                        // 8 New Question Types
+                        'matching', 'highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix'
+                    ].includes(block.type)) {
                         totalQuestions++;
                         if (userAnswers[block.id]) answeredCount++;
                     }
@@ -1271,9 +1284,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             <h3 className="text-xl font-bold text-gray-800">שאלה פתוחה</h3>
                         </div>
 
-                        <div className="mb-4 text-lg font-medium text-gray-700 leading-relaxed">
-                            {block.content.question}
-                        </div>
+                        <div
+                            className="mb-4 text-lg font-medium text-gray-700 leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }}
+                        />
 
                         {getMediaSrc() && (
                             <div className="mb-4 rounded-xl overflow-hidden">
@@ -1466,7 +1480,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                         )}
                         <h4 className="font-bold mb-3 text-lg flex items-center gap-2">
                             <span className="bg-blue-100 text-blue-800 text-xs font-black px-2 py-1 rounded-full">שאלה פתוחה</span>
-                            {block.content.question}
+                            <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
                         </h4>
                         {catMedia && (
                             <div className="mb-4 rounded-xl overflow-hidden max-w-2xl mx-auto">

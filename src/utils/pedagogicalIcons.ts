@@ -81,7 +81,12 @@ export function getIconForBlockType(blockType: string): typeof IconBook {
     if (blockType === 'open-question' || blockType === 'interactive-chat') return IconChat;
 
     // Interactive games → Practice (Joystick)
-    if (['memory_game', 'ordering', 'categorization', 'fill_in_blanks', 'matching', 'true_false_speed'].includes(blockType)) {
+    if ([
+        'memory_game', 'ordering', 'categorization', 'fill_in_blanks', 'true_false_speed',
+        // 8 New Question Types
+        'matching', 'highlight', 'sentence_builder', 'image_labeling',
+        'table_completion', 'text_selection', 'rating_scale', 'matrix'
+    ].includes(blockType)) {
         return PEDAGOGICAL_PHASES.practice.icon;
     }
 
@@ -111,12 +116,17 @@ export function getPedagogicalPhase(
     }
 
     // Questions/Assessments → Practice or Summary
-    if (['multiple-choice', 'true_false_speed', 'open-question'].includes(blockType)) {
+    if (['multiple-choice', 'true_false_speed', 'open-question', 'rating_scale', 'matrix'].includes(blockType)) {
         return blockIndex > totalBlocks * 0.7 ? 'summary' : 'practice';
     }
 
     // Interactive games → Practice
-    if (['memory_game', 'ordering', 'categorization', 'fill_in_blanks'].includes(blockType)) {
+    if ([
+        'memory_game', 'ordering', 'categorization', 'fill_in_blanks',
+        // 8 New Question Types
+        'matching', 'highlight', 'sentence_builder', 'image_labeling',
+        'table_completion', 'text_selection'
+    ].includes(blockType)) {
         return 'practice';
     }
 

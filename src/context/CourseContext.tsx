@@ -102,6 +102,14 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const pendingSaveRef = useRef<{ course: Course; bookContent: string; pdf: string | null } | null>(null);
 
+    // Refs to access latest values without causing re-renders
+    const courseRef = useRef(course);
+    const fullBookContentRef = useRef(fullBookContent);
+    const pdfSourceRef = useRef(pdfSource);
+    courseRef.current = course;
+    fullBookContentRef.current = fullBookContent;
+    pdfSourceRef.current = pdfSource;
+
     // Load Gamification Profile
     useEffect(() => {
         if (!currentUser) {
@@ -182,7 +190,18 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     }));
                 }
 
-                setCourseState(sanitizeCourseData(data, docSnap.id));
+                if (docSnap.id === currentCourseId) {
+                    const newCourse = sanitizeCourseData(data, docSnap.id);
+                    setCourseState(prev => {
+                        // Deep comparison to prevent unnecessary re-renders
+                        if (JSON.stringify(prev) === JSON.stringify(newCourse)) {
+                            // console.log("CourseContext: Data unchanged, skipping update");
+                            return prev;
+                        }
+                        console.log("CourseContext: Data changed, updating state");
+                        return newCourse;
+                    });
+                }
                 setFullBookContentState(data.fullBookContent || "");
                 setPdfSourceState(data.pdfSource || null);
             } else {
@@ -262,47 +281,53 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 ? (newCourse as (prev: Course) => Course)(prevCourse)
                 : newCourse;
 
-            // Side effect: Save to Cloud with the RESOLVED object
-            // We use the resolved value immediately
-            saveToCloud(resolvedCourse, fullBookContent, pdfSource);
+            // Side effect: Save to Cloud with the RESOLVED object using refs
+            saveToCloud(resolvedCourse, fullBookContentRef.current, pdfSourceRef.current);
 
             return resolvedCourse;
         });
-    }, [saveToCloud, fullBookContent, pdfSource]);
+    }, [saveToCloud]);
 
-    // WARNING: Memoizing setCourse with fullBookContent dependency means it changes when content changes.
-    // This might trigger re-renders if App depends on setCourse.
-    // Ideally, we want 'loadCourse' to be stable (dependency-free).
-    // 'setCourse' is less critical for the infinite loop in App.tsx (which depends on loadCourse).
+    // Use refs to create stable callbacks that don't change on every render
+    const setFullBookContent = React.useCallback((text: string) => {
+        setFullBookContentState(text);
+        saveToCloud(courseRef.current, text, pdfSourceRef.current);
+    }, [saveToCloud]);
 
-    // Let's TRY just stabilizing 'loadCourse' first, as that is the one App.tsx calls.
-    // The others are called by Editor/components.
+    const setPdfSource = React.useCallback((data: string) => {
+        setPdfSourceState(data);
+        saveToCloud(courseRef.current, fullBookContentRef.current, data);
+    }, [saveToCloud]);
 
-    const setFullBookContent = (text: string) => { setFullBookContentState(text); saveToCloud(course, text, pdfSource); };
-    const setPdfSource = (data: string) => { setPdfSourceState(data); saveToCloud(course, fullBookContent, data); };
-
-    const updateCourseTitle = (newTitle: string) => {
-        const updated = { ...course, title: newTitle };
-        setCourseState(updated);
-        saveToCloud(updated, fullBookContent, pdfSource);
-    };
-
-    const updateLearningUnit = (moduleId: string, updatedUnit: LearningUnit) => {
-        const updatedCourse = { ...course };
-        updatedCourse.syllabus = updatedCourse.syllabus.map(m => {
-            if (m.id !== moduleId) return m;
-            return { ...m, learningUnits: m.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u) };
+    const updateCourseTitle = React.useCallback((newTitle: string) => {
+        setCourseState(prev => {
+            const updated = { ...prev, title: newTitle };
+            saveToCloud(updated, fullBookContentRef.current, pdfSourceRef.current);
+            return updated;
         });
-        setCourseState(updatedCourse);
-        saveToCloud(updatedCourse, fullBookContent, pdfSource);
-    };
+    }, [saveToCloud]);
+
+    const updateLearningUnit = React.useCallback((moduleId: string, updatedUnit: LearningUnit) => {
+        setCourseState(prev => {
+            const updatedCourse = { ...prev };
+            updatedCourse.syllabus = updatedCourse.syllabus.map(m => {
+                if (m.id !== moduleId) return m;
+                return { ...m, learningUnits: m.learningUnits.map(u => u.id === updatedUnit.id ? updatedUnit : u) };
+            });
+            saveToCloud(updatedCourse, fullBookContentRef.current, pdfSourceRef.current);
+            return updatedCourse;
+        });
+    }, [saveToCloud]);
+
+    // Memoize context value - only re-create when data actually changes
+    const contextValue = React.useMemo(() => ({
+        course, fullBookContent, pdfSource, currentCourseId,
+        gamificationProfile, triggerXp,
+        loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit
+    }), [course, fullBookContent, pdfSource, currentCourseId, gamificationProfile, triggerXp, loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit]);
 
     return (
-        <CourseContext.Provider value={{
-            course, fullBookContent, pdfSource, currentCourseId,
-            gamificationProfile, triggerXp,
-            loadCourse, setCourse, setFullBookContent, setPdfSource, updateCourseTitle, updateLearningUnit
-        }}>
+        <CourseContext.Provider value={contextValue}>
             {children}
         </CourseContext.Provider>
     );

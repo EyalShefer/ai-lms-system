@@ -22,6 +22,15 @@ export type ActivityBlockType =
     | 'hotspot'
     | 'mindmap'
     | 'infographic'
+    // New Interactive Question Types
+    | 'matching'           // Connect items with lines
+    | 'highlight'          // Circle/underline correct answers in text
+    | 'sentence_builder'   // Build sentence from scrambled words
+    | 'image_labeling'     // Drag labels onto image
+    | 'table_completion'   // Fill in missing cells in table
+    | 'text_selection'     // Select words/sentences from text
+    | 'rating_scale'       // Rate on a scale (1-5, 1-10)
+    | 'matrix'             // Matrix/grid with multiple rows and options
     // Activity-specific blocks
     | 'activity-intro'     // Context image for student activities (The Setting)
     | 'scenario-image';    // Scenario image within questions (The Dilemma)
@@ -69,6 +78,75 @@ export interface HotspotContent {
         height: number;
         feedback: string;
     }[];
+}
+
+// --- New Question Type Content Interfaces ---
+
+export interface MatchingContent {
+    instruction: string;
+    leftItems: { id: string; text: string }[];
+    rightItems: { id: string; text: string }[];
+    correctMatches: { left: string; right: string }[];
+    hints?: string[];
+}
+
+export interface HighlightContent {
+    instruction: string;
+    text: string;
+    correctHighlights: { start: number; end: number; text: string }[];
+    highlightType: 'circle' | 'underline' | 'background';
+    hints?: string[];
+}
+
+export interface SentenceBuilderContent {
+    instruction: string;
+    words: string[];
+    correctSentence: string;
+    hints?: string[];
+}
+
+export interface ImageLabelingContent {
+    instruction: string;
+    imageUrl: string;
+    labels: { id: string; text: string }[];
+    dropZones: { id: string; x: number; y: number; width?: number; height?: number; correctLabelId: string }[];
+    hints?: string[];
+}
+
+export interface TableCompletionContent {
+    instruction: string;
+    headers: string[];
+    rows: {
+        cells: { value: string; editable: boolean; correctAnswer?: string }[];
+    }[];
+    hints?: string[];
+}
+
+export interface TextSelectionContent {
+    instruction: string;
+    text: string;
+    selectableUnits: 'word' | 'sentence' | 'paragraph';
+    correctSelections: string[];
+    minSelections?: number;
+    maxSelections?: number;
+    hints?: string[];
+}
+
+export interface RatingScaleContent {
+    question: string;
+    minValue: number;
+    maxValue: number;
+    minLabel: string;
+    maxLabel: string;
+    correctAnswer?: number;
+    showNumbers: boolean;
+}
+
+export interface MatrixContent {
+    instruction: string;
+    columns: string[];
+    rows: { question: string; correctAnswer: string }[];
+    hints?: string[];
 }
 
 // --- Mind Map Types ---
@@ -273,6 +351,47 @@ export interface ScenarioImageBlock extends ActivityBlockBase {
     content: ScenarioImageContent;
 }
 
+// New Question Type Blocks
+export interface MatchingBlock extends ActivityBlockBase {
+    type: 'matching';
+    content: MatchingContent;
+}
+
+export interface HighlightBlock extends ActivityBlockBase {
+    type: 'highlight';
+    content: HighlightContent;
+}
+
+export interface SentenceBuilderBlock extends ActivityBlockBase {
+    type: 'sentence_builder';
+    content: SentenceBuilderContent;
+}
+
+export interface ImageLabelingBlock extends ActivityBlockBase {
+    type: 'image_labeling';
+    content: ImageLabelingContent;
+}
+
+export interface TableCompletionBlock extends ActivityBlockBase {
+    type: 'table_completion';
+    content: TableCompletionContent;
+}
+
+export interface TextSelectionBlock extends ActivityBlockBase {
+    type: 'text_selection';
+    content: TextSelectionContent;
+}
+
+export interface RatingScaleBlock extends ActivityBlockBase {
+    type: 'rating_scale';
+    content: RatingScaleContent;
+}
+
+export interface MatrixBlock extends ActivityBlockBase {
+    type: 'matrix';
+    content: MatrixContent;
+}
+
 export type ActivityBlock =
     | MultipleChoiceBlock
     | OpenQuestionBlock
@@ -284,7 +403,15 @@ export type ActivityBlock =
     | AudioResponseBlock
     | MindMapBlock
     | ActivityIntroBlock
-    | ScenarioImageBlock;
+    | ScenarioImageBlock
+    | MatchingBlock
+    | HighlightBlock
+    | SentenceBuilderBlock
+    | ImageLabelingBlock
+    | TableCompletionBlock
+    | TextSelectionBlock
+    | RatingScaleBlock
+    | MatrixBlock;
 
 export interface LearningUnit {
     id: string;

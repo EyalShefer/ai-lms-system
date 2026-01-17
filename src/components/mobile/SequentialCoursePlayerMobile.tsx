@@ -28,6 +28,7 @@ import OrderingQuestion from '../OrderingQuestion';
 import CategorizationQuestion from '../CategorizationQuestion';
 import MemoryGameQuestion from '../MemoryGameQuestion';
 import TrueFalseQuestion from '../TrueFalseQuestion';
+import { sanitizeHtml } from '../../utils/sanitize';
 import { PodcastPlayer } from '../PodcastPlayer';
 import { InfographicViewer } from '../InfographicViewer';
 import ReactMarkdown from 'react-markdown';
@@ -260,11 +261,10 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
         switch (blockType) {
             case 'text':
                 return (
-                    <div className="prose prose-lg max-w-none text-slate-800 dark:text-slate-200">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {typeof blockContent === 'string' ? blockContent : ''}
-                        </ReactMarkdown>
-                    </div>
+                    <div
+                        className="prose prose-lg max-w-none text-slate-800 dark:text-slate-200"
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(typeof blockContent === 'string' ? blockContent : '') }}
+                    />
                 );
 
             case 'video':
@@ -299,9 +299,10 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
 
                 return (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">
-                            {mcContent.question}
-                        </h3>
+                        <h3
+                            className="text-xl font-bold text-slate-800 dark:text-white mb-6"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(mcContent.question || '') }}
+                        />
                         <div className="space-y-3" role="radiogroup" aria-label="אפשרויות תשובה">
                             {mcContent.options.map((option, idx) => {
                                 const isSelected = selectedAnswer === option;
@@ -351,9 +352,10 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                 const oqContent = blockContent as { question: string };
                 return (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">
-                            {oqContent.question}
-                        </h3>
+                        <h3
+                            className="text-xl font-bold text-slate-800 dark:text-white mb-4"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(oqContent.question || '') }}
+                        />
                         <textarea
                             value={userAnswers[currentBlock.id] || ''}
                             onChange={(e) => handleAnswerSelect(e.target.value)}
@@ -553,21 +555,25 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                 </div>
 
                 {/* Feedback Message */}
-                {feedbackMsg && (stepStatus === 'success' || stepStatus === 'failure') && (
+                {feedbackMsg && (
                     <div
                         role="alert"
                         aria-live="polite"
                         className={`mt-4 p-4 rounded-xl text-center font-bold ${
                             stepStatus === 'success'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700'
-                                : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700'
+                                : stepStatus === 'failure'
+                                    ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700'
+                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700'
                         }`}
                     >
                         <span className="flex items-center justify-center gap-2">
                             {stepStatus === 'success' ? (
                                 <><IconCheck className="w-5 h-5" aria-hidden="true" /> {feedbackMsg}</>
-                            ) : (
+                            ) : stepStatus === 'failure' ? (
                                 <><IconX className="w-5 h-5" aria-hidden="true" /> {feedbackMsg}</>
+                            ) : (
+                                <><span className="text-lg" aria-hidden="true">💭</span> {feedbackMsg}</>
                             )}
                         </span>
                     </div>
@@ -591,38 +597,40 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                         <IconChevronRight className="w-7 h-7" />
                     </button>
 
-                    {/* Main Action Button */}
-                    <button
-                        onClick={handleCheck}
-                        disabled={isCheckingAnswer || (stepStatus === 'ready_to_check' && !userAnswers[currentBlock.id])}
-                        className={`flex-1 min-h-[56px] rounded-xl font-bold text-lg transition-all active:scale-[0.98] ${
-                            stepStatus === 'success'
-                                ? 'bg-green-500 text-white'
-                                : stepStatus === 'failure'
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-wizdi-action hover:bg-wizdi-action-hover text-white shadow-lg'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        aria-label={
-                            stepStatus === 'success' || stepStatus === 'failure'
-                                ? 'המשך'
-                                : stepStatus === 'ready_to_check'
-                                    ? 'בדוק'
-                                    : 'המשך'
-                        }
-                    >
-                        {isCheckingAnswer ? (
-                            <span className="flex items-center justify-center gap-2">
-                                <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                                בודק...
-                            </span>
-                        ) : stepStatus === 'success' || stepStatus === 'failure' ? (
-                            'המשך →'
-                        ) : stepStatus === 'ready_to_check' ? (
-                            'בדוק ✓'
-                        ) : (
-                            'המשך →'
-                        )}
-                    </button>
+                    {/* Main Action Button - Hidden for passive (non-question) blocks */}
+                    {!['text', 'video', 'image', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image', 'infographic'].includes(currentBlock.type) && (
+                        <button
+                            onClick={handleCheck}
+                            disabled={isCheckingAnswer || (stepStatus === 'ready_to_check' && !userAnswers[currentBlock.id])}
+                            className={`flex-1 min-h-[56px] rounded-xl font-bold text-lg transition-all active:scale-[0.98] ${
+                                stepStatus === 'success'
+                                    ? 'bg-green-500 text-white'
+                                    : stepStatus === 'failure'
+                                        ? 'bg-orange-500 text-white'
+                                        : 'bg-wizdi-action hover:bg-wizdi-action-hover text-white shadow-lg'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            aria-label={
+                                stepStatus === 'success' || stepStatus === 'failure'
+                                    ? 'המשך'
+                                    : stepStatus === 'ready_to_check'
+                                        ? 'בדוק'
+                                        : 'המשך'
+                            }
+                        >
+                            {isCheckingAnswer ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                                    בודק...
+                                </span>
+                            ) : stepStatus === 'success' || stepStatus === 'failure' ? (
+                                'המשך →'
+                            ) : stepStatus === 'ready_to_check' ? (
+                                'בדוק ✓'
+                            ) : (
+                                'בדיקה'
+                            )}
+                        </button>
+                    )}
 
                     {/* Forward Button */}
                     <button

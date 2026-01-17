@@ -71,6 +71,13 @@ const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'memory_game': 'משחק זיכרון',
     'true_false_speed': 'אמת או שקר',
     'matching': 'התאמה',
+    'highlight': 'סימון בטקסט',
+    'sentence_builder': 'בניית משפט',
+    'image_labeling': 'תיוג תמונה',
+    'table_completion': 'השלמת טבלה',
+    'text_selection': 'בחירה מטקסט',
+    'rating_scale': 'סקאלת דירוג',
+    'matrix': 'מטריקס',
     'audio-response': 'תשובה קולית',
     'mindmap': 'מפת חשיבה'
 };
@@ -1263,6 +1270,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('categorization', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('memory_game', index); }} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matching', index); }} className="insert-btn"><IconLink className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matching']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('highlight', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['highlight']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('sentence_builder', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['sentence_builder']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image_labeling', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image_labeling']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('table_completion', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['table_completion']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text_selection', index); }} className="insert-btn"><IconCheck className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text_selection']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('rating_scale', index); }} className="insert-btn"><IconBalance className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['rating_scale']}</span></button>
+                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matrix', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matrix']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
