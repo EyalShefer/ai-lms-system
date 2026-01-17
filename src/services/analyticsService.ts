@@ -372,45 +372,72 @@ const MOCK_STUDENTS = [
 ];
 
 /**
- * Generate mock journey for testing
+ * Generate mock journey for testing with variant information
+ * - Struggling students (high risk) → get scaffolding variants
+ * - Average students (medium risk) → get original variants
+ * - Advanced students (low risk) → get enrichment variants
  */
 const generateMockJourney = (risk: 'low' | 'medium' | 'high'): JourneyNode[] => {
     const nodes: JourneyNode[] = [];
     const now = Date.now();
     let time = now - 1000 * 60 * 60;
 
-    for (let i = 1; i <= 5; i++) {
+    // Determine primary variant based on risk level
+    const primaryVariant: 'scaffolding' | 'original' | 'enrichment' =
+        risk === 'high' ? 'scaffolding' :
+        risk === 'low' ? 'enrichment' : 'original';
+
+    for (let i = 1; i <= 8; i++) {
         const success = risk === 'low' ? Math.random() > 0.1 :
             risk === 'medium' ? Math.random() > 0.4 :
                 Math.random() > 0.7;
+
+        // Add content block first (every other question)
+        if (i % 2 === 1) {
+            nodes.push({
+                id: `content-${i}`,
+                type: 'content',
+                status: 'viewed',
+                timestamp: time,
+                connection: 'direct',
+                variantUsed: primaryVariant
+            });
+            time += 1000 * 60 * 2;
+        }
+
+        // Determine variant for this question
+        // Sometimes the system adjusts mid-activity based on performance
+        let questionVariant = primaryVariant;
+        if (risk === 'high' && i > 4 && Math.random() > 0.7) {
+            // Struggling student improving - might get original
+            questionVariant = 'original';
+        } else if (risk === 'low' && !success) {
+            // Advanced student struggling on one - might get original
+            questionVariant = 'original';
+        }
 
         nodes.push({
             id: `step-${i}`,
             type: 'question',
             status: success ? 'success' : 'failure',
             timestamp: time,
-            connection: 'direct'
+            connection: 'direct',
+            variantUsed: questionVariant
         });
         time += 1000 * 60 * 5;
 
         if (!success) {
+            // Remediation question - student usually succeeds (80%) on easier reinforcement question
+            const remediationSuccess = Math.random() > 0.2;
             nodes.push({
                 id: `remedial-${i}`,
                 type: 'remediation',
-                status: 'viewed',
+                status: remediationSuccess ? 'success' : 'failure',
                 timestamp: time,
-                connection: 'branched'
+                connection: 'branched',
+                variantUsed: 'scaffolding' // Remediation is always scaffolding
             });
             time += 1000 * 60 * 3;
-
-            nodes.push({
-                id: `retry-${i}`,
-                type: 'question',
-                status: 'success',
-                timestamp: time,
-                connection: 'branched'
-            });
-            time += 1000 * 60 * 2;
         }
     }
     return nodes;

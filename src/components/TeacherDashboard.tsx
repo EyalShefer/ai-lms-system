@@ -23,6 +23,7 @@ const CoursePlayer = React.lazy(() => import('./CoursePlayer'));
 const TeacherControlCenter = React.lazy(() => import('./dashboard/TeacherControlCenter').then(m => ({ default: m.TeacherControlCenter })));
 const TaskDetailDashboard = React.lazy(() => import('./dashboard/TaskDetailDashboard').then(m => ({ default: m.TaskDetailDashboard })));
 import { SmartGroupingPanel } from './SmartGroupingPanel';
+import { StudentLearningProfile } from './dashboard/StudentLearningProfile';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
 import { ShareModal } from './ShareModal';
@@ -82,11 +83,11 @@ interface TeacherDashboardProps {
 
 const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onClose: () => void }) => {
     const analytics = student.analytics;
-    if (!analytics) return null;
+    const [activeTab, setActiveTab] = useState<'ai' | 'adaptive'>('ai');
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in" dir="rtl">
-            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
+            <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
                 <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-6 text-white flex justify-between items-center">
                     <div>
                         <h3 className="text-2xl font-bold flex items-center gap-2">
@@ -97,69 +98,106 @@ const StudentInsightsModal = ({ student, onClose }: { student: StudentStat, onCl
                     <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-full transition-colors"><IconX className="w-6 h-6" /></button>
                 </div>
 
-                <div className="p-4 md:p-8 max-h-[70vh] overflow-y-auto">
-                    {/* Header Chips - Learning Metrics */}
-                    <div className="flex gap-4 mb-8 flex-wrap">
-                        <div className="bg-wizdi-royal/10 text-wizdi-royal px-4 py-2 rounded-xl font-bold border border-wizdi-royal/20 flex items-center gap-2">
-                            מעורבות: {analytics.engagementScore}%
-                        </div>
-                        {analytics.learningMetrics && (
-                            <>
-                                <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
-                                    שימוש ברמזים: {Math.round((analytics.learningMetrics.hintUsageRate || 0) * 100)}%
-                                </div>
-                                <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
-                                    השלמה: {Math.round((analytics.learningMetrics.completionRate || 0) * 100)}%
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        {/* Strengths */}
-                        <div className="bg-wizdi-lime/10 p-6 rounded-3xl border border-wizdi-lime/20">
-                            <h4 className="text-wizdi-lime font-bold mb-4 flex items-center gap-2 text-lg">
-                                <IconCheck className="w-5 h-5" /> מיומנויות חזקות
-                            </h4>
-                            <ul className="space-y-3">
-                                {analytics.strengths.map((s, i) => (
-                                    <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
-                                        <div className="w-1.5 h-1.5 bg-wizdi-lime rounded-full mt-2 shrink-0" />
-                                        {s}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Weaknesses */}
-                        <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100">
-                            <h4 className="text-amber-600 font-bold mb-4 flex items-center gap-2 text-lg">
-                                <IconFlag className="w-5 h-5" /> נושאים לחיזוק
-                            </h4>
-                            <ul className="space-y-3">
-                                {analytics.weaknesses.map((w, i) => (
-                                    <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
-                                        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-2 shrink-0" />
-                                        {w}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                    {/* Recommendation */}
-                    <div className="bg-wizdi-gold/10 p-6 rounded-3xl border border-wizdi-gold/20 flex gap-4 items-start">
-                        <div className="bg-white p-3 rounded-full shadow-lg text-wizdi-gold shrink-0">
-                            <IconSparkles className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h4 className="text-wizdi-royal font-bold text-lg mb-1">נושא מומלץ לתרגול</h4>
-                            <p className="text-slate-700 leading-relaxed opacity-90">
-                                {analytics.recommendedFocus}
-                            </p>
-                        </div>
-                    </div>
+                {/* Tab Switcher */}
+                <div className="flex border-b border-slate-200">
+                    <button
+                        onClick={() => setActiveTab('ai')}
+                        className={`flex-1 py-3 px-4 text-sm font-bold transition-colors ${activeTab === 'ai'
+                            ? 'text-wizdi-royal border-b-2 border-wizdi-royal bg-wizdi-royal/5'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <IconSparkles className="w-4 h-4 inline ml-2" />
+                        ניתוח AI
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('adaptive')}
+                        className={`flex-1 py-3 px-4 text-sm font-bold transition-colors ${activeTab === 'adaptive'
+                            ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <IconBrain className="w-4 h-4 inline ml-2" />
+                        פרופיל אדפטיבי
+                    </button>
                 </div>
+
+                {activeTab === 'ai' && analytics ? (
+                    <div className="p-4 md:p-8 max-h-[70vh] overflow-y-auto">
+                        {/* Header Chips - Learning Metrics */}
+                        <div className="flex gap-4 mb-8 flex-wrap">
+                            <div className="bg-wizdi-royal/10 text-wizdi-royal px-4 py-2 rounded-xl font-bold border border-wizdi-royal/20 flex items-center gap-2">
+                                מעורבות: {analytics.engagementScore}%
+                            </div>
+                            {analytics.learningMetrics && (
+                                <>
+                                    <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
+                                        שימוש ברמזים: {Math.round((analytics.learningMetrics.hintUsageRate || 0) * 100)}%
+                                    </div>
+                                    <div className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold border border-slate-200 flex items-center gap-2">
+                                        השלמה: {Math.round((analytics.learningMetrics.completionRate || 0) * 100)}%
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            {/* Strengths */}
+                            <div className="bg-wizdi-lime/10 p-6 rounded-3xl border border-wizdi-lime/20">
+                                <h4 className="text-wizdi-lime font-bold mb-4 flex items-center gap-2 text-lg">
+                                    <IconCheck className="w-5 h-5" /> מיומנויות חזקות
+                                </h4>
+                                <ul className="space-y-3">
+                                    {analytics.strengths.map((s, i) => (
+                                        <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
+                                            <div className="w-1.5 h-1.5 bg-wizdi-lime rounded-full mt-2 shrink-0" />
+                                            {s}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Weaknesses */}
+                            <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100">
+                                <h4 className="text-amber-600 font-bold mb-4 flex items-center gap-2 text-lg">
+                                    <IconFlag className="w-5 h-5" /> נושאים לחיזוק
+                                </h4>
+                                <ul className="space-y-3">
+                                    {analytics.weaknesses.map((w, i) => (
+                                        <li key={i} className="flex gap-3 text-slate-700 leading-relaxed font-bold opacity-80 text-sm">
+                                            <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-2 shrink-0" />
+                                            {w}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Recommendation */}
+                        <div className="bg-wizdi-gold/10 p-6 rounded-3xl border border-wizdi-gold/20 flex gap-4 items-start">
+                            <div className="bg-white p-3 rounded-full shadow-lg text-wizdi-gold shrink-0">
+                                <IconSparkles className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="text-wizdi-royal font-bold text-lg mb-1">נושא מומלץ לתרגול</h4>
+                                <p className="text-slate-700 leading-relaxed opacity-90">
+                                    {analytics.recommendedFocus}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                ) : activeTab === 'ai' && !analytics ? (
+                    <div className="p-8 text-center text-slate-500">
+                        <IconSparkles className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p>אין נתוני AI זמינים</p>
+                    </div>
+                ) : (
+                    /* Adaptive Profile Tab */
+                    <StudentLearningProfile
+                        studentId={student.id}
+                        studentName={student.name}
+                    />
+                )}
             </div>
         </div>
     );

@@ -226,6 +226,9 @@ export interface ActivityBlockMetadata {
     bloomLevel?: BloomLevel;
     score?: number; // 0-100 (הניקוד לשאלה)
 
+    // Curriculum topic identification (links to Knowledge Base chapters)
+    curriculumTopicId?: string; // e.g., "חיבור עד 100", "שברים פשוטים" - from curriculum chapter names
+
     // שדות לשאלות
     modelAnswer?: string;
     sourceHint?: string; // New: Hint pointing to source text

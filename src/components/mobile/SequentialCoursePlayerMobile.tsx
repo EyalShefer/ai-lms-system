@@ -229,22 +229,27 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                     ?.join('\n') || '';
 
                 const question = currentBlock.content?.question || '';
-                const modelAnswer = currentBlock.metadata?.modelAnswer || '';
+                const modelAnswer = currentBlock.metadata?.modelAnswer || currentBlock.content?.modelAnswer || '';
+
+                console.log('📝 [Mobile] Checking open question:', { question, answer, modelAnswer: modelAnswer?.substring(0, 50), sourceTextLength: sourceText.length });
 
                 const result = await checkOpenQuestionAnswer(
                     question, answer, modelAnswer, sourceText,
                     isExamMode ? 'exam' : 'learning'
                 );
 
+                console.log('✅ [Mobile] AI Response:', result);
+
                 if (result.status === 'correct') {
+                    setFeedbackMsg(result.feedback || 'מצוין! תשובה נכונה.');
                     processResult(true);
                 } else {
                     setFeedbackMsg(result.feedback || 'נסה שוב');
                     playSound('failure');
                 }
-            } catch (error) {
-                console.error('Error checking answer:', error);
-                setFeedbackMsg('שגיאה בבדיקה');
+            } catch (error: any) {
+                console.error('❌ [Mobile] Error checking answer:', error);
+                setFeedbackMsg('שגיאה בבדיקה. ' + (error?.message || ''));
             } finally {
                 setIsCheckingAnswer(false);
             }

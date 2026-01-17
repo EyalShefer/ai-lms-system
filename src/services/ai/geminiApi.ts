@@ -274,6 +274,8 @@ export const checkOpenQuestionAnswer = async (
     question: string, userAnswer: string, modelAnswer: string, sourceText: string, mode: 'learning' | 'exam' = 'learning'
 ) => {
     const prompt = getTutorPrompt(mode, sourceText, question, modelAnswer, userAnswer);
+    console.log('🔍 checkOpenQuestionAnswer - calling AI with prompt length:', prompt.length);
+
     try {
         const completion = await openaiClient.chat.completions.create({
             model: MODEL_NAME,
@@ -281,10 +283,17 @@ export const checkOpenQuestionAnswer = async (
             response_format: { type: "json_object" },
             temperature: 0.3
         });
-        const res = JSON.parse(completion.choices[0].message.content || "{}");
-        return { status: res.status || "partial", feedback: res.feedback_to_student || "Thank you." };
-    } catch (e) {
-        return { status: "partial", feedback: "Error checking answer." };
+
+        const rawContent = completion.choices[0].message.content || "{}";
+        console.log('🔍 AI raw response:', rawContent.substring(0, 200));
+
+        const res = JSON.parse(rawContent);
+        console.log('🔍 Parsed response:', res);
+
+        return { status: res.status || "partial", feedback: res.feedback_to_student || "תודה על התשובה." };
+    } catch (e: any) {
+        console.error('❌ checkOpenQuestionAnswer error:', e?.message, e);
+        return { status: "partial", feedback: "שגיאה בבדיקת התשובה. נסה שוב." };
     }
 };
 

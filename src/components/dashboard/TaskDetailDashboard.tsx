@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { AIStarsSpinner } from '../ui/Loading/AIStarsSpinner';
@@ -51,6 +52,7 @@ import { ReportCardSummaryCompact } from './ReportCardSummary';
 import { AiAssistantBanner } from './AiAssistantBanner';
 import { StudentConversationPanel } from './StudentConversationPanel';
 import { GamingAlertPanel, GamingAlertBadge } from './GamingAlertPanel';
+import { StudentMistakesPanel } from './StudentMistakesPanel';
 
 // Bloom Analytics
 import {
@@ -90,27 +92,18 @@ const formatTime = (seconds: number): string => {
 
 // ============ SUB-COMPONENTS ============
 
-// At Risk Students Count Card
-const AtRiskCard: React.FC<{ count: number }> = ({ count }) => (
-    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${count > 0 ? 'bg-gradient-to-br from-wizdi-action to-red-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
-            <IconAlertTriangle className="w-7 h-7" />
-        </div>
-        <div>
-            <div className={`text-4xl font-black ${count > 0 ? 'text-wizdi-action' : 'text-slate-800'}`}>{count}</div>
-            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">תלמידים בסיכון</div>
-        </div>
-    </div>
-);
-
 // Journey Summary Card (Compact) + Modal for full view
 const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) => {
     const [showModal, setShowModal] = useState(false);
 
-    // Calculate journey stats
+    // Calculate journey stats including variant analysis
     const stats = useMemo(() => {
         if (!student.journey || student.journey.length === 0) {
-            return { success: 0, failure: 0, remediation: 0, total: 0, completionRate: 0 };
+            return {
+                success: 0, failure: 0, remediation: 0, total: 0, completionRate: 0,
+                startingPath: null as 'scaffolding' | 'original' | 'enrichment' | null,
+                variantCounts: { scaffolding: 0, original: 0, enrichment: 0 }
+            };
         }
 
         const success = student.journey.filter(n => n.status === 'success').length;
@@ -119,7 +112,21 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
         const total = student.journey.length;
         const completionRate = total > 0 ? Math.round((success / (success + failure || 1)) * 100) : 0;
 
-        return { success, failure, remediation, total, completionRate };
+        // Analyze variants used
+        const variantCounts = { scaffolding: 0, original: 0, enrichment: 0 };
+        let startingPath: 'scaffolding' | 'original' | 'enrichment' | null = null;
+
+        student.journey.forEach((node, idx) => {
+            if (node.variantUsed) {
+                variantCounts[node.variantUsed]++;
+                // Get the first variant as starting path
+                if (idx === 0 || (startingPath === null && node.type === 'question')) {
+                    startingPath = node.variantUsed;
+                }
+            }
+        });
+
+        return { success, failure, remediation, total, completionRate, startingPath, variantCounts };
     }, [student.journey]);
 
     const hintsUsed = student.performance?.hintDependency
@@ -164,182 +171,199 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                         <span className="font-black text-lg">{stats.failure}</span>
                         <span className="text-xs">כישלונות</span>
                     </div>
-                    <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-xl">
+                    <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-2 rounded-xl">
                         <IconRefresh size={16} />
                         <span className="font-black text-lg">{stats.remediation}</span>
-                        <span className="text-xs">תגבורים</span>
-                    </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-4">
-                    <div className="flex justify-between text-xs text-slate-500 mb-1">
-                        <span>אחוז הצלחה</span>
-                        <span className="font-bold">{stats.completionRate}%</span>
-                    </div>
-                    <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                            className="h-full rounded-full transition-all bg-indigo-500"
-                            style={{ width: `${stats.completionRate}%` }}
-                        />
+                        <span className="text-xs">חיזוק</span>
                     </div>
                 </div>
 
                 {/* Additional Info */}
                 <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
                     <span className="flex items-center gap-1">
-                        <IconBulb size={14} className="text-amber-500" /> רמזים: <strong className="text-slate-700">{hintsUsed} שימושים</strong>
+                        <IconCheck size={14} className="text-indigo-500" /> הצלחה: <strong className="text-indigo-700">{stats.completionRate}%</strong>
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <IconBulb size={14} className="text-amber-500" /> רמזים: <strong className="text-slate-700">{hintsUsed}</strong>
                     </span>
                     <span className="flex items-center gap-1">
                         <IconClock size={14} className="text-slate-400" /> זמן ממוצע: <strong className="text-slate-700">{student.performance?.avgResponseTime || 0}s</strong>
                     </span>
                 </div>
+
+                {/* Starting Path - Simple display */}
+                {stats.startingPath && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-500">מסלול נוכחי:</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            stats.startingPath === 'scaffolding' ? 'bg-amber-100 text-amber-700' :
+                            stats.startingPath === 'enrichment' ? 'bg-purple-100 text-purple-700' :
+                            'bg-slate-100 text-slate-600'
+                        }`}>
+                            {stats.startingPath === 'scaffolding' ? 'תמיכה' :
+                             stats.startingPath === 'enrichment' ? 'העשרה' : 'ליבה'}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Full Journey Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Full Journey Modal - Using Portal to render above everything */}
+            {showModal && createPortal(
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 md:p-4" onClick={() => setShowModal(false)}>
+                    <div className="bg-gradient-to-b from-slate-50 to-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200 border border-slate-200" dir="rtl" onClick={e => e.stopPropagation()}>
                         {/* Modal Header */}
-                        <div className="bg-gradient-to-l from-indigo-600 to-purple-600 p-6 text-white">
+                        <div className="bg-white p-5 border-b border-slate-100 shrink-0 rounded-t-2xl">
                             <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-2xl font-bold flex items-center gap-2">
-                                        <IconActivity className="w-7 h-7" />
-                                        מסלול למידה: {student.name}
-                                    </h3>
-                                    <p className="text-indigo-200 mt-1">צפייה מפורטת בכל שלבי הלמידה</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                                        <IconActivity className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800">מסלול הלמידה של {student.name}</h3>
+                                        <p className="text-slate-500 text-sm">כל השלבים שהתלמיד עבר בפעילות</p>
+                                    </div>
                                 </div>
                                 <button
                                     onClick={() => setShowModal(false)}
-                                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
                                 >
-                                    <IconX size={24} />
+                                    <IconX size={20} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Legend */}
-                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-4 text-sm">
-                            <span className="font-bold text-slate-600">מקרא:</span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-4 h-4 rounded-full bg-indigo-500 border-2 border-indigo-600"></span>
-                                הצלחה
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-4 h-4 rounded-full bg-slate-400 border-2 border-slate-500"></span>
-                                כישלון
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-4 h-4 rounded-full bg-indigo-200 border-2 border-indigo-300"></span>
-                                תגבור
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-4 h-4 rounded-full bg-slate-200 border-2 border-slate-300"></span>
-                                צפייה בתוכן
-                            </span>
-                            <span className="flex items-center gap-1 text-indigo-500">
-                                - - - קו מקווקו = לולאת חיזוק
-                            </span>
-                        </div>
+                        {/* Scrollable Content Area */}
+                        <div className="flex-1 overflow-y-auto p-5">
+                            {/* Legend - מקרא */}
+                            <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-100">
+                                <div className="text-xs font-bold text-slate-500 mb-3">מקרא</div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded bg-green-500"></div>
+                                        <span className="text-slate-600">תשובה נכונה</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded bg-red-400"></div>
+                                        <span className="text-slate-600">תשובה שגויה</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded bg-slate-300"></div>
+                                        <span className="text-slate-600">צפייה בתוכן</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded bg-amber-400"></div>
+                                        <span className="text-slate-600">שאלת חיזוק</span>
+                                    </div>
+                                </div>
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                    <div className="text-xs font-bold text-slate-500 mb-2">רמת שאלה (התאמה אוטומטית)</div>
+                                    <div className="flex flex-wrap gap-4 text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 font-medium">תמיכה</span>
+                                            <span className="text-slate-500">מותאמת למתקשים</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 font-medium">ליבה</span>
+                                            <span className="text-slate-500">רמה סטנדרטית</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200 font-medium">העשרה</span>
+                                            <span className="text-slate-500">מאתגרת למתקדמים</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        {/* Journey Visual */}
-                        <div className="p-6 overflow-x-auto" dir="rtl">
-                            <div className="flex items-center gap-0 w-max px-4 min-w-full" dir="ltr">
+                            {/* Summary Stats */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-lg border border-green-100">
+                                    <IconCheck size={14} className="text-green-600" />
+                                    <span className="text-sm font-medium text-green-700">{student.journey.filter(n => n.status === 'success').length} נכונות</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
+                                    <IconX size={14} className="text-red-500" />
+                                    <span className="text-sm font-medium text-red-600">{student.journey.filter(n => n.status === 'failure').length} שגויות</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                                    <IconRefresh size={14} className="text-amber-600" />
+                                    <span className="text-sm font-medium text-amber-700">{student.journey.filter(n => n.type === 'remediation').length} חיזוק</span>
+                                </div>
+                            </div>
+
+                            {/* Journey Timeline */}
+                            <div className="space-y-2">
                                 {student.journey.map((node, idx) => {
                                     const isRemediation = node.type === 'remediation';
+                                    const isQuestion = node.type === 'question';
+                                    const isContent = node.type === 'content';
+                                    const isSuccess = node.status === 'success';
+                                    const isFailure = node.status === 'failure';
+
+                                    // Card background based on status
+                                    const cardBg = isSuccess ? 'bg-green-50/70 border-green-200' :
+                                                   isFailure ? 'bg-red-50/70 border-red-200' :
+                                                   'bg-white border-slate-200';
+
+                                    const typeLabel = isQuestion ? 'שאלה' : isContent ? 'תוכן' : 'שאלת חיזוק';
+                                    const statusLabel = isSuccess ? 'נכון' : isFailure ? 'שגוי' : isContent ? 'נצפה' : '';
+
+                                    // Step number background
+                                    const stepBg = isSuccess ? 'bg-green-500 text-white' :
+                                                   isFailure ? 'bg-red-400 text-white' :
+                                                   isRemediation ? 'bg-amber-400 text-white' :
+                                                   'bg-slate-200 text-slate-600';
+
+                                    // Indentation for remediation
+                                    const indent = isRemediation ? 'mr-6' : '';
 
                                     return (
-                                        <div key={idx} className="flex items-center">
-                                            <div className="relative flex flex-col items-center group">
-                                                {isRemediation && <div className="absolute inset-0 bg-indigo-300 blur-md opacity-50 animate-pulse rounded-full" />}
-
-                                                <div className={`w-14 h-14 rounded-full border-4 z-10 flex items-center justify-center shadow-lg relative
-                                                    ${node.status === 'success' ? 'bg-indigo-500 border-indigo-600' :
-                                                        node.status === 'failure' ? 'bg-slate-400 border-slate-500' :
-                                                            node.type === 'remediation' ? 'bg-indigo-200 border-indigo-300' : 'bg-slate-200 border-slate-300'}
-                                                    transition-transform hover:scale-110 cursor-pointer shrink-0
-                                                `}>
-                                                    {isRemediation ? <IconRefresh size={24} className="text-indigo-600" stroke={2} /> : node.status === 'success' ? <IconCheck size={24} className="text-white" stroke={3} /> : <IconX size={24} className="text-white" stroke={3} />}
-                                                </div>
-
-                                                {/* Step number */}
-                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 text-white text-xs font-bold rounded-full flex items-center justify-center shadow">
-                                                    {idx + 1}
-                                                </div>
-
-                                                {/* Tooltip */}
-                                                <div className="absolute top-full mt-3 text-center w-36 -left-12 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <div className="bg-white px-3 py-2 rounded-xl shadow-xl border border-slate-200 text-right">
-                                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                                            {node.type === 'question' ? <><IconHelpCircle size={12} /> שאלה</> :
-                                                                node.type === 'content' ? <><IconBook size={12} /> תוכן</> :
-                                                                    node.type === 'remediation' ? <><IconRefresh size={12} /> תגבור</> : node.type}
-                                                        </div>
-                                                        <div className={`text-xs mt-1 ${node.status === 'success' ? 'text-indigo-600' : node.status === 'failure' ? 'text-slate-500' : 'text-slate-500'}`}>
-                                                            {node.status === 'success' ? '✓ הצליח' : node.status === 'failure' ? '✗ נכשל' : 'צפה'}
-                                                        </div>
-                                                        {node.connection === 'branched' && (
-                                                            <div className="text-[10px] text-indigo-500 font-bold mt-1">לולאת חיזוק</div>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                        <div
+                                            key={idx}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border ${cardBg} ${indent} transition-all`}
+                                        >
+                                            {/* Step Number */}
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${stepBg}`}>
+                                                {idx + 1}
                                             </div>
 
-                                            {idx < student.journey.length - 1 && (
-                                                <div className={`h-1.5 w-12 mx-2 rounded-full shrink-0
-                                                    ${node.connection === 'branched' ? 'border-t-2 border-dashed border-indigo-400 bg-transparent' : 'bg-slate-300'}
-                                                `} />
+                                            {/* Type Label */}
+                                            <span className="text-sm text-slate-700">{typeLabel}</span>
+
+                                            {/* Status */}
+                                            {statusLabel && (
+                                                <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                                    isSuccess ? 'bg-green-100 text-green-700' :
+                                                    isFailure ? 'bg-red-100 text-red-600' :
+                                                    'bg-slate-100 text-slate-500'
+                                                }`}>
+                                                    {statusLabel}
+                                                </span>
+                                            )}
+
+                                            {/* Spacer */}
+                                            <div className="flex-1"></div>
+
+                                            {/* Variant Badge - Show for all variants including original */}
+                                            {node.variantUsed && (
+                                                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${
+                                                    node.variantUsed === 'scaffolding'
+                                                        ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                                        : node.variantUsed === 'enrichment'
+                                                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                }`}>
+                                                    {node.variantUsed === 'scaffolding' ? 'תמיכה' :
+                                                     node.variantUsed === 'enrichment' ? 'העשרה' : 'ליבה'}
+                                                </span>
                                             )}
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
-
-                        {/* Journey Table */}
-                        <div className="px-6 pb-6">
-                            <h4 className="font-bold text-slate-700 mb-3">פירוט שלבים</h4>
-                            <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-100 text-slate-600 sticky top-0">
-                                        <tr>
-                                            <th className="px-4 py-2 text-right">#</th>
-                                            <th className="px-4 py-2 text-right">סוג</th>
-                                            <th className="px-4 py-2 text-right">תוצאה</th>
-                                            <th className="px-4 py-2 text-right">הערות</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {student.journey.map((node, idx) => (
-                                            <tr key={idx} className="hover:bg-white">
-                                                <td className="px-4 py-2 font-bold text-slate-500">{idx + 1}</td>
-                                                <td className="px-4 py-2">
-                                                    <span className="flex items-center gap-1">
-                                                        {node.type === 'question' ? <><IconHelpCircle size={14} className="text-slate-500" /> שאלה</> :
-                                                            node.type === 'content' ? <><IconBook size={14} className="text-slate-500" /> תוכן</> :
-                                                                node.type === 'remediation' ? <><IconRefresh size={14} className="text-indigo-500" /> תגבור</> : node.type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-2">
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold
-                                                        ${node.status === 'success' ? 'bg-indigo-100 text-indigo-700' :
-                                                            node.status === 'failure' ? 'bg-slate-100 text-slate-600' : 'bg-slate-100 text-slate-600'}
-                                                    `}>
-                                                        {node.status === 'success' ? 'הצלחה' : node.status === 'failure' ? 'כישלון' : 'צפייה'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-2 text-slate-500 text-xs">
-                                                    {node.connection === 'branched' ? 'לולאת חיזוק' : '-'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );
@@ -1006,140 +1030,42 @@ const StudentDetailPanel: React.FC<{
                         </div>
                     </div>
 
-                    {/* Performance Metrics */}
-                    {student.performance && (
-                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
-                            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                <IconChartBar className="w-5 h-5 text-wizdi-royal" />
-                                מדדי ביצוע
-                            </h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-wizdi-royal/10 p-3 rounded-xl text-center">
-                                    <div className="text-xl font-black text-wizdi-royal">
-                                        {Math.round(student.performance.accuracy * 100)}%
-                                    </div>
-                                    <div className="text-[10px] text-wizdi-royal/70 font-bold uppercase">דיוק</div>
-                                </div>
-                                <div className="bg-slate-50 p-3 rounded-xl text-center">
-                                    <div className="text-xl font-black text-slate-700">
-                                        {student.performance.avgResponseTime}s
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase">זמן תגובה</div>
-                                </div>
-                                <div className="bg-slate-50 p-3 rounded-xl text-center">
-                                    <div className="text-xl font-black text-slate-700">
-                                        {student.performance.totalQuestions}
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase">שאלות</div>
-                                </div>
-                                <div className="bg-slate-50 p-3 rounded-xl text-center">
-                                    <div className="text-xl font-black text-slate-700">
-                                        {Math.round(student.performance.hintDependency * 100)}%
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase">רמזים</div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Report Card Summary */}
-                    <ReportCardSummaryCompact
-                        student={student}
-                        courseTitle={courseTitle || "פעילות לימודית"}
-                    />
                 </div>
 
                 {/* Right Column - Main Content */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Error Patterns */}
-                    {student.errorPatterns && Object.keys(student.errorPatterns).length > 0 && (
-                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
-                            <h4 className="text-slate-700 font-bold mb-4 flex items-center gap-2">
-                                <IconAlertTriangle className="w-5 h-5 text-wizdi-action" />
-                                דפוסי שגיאות נפוצים
+                <div className="lg:col-span-2 space-y-4">
+                    {/* Row 1: Bloom Taxonomy - Full width */}
+                    {bloomProfile ? (
+                        <BloomStudentBars
+                            profile={bloomProfile}
+                            classAverage={classBloomAverage}
+                            compact={false}
+                        />
+                    ) : (
+                        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+                            <h4 className="text-slate-700 font-bold mb-2 flex items-center gap-2 text-sm">
+                                <IconBrain className="w-4 h-4 text-purple-500" />
+                                רמות בלום
                             </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {Object.entries(student.errorPatterns).map(([pattern, count]) => (
-                                    <span key={pattern} className="bg-slate-50 px-4 py-2 rounded-xl text-sm border border-slate-200 flex items-center gap-2">
-                                        <span className="font-medium text-slate-700">{pattern}</span>
-                                        <span className="bg-wizdi-royal/10 text-wizdi-royal px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
-                                    </span>
-                                ))}
-                            </div>
+                            <p className="text-xs text-slate-400">אין נתונים זמינים</p>
                         </div>
                     )}
 
-                    {/* Bloom & Motivation - Side by Side */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Bloom Progress Bars - Individual Student */}
-                        {bloomProfile ? (
-                            <BloomStudentBars
-                                profile={bloomProfile}
-                                classAverage={classBloomAverage}
-                                compact={true}
-                            />
-                        ) : (
-                            <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
-                                <div className="p-4 border-b border-slate-100 bg-gradient-to-l from-purple-50 to-white">
-                                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                        <span className="w-2 h-5 bg-purple-500 rounded-full"></span>
-                                        ניתוח רמות בלום
-                                    </h3>
-                                </div>
-                                <div className="p-6 text-center">
-                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <IconBrain className="w-6 h-6 text-purple-400" />
-                                    </div>
-                                    <p className="text-sm text-slate-500">אין נתוני בלום זמינים</p>
-                                </div>
-                            </div>
-                        )}
+                    {/* Row 2: Mistakes Panel - Main Focus */}
+                    <StudentMistakesPanel
+                        studentId={student.id}
+                        courseId={courseId}
+                        studentName={student.name}
+                    />
 
-                        {/* Motivation Meter - Compact */}
-                        <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm">
-                            <h4 className="text-slate-700 font-bold mb-3 flex items-center gap-2 text-base">
-                                <IconActivity className="w-5 h-5 text-amber-500" />
-                                מד מוטיבציה
-                            </h4>
-                            <MotivationMeter student={student} size="md" />
-                        </div>
-                    </div>
-
-                    {/* AI Insights Section */}
-                    <div className="bg-gradient-to-br from-wizdi-royal/5 to-wizdi-cyan/5 border border-wizdi-royal/20 p-6 rounded-3xl flex gap-4">
-                        <div className="bg-gradient-to-br from-wizdi-royal to-wizdi-cyan p-3 rounded-xl h-fit text-white shadow-lg shrink-0">
-                            <IconBrain className="w-7 h-7" />
-                        </div>
-                        <div>
-                            <strong className="block text-lg font-bold mb-2 text-wizdi-royal">תובנות המערכת (AI)</strong>
-                            <p className="leading-relaxed text-slate-700">
-                                {student.riskLevel === 'high'
-                                    ? `התלמיד מגלה קושי (דיוק ${Math.round((student.performance?.accuracy || 0) * 100)}%). ${student.performance?.hintDependency && student.performance.hintDependency > 0.5 ? 'תלות גבוהה ברמזים.' : ''} מומלץ: תוכן מותאם עם פיגומים. ${Object.keys(student.errorPatterns || {}).length > 0 ? `שגיאות נפוצות: ${Object.keys(student.errorPatterns || {}).slice(0, 2).join(', ')}.` : ''}`
-                                    : student.riskLevel === 'low'
-                                        ? `התלמיד מצטיין! דיוק ${Math.round((student.performance?.accuracy || 0) * 100)}%, זמן תגובה מהיר (${student.performance?.avgResponseTime || 0}s). מומלץ: תוכן מועשר עם אתגרים נוספים.`
-                                        : `התלמיד מתקדם בצורה יציבה (דיוק ${Math.round((student.performance?.accuracy || 0) * 100)}%). מקבל תוכן במסלול הסטנדרטי. ${student.performance?.hintDependency && student.performance.hintDependency > 0.3 ? 'שימוש מתון ברמזים.' : ''}`
-                                }
-                            </p>
-                            <div className="mt-4 flex items-center gap-3">
-                                <span className="text-sm font-bold text-wizdi-royal">מסלול מומלץ:</span>
-                                <span className={`px-3 py-1.5 rounded-xl font-bold text-sm flex items-center gap-1.5 ${student.riskLevel === 'high' ? 'bg-amber-100 text-amber-600' :
-                                        student.riskLevel === 'low' ? 'bg-wizdi-action/10 text-wizdi-action' : 'bg-slate-100 text-slate-700'
-                                    }`}>
-                                    {student.riskLevel === 'high' ? <><IconTrendingDown className="w-4 h-4" /> Scaffolding</> :
-                                        student.riskLevel === 'low' ? <><IconTrendingUp className="w-4 h-4" /> Enrichment</> : <><IconUsers className="w-4 h-4" /> Original</>}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Journey Trace */}
-                    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-                        <div className="p-6">
+                    {/* Row 3: Journey Summary - Full width */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-4">
                             <JourneySummary student={student} />
                         </div>
                     </div>
 
-                    {/* Student Conversations with Teaching Agent */}
+                    {/* Row 4: Conversations */}
                     <StudentConversationPanel
                         studentId={student.id}
                         courseId={courseId}
@@ -1277,7 +1203,6 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
 
     const selectedStudent = students.find(s => s.id === selectedStudentId);
     const selectedStudentIndex = students.findIndex(s => s.id === selectedStudentId);
-    const atRiskCount = students.filter(s => s.riskLevel === 'high').length;
 
     // Navigation handlers for student detail view
     const handleSelectStudent = (studentId: string) => {
@@ -1375,10 +1300,8 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                         )}
                     </div>
 
-                    {/* KPI Cards & Actions */}
+                    {/* Actions */}
                     <div className="flex gap-4 items-center">
-                        <AtRiskCard count={atRiskCount} />
-
                         <div className="flex items-center gap-2">
                             {/* Access Code Button */}
                             <button

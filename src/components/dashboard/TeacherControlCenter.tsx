@@ -323,32 +323,32 @@ const MasteryHeatmap: React.FC<{ submissions: StudentSubmission[] }> = ({ submis
                 מפת רמות התלמידים
             </h3>
             <div className="grid grid-cols-3 gap-4">
-                {/* Scaffolding */}
-                <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                {/* Scaffolding (תמיכה) */}
+                <div className="bg-amber-50 rounded-xl p-4 border-2 border-amber-200">
                     <div className="flex items-center gap-2 mb-3">
                         <span className="text-2xl">📚</span>
                         <div>
-                            <p className="font-bold text-blue-800">תגבור</p>
-                            <p className="text-xs text-blue-600">צריכים עזרה</p>
+                            <p className="font-bold text-amber-800">תמיכה</p>
+                            <p className="text-xs text-amber-600">צריכים עזרה</p>
                         </div>
                     </div>
-                    <p className="text-3xl font-black text-blue-700">{masteryGroups.scaffolding.length}</p>
+                    <p className="text-3xl font-black text-amber-700">{masteryGroups.scaffolding.length}</p>
                     <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
                         {masteryGroups.scaffolding.slice(0, 5).map(s => (
-                            <p key={s.id} className="text-xs text-blue-600 truncate">{s.studentName}</p>
+                            <p key={s.id} className="text-xs text-amber-600 truncate">{s.studentName}</p>
                         ))}
                         {masteryGroups.scaffolding.length > 5 && (
-                            <p className="text-xs text-blue-400">+{masteryGroups.scaffolding.length - 5} נוספים</p>
+                            <p className="text-xs text-amber-400">+{masteryGroups.scaffolding.length - 5} נוספים</p>
                         )}
                     </div>
                 </div>
 
-                {/* Original */}
+                {/* Original (ליבה) */}
                 <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
                     <div className="flex items-center gap-2 mb-3">
                         <span className="text-2xl">📖</span>
                         <div>
-                            <p className="font-bold text-slate-800">רגיל</p>
+                            <p className="font-bold text-slate-800">ליבה</p>
                             <p className="text-xs text-slate-600">מתקדמים יציב</p>
                         </div>
                     </div>
@@ -383,6 +383,119 @@ const MasteryHeatmap: React.FC<{ submissions: StudentSubmission[] }> = ({ submis
                     </div>
                 </div>
             </div>
+        </div>
+    );
+};
+
+// Topic Progress Grid - Shows curriculum topic mastery across students
+const TopicProgressGrid: React.FC<{
+    submissions: StudentSubmission[];
+    courseGrade?: string;
+}> = ({ submissions, courseGrade }) => {
+    const topicStats = useMemo(() => {
+        const stats = new Map<string, { sum: number; count: number; strugglingStudents: string[] }>();
+
+        submissions.forEach(sub => {
+            // Get proficiency vector from submission if available
+            const proficiency = (sub as any).proficiencyVector || {};
+
+            Object.entries(proficiency).forEach(([topic, mastery]) => {
+                // Filter out bloom_ and general topics - show only curriculum topics
+                if (!topic.startsWith('bloom_') && topic !== 'general') {
+                    if (!stats.has(topic)) {
+                        stats.set(topic, { sum: 0, count: 0, strugglingStudents: [] });
+                    }
+                    const s = stats.get(topic)!;
+                    s.sum += mastery as number;
+                    s.count++;
+                    if ((mastery as number) < 0.5) {
+                        s.strugglingStudents.push(sub.studentName);
+                    }
+                }
+            });
+        });
+
+        return Array.from(stats.entries())
+            .map(([topic, data]) => ({
+                topic,
+                avgMastery: data.count > 0 ? data.sum / data.count : 0,
+                studentCount: data.count,
+                strugglingStudents: data.strugglingStudents
+            }))
+            .sort((a, b) => a.avgMastery - b.avgMastery);  // Weakest topics first
+    }, [submissions]);
+
+    if (topicStats.length === 0) {
+        return (
+            <div className="bg-white rounded-2xl p-6 border border-slate-200">
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <IconBook className="text-purple-600" size={20} />
+                    התקדמות לפי נושאי תכנית הלימודים
+                </h3>
+                <p className="text-sm text-slate-500 text-center py-4">
+                    אין עדיין נתוני שליטה לפי נושאים מתכנית הלימודים
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-2xl p-6 border border-slate-200">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <IconBook className="text-purple-600" size={20} />
+                התקדמות לפי נושאי תכנית הלימודים
+                {courseGrade && <span className="text-xs text-slate-400 font-normal">(כיתה {courseGrade})</span>}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {topicStats.slice(0, 6).map(({ topic, avgMastery, studentCount, strugglingStudents }) => (
+                    <div
+                        key={topic}
+                        className={`rounded-xl p-4 border ${
+                            avgMastery < 0.5 ? 'bg-red-50 border-red-200' :
+                            avgMastery < 0.7 ? 'bg-yellow-50 border-yellow-200' :
+                            'bg-green-50 border-green-200'
+                        }`}
+                    >
+                        <h4 className="font-bold text-sm text-slate-700 mb-2 truncate" title={topic}>
+                            {topic}
+                        </h4>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className={`text-2xl font-black ${
+                                avgMastery < 0.5 ? 'text-red-600' :
+                                avgMastery < 0.7 ? 'text-yellow-600' :
+                                'text-green-600'
+                            }`}>
+                                {Math.round(avgMastery * 100)}%
+                            </span>
+                            <span className="text-xs text-slate-500">
+                                {studentCount} תלמידים
+                            </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
+                            <div
+                                className={`h-1.5 rounded-full ${
+                                    avgMastery < 0.5 ? 'bg-red-500' :
+                                    avgMastery < 0.7 ? 'bg-yellow-500' :
+                                    'bg-green-500'
+                                }`}
+                                style={{ width: `${Math.round(avgMastery * 100)}%` }}
+                            />
+                        </div>
+                        {strugglingStudents.length > 0 && (
+                            <div className="text-xs text-red-600 mt-1">
+                                מתקשים: {strugglingStudents.slice(0, 2).join(', ')}
+                                {strugglingStudents.length > 2 && ` (+${strugglingStudents.length - 2})`}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+            {topicStats.length > 6 && (
+                <p className="text-xs text-slate-400 text-center mt-3">
+                    + {topicStats.length - 6} נושאים נוספים
+                </p>
+            )}
         </div>
     );
 };
@@ -765,6 +878,14 @@ export const TeacherControlCenter: React.FC<ControlCenterProps> = ({ courseId, o
                     {/* Activity: Mastery Heatmap */}
                     {contentType === 'activity' && (
                         <MasteryHeatmap submissions={submissions} />
+                    )}
+
+                    {/* Activity: Topic Progress Grid - Curriculum-based */}
+                    {contentType === 'activity' && (
+                        <TopicProgressGrid
+                            submissions={submissions}
+                            courseGrade={course?.targetAudience}
+                        />
                     )}
 
                     {/* Exam: Score Distribution */}

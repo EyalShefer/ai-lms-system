@@ -47,6 +47,11 @@ const QUESTION_PROFILES: Record<QuestionProfile, {
     description: string;
     icon: 'balance' | 'book' | 'joystick' | 'wand';
     color: string;
+    bgColor: string;
+    borderColor: string;
+    textColor: string;
+    iconBg: string;
+    iconText: string;
     allowedTypes: string[];
     priorityTypes: string[];
 }> = {
@@ -55,7 +60,12 @@ const QUESTION_PROFILES: Record<QuestionProfile, {
         description: 'שילוב מגוון של כל סוגי השאלות',
         icon: 'balance',
         color: 'blue',
-        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'open_question', 'matching', 'highlight', 'sentence_builder'],
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-400',
+        textColor: 'text-blue-600',
+        iconBg: 'bg-blue-100',
+        iconText: 'text-blue-600',
+        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'open_question', 'matching', 'highlight', 'sentence_builder', 'matrix', 'table_completion'],
         priorityTypes: ['multiple_choice', 'fill_in_blanks', 'categorization']
     },
     educational: {
@@ -63,40 +73,64 @@ const QUESTION_PROFILES: Record<QuestionProfile, {
         description: 'שאלות מדידות עם משוב מפורט, ללא משחקים',
         icon: 'book',
         color: 'indigo',
-        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'open_question', 'matching', 'table_completion', 'text_selection'],
+        bgColor: 'bg-indigo-50',
+        borderColor: 'border-indigo-400',
+        textColor: 'text-indigo-600',
+        iconBg: 'bg-indigo-100',
+        iconText: 'text-indigo-600',
+        allowedTypes: ['multiple_choice', 'true_false', 'fill_in_blanks', 'ordering', 'categorization', 'open_question', 'matching', 'table_completion', 'text_selection', 'matrix', 'rating_scale', 'audio_response'],
         priorityTypes: ['multiple_choice', 'open_question', 'fill_in_blanks', 'ordering']
     },
     game: {
         label: 'משחקי',
         description: 'אינטראקטיבי וחוויתי, משחקי זיכרון ואתגרים',
         icon: 'joystick',
-        color: 'pink',
-        allowedTypes: ['memory_game', 'ordering', 'categorization', 'matching', 'sentence_builder', 'true_false', 'highlight'],
+        color: 'cyan',
+        bgColor: 'bg-cyan-50',
+        borderColor: 'border-cyan-400',
+        textColor: 'text-cyan-600',
+        iconBg: 'bg-cyan-100',
+        iconText: 'text-cyan-600',
+        allowedTypes: ['memory_game', 'ordering', 'categorization', 'matching', 'sentence_builder', 'true_false', 'highlight', 'image_labeling'],
         priorityTypes: ['memory_game', 'categorization', 'matching', 'ordering']
     },
     custom: {
         label: 'מותאם אישית',
         description: 'בחירה ידנית של סוגי השאלות',
         icon: 'wand',
-        color: 'purple',
+        color: 'violet',
+        bgColor: 'bg-violet-50',
+        borderColor: 'border-violet-400',
+        textColor: 'text-violet-600',
+        iconBg: 'bg-violet-100',
+        iconText: 'text-violet-600',
         allowedTypes: [], // מוגדר על ידי המשתמש
         priorityTypes: []
     }
 };
 
 const ALL_QUESTION_TYPES = [
+    // בסיסי
     { id: 'multiple_choice', label: 'בחירה מרובה', category: 'basic' },
     { id: 'true_false', label: 'נכון/לא נכון', category: 'basic' },
     { id: 'fill_in_blanks', label: 'השלמת חסר', category: 'basic' },
+    // לוגי
     { id: 'ordering', label: 'סידור בסדר', category: 'logic' },
     { id: 'categorization', label: 'מיון לקטגוריות', category: 'logic' },
     { id: 'matching', label: 'התאמה', category: 'logic' },
+    { id: 'matrix', label: 'מטריצה / טבלת התאמה', category: 'logic' },
+    // משחקי
     { id: 'memory_game', label: 'משחק זיכרון', category: 'game' },
+    // מתקדם
     { id: 'open_question', label: 'שאלה פתוחה', category: 'advanced' },
     { id: 'sentence_builder', label: 'בניית משפט', category: 'advanced' },
     { id: 'highlight', label: 'סימון בטקסט', category: 'advanced' },
     { id: 'table_completion', label: 'השלמת טבלה', category: 'advanced' },
-    { id: 'text_selection', label: 'בחירת טקסט', category: 'advanced' }
+    { id: 'text_selection', label: 'בחירת טקסט', category: 'advanced' },
+    // מולטימדיה ומיוחד
+    { id: 'audio_response', label: 'תשובה קולית', category: 'multimedia' },
+    { id: 'image_labeling', label: 'תיוג תמונה', category: 'multimedia' },
+    { id: 'rating_scale', label: 'סולם דירוג', category: 'special' }
 ];
 
 const PRODUCT_CONFIG: Record<string, {
@@ -359,15 +393,26 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
     const [isDifferentiated, setIsDifferentiated] = useState(false);
 
-    // הגדרות מתקדמות לסוגי שאלות
+    // הגדרות מתקדמות לסוגי שאלות - נפרד לכל סוג מוצר
     const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
     const [questionProfile, setQuestionProfile] = useState<QuestionProfile>('balanced');
     const [customQuestionTypes, setCustomQuestionTypes] = useState<string[]>(
         ALL_QUESTION_TYPES.map(t => t.id) // ברירת מחדל: הכל מופעל
     );
     const [savedProfileLoaded, setSavedProfileLoaded] = useState(false); // האם נטען פרופיל שמור
+    const [allProductPreferences, setAllProductPreferences] = useState<Record<string, {
+        profile: QuestionProfile;
+        customTypes: string[];
+    }>>({});
 
-    // טעינת העדפות המורה מ-Firestore
+    // ברירות מחדל מומלצות לפי סוג מוצר
+    const DEFAULT_PROFILES_BY_PRODUCT: Record<string, QuestionProfile> = {
+        lesson: 'balanced',
+        activity: 'game',
+        exam: 'educational'
+    };
+
+    // טעינת העדפות המורה מ-Firestore - לכל סוגי המוצרים
     useEffect(() => {
         const loadTeacherPreferences = async () => {
             const user = auth.currentUser;
@@ -377,12 +422,24 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 const prefDoc = await getDoc(doc(db, 'teacher_preferences', user.uid));
                 if (prefDoc.exists()) {
                     const data = prefDoc.data();
-                    if (data.questionProfile) {
-                        setQuestionProfile(data.questionProfile);
+
+                    // טעינת העדפות לפי סוג מוצר (מבנה חדש)
+                    if (data.productPreferences) {
+                        setAllProductPreferences(data.productPreferences);
                         setSavedProfileLoaded(true);
                     }
-                    if (data.customQuestionTypes && Array.isArray(data.customQuestionTypes)) {
-                        setCustomQuestionTypes(data.customQuestionTypes);
+                    // תמיכה לאחור במבנה הישן
+                    else if (data.questionProfile) {
+                        // אם יש רק פרופיל גלובלי ישן, נשתמש בו לכל המוצרים
+                        const legacyPrefs: Record<string, { profile: QuestionProfile; customTypes: string[] }> = {};
+                        ['lesson', 'activity', 'exam'].forEach(p => {
+                            legacyPrefs[p] = {
+                                profile: data.questionProfile,
+                                customTypes: data.customQuestionTypes || ALL_QUESTION_TYPES.map(t => t.id)
+                            };
+                        });
+                        setAllProductPreferences(legacyPrefs);
+                        setSavedProfileLoaded(true);
                     }
                 }
             } catch (err) {
@@ -393,15 +450,37 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         loadTeacherPreferences();
     }, []);
 
-    // שמירת העדפות המורה כשמשנה פרופיל
+    // כשמשנים סוג מוצר, נטען את הפרופיל המתאים
+    useEffect(() => {
+        if (!selectedProduct || selectedProduct === 'podcast') return;
+
+        const productPrefs = allProductPreferences[selectedProduct];
+        if (productPrefs) {
+            setQuestionProfile(productPrefs.profile);
+            setCustomQuestionTypes(productPrefs.customTypes);
+        } else {
+            // ברירת מחדל לפי סוג מוצר
+            setQuestionProfile(DEFAULT_PROFILES_BY_PRODUCT[selectedProduct] || 'balanced');
+            setCustomQuestionTypes(ALL_QUESTION_TYPES.map(t => t.id));
+        }
+    }, [selectedProduct, allProductPreferences]);
+
+    // שמירת העדפות המורה כשמשנה פרופיל - לפי סוג מוצר
     const saveTeacherPreferences = async (profile: QuestionProfile, customTypes: string[]) => {
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user || !selectedProduct || selectedProduct === 'podcast') return;
 
         try {
+            // עדכון הסטייט המקומי
+            const updatedPrefs = {
+                ...allProductPreferences,
+                [selectedProduct]: { profile, customTypes }
+            };
+            setAllProductPreferences(updatedPrefs);
+
+            // שמירה ב-Firestore
             await setDoc(doc(db, 'teacher_preferences', user.uid), {
-                questionProfile: profile,
-                customQuestionTypes: customTypes,
+                productPreferences: updatedPrefs,
                 updatedAt: new Date()
             }, { merge: true });
             setSavedProfileLoaded(true);
@@ -423,6 +502,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             saveTeacherPreferences(questionProfile, newTypes);
         }
     };
+
+    // בדיקה האם נטען פרופיל שמור למוצר הנוכחי
+    const isCurrentProductProfileSaved = selectedProduct &&
+        selectedProduct !== 'podcast' &&
+        allProductPreferences[selectedProduct] !== undefined;
 
     useEffect(() => {
         console.log("DEBUG: IngestionWizard MOUNTED");
@@ -1015,7 +1099,11 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             <span className="font-medium">הגדרות מתקדמות</span>
                                             <span className="text-xs text-slate-400 mr-auto flex items-center gap-1">
                                                 פרופיל: {QUESTION_PROFILES[questionProfile].label}
-                                                {savedProfileLoaded && <span className="text-green-500">(הפרופיל שלך)</span>}
+                                                {isCurrentProductProfileSaved && (
+                                                    <span className="text-green-500">
+                                                        (שמור ל{selectedProduct === 'lesson' ? 'שיעורים' : selectedProduct === 'activity' ? 'פעילויות' : 'מבחנים'})
+                                                    </span>
+                                                )}
                                             </span>
                                         </button>
 
@@ -1037,13 +1125,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                 className={`
                                                                     p-3 rounded-xl border-2 transition-all text-right flex items-start gap-3
                                                                     ${questionProfile === key
-                                                                        ? `border-${profile.color}-500 bg-${profile.color}-50 shadow-sm`
+                                                                        ? `${profile.borderColor} ${profile.bgColor} shadow-sm`
                                                                         : 'border-slate-100 bg-white hover:border-slate-200'}
                                                                 `}
                                                             >
                                                                 <div className={`
                                                                     p-2 rounded-lg shrink-0
-                                                                    ${questionProfile === key ? `bg-${profile.color}-100 text-${profile.color}-600` : 'bg-slate-100 text-slate-400'}
+                                                                    ${questionProfile === key ? `${profile.iconBg} ${profile.iconText}` : 'bg-slate-100 text-slate-400'}
                                                                 `}>
                                                                     <IconComponent className="w-5 h-5" />
                                                                 </div>
@@ -1056,7 +1144,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                     </div>
                                                                 </div>
                                                                 {questionProfile === key && (
-                                                                    <IconCheck className={`w-4 h-4 text-${profile.color}-500 shrink-0`} />
+                                                                    <IconCheck className={`w-4 h-4 ${profile.textColor} shrink-0`} />
                                                                 )}
                                                             </button>
                                                         );
@@ -1074,7 +1162,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                     className={`
                                                                         flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors
                                                                         ${customQuestionTypes.includes(qType.id)
-                                                                            ? 'bg-purple-50 border border-purple-200'
+                                                                            ? 'bg-violet-50 border border-violet-200'
                                                                             : 'bg-white border border-slate-100 hover:bg-slate-50'}
                                                                     `}
                                                                 >
@@ -1087,7 +1175,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                                 : customQuestionTypes.filter(t => t !== qType.id);
                                                                             handleCustomTypesChange(newTypes);
                                                                         }}
-                                                                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                                                        className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                                                                     />
                                                                     <span className="text-sm text-slate-700">{qType.label}</span>
                                                                 </label>
@@ -1160,32 +1248,26 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
 
                                                         {/* iOS Toggle Switch */}
                                                         <div className={`
-                                                            w-12 h-7 rounded-full transition-colors flex items-center px-1
-                                                            ${isDifferentiated ? 'bg-wizdi-royal' : 'bg-slate-300'}
+                                                            w-12 h-7 rounded-full transition-colors flex items-center px-1 shrink-0
+                                                            ${isDifferentiated ? 'bg-wizdi-royal justify-start' : 'bg-slate-300 justify-end'}
                                                         `}>
-                                                            <div className={`
-                                                                w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300
-                                                                ${isDifferentiated ? 'translate-x-[20px]' : 'translate-x-0'}
-                                                            `} />
+                                                            <div className="w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300" />
                                                         </div>
                                                     </div>
 
                                                     {/* 3 VISUAL BADGES (Only visible when active) */}
                                                     <div className={`
-                                                        grid grid-cols-3 gap-2 mt-4 transition-all duration-500 origin-top
+                                                        flex flex-wrap justify-center gap-2 mt-4 transition-all duration-500 origin-top
                                                         ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
                                                     `}>
-                                                        <div className="bg-green-50 border border-green-100 p-2 rounded-xl text-center">
-                                                            <span className="block text-xs font-bold text-green-600 mb-1">רמה 1: תמיכה</span>
-                                                            <div className="h-1 w-8 bg-green-400 rounded-full mx-auto" />
+                                                        <div className="bg-green-50 border border-green-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
+                                                            <span className="text-xs font-bold text-green-600">רמה 1: תמיכה</span>
                                                         </div>
-                                                        <div className="bg-blue-50 border border-blue-100 p-2 rounded-xl text-center">
-                                                            <span className="block text-xs font-bold text-blue-600 mb-1">רמה 2: ליבה</span>
-                                                            <div className="h-1 w-12 bg-blue-500 rounded-full mx-auto" />
+                                                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
+                                                            <span className="text-xs font-bold text-blue-600">רמה 2: ליבה</span>
                                                         </div>
-                                                        <div className="bg-purple-50 border border-purple-100 p-2 rounded-xl text-center">
-                                                            <span className="block text-xs font-bold text-purple-600 mb-1">רמה 3: העשרה</span>
-                                                            <div className="h-1 w-16 bg-purple-500 rounded-full mx-auto" />
+                                                        <div className="bg-purple-50 border border-purple-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
+                                                            <span className="text-xs font-bold text-purple-600">רמה 3: העשרה</span>
                                                         </div>
                                                     </div>
                                                 </div>

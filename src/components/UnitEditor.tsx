@@ -20,7 +20,7 @@ import { AiRefineToolbar } from './AiRefineToolbar';
 import { uploadMediaFile } from '../firebaseUtils';
 import { MultimodalService } from '../services/multimodalService'; // Restore Import
 import {
-    enrichUnitBlocks, enrichActivityBlock
+    enrichActivityBlock
 } from '../services/adaptiveContentService';
 import {
     enrichActivityWithImages, isActivityEnriched, generateContextImageBlock
@@ -1031,25 +1031,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         }
     };
 
-    const handleEnrichUnit = async () => {
-        if (!confirm("פעולה זו תשדרג את כל השאלות ביחידה עם מטא-דאטה אדפטיבי (Tags, Difficulty, Bloom). להמשיך?")) return;
-
-        setIsAutoGenerating(true);
-        try {
-            console.log("🚀 Starting Adaptive Batch Enrichment...");
-            const currentBlocks = [...editedUnit.activityBlocks];
-            const enrichedBlocks = await enrichUnitBlocks(currentBlocks, unit.title);
-
-            setEditedUnit(prev => ({ ...prev, activityBlocks: enrichedBlocks }));
-            alert("✅ היחידה שודרגה בהצלחה! השאלות כעת 'חכמות'.");
-        } catch (e) {
-            console.error("Enrichment error", e);
-            alert("שגיאה בתהליך ההעשרה.");
-        } finally {
-            setIsAutoGenerating(false);
-        }
-    };
-
     const handleAddRelatedQuestion = (blockId: string, type: 'open-question' | 'multiple-choice') => {
         const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
         if (!block) return;
@@ -1390,14 +1371,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     )}
 
                     {showScoring && (<button onClick={handleAutoDistributePoints} className="px-4 py-2 bg-yellow-100/80 hover:bg-yellow-200 text-yellow-800 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center gap-2 border border-yellow-200"><IconBalance className="w-4 h-4" />חלק ניקוד</button>)}
-
-                    <button
-                        onClick={handleEnrichUnit}
-                        disabled={isAutoGenerating}
-                        className="px-4 py-2 bg-gradient-to-r from-violet-100 to-purple-100 text-purple-700 hover:from-violet-200 hover:to-purple-200 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2 border border-purple-200 disabled:opacity-50"
-                    >
-                        <IconSparkles className="w-4 h-4 text-purple-600" /> העשרה אדפטיבית (AI)
-                    </button>
 
                     <button
                         onClick={() => setInspectorMode(!inspectorMode)}

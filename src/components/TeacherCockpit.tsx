@@ -2182,14 +2182,14 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
                         {/* 3-Column Grid */}
                         <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                            {/* Scaffolding (Easy) */}
-                            <div className="bg-emerald-50 rounded-xl border-2 border-emerald-200 overflow-hidden">
-                                <div className="bg-emerald-500 text-white p-4">
+                            {/* Scaffolding (תמיכה) */}
+                            <div className="bg-amber-50 rounded-xl border-2 border-amber-200 overflow-hidden">
+                                <div className="bg-amber-500 text-white p-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-2xl">📚</span>
                                         <div>
-                                            <h3 className="font-bold">גרסה קלה</h3>
-                                            <p className="text-xs text-white/80">לתלמידים שמתקשים (mastery &lt; 0.4)</p>
+                                            <h3 className="font-bold">תמיכה</h3>
+                                            <p className="text-xs text-white/80">לתלמידים שמתקשים</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2221,19 +2221,19 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                             )}
                                         </div>
                                     ) : (
-                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסה קלה</p>
+                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסת תמיכה</p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Original (Middle) */}
-                            <div className="bg-blue-50 rounded-xl border-2 border-blue-300 overflow-hidden ring-2 ring-blue-400">
-                                <div className="bg-blue-500 text-white p-4">
+                            {/* Original (ליבה) */}
+                            <div className="bg-slate-50 rounded-xl border-2 border-slate-300 overflow-hidden ring-2 ring-slate-400">
+                                <div className="bg-slate-500 text-white p-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-2xl">📄</span>
                                         <div>
-                                            <h3 className="font-bold">גרסה מקורית</h3>
-                                            <p className="text-xs text-white/80">ברירת מחדל (0.4 ≤ mastery ≤ 0.8)</p>
+                                            <h3 className="font-bold">ליבה</h3>
+                                            <p className="text-xs text-white/80">רמה סטנדרטית</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2246,14 +2246,14 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                 </div>
                             </div>
 
-                            {/* Enrichment (Hard) */}
+                            {/* Enrichment (העשרה) */}
                             <div className="bg-purple-50 rounded-xl border-2 border-purple-200 overflow-hidden">
                                 <div className="bg-purple-500 text-white p-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-2xl">🚀</span>
                                         <div>
-                                            <h3 className="font-bold">גרסה מאתגרת</h3>
-                                            <p className="text-xs text-white/80">לתלמידים מצטיינים (mastery &gt; 0.8)</p>
+                                            <h3 className="font-bold">העשרה</h3>
+                                            <p className="text-xs text-white/80">לתלמידים מצטיינים</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2280,7 +2280,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                             )}
                                         </div>
                                     ) : (
-                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסה מאתגרת</p>
+                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסת העשרה</p>
                                     )}
                                 </div>
                             </div>

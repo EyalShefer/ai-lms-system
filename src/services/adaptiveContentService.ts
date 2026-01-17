@@ -91,15 +91,6 @@ export const enrichActivityBlock = async (block: ActivityBlock, topic: string = 
     }
 };
 
-/**
- * Batch enrich all blocks in a unit.
- */
-export const enrichUnitBlocks = async (blocks: ActivityBlock[], topic: string): Promise<ActivityBlock[]> => {
-    // Run in parallel but limit concurrency if needed (for now Promise.all is fine for small units)
-    const promises = blocks.map(b => enrichActivityBlock(b, topic));
-    return Promise.all(promises);
-};
-
 import { v4 as uuidv4 } from 'uuid';
 
 /**

@@ -19,6 +19,8 @@ import { syncProgress, checkDailyStreak, DEFAULT_GAMIFICATION_PROFILE } from '..
 import { onSessionComplete, updateProficiencyVector, updateErrorFingerprint } from '../services/profileService';
 import { useStudentTelemetry } from '../hooks/useStudentTelemetry';
 import { makeAdaptiveDecision, applyPolicyDecision, selectVariant, getInitialStudentState, type BKTAction } from '../services/adaptivePolicyService';
+import { logVariantSelected, logBktUpdate, logChallengeMode, logMasterySkip, logRemediationInjected } from '../services/adaptiveLoggingService';
+import { getTopicIdForBlock } from '../services/curriculumTopicService';
 import ShopModal from './ShopModal';
 import SuccessModal from './SuccessModal';
 import type { GamificationProfile } from '../shared/types/courseTypes';
@@ -286,6 +288,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         console.log(`   Original content:`, currentBlock.content);
                         console.log(`   Variant content:`, variantBlock.content);
 
+                        // Log to Firestore for analysis
+                        if (auth.currentUser && course?.id) {
+                            logVariantSelected(
+                                auth.currentUser.uid,
+                                course.id,
+                                currentBlock.id,
+                                selectedVariant,
+                                currentMastery,
+                                recentAccuracy
+                            );
+                        }
+
                         // Show subtle toast for variant selection
                         if (selectedVariant === 'scaffolding') {
                             setAdaptiveToast({
@@ -419,6 +433,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             const question = currentBlock.content?.question || '';
             const modelAnswer = currentBlock.metadata?.modelAnswer || currentBlock.content?.modelAnswer || '';
 
+            console.log('📝 Checking open question:', { question, answer, modelAnswer: modelAnswer?.substring(0, 50), sourceTextLength: sourceText.length });
+
             const result = await checkOpenQuestionAnswer(
                 question,
                 answer,
@@ -426,6 +442,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 sourceText,
                 isExamMode ? 'exam' : 'learning'
             );
+
+            console.log('✅ AI Response:', result);
 
             if (result.status === 'correct') {
                 setStepStatus('success');
@@ -459,9 +477,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     setFeedbackMsg(prev => (prev || '') + '\n💡 רמז: ' + (currentBlock.metadata?.progressiveHints?.[0] || 'חפש את המילים המרכזיות בטקסט.'));
                 }
             }
-        } catch (error) {
-            console.error('Error checking open question:', error);
-            setFeedbackMsg('שגיאה בבדיקה. נסה שוב.');
+        } catch (error: any) {
+            console.error('❌ Error checking open question:', error);
+            console.error('Error details:', error?.message, error?.code);
+            setFeedbackMsg('שגיאה בבדיקה. נסה שוב. ' + (error?.message || ''));
         } finally {
             setIsCheckingOpenQuestion(false);
         }
@@ -620,11 +639,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (data) {
                         console.log("🧠 BKT Update:", data);
 
-                        // --- ADAPTIVE: Update Proficiency Vector with new mastery ---
+                        // Get curriculum topic from Knowledge Base (or fallback chain)
+                        const topicId = await getTopicIdForBlock(
+                            currentBlock,
+                            course?.targetAudience,  // grade (e.g., 'ב', 'ג')
+                            course?.subject || 'math'
+                        );
+
+                        logBktUpdate(
+                            user.uid,
+                            course.id,
+                            currentBlock.id,
+                            currentMastery,
+                            data.mastery || 0,
+                            data.action || 'continue',
+                            isCorrect,
+                            topicId
+                        );
+
+                        // --- ADAPTIVE: Update Proficiency Vector with curriculum topic ---
                         if (data.mastery !== undefined && user) {
-                            const topicId = currentBlock.metadata?.tags?.[0] ||
-                                course?.syllabus?.[0]?.learningUnits?.[0]?.title ||
-                                'general';
                             updateProficiencyVector(user.uid, topicId, data.mastery).catch(e =>
                                 console.error("Proficiency Vector update failed:", e)
                             );
@@ -660,6 +694,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                         return newQ;
                                     });
                                     setFeedbackMsg("יצרתי עבורכם הסבר ממוקד לחזרה. לחצו על המשך.");
+
+                                    // Log remediation to Firestore
+                                    logRemediationInjected(
+                                        user.uid,
+                                        course.id,
+                                        currentBlock.id,
+                                        remedialBlock.id || 'remedial',
+                                        userAnswers[currentBlock.id]
+                                    );
                                 }
                             } catch (genErr) {
                                 console.error("Factory Error:", genErr);
@@ -681,6 +724,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 console.log(`🧠 Adaptive Decision: ${decision.action}`, decision);
 
                                 if (decision.action === 'skip' || decision.action === 'skip_to_topic') {
+                                    // Log to Firestore
+                                    if (data.action === 'challenge') {
+                                        logChallengeMode(user.uid, course.id, decision.skipCount || 1);
+                                    } else if (data.action === 'mastered') {
+                                        logMasterySkip(user.uid, course.id, decision.targetTopicId || topicId, data.mastery || 0);
+                                    }
+
                                     // Show toast notification
                                     if (decision.toast) {
                                         setAdaptiveToast({
@@ -831,11 +881,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (data) {
                         console.log("🧠 BKT Update:", data);
 
-                        // --- ADAPTIVE: Update Proficiency Vector with new mastery ---
+                        // Get curriculum topic from Knowledge Base (or fallback chain)
+                        const topicId = await getTopicIdForBlock(
+                            currentBlock,
+                            course?.targetAudience,  // grade (e.g., 'ב', 'ג')
+                            course?.subject || 'math'
+                        );
+
+                        logBktUpdate(
+                            user.uid,
+                            course.id,
+                            currentBlock.id,
+                            currentMastery,
+                            data.mastery || 0,
+                            data.action || 'continue',
+                            isCorrect,
+                            topicId
+                        );
+
+                        // --- ADAPTIVE: Update Proficiency Vector with curriculum topic ---
                         if (data.mastery !== undefined && user) {
-                            const topicId = currentBlock.metadata?.tags?.[0] ||
-                                course?.syllabus?.[0]?.learningUnits?.[0]?.title ||
-                                'general';
                             updateProficiencyVector(user.uid, topicId, data.mastery).catch(e =>
                                 console.error("Proficiency Vector update failed:", e)
                             );

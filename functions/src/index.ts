@@ -1361,10 +1361,15 @@ export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
     }
 
     const db = getFirestore();
-    // 1. Get Topic from Metadata or Default
-    // In a real system, we might have a Topic Map. Here we trust the client's enriched metadata or fallback.
-    const topic = metadata?.tags?.[0] || 'general';
+    // 1. Get Topic from Metadata - prioritize curriculumTopicId from Knowledge Base
+    // Fallback chain: curriculumTopicId → tags[0] → 'general'
+    const topic = metadata?.curriculumTopicId || metadata?.tags?.[0] || 'general';
     const difficulty = metadata?.difficulty_level || 0.5;
+
+    // Log if using legacy fallback (helps track migration progress)
+    if (!metadata?.curriculumTopicId) {
+        logger.warn(`Block ${blockId} missing curriculumTopicId, using fallback topic: "${topic}"`);
+    }
 
     // 2. Fetch User's Cognitive State for this Unit/Topic
     const stateRef = db.doc(`users/${userId}/adaptive_state/${unitId}`);
