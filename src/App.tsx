@@ -136,12 +136,52 @@ const IconEditSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fil
 
 import { AIStarsSpinner } from './components/ui/Loading/AIStarsSpinner';
 
-const LoadingSpinner = () => (
-  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-    <AIStarsSpinner size="lg" color="primary" className="mb-4" />
-    <span>טוען רכיב...</span>
-  </div>
-);
+// Pre-loader rotating messages
+const preLoaderMessages = [
+  "מנקה את שולחן העבודה...",
+  "מחדד את העפרונות הדיגיטליים...",
+  "פורס דף חדש ונקי...",
+  "פותח את מחברת הרעיונות...",
+  "מארגן את כלי היצירה...",
+  "מכין את הלוח...",
+  "מחמם את המנועים...",
+  "מעיר את הנוירונים...",
+  "יוצר קשר עם שרתי ההשראה...",
+  "מותח איברים דיגיטליים...",
+  "טוען את הדמיון...",
+  "מסנכרן מחשבות...",
+];
+
+const LoadingSpinner = () => {
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsVisible(false);
+      setTimeout(() => {
+        setMessageIndex((prev) => (prev + 1) % preLoaderMessages.length);
+        setIsVisible(true);
+      }, 300); // Fade out duration
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-64">
+      <AIStarsSpinner size="lg" color="gradient" className="mb-6" />
+      <h2 className="text-2xl font-bold text-indigo-600 mb-3">מיד מתחילים...</h2>
+      <p
+        className={`text-indigo-500 font-medium transition-opacity duration-300 ${
+          isVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        {preLoaderMessages[messageIndex]}
+      </p>
+    </div>
+  );
+};
 
 import TicTacToeLoader from './components/TicTacToeLoader'; // Import new Loader
 
@@ -601,7 +641,6 @@ const AuthenticatedApp = () => {
             {isGenerating ? (
               <div className="flex flex-col items-center justify-center min-h-[50vh]">
                 <LoadingSpinner />
-                <p className="mt-4 text-gray-500 font-medium animate-pulse">מכין את סביבת העבודה...</p>
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>

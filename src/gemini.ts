@@ -2497,6 +2497,7 @@ export const generateCoursePlan = async (
       questionPreferences: questionPreferences || null, // 🆕 הגדרות מתקדמות לסוגי שאלות
       status: "pending",
       createdAt: new Date(),
+      userId: auth.currentUser?.uid || null, // 🔐 Required for Firestore security rules
     });
 
     // console.log("Request queued with ID:", docRef.id);

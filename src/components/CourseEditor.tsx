@@ -10,6 +10,9 @@ import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import { TypewriterLoaderInline } from './ui/Loading/TypewriterLoader';
 import IngestionWizard from './IngestionWizard';
 import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel, extractTopicFromText } from '../gemini';
+import { useStreamingGeneration } from '../hooks/useStreamingGeneration';
+import { StreamingProgress, StreamingBadge } from './StreamingProgress';
+import { isStreamingSupported } from '../services/streamingService';
 // import { generateUnitSkeleton, generateStepContent, generatePodcastScript } from '../services/ai/geminiApi';
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -348,7 +351,17 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     const [showWizard, setShowWizard] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     // Loader removed by user request
-    // const [showLoader, setShowLoader] = useState(false); 
+    // const [showLoader, setShowLoader] = useState(false);
+
+    // 🌊 STREAMING: Hook for real-time content generation
+    const {
+        state: streamingState,
+        startDifferentiatedStreaming,
+        startLessonStreaming,
+        startPodcastStreaming,
+        cancelStreaming,
+        resetState: resetStreamingState
+    } = useStreamingGeneration();
 
     // משתנה לעקיפת התצוגה
     const [forcedGrade, setForcedGrade] = useState<string>("");
@@ -1192,13 +1205,40 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
                 // --- PODCAST PRODUCT HANDLER ---
                 if (data.settings?.productType === 'podcast') {
-                    // console.log("🎙️ Generating Podcast Product...");
-                    const script = await generatePodcastScript(
-                        processedSourceText || '',  // Empty string triggers auto-generation in backend
-                        topicToUse,
-                        extractedGrade,  // Pass grade level for language adaptation
-                        data.settings?.activityLength || 'medium'  // Pass podcast length
-                    );
+                    console.log("🎙️ Generating Podcast Product with streaming...");
+
+                    // 🌊 STREAMING: Use streaming for podcast content
+                    const useStreaming = isStreamingSupported();
+                    let script: any = null;
+
+                    if (useStreaming) {
+                        try {
+                            script = await startPodcastStreaming({
+                                topic: topicToUse,
+                                gradeLevel: extractedGrade,
+                                sourceText: processedSourceText || '',
+                                activityLength: data.settings?.activityLength || 'medium'
+                            });
+                            console.log("🌊 Podcast streaming completed:", script);
+                        } catch (streamError) {
+                            console.error("🌊 Podcast streaming failed, falling back:", streamError);
+                            // Fallback to original method
+                            script = await generatePodcastScript(
+                                processedSourceText || '',
+                                topicToUse,
+                                extractedGrade,
+                                data.settings?.activityLength || 'medium'
+                            );
+                        }
+                    } else {
+                        // Non-streaming fallback
+                        script = await generatePodcastScript(
+                            processedSourceText || '',
+                            topicToUse,
+                            extractedGrade,
+                            data.settings?.activityLength || 'medium'
+                        );
+                    }
 
                     if (script) {
                         const podcastBlock: ActivityBlock = {
@@ -1238,34 +1278,95 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 else if (data.settings?.isDifferentiated) {
                     console.log("🧬 ENTERING DIFFERENTIATED BRANCH! isDifferentiated =", data.settings?.isDifferentiated);
 
-                    const diffContent = await generateDifferentiatedContent(
-                        topicToUse,
-                        extractedGrade,
-                        processedSourceText || course.title,
-                        userSubject,
-                        data.settings?.productType || 'activity', // Pass product type for exam vs activity
-                        data.settings?.activityLength || 'medium' // Pass activity length
-                    );
+                    // 🌊 STREAMING: Use streaming for differentiated content if supported
+                    const useStreaming = isStreamingSupported();
+                    console.log("🌊 Streaming supported:", useStreaming);
+
+                    let diffContent: { support: any[]; core: any[]; enrichment: any[] } | null = null;
+
+                    // Helper to create a unit from raw items (used by both paths)
+                    const isExam = data.settings?.productType === 'exam';
+                    const createDiffUnit = (levelName: string, items: any[]) => {
+                        const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
+                        return {
+                            id: crypto.randomUUID(),
+                            title: `${firstUnit.title} (${levelName})`,
+                            baseContent: processedSourceText || "",
+                            activityBlocks: blocks,
+                            type: isExam ? 'test' : 'practice'
+                        } as LearningUnit;
+                    };
+
+                    // Unit IDs for progressive updates
+                    const unitSupportId = crypto.randomUUID();
+                    const unitCoreId = crypto.randomUUID();
+                    const unitEnrichmentId = crypto.randomUUID();
+
+                    if (useStreaming) {
+                        // 🌊 STREAMING PATH: Real-time updates as each level completes
+                        try {
+                            // Create skeleton units immediately
+                            const skeletonUnits = [
+                                { id: unitSupportId, title: `${firstUnit.title} (הבנה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
+                                { id: unitCoreId, title: `${firstUnit.title} (יישום)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
+                                { id: unitEnrichmentId, title: `${firstUnit.title} (העמקה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit
+                            ];
+
+                            // Show skeleton immediately
+                            const syllabusWithSkeleton = syllabus.map((mod: any) => ({
+                                ...mod,
+                                learningUnits: mod.learningUnits.map((u: any) =>
+                                    u.id === firstUnit.id ? skeletonUnits : u
+                                ).flat()
+                            }));
+                            setCourse({ ...courseWithSyllabus, syllabus: syllabusWithSkeleton });
+                            setSelectedUnitId(unitCoreId); // Select Core by default
+
+                            // Start streaming
+                            const streamResult = await startDifferentiatedStreaming({
+                                topic: topicToUse,
+                                gradeLevel: extractedGrade,
+                                subject: userSubject,
+                                sourceText: processedSourceText || course.title,
+                                productType: data.settings?.productType || 'activity',
+                                activityLength: data.settings?.activityLength || 'medium',
+                                questionPreferences: data.settings?.questionPreferences
+                            });
+
+                            diffContent = await streamResult.result;
+                            console.log("🌊 Streaming completed:", diffContent);
+
+                        } catch (streamError) {
+                            console.error("🌊 Streaming failed, falling back to standard generation:", streamError);
+                            // Fallback to standard generation
+                            diffContent = await generateDifferentiatedContent(
+                                topicToUse,
+                                extractedGrade,
+                                processedSourceText || course.title,
+                                userSubject,
+                                data.settings?.productType || 'activity',
+                                data.settings?.activityLength || 'medium'
+                            );
+                        }
+                    } else {
+                        // Standard non-streaming path
+                        diffContent = await generateDifferentiatedContent(
+                            topicToUse,
+                            extractedGrade,
+                            processedSourceText || course.title,
+                            userSubject,
+                            data.settings?.productType || 'activity',
+                            data.settings?.activityLength || 'medium'
+                        );
+                    }
 
                     if (diffContent) {
-                        // Helper to create a unit from raw items
-                        const isExam = data.settings?.productType === 'exam';
-                        const createDiffUnit = (levelName: string, items: any[]) => {
-                            const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
-                            return {
-                                id: crypto.randomUUID(),
-                                title: `${firstUnit.title} (${levelName})`,
-                                // duration: "45 דק", // Removed: Not in interface
-                                // isCompleted: false, // Removed: Not in interface
-                                baseContent: processedSourceText || "", // Required
-                                activityBlocks: blocks,
-                                type: isExam ? 'test' : 'practice' // 'acquisition' | 'practice' | 'test'
-                            } as LearningUnit;
-                        };
-
                         const unitSupport = createDiffUnit("הבנה", diffContent.support);
+                        unitSupport.id = unitSupportId; // Keep consistent ID
                         const unitCore = createDiffUnit("יישום", diffContent.core);
+                        unitCore.id = unitCoreId;
                         const unitEnrichment = createDiffUnit("העמקה", diffContent.enrichment);
+                        unitEnrichment.id = unitEnrichmentId;
 
                         // Replace the single placeholder unit with our 3 new units
                         const syllabusWithDiff = syllabus.map((mod: any) => ({
@@ -1277,15 +1378,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
                         const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithDiff };
                         setCourse(finalCourse);
-                        // ARCHITECT FIX: Use immediate save for differentiated completion
                         await saveCourseToFirestoreImmediate(finalCourse);
 
-                        // Select the Core unit by default
                         setSelectedUnitId(unitCore.id);
 
-                        // Auto-preview Core unit if it's a lesson
                         if (data.settings?.productType === 'lesson') {
-                            // setShowLoader(false);
                             setPreviewUnit(unitCore);
                         }
                     } else {
@@ -1513,6 +1610,17 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     onContinue={() => setShowLoader(false)}
                 />
             )} */}
+
+            {/* 🌊 STREAMING: Real-time progress indicator */}
+            {streamingState.isStreaming && (
+                <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50">
+                    <StreamingProgress
+                        state={streamingState}
+                        onCancel={cancelStreaming}
+                        showStreamedText={false}
+                    />
+                </div>
+            )}
 
             {/* Preview Modal */}
             {previewUnit && (

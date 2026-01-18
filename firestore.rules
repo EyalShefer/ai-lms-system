@@ -487,6 +487,39 @@ service cloud.firestore {
     }
 
     // ============================================
+    // TEACHER PREFERENCES
+    // ============================================
+
+    // Teacher preferences - each teacher can read/write their own preferences
+    match /teacher_preferences/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ============================================
+    // GENERATION QUEUE
+    // ============================================
+
+    // Course generation queue - teachers can create and read their own requests
+    match /course_generation_queue/{requestId} {
+      // Teachers can create generation requests
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Teachers can read their own requests (to check status)
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Cloud Functions process and update these - allow user to read status updates
+      // Users should not update/delete directly
+      allow update, delete: if false;
+    }
+
+    // Exam generation queue - same rules as course queue
+    match /exam_generation_queue/{requestId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ============================================
     // DEFAULT DENY
     // ============================================
 

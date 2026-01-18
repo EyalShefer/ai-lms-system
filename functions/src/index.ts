@@ -36,6 +36,9 @@ import { checkQuota, logUsage, extractOpenAITokens, AICallType } from "./service
 // --- GEMINI IMAGE GENERATION ---
 export { generateGeminiImage } from "./geminiImageService";
 
+// --- STREAMING SERVER (SSE for real-time content generation) ---
+export { streamingServer } from "./streaming";
+
 // --- GEMINI CHAT PROXY (Universal LLM endpoint) ---
 /**
  * Universal Gemini Chat endpoint for all LLM calls

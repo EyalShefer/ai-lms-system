@@ -457,6 +457,28 @@
     will-change: background-position;
 }
 
+/* Streaming progress bar animation */
+@keyframes streaming-progress {
+    0% { width: 0%; transform: translateX(0); }
+    50% { width: 70%; }
+    100% { width: 100%; transform: translateX(0); }
+}
+
+.animate-streaming-progress {
+    animation: streaming-progress 2s ease-in-out infinite;
+    will-change: width;
+}
+
+/* Typing cursor blink animation */
+@keyframes cursor-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.animate-cursor-blink {
+    animation: cursor-blink 1s step-end infinite;
+}
+
 .perspective-1000 {
     perspective: 1000px;
 }
