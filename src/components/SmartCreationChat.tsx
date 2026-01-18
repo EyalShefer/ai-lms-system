@@ -64,11 +64,14 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
 
     // Refs
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Auto-scroll to bottom
+    // Auto-scroll to bottom - only within the messages container, not the whole page
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
     }, [messages]);
 
     // Focus input on mount
@@ -249,7 +252,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((message) => (
                     <div
                         key={message.id}
