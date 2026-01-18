@@ -221,9 +221,16 @@ export type StrictBlockContent =
 
 export type BloomLevel = 'knowledge' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation';
 
+// רמת למידה - תיוג פדגוגי פשוט לכל בלוק
+// הבנה: שאלות בסיסיות לבדיקת הבנה של החומר
+// יישום: שאלות שדורשות יישום הידע במצבים שונים
+// העמקה: שאלות מאתגרות שדורשות חשיבה מעמיקה וביקורתית
+export type LearningLevel = 'הבנה' | 'יישום' | 'העמקה';
+
 export interface ActivityBlockMetadata {
     difficultyLevel?: number; // 1-5
     bloomLevel?: BloomLevel;
+    learningLevel?: LearningLevel; // רמת למידה: הבנה / יישום / העמקה
     score?: number; // 0-100 (הניקוד לשאלה)
 
     // Curriculum topic identification (links to Knowledge Base chapters)

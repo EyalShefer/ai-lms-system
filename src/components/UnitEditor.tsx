@@ -942,7 +942,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         try {
             const sourceText = course.fullBookContent || "";
             const result = await generateCategorizationQuestion(editedUnit.title, gradeLevel, sourceText, subject);
-            if (result) updateBlock(blockId, result);
+            if (result) {
+                const { learning_level, ...content } = result;
+                updateBlock(blockId, content, { learningLevel: learning_level || 'יישום' });
+            }
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
     const handleAutoGenerateOrdering = async (blockId: string) => {
@@ -950,7 +953,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         try {
             const sourceText = course.fullBookContent || "";
             const result = await generateOrderingQuestion(editedUnit.title, gradeLevel, sourceText, subject);
-            if (result) updateBlock(blockId, result);
+            if (result) {
+                const { learning_level, ...content } = result;
+                updateBlock(blockId, content, { learningLevel: learning_level || 'יישום' });
+            }
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
     const handleAutoGenerateFillInBlanks = async (blockId: string) => {
@@ -958,7 +964,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         try {
             const sourceText = course.fullBookContent || "";
             const result = await generateFillInBlanksQuestion(editedUnit.title, gradeLevel, sourceText, subject);
-            if (result) updateBlock(blockId, result);
+            if (result) {
+                // result can be { text: string, learning_level: string } or just string for backwards compatibility
+                const content = typeof result === 'object' ? result.text : result;
+                const learningLevel = typeof result === 'object' ? result.learning_level : 'יישום';
+                // Store as string to maintain backwards compatibility with existing fill_in_blanks blocks
+                updateBlock(blockId, content, { learningLevel: learningLevel || 'יישום' });
+            }
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
     const handleAutoGenerateMemoryGame = async (blockId: string) => {
@@ -966,7 +978,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         try {
             const sourceText = course.fullBookContent || "";
             const result = await generateMemoryGame(editedUnit.title, gradeLevel, sourceText, subject);
-            if (result) updateBlock(blockId, result);
+            if (result) {
+                const { learning_level, ...content } = result;
+                updateBlock(blockId, content, { learningLevel: learning_level || 'יישום' });
+            }
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
     const handleAutoGenerateTrueFalseQuestion = async (blockId: string) => {
@@ -975,7 +990,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             const sourceText = course.fullBookContent || "";
             // Generate a true/false statement based on unit content
             const result = await generateTrueFalseQuestion(editedUnit.title, gradeLevel, sourceText, subject);
-            if (result) updateBlock(blockId, result);
+            if (result) {
+                const { learning_level, ...content } = result;
+                updateBlock(blockId, content, { learningLevel: learning_level || 'יישום' });
+            }
         } catch (e) { alert("שגיאה"); } finally { setLoadingBlockId(null); }
     };
 
@@ -1196,6 +1214,22 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         const match = url.match(regExp);
         return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : url;
     };
+
+    // Learning Level Selector Component - For question blocks
+    const renderLearningLevelSelector = (block: any) => (
+        <div className="mt-3 pt-3 border-t border-gray-200/50 flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-bold">רמת למידה:</span>
+            <select
+                value={block.metadata?.learningLevel || 'יישום'}
+                onChange={(e) => updateBlock(block.id, block.content, { learningLevel: e.target.value })}
+                className="text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors"
+            >
+                <option value="הבנה">הבנה</option>
+                <option value="יישום">יישום</option>
+                <option value="העמקה">העמקה</option>
+            </select>
+        </div>
+    );
 
     // --- New: Unified Media Toolbar for Questions (Upload / AI / Link) ---
     const renderMediaToolbar = (blockId: string) => {
@@ -1558,6 +1592,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         <button onClick={() => deleteBlock(block.id)} className="p-1 hover:text-red-500 rounded hover:bg-red-50 transition-colors"><IconTrash className="w-4 h-4" /></button>
                                     </div>
                                     <span className="absolute top-2 right-12 text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-1 rounded-full uppercase tracking-wide border border-white/50">{BLOCK_TYPE_MAPPING[block.type] || block.type}</span>
+
+                                    {/* Learning Level Badge - Teacher Only */}
+                                    {block.metadata?.learningLevel && (
+                                        <span className="absolute top-2 right-36 text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-1 rounded-full tracking-wide border border-white/50">{block.metadata.learningLevel}</span>
+                                    )}
 
                                     {/* Three Levels Badge */}
                                     {(block.metadata?.has_variants || block.metadata?.scaffolding_variant || block.metadata?.enrichment_variant) && (
@@ -1986,6 +2025,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2047,6 +2087,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <label className="text-xs font-bold text-indigo-700 block mb-1">הודעת פתיחה למשתתפים</label>
                                                     <input type="text" className="w-full p-2.5 border border-indigo-200 rounded-lg bg-white/70 text-sm focus:bg-white transition-colors" value={block.metadata?.initialMessage || ''} onChange={(e) => updateBlock(block.id, block.content, { initialMessage: e.target.value })} />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2132,6 +2173,26 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         />
                                                     </div>
                                                 )}
+                                                {/* Learning Level Selector - Teacher Only */}
+                                                <div className="mt-3 pt-3 border-t border-gray-200/50 flex justify-between items-center">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-gray-500 font-bold">רמת למידה:</span>
+                                                        <select
+                                                            value={block.metadata?.learningLevel || 'יישום'}
+                                                            onChange={(e) => updateBlock(block.id, block.content, { learningLevel: e.target.value })}
+                                                            className={`text-xs font-bold px-2 py-1 rounded-lg border cursor-pointer transition-colors
+                                                                ${block.metadata?.learningLevel === 'הבנה'
+                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                                                    : block.metadata?.learningLevel === 'העמקה'
+                                                                        ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                                                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}
+                                                        >
+                                                            <option value="הבנה">🔵 הבנה</option>
+                                                            <option value="יישום">🟡 יישום</option>
+                                                            <option value="העמקה">🟣 העמקה</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
                                                 <div className="mt-3 pt-3 border-t border-gray-200/50 flex justify-between items-center">
                                                     <span className="text-xs text-gray-400 font-bold">הוסיפו מדיה לשאלה:</span>
                                                     {/* השימוש החדש ברכיב המאוחד */}
@@ -2173,6 +2234,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2204,6 +2266,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2258,6 +2321,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2299,6 +2363,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2331,6 +2396,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         onUpdate={(newContent) => updateBlock(block.id, newContent)}
                                                     />
                                                 </div>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2555,6 +2621,20 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         </button>
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Generic Question Types (matching, highlight, sentence_builder, etc.) */}
+                                        {['matching', 'highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix', 'drag_and_drop', 'hotspot'].includes(block.type) && (
+                                            <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-200">
+                                                <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
+                                                    <IconEdit className="w-5 h-5" /> {BLOCK_TYPE_MAPPING[block.type] || block.type}
+                                                </div>
+                                                <p className="text-xs text-gray-500 mb-4">סוג שאלה זה נתמך במערכת. ערכו את התוכן ישירות ב-JSON או השתמשו ב-AI ליצירה אוטומטית.</p>
+                                                <pre className="bg-white p-3 rounded-lg border text-xs overflow-auto max-h-40 text-left" dir="ltr">
+                                                    {JSON.stringify(block.content, null, 2)}
+                                                </pre>
+                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
                                     </div>

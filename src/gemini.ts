@@ -3336,12 +3336,17 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
     2. DO NOT use generic examples - use actual content from the text
     3. Categories must be distinct (e.g., "סיבות/תוצאות", "לפני/אחרי", "יתרונות/חסרונות")
     4. All items must be directly mentioned or clearly derived from the source text
+    5. Determine the learning level:
+       - "הבנה": Basic categorization of simple concepts
+       - "יישום": Categorization requiring application of knowledge
+       - "העמקה": Complex categorization requiring analysis
 
     JSON Output (Hebrew):
     {
       "question": "מיינו את הפריטים הבאים לקטגוריות:",
       "categories": ["[קטגוריה מהטקסט]", "[קטגוריה מהטקסט]"],
-      "items": [{ "text": "[פריט מהטקסט]", "category": "[קטגוריה מהטקסט]" }]
+      "items": [{ "text": "[פריט מהטקסט]", "category": "[קטגוריה מהטקסט]" }],
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
     `;
   try {
@@ -3350,6 +3355,9 @@ export const generateCategorizationQuestion = async (topic: string, gradeLevel: 
     // Strict Validation
     if (!result.categories || result.categories.length < 2) return null;
     if (!result.items || result.items.length < 2) return null;
+    // Add learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    result.learning_level = validLevels.includes(result.learning_level) ? result.learning_level : 'יישום';
     return result;
   } catch { return null; }
 };
@@ -3383,11 +3391,16 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
     4. If the text describes a procedure - use the actual procedure steps
     5. If no clear sequence exists, order items by logical progression found in the text
     6. Items should be concise but specific to the content
+    7. Determine the learning level:
+       - "הבנה": Simple ordering of clearly stated sequence
+       - "יישום": Ordering requiring logical reasoning
+       - "העמקה": Complex ordering requiring analysis of relationships
 
     JSON Output (Hebrew):
     {
       "instruction": "סדרו את [האירועים/השלבים] בסדר הנכון:",
-      "correct_order": ["[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]"]
+      "correct_order": ["[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]", "[תוכן ספציפי מהטקסט]"],
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
     `;
   try {
@@ -3395,6 +3408,9 @@ export const generateOrderingQuestion = async (topic: string, gradeLevel: string
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.correct_order || result.correct_order.length < 2) return null;
+    // Add learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    result.learning_level = validLevels.includes(result.learning_level) ? result.learning_level : 'יישום';
     return result;
   } catch { return null; }
 };
@@ -3427,10 +3443,15 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
     3. MUST have at least 3 hidden words
     4. Context MUST make the hidden word guessable
     5. DO NOT use generic examples - use actual content from the provided text
+    6. Determine the learning level:
+       - "הבנה": Basic fill-in with obvious clues
+       - "יישום": Fill-in requiring understanding of context
+       - "העמקה": Complex fill-in requiring deeper knowledge
 
     JSON Output (Hebrew):
     {
-      "text": "[משפט בעברית עם [מילה מוסתרת מהטקסט] ותוכן רלוונטי]"
+      "text": "[משפט בעברית עם [מילה מוסתרת מהטקסט] ותוכן רלוונטי]",
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
     `;
   try {
@@ -3438,7 +3459,10 @@ export const generateFillInBlanksQuestion = async (topic: string, gradeLevel: st
     const parsed = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation: Must have at least one cloze deletion
     if (!parsed.text || !parsed.text.includes('[') || !parsed.text.includes(']')) return null;
-    return parsed.text;
+    // Add learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    const learningLevel = validLevels.includes(parsed.learning_level) ? parsed.learning_level : 'יישום';
+    return { text: parsed.text, learning_level: learningLevel };
   } catch { return null; }
 };
 
@@ -3469,12 +3493,17 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
     2. DO NOT use generic examples - use actual content from the text
     3. Match types: Term↔Definition, Event↔Date, Cause↔Effect, Person↔Achievement
     4. Both card_a and card_b must contain content from the source
+    5. Determine the learning level:
+       - "הבנה": Simple term-definition matching
+       - "יישום": Matching requiring understanding of relationships
+       - "העמקה": Complex matching requiring analysis
 
     JSON Output (Hebrew):
     {
       "pairs": [
         { "card_a": "[מונח/אירוע מהטקסט]", "card_b": "[הגדרה/תאריך מהטקסט]" }
-      ]
+      ],
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
     `;
   try {
@@ -3482,6 +3511,9 @@ export const generateMemoryGame = async (topic: string, gradeLevel: string, sour
     const result = JSON.parse(res.choices[0].message.content || "{}");
     // Strict Validation
     if (!result.pairs || result.pairs.length < 3) return null;
+    // Add learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    result.learning_level = validLevels.includes(result.learning_level) ? result.learning_level : 'יישום';
     return result;
   } catch { return null; }
 };
@@ -3510,12 +3542,17 @@ export const generateTrueFalseQuestion = async (topic: string, gradeLevel: strin
     2. The statement must be definitively true OR definitively false
     3. Base it on actual content from the source text
     4. Avoid trick questions or overly technical language
+    5. Determine the learning level:
+       - "הבנה": Simple fact-checking statement
+       - "יישום": Statement requiring understanding of concepts
+       - "העמקה": Complex statement requiring analysis
 
     JSON Output:
     {
       "statement": "טענה בעברית",
       "answer": true,
-      "explanation": "הסבר קצר למה זה נכון/לא נכון"
+      "explanation": "הסבר קצר למה זה נכון/לא נכון",
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
   `;
 
@@ -3527,6 +3564,9 @@ export const generateTrueFalseQuestion = async (topic: string, gradeLevel: strin
     });
     const result = JSON.parse(res.choices[0].message.content || "{}");
     if (!result.statement || result.answer === undefined) return null;
+    // Add learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    result.learning_level = validLevels.includes(result.learning_level) ? result.learning_level : 'יישום';
     return result;
   } catch { return null; }
 };
@@ -3726,12 +3766,17 @@ ${textSection}
 2. נסח את השאלה בדיוק כמו בדוגמאות שמופיעות למעלה מהספר
 3. השתמש בשפה המתמטית והמונחים מהספר
 4. בנה מסיחים שמבוססים על טעויות נפוצות (אם צוינו)
+5. קבע את רמת הלמידה של השאלה:
+   - "הבנה": שאלה בסיסית לבדיקת הבנת החומר (מה, מי, איפה, מתי)
+   - "יישום": שאלה שדורשת יישום הידע במצב חדש או חישוב
+   - "העמקה": שאלה מאתגרת שדורשת חשיבה ביקורתית, ניתוח או השוואה
 
 OUTPUT JSON:
 {
   "question": "נוסח השאלה בסגנון הספר",
   "options": ["תשובה א", "תשובה ב", "תשובה ג", "תשובה ד"],
-  "correct_answer": "התשובה הנכונה"
+  "correct_answer": "התשובה הנכונה",
+  "learning_level": "הבנה" | "יישום" | "העמקה"
 }
 ` : `
     Based on the following content, create a single Multiple Choice Question.
@@ -3743,11 +3788,17 @@ OUTPUT JSON:
 
     Goal: Test understanding of the core message.
 
+    Determine the learning level of the question:
+    - "הבנה" (Understanding): Basic question testing comprehension (what, who, where, when)
+    - "יישום" (Application): Question requiring application of knowledge in a new situation
+    - "העמקה" (Deepening): Challenging question requiring critical thinking, analysis or comparison
+
     OUTPUT JSON:
     {
       "question": "The question text",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correct_answer": "Option A"
+      "correct_answer": "Option A",
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
   `;
 
@@ -3761,6 +3812,10 @@ OUTPUT JSON:
 
     if (!parsed.question || !parsed.options || !parsed.correct_answer) return null;
 
+    // Validate and normalize learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    const learningLevel = validLevels.includes(parsed.learning_level) ? parsed.learning_level : 'יישום';
+
     return {
       id: uuidv4(),
       type: 'multiple-choice',
@@ -3771,7 +3826,8 @@ OUTPUT JSON:
       },
       metadata: {
         score: 10,
-        difficulty: 1
+        difficulty: 1,
+        learningLevel: learningLevel
       }
     };
   } catch (e) {
@@ -3812,11 +3868,16 @@ ${textSection}
 2. נסח את השאלה בדיוק כמו בדוגמאות שמופיעות למעלה מהספר
 3. השתמש בשפה המתמטית והמונחים מהספר
 4. שאל שאלה שמעודדת חשיבה עמוקה
+5. קבע את רמת הלמידה של השאלה:
+   - "הבנה": שאלה בסיסית לבדיקת הבנת החומר
+   - "יישום": שאלה שדורשת יישום הידע במצב חדש
+   - "העמקה": שאלה מאתגרת שדורשת חשיבה ביקורתית וניתוח
 
 OUTPUT JSON:
 {
   "question": "נוסח השאלה בסגנון הספר",
-  "model_answer": "תשובה לדוגמה או נקודות עיקריות לחפש"
+  "model_answer": "תשובה לדוגמה או נקודות עיקריות לחפש",
+  "learning_level": "הבנה" | "יישום" | "העמקה"
 }
 ` : `
     Based on the following content, create a single Open-Ended Question.
@@ -3828,10 +3889,16 @@ OUTPUT JSON:
 
     Goal: Encourage deep thinking or opinion.
 
+    Determine the learning level of the question:
+    - "הבנה" (Understanding): Basic question testing comprehension
+    - "יישום" (Application): Question requiring application of knowledge
+    - "העמקה" (Deepening): Challenging question requiring critical thinking
+
     OUTPUT JSON:
     {
       "question": "The open question text",
-      "model_answer": "A model answer or key points to look for."
+      "model_answer": "A model answer or key points to look for.",
+      "learning_level": "הבנה" | "יישום" | "העמקה"
     }
   `;
 
@@ -3845,6 +3912,10 @@ OUTPUT JSON:
 
     if (!parsed.question) return null;
 
+    // Validate and normalize learning level
+    const validLevels = ['הבנה', 'יישום', 'העמקה'];
+    const learningLevel = validLevels.includes(parsed.learning_level) ? parsed.learning_level : 'יישום';
+
     return {
       id: uuidv4(),
       type: 'open-question',
@@ -3853,7 +3924,8 @@ OUTPUT JSON:
       },
       metadata: {
         score: 20,
-        modelAnswer: parsed.model_answer || "תשובה פתוחה לשיקול דעת המורה."
+        modelAnswer: parsed.model_answer || "תשובה פתוחה לשיקול דעת המורה.",
+        learningLevel: learningLevel
       }
     };
   } catch (e) {

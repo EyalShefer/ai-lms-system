@@ -19,7 +19,9 @@ import {
     IconBook,
     IconClipboardCheck,
     IconTarget,
-    IconChevronLeft
+    IconChevronLeft,
+    IconInfoCircle,
+    IconX
 } from '@tabler/icons-react';
 
 // --- MOCK GAMIFICATION ENGINE (SIMULATION) ---
@@ -258,6 +260,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
     const gameStats = useGamification();
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [selectedTask, setSelectedTask] = useState<StudentAssignment | null>(null);
+    const [showStatsLegend, setShowStatsLegend] = useState(false);
 
     // Combine all assignments based on filter
     const getFilteredTasks = () => {
@@ -302,6 +305,15 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
             {/* --- TOP BAR (GAMIFICATION HUD) --- */}
             <header className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-wizdi-cloud dark:border-slate-800 z-sticky" role="banner">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                    {/* Info Button */}
+                    <button
+                        onClick={() => setShowStatsLegend(true)}
+                        className="hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] min-w-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
+                        aria-label="מקרא - הסבר על הסמלים"
+                    >
+                        <IconInfoCircle className="w-6 h-6 text-slate-400 dark:text-slate-500" aria-hidden="true" />
+                    </button>
+
                     {/* League */}
                     <button
                         className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-gold"
@@ -351,6 +363,103 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                     </button>
                 </div>
             </header>
+
+            {/* Stats Legend Popup */}
+            {showStatsLegend && (
+                <div
+                    className="fixed inset-0 z-modal flex items-center justify-center"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="stats-legend-title"
+                >
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        onClick={() => setShowStatsLegend(false)}
+                        aria-hidden="true"
+                    />
+
+                    {/* Card */}
+                    <div className="bg-white dark:bg-slate-800 w-[90%] max-w-md rounded-3xl relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-4 text-white flex items-center justify-between">
+                            <h2 id="stats-legend-title" className="text-lg font-bold">מה כל סמל אומר?</h2>
+                            <button
+                                onClick={() => setShowStatsLegend(false)}
+                                className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                aria-label="סגור"
+                            >
+                                <IconX size={20} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 space-y-4">
+                            {/* Trophy - League */}
+                            <div className="flex items-start gap-4">
+                                <div className="p-2.5 bg-wizdi-gold/10 rounded-xl flex-shrink-0">
+                                    <IconTrophy className="text-wizdi-gold fill-wizdi-gold w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white">ליגה</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        מתחרים עם תלמידים אחרים ומנסים לעלות בדירוג!
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Flame - Streak */}
+                            <div className="flex items-start gap-4">
+                                <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex-shrink-0">
+                                    <IconFlame className="text-orange-500 fill-orange-500 w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white">רצף</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        כמה ימים ברצף למדתם. שומרים על הרצף כל יום!
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Diamond - Gems */}
+                            <div className="flex items-start gap-4">
+                                <div className="p-2.5 bg-wizdi-cyan/10 rounded-xl flex-shrink-0">
+                                    <IconDiamond className="text-wizdi-cyan fill-wizdi-cyan w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white">יהלומים</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        צוברים יהלומים על למידה וקונים איתם דברים מגניבים בחנות!
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Star - XP */}
+                            <div className="flex items-start gap-4">
+                                <div className="p-2.5 bg-wizdi-gold/10 rounded-xl flex-shrink-0">
+                                    <IconStar className="text-wizdi-gold fill-wizdi-gold w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white">נקודות (XP)</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        נקודות ניסיון שצוברים על כל פעילות. עולים רמה ככל שצוברים יותר!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+                            <button
+                                onClick={() => setShowStatsLegend(false)}
+                                className="w-full btn-lip-primary py-3 rounded-xl font-bold"
+                            >
+                                הבנתי!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="max-w-7xl mx-auto px-4 pt-6">
 

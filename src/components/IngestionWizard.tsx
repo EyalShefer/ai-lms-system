@@ -708,6 +708,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 },
                 targetAudience: grade
             };
+            console.log("DEBUG: finalData.settings.isDifferentiated =", finalData.settings.isDifferentiated, "isDifferentiated state =", isDifferentiated);
             if (onComplete) await onComplete(finalData);
         }
     };

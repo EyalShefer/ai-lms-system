@@ -371,6 +371,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         // Detect Lesson Mode
         const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
 
+        // Detect Differentiated Mode (3 levels)
+        const isDifferentiatedMode = course.wizardData?.settings?.isDifferentiated === true;
+
         // 🚀 AUTO-GENERATION TRIGGER FOR FRESH SHELLS
         // If we have a shell syllabus (from App.tsx) but it's empty, AND we have wizard data -> GENERATE!
         const firstUnit = course.syllabus?.[0]?.learningUnits?.[0];
@@ -382,10 +385,19 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             return;
         }
 
+        // 🧬 AUTO-GENERATION TRIGGER FOR DIFFERENTIATED MODE
+        // If we have wizard data with isDifferentiated and a fresh shell -> GENERATE 3 UNITS!
+        if (isFreshShell && course.wizardData && isDifferentiatedMode) {
+            console.log("🧬 Detected Fresh Shell with Differentiated Mode. Triggering 3-Level Generation...");
+            handleWizardComplete(course.wizardData);
+            return;
+        }
+
         if (hasSyllabus && !hasAutoSelected.current) {
             if (firstUnit && !selectedUnitId) {
-                // CRITICAL: Prevent auto-select for Lesson Plans
-                if (!isLessonMode) {
+                // CRITICAL: Prevent auto-select for Lesson Plans AND Differentiated Mode
+                // In differentiated mode, CourseEditor needs to create 3 units first before UnitEditor loads
+                if (!isLessonMode && !isDifferentiatedMode) {
                     setSelectedUnitId(firstUnit.id);
                     hasAutoSelected.current = true;
                 }
@@ -1121,9 +1133,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             // יצירת סילבוס (מבנה בלבד עבור מערך שיעור, מלא עבור אחרים)
             let syllabus: Module[] = [];
 
+            console.log("📋 SYLLABUS CREATION - productType:", data.settings?.productType, "isDifferentiated:", data.settings?.isDifferentiated);
+
             if (data.settings?.productType === 'lesson') {
                 // progressive loading strategy
-                // console.log("🏗️ Building Skeleton Syllabus (Client-Side)...");
+                console.log("🏗️ LESSON PATH - Building Skeleton Syllabus...");
                 syllabus = await generateCourseSyllabus(
                     topicToUse,
                     extractedGrade,
@@ -1147,6 +1161,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
             } else {
                 // legacy / cloud function strategy (games, exams)
+                console.log("📦 NON-LESSON PATH - Using generateCoursePlan...");
                 syllabus = await generateCoursePlan(
                     topicToUse,
                     extractedGrade,
@@ -1167,9 +1182,13 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             // ARCHITECT FIX: Use immediate save for wizard completion (critical checkpoint)
             await saveCourseToFirestoreImmediate(courseWithSyllabus);
 
+            console.log("🔍 CHECKING SYLLABUS - length:", syllabus.length, "units:", syllabus[0]?.learningUnits?.length);
+
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
-                // console.log("🧠 Starting V4 Generation for:", firstUnit.title);
+
+                // DEBUG: Log all relevant settings
+                console.log("🔍 DEBUG CourseEditor - productType:", data.settings?.productType, "isDifferentiated:", data.settings?.isDifferentiated, "full settings:", JSON.stringify(data.settings));
 
                 // --- PODCAST PRODUCT HANDLER ---
                 if (data.settings?.productType === 'podcast') {
@@ -1217,7 +1236,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 }
                 // --- DIFFERENTIATED INSTRUCTION HANDLER ---
                 else if (data.settings?.isDifferentiated) {
-                    // console.log("🧬 Starting Differentiated Instruction Generation...");
+                    console.log("🧬 ENTERING DIFFERENTIATED BRANCH! isDifferentiated =", data.settings?.isDifferentiated);
 
                     const diffContent = await generateDifferentiatedContent(
                         topicToUse,
@@ -1275,7 +1294,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 }
                 // --- STANDARD UNIT HANDLER ---
                 else {
-                    // console.log("🧠 Starting V4 Generation...");
+                    console.log("⚠️ ENTERING STANDARD BRANCH (not differentiated). isDifferentiated =", data.settings?.isDifferentiated);
 
                     // CHECK FOR LESSON MODE -> PROGRESSIVE BUILD
                     if (data.settings?.productType === 'lesson' || updatedCourseState.mode === 'lesson') {

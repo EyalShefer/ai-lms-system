@@ -31,7 +31,8 @@ import {
     IconChevronLeft,
     IconX,
     IconHome,
-    IconChartBar
+    IconChartBar,
+    IconInfoCircle
 } from '@tabler/icons-react';
 
 // Mock gamification data
@@ -57,6 +58,7 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
     const gameStats = useGamification();
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [selectedTask, setSelectedTask] = useState<StudentAssignment | null>(null);
+    const [showStatsLegend, setShowStatsLegend] = useState(false);
 
     const getFilteredTasks = () => {
         const all = [...assignments.new, ...assignments.inProgress, ...assignments.completed];
@@ -109,13 +111,22 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
             <header className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan text-white px-4 py-5 safe-area-inset-top">
                 {/* Top row: Stats */}
                 <div className="flex items-center justify-between mb-4">
+                    {/* Info Button */}
+                    <button
+                        onClick={() => setShowStatsLegend(true)}
+                        className="p-2 min-w-[44px] min-h-[44px] hover:bg-white/20 rounded-full transition-colors"
+                        aria-label="מקרא - הסבר על הסמלים"
+                    >
+                        <IconInfoCircle className="w-5 h-5" />
+                    </button>
+
                     {/* Streak */}
                     <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
                         <IconFlame className="w-5 h-5 text-orange-300" />
                         <span className="font-bold text-sm">{gameStats.streak.current}</span>
                     </div>
 
-                    {/* XP */}
+                    {/* XP / Points */}
                     <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
                         <IconStar className="w-5 h-5 text-yellow-300" />
                         <span className="font-bold text-sm">{gameStats.xp} XP</span>
@@ -448,6 +459,90 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
                                     {selectedTask.progress > 0 ? 'המשך' : 'התחל'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stats Legend Popup */}
+            {showStatsLegend && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="stats-legend-title-mobile"
+                >
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        onClick={() => setShowStatsLegend(false)}
+                        aria-hidden="true"
+                    />
+
+                    {/* Card */}
+                    <div className="bg-white dark:bg-slate-800 w-[90%] max-w-sm rounded-3xl relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-4 text-white flex items-center justify-between">
+                            <h2 id="stats-legend-title-mobile" className="text-lg font-bold">מה כל סמל אומר?</h2>
+                            <button
+                                onClick={() => setShowStatsLegend(false)}
+                                className="p-2 hover:bg-white/20 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                aria-label="סגור"
+                            >
+                                <IconX size={20} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-4 space-y-3">
+                            {/* Flame - Streak */}
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex-shrink-0">
+                                    <IconFlame className="text-orange-500 fill-orange-500 w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-sm">רצף</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        כמה ימים ברצף למדתם. שומרים על הרצף כל יום!
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Star - XP */}
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex-shrink-0">
+                                    <IconStar className="text-yellow-500 fill-yellow-500 w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-sm">נקודות (XP)</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        נקודות ניסיון שצוברים על כל פעילות. עולים רמה ככל שצוברים יותר!
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Diamond - Gems */}
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-wizdi-cyan/10 rounded-xl flex-shrink-0">
+                                    <IconDiamond className="text-wizdi-cyan fill-wizdi-cyan w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-sm">יהלומים</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        צוברים יהלומים על למידה וקונים איתם דברים מגניבים בחנות!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+                            <button
+                                onClick={() => setShowStatsLegend(false)}
+                                className="w-full bg-wizdi-royal text-white py-3 min-h-[48px] rounded-xl font-bold"
+                            >
+                                הבנתי!
+                            </button>
                         </div>
                     </div>
                 </div>
