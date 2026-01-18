@@ -269,17 +269,22 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
 
                             {/* Quick replies */}
                             {message.quickReplies && message.quickReplies.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2 justify-end">
-                                    {message.quickReplies.map((reply, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => handleQuickReply(reply)}
-                                            disabled={isLoading || isGenerating}
-                                            className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-600 text-wizdi-royal dark:text-wizdi-cyan border border-wizdi-royal/30 dark:border-wizdi-cyan/30 rounded-full hover:bg-wizdi-royal/10 dark:hover:bg-wizdi-cyan/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {reply}
-                                        </button>
-                                    ))}
+                                <div className="mt-2">
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-1.5 text-left">
+                                        או בחרו מהאפשרויות המוכנות למטה
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 justify-end">
+                                        {message.quickReplies.map((reply, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => handleQuickReply(reply)}
+                                                disabled={isLoading || isGenerating}
+                                                className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-600 text-wizdi-royal dark:text-wizdi-cyan border border-wizdi-royal/30 dark:border-wizdi-cyan/30 rounded-full hover:bg-wizdi-royal/10 dark:hover:bg-wizdi-cyan/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {reply}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
@@ -374,7 +379,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="כתבו כאן..."
+                        placeholder="כתבו בחופשיות או בחרו מההצעות למעלה..."
                         disabled={isLoading || isGenerating}
                         className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-wizdi-royal/50 focus:border-wizdi-royal disabled:opacity-50 disabled:cursor-not-allowed"
                         dir="rtl"
