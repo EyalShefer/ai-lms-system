@@ -651,8 +651,8 @@ const ClassAnalyticsOverview: React.FC<{
                                     <IconUsers className="w-5 h-5 text-slate-500" />
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-800">רמת כיתה</div>
-                                    <div className="text-xs text-slate-500">מסלול סטנדרטי</div>
+                                    <div className="font-bold text-slate-800">יישום</div>
+                                    <div className="text-xs text-slate-500">לרוב התלמידים</div>
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-slate-600">{classStats.average.length}</div>
@@ -716,7 +716,7 @@ const StudentListPanel: React.FC<{
     const getLevelLabel = (riskLevel: string) => {
         switch (riskLevel) {
             case 'high': return { label: 'מתקשה', color: 'bg-amber-100 text-amber-600 border-amber-200', icon: <IconTrendingDown className="w-3.5 h-3.5" /> };
-            case 'medium': return { label: 'רמת כיתה', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <IconUsers className="w-3.5 h-3.5" /> };
+            case 'medium': return { label: 'יישום', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <IconUsers className="w-3.5 h-3.5" /> };
             case 'low': return { label: 'מתקדם', color: 'bg-wizdi-action/10 text-wizdi-action border-wizdi-action/20', icon: <IconTrendingUp className="w-3.5 h-3.5" /> };
             default: return { label: 'לא ידוע', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <IconHelpCircle className="w-3.5 h-3.5" /> };
         }
@@ -887,7 +887,7 @@ const StudentListPanel: React.FC<{
                     </span>
                     <span>
                         <span className="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1"></span>
-                        רמת כיתה: {students.filter(s => s.riskLevel === 'medium').length}
+                        יישום: {students.filter(s => s.riskLevel === 'medium').length}
                     </span>
                     <span>
                         <span className="inline-block w-2 h-2 rounded-full bg-wizdi-action mr-1"></span>
@@ -1186,7 +1186,7 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
         } else {
             const typeLabels: Record<string, string> = {
                 'הבנה': 'הבנה למתקשים',
-                'יישום': 'יישום לרמת כיתה',
+                'יישום': 'יישום לרוב התלמידים',
                 'העמקה': 'העמקה למתקדמים'
             };
             alert(`יצירת משימת ${typeLabels[groupType] || groupType} - יתווסף בקרוב`);

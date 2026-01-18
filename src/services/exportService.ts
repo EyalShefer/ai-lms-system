@@ -57,7 +57,7 @@ const COLUMN_NAMES_HE: Record<string, string> = {
 // Risk level translations
 const RISK_LEVEL_HE: Record<string, string> = {
     low: 'נמוך (מתקדם)',
-    medium: 'בינוני (רמת כיתה)',
+    medium: 'בינוני (יישום)',
     high: 'גבוה (מתקשה)'
 };
 
