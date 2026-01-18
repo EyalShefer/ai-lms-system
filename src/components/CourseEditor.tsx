@@ -9,7 +9,7 @@ import { IconEye, IconX } from '../icons';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import { TypewriterLoaderInline } from './ui/Loading/TypewriterLoader';
 import IngestionWizard from './IngestionWizard';
-import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateDifferentiatedContent, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel, extractTopicFromText } from '../gemini';
+import { generateCoursePlan, generateFullUnitContent, generateFullUnitContentWithVariants, generateCourseSyllabus, generateUnitSkeleton, generateStepContent, generatePodcastScript, generateTeacherStepContent, generateLessonVisuals, generateInteractiveBlocks, generateLessonPart1, generateLessonPart2, generateTeacherLessonParallel, extractTopicFromText } from '../gemini';
 import { useStreamingGeneration } from '../hooks/useStreamingGeneration';
 import { StreamingProgress, StreamingBadge } from './StreamingProgress';
 import { isStreamingSupported } from '../services/streamingService';
@@ -1278,13 +1278,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 else if (data.settings?.isDifferentiated) {
                     console.log("🧬 ENTERING DIFFERENTIATED BRANCH! isDifferentiated =", data.settings?.isDifferentiated);
 
-                    // 🌊 STREAMING: Use streaming for differentiated content if supported
-                    const useStreaming = isStreamingSupported();
-                    console.log("🌊 Streaming supported:", useStreaming);
-
                     let diffContent: { support: any[]; core: any[]; enrichment: any[] } | null = null;
 
-                    // Helper to create a unit from raw items (used by both paths)
+                    // Helper to create a unit from raw items
                     const isExam = data.settings?.productType === 'exam';
                     const createDiffUnit = (levelName: string, items: any[]) => {
                         const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
@@ -1302,62 +1298,42 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     const unitCoreId = crypto.randomUUID();
                     const unitEnrichmentId = crypto.randomUUID();
 
-                    if (useStreaming) {
-                        // 🌊 STREAMING PATH: Real-time updates as each level completes
-                        try {
-                            // Create skeleton units immediately
-                            const skeletonUnits = [
-                                { id: unitSupportId, title: `${firstUnit.title} (הבנה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
-                                { id: unitCoreId, title: `${firstUnit.title} (יישום)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
-                                { id: unitEnrichmentId, title: `${firstUnit.title} (העמקה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit
-                            ];
+                    // 🌊 STREAMING with Gemini 3 Pro (only path - no GPT fallback)
+                    try {
+                        // Create skeleton units immediately
+                        const skeletonUnits = [
+                            { id: unitSupportId, title: `${firstUnit.title} (הבנה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
+                            { id: unitCoreId, title: `${firstUnit.title} (יישום)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
+                            { id: unitEnrichmentId, title: `${firstUnit.title} (העמקה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit
+                        ];
 
-                            // Show skeleton immediately
-                            const syllabusWithSkeleton = syllabus.map((mod: any) => ({
-                                ...mod,
-                                learningUnits: mod.learningUnits.map((u: any) =>
-                                    u.id === firstUnit.id ? skeletonUnits : u
-                                ).flat()
-                            }));
-                            setCourse({ ...courseWithSyllabus, syllabus: syllabusWithSkeleton });
-                            setSelectedUnitId(unitCoreId); // Select Core by default
+                        // Show skeleton immediately
+                        const syllabusWithSkeleton = syllabus.map((mod: any) => ({
+                            ...mod,
+                            learningUnits: mod.learningUnits.map((u: any) =>
+                                u.id === firstUnit.id ? skeletonUnits : u
+                            ).flat()
+                        }));
+                        setCourse({ ...courseWithSyllabus, syllabus: syllabusWithSkeleton });
+                        setSelectedUnitId(unitCoreId); // Select Core by default
 
-                            // Start streaming
-                            const streamResult = await startDifferentiatedStreaming({
-                                topic: topicToUse,
-                                gradeLevel: extractedGrade,
-                                subject: userSubject,
-                                sourceText: processedSourceText || course.title,
-                                productType: data.settings?.productType || 'activity',
-                                activityLength: data.settings?.activityLength || 'medium',
-                                questionPreferences: data.settings?.questionPreferences
-                            });
+                        // Start streaming (Gemini 3 Pro)
+                        diffContent = await startDifferentiatedStreaming({
+                            topic: topicToUse,
+                            gradeLevel: extractedGrade,
+                            subject: userSubject,
+                            sourceText: processedSourceText || course.title,
+                            productType: data.settings?.productType || 'activity',
+                            activityLength: data.settings?.activityLength || 'medium',
+                            questionPreferences: data.settings?.questionPreferences
+                        });
+                        console.log("🌊 Streaming completed:", diffContent);
 
-                            diffContent = await streamResult.result;
-                            console.log("🌊 Streaming completed:", diffContent);
-
-                        } catch (streamError) {
-                            console.error("🌊 Streaming failed, falling back to standard generation:", streamError);
-                            // Fallback to standard generation
-                            diffContent = await generateDifferentiatedContent(
-                                topicToUse,
-                                extractedGrade,
-                                processedSourceText || course.title,
-                                userSubject,
-                                data.settings?.productType || 'activity',
-                                data.settings?.activityLength || 'medium'
-                            );
-                        }
-                    } else {
-                        // Standard non-streaming path
-                        diffContent = await generateDifferentiatedContent(
-                            topicToUse,
-                            extractedGrade,
-                            processedSourceText || course.title,
-                            userSubject,
-                            data.settings?.productType || 'activity',
-                            data.settings?.activityLength || 'medium'
-                        );
+                    } catch (streamError) {
+                        console.error("🧬 Differentiated generation failed:", streamError);
+                        alert("שגיאה ביצירת תוכן דיפרנציאלי. נסה שוב.");
+                        setIsGenerating(false);
+                        return;
                     }
 
                     if (diffContent) {

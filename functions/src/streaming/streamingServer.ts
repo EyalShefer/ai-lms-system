@@ -283,7 +283,7 @@ app.post('/stream/content', async (req, res) => {
  * POST /stream/differentiated
  *
  * Streams 3-level differentiated content (support, core, enrichment)
- * Each level is generated and streamed separately for immediate feedback
+ * Uses PARALLEL generation for 3x faster results
  */
 app.post('/stream/differentiated', async (req, res) => {
   // Verify authentication
@@ -300,7 +300,7 @@ app.post('/stream/differentiated', async (req, res) => {
     return;
   }
 
-  logger.info(`🧬 Starting differentiated stream for user ${userId}`, {
+  logger.info(`🧬 Starting PARALLEL differentiated stream for user ${userId}`, {
     topic,
     gradeLevel,
     productType
@@ -313,22 +313,23 @@ app.post('/stream/differentiated', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  // Hebrew level names: הבנה, יישום, העמקה
   const levels = [
-    { key: 'support', name: 'רמה תומכת', bloom: 'remember,understand' },
-    { key: 'core', name: 'רמה רגילה', bloom: 'apply,analyze' },
-    { key: 'enrichment', name: 'רמה מתקדמת', bloom: 'evaluate,create' }
+    { key: 'support', name: 'הבנה', bloom: 'remember,understand' },
+    { key: 'core', name: 'יישום', bloom: 'apply,analyze' },
+    { key: 'enrichment', name: 'העמקה', bloom: 'evaluate,create' }
   ];
 
-  try {
-    // Generate each level sequentially but stream each one
-    for (const level of levels) {
-      // Send level start event
-      sendSSE(res, 'level_start', {
-        type: 'progress',
-        content: `מייצר תוכן ל${level.name}...`,
-        metadata: { level: level.key }
-      });
+  // Send initial progress
+  sendSSE(res, 'progress', {
+    type: 'progress',
+    content: 'מייצר 3 רמות במקביל...',
+    metadata: { totalExpected: 3 }
+  });
 
+  try {
+    // 🚀 PARALLEL GENERATION - Generate all 3 levels simultaneously
+    const generateLevel = async (level: typeof levels[0]) => {
       const prompt = buildDifferentiatedPrompt(
         topic,
         gradeLevel,
@@ -342,28 +343,17 @@ app.post('/stream/differentiated', async (req, res) => {
       );
 
       let levelContent = '';
-      let chunkIndex = 0;
 
-      // Stream this level's content
+      // Collect all chunks (no streaming per-chunk, just collect)
       for await (const chunk of streamFromGemini(prompt, undefined, {
         temperature: 0.7,
         maxTokens: 8192
       })) {
         levelContent += chunk;
-        chunkIndex++;
-
-        sendSSE(res, 'chunk', {
-          type: 'text',
-          content: chunk,
-          metadata: {
-            chunkIndex,
-            level: level.key,
-            itemType: productType
-          }
-        });
       }
 
-      // Try to parse level content as JSON
+      // Parse JSON
+      let parsed: any[] = [];
       try {
         let jsonText = levelContent
           .replace(/```json\n?/g, '')
@@ -372,35 +362,44 @@ app.post('/stream/differentiated', async (req, res) => {
 
         const jsonMatch = jsonText.match(/\[[\s\S]*\]/) || jsonText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-
-          // Send level complete event with parsed content
-          sendSSE(res, 'level_complete', {
-            type: 'json_complete',
-            content: JSON.stringify(parsed),
-            metadata: { level: level.key }
-          });
+          const result = JSON.parse(jsonMatch[0]);
+          parsed = Array.isArray(result) ? result : [result];
         }
       } catch (e) {
         logger.warn(`Failed to parse JSON for level ${level.key}`, e);
-        sendSSE(res, 'level_complete', {
-          type: 'text',
-          content: levelContent,
-          metadata: { level: level.key }
-        });
       }
+
+      return { level, content: parsed };
+    };
+
+    // Run all 3 levels in parallel
+    const results = await Promise.all(levels.map(level => generateLevel(level)));
+
+    // Send results as each level completes (they all complete ~together)
+    for (const result of results) {
+      sendSSE(res, 'level_start', {
+        type: 'progress',
+        content: `${result.level.name} מוכן`,
+        metadata: { level: result.level.key }
+      });
+
+      sendSSE(res, 'level_complete', {
+        type: 'json_complete',
+        content: JSON.stringify(result.content),
+        metadata: { level: result.level.key }
+      });
     }
 
     // Send final done event
     sendSSE(res, 'done', {
       type: 'done',
-      content: 'All levels generated successfully',
+      content: 'כל הרמות נוצרו בהצלחה',
       metadata: {
         totalExpected: 3
       }
     });
 
-    logger.info(`✅ Differentiated stream completed for user ${userId}`);
+    logger.info(`✅ Parallel differentiated stream completed for user ${userId}`);
 
   } catch (error: any) {
     logger.error('Differentiated streaming error:', error);

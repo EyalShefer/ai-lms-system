@@ -205,9 +205,9 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
           },
           onLevelStart: (level) => {
             const levelNames: Record<string, string> = {
-              support: 'רמה תומכת',
-              core: 'רמה רגילה',
-              enrichment: 'רמה מתקדמת'
+              support: 'הבנה',
+              core: 'יישום',
+              enrichment: 'העמקה'
             };
             setState(prev => ({
               ...prev,
@@ -218,9 +218,9 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
           },
           onLevelComplete: (level) => {
             const levelNames: Record<string, string> = {
-              support: 'רמה תומכת',
-              core: 'רמה רגילה',
-              enrichment: 'רמה מתקדמת'
+              support: 'הבנה',
+              core: 'יישום',
+              enrichment: 'העמקה'
             };
             setState(prev => ({
               ...prev,
