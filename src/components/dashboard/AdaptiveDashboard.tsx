@@ -353,8 +353,8 @@ export const AdaptiveDashboard = () => {
                                             {selectedStudent.riskLevel === 'high'
                                                 ? `התלמיד מגלה קושי (דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%). ${selectedStudent.performance?.hintDependency && selectedStudent.performance.hintDependency > 0.5 ? 'תלות גבוהה ברמזים.' : ''} מומלץ: תוכן מותאם עם תמיכה. ${Object.keys(selectedStudent.errorPatterns || {}).length > 0 ? `שגיאות נפוצות: ${Object.keys(selectedStudent.errorPatterns || {}).slice(0, 2).join(', ')}.` : ''}`
                                                 : selectedStudent.riskLevel === 'low'
-                                                    ? `התלמיד מצטיין! דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%, זמן תגובה מהיר (${selectedStudent.performance?.avgResponseTime || 0}s). מומלץ: תוכן העשרה עם אתגרים נוספים.`
-                                                    : `התלמיד מתקדם בצורה יציבה (דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%). מקבל תוכן במסלול ליבה. ${selectedStudent.performance?.hintDependency && selectedStudent.performance.hintDependency > 0.3 ? 'שימוש מתון ברמזים.' : ''}`
+                                                    ? `התלמיד מצטיין! דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%, זמן תגובה מהיר (${selectedStudent.performance?.avgResponseTime || 0}s). מומלץ: תוכן העמקה עם אתגרים נוספים.`
+                                                    : `התלמיד מתקדם בצורה יציבה (דיוק ${Math.round((selectedStudent.performance?.accuracy || 0) * 100)}%). מקבל תוכן במסלול יישום. ${selectedStudent.performance?.hintDependency && selectedStudent.performance.hintDependency > 0.3 ? 'שימוש מתון ברמזים.' : ''}`
                                             }
                                         </p>
                                         <div className="mt-3 flex items-center gap-2">
@@ -363,8 +363,8 @@ export const AdaptiveDashboard = () => {
                                                 selectedStudent.riskLevel === 'high' ? 'bg-blue-200 text-blue-800' :
                                                 selectedStudent.riskLevel === 'low' ? 'bg-purple-200 text-purple-800' : 'bg-slate-200 text-slate-700'
                                             }`}>
-                                                {selectedStudent.riskLevel === 'high' ? 'תמיכה' :
-                                                 selectedStudent.riskLevel === 'low' ? 'העשרה' : 'ליבה'}
+                                                {selectedStudent.riskLevel === 'high' ? 'הבנה' :
+                                                 selectedStudent.riskLevel === 'low' ? 'העמקה' : 'יישום'}
                                             </span>
                                         </div>
                                     </div>

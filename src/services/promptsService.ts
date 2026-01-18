@@ -141,7 +141,7 @@ export const PROMPT_CATEGORIES = [
     icon: '🎯',
     subcategories: [
       'פישוט טקסט',
-      'העשרה לתלמיד מצטיין',
+      'העמקה לתלמיד מצטיין',
       'התאמה לדיסלקציה',
       'תרגום לערבית'
     ]

@@ -164,7 +164,7 @@ const LandingPageMobile: React.FC<LandingPageMobileProps> = ({ onLogin }) => {
                         </div>
                         <h3 className="text-lg font-bold text-wizdi-royal mb-2">דיפרנציאציה אמיתית</h3>
                         <p className="text-sm text-slate-500 leading-relaxed">
-                            המערכת מייצרת גרסאות שונות: תמיכה, ליבה והעשרה.
+                            המערכת מייצרת גרסאות שונות: הבנה, יישום והעמקה.
                         </p>
                     </div>
 

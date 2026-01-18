@@ -1241,7 +1241,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                     הוראה דיפרנציאלית (3 רמות)
                                                                 </h4>
                                                                 <p className="text-sm text-slate-500 max-w-[250px] leading-tight mt-1">
-                                                                    יצירת 3 גרסאות פעילות הדרגתיות (תמיכה, ליבה, העשרה) באופן אוטומטי מהמקור.
+                                                                    יצירת 3 גרסאות פעילות הדרגתיות (הבנה, יישום, העמקה) באופן אוטומטי מהמקור.
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -1261,13 +1261,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                         ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
                                                     `}>
                                                         <div className="bg-green-50 border border-green-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-green-600">רמה 1: תמיכה</span>
+                                                            <span className="text-xs font-bold text-green-600">רמה 1: הבנה</span>
                                                         </div>
                                                         <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-blue-600">רמה 2: ליבה</span>
+                                                            <span className="text-xs font-bold text-blue-600">רמה 2: יישום</span>
                                                         </div>
                                                         <div className="bg-purple-50 border border-purple-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-purple-600">רמה 3: העשרה</span>
+                                                            <span className="text-xs font-bold text-purple-600">רמה 3: העמקה</span>
                                                         </div>
                                                     </div>
                                                 </div>

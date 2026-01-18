@@ -1964,7 +1964,7 @@ const PROMPT_CATEGORIES = [
         id: 'adaptations',
         name: 'התאמות אישיות',
         icon: '🎯',
-        subcategories: ['פישוט טקסט', 'העשרה לתלמיד מצטיין', 'התאמה לדיסלקציה', 'תרגום לערבית']
+        subcategories: ['פישוט טקסט', 'העמקה לתלמיד מצטיין', 'התאמה לדיסלקציה', 'תרגום לערבית']
     },
     {
         id: 'content',

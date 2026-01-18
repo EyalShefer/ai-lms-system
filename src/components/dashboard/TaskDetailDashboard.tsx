@@ -259,15 +259,15 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                                     <div className="text-xs font-bold text-slate-500 mb-2">רמת שאלה (התאמה אוטומטית)</div>
                                     <div className="flex flex-wrap gap-4 text-xs">
                                         <div className="flex items-center gap-2">
-                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 font-medium">תמיכה</span>
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 font-medium">הבנה</span>
                                             <span className="text-slate-500">מותאמת למתקשים</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 font-medium">ליבה</span>
+                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 font-medium">יישום</span>
                                             <span className="text-slate-500">רמה סטנדרטית</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200 font-medium">העשרה</span>
+                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200 font-medium">העמקה</span>
                                             <span className="text-slate-500">מאתגרת למתקדמים</span>
                                         </div>
                                     </div>
@@ -681,7 +681,7 @@ const ClassAnalyticsOverview: React.FC<{
                                 </div>
                                 <div>
                                     <div className="font-bold text-slate-800">מתקדמים</div>
-                                    <div className="text-xs text-slate-500">מוכנים להעשרה</div>
+                                    <div className="text-xs text-slate-500">מוכנים להעמקה</div>
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-wizdi-action">{classStats.advanced.length}</div>

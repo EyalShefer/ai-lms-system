@@ -156,7 +156,7 @@ ${conversationHistory ? `היסטוריית שיחה:\n${conversationHistory}\n\
     const handleQuickAction = useCallback((actionId: string) => {
         const actionMessages: Record<string, string> = {
             risk: 'מי מהתלמידים שלי צריך חיזוק ומה אני יכול לעשות כדי לעזור לו?',
-            activity: 'הצע פעילות העשרה מעניינת שמתאימה לרמת הכיתה שלי',
+            activity: 'הצע פעילות העמקה מעניינת שמתאימה לרמת הכיתה שלי',
             feedback: 'עזור לי לנסח משוב מעודד לתלמיד שמתקשה אבל משתדל',
             analyze: 'נתח לי את ביצועי הכיתה ותן לי תובנות מרכזיות'
         };

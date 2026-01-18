@@ -26,6 +26,7 @@ import {
     ConversationMessage,
     AIResponse
 } from '../services/ai/smartCreationService';
+import { DIFFICULTY_LEVELS } from '../courseConstants';
 
 interface SmartCreationChatProps {
     onCreateContent: (wizardData: any) => void;
@@ -51,7 +52,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             id: '1',
             role: 'assistant',
             content: 'היי! מה נרצה ליצור היום? ספרו לי על הנושא, הכיתה וסוג התוכן שאתם צריכים.',
-            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריך רעיונות'],
+            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריכים רעיונות'],
             timestamp: Date.now()
         }
     ]);
@@ -175,7 +176,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             id: '1',
             role: 'assistant',
             content: 'בסדר, מתחילים מחדש! מה תרצו ליצור?',
-            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריך רעיונות'],
+            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריכים רעיונות'],
             timestamp: Date.now()
         }]);
         setCollectedData(getInitialCollectedData());
@@ -211,14 +212,18 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
         }
     };
 
-    // Get difficulty level display
+    // Get difficulty level display using centralized constants
     const getDifficultyLevelDisplay = (level: string) => {
-        switch (level) {
-            case 'support': return { label: 'תמיכה', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' };
-            case 'enrichment': return { label: 'העשרה', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' };
-            case 'core':
-            default: return { label: 'ליבה', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' };
-        }
+        const colors = {
+            support: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+            enrichment: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+            core: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+        };
+        const key = (level === 'support' || level === 'enrichment') ? level : 'core';
+        return {
+            label: DIFFICULTY_LEVELS[key].label,
+            color: colors[key]
+        };
     };
 
     return (

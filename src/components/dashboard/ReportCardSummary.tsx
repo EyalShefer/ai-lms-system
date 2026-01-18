@@ -72,7 +72,7 @@ const generateAutomaticSummary = (
     if (student.riskLevel === 'high') {
         summary += `מומלץ לקיים שיחה אישית ולספק תמיכה מותאמת.`;
     } else if (student.riskLevel === 'low') {
-        summary += `התלמיד/ה מוכן/ה לאתגרים נוספים ומשימות העשרה.`;
+        summary += `התלמיד/ה מוכן/ה לאתגרים נוספים ומשימות העמקה.`;
     } else {
         summary += `ממשיך/ה להתקדם בקצב טוב.`;
     }

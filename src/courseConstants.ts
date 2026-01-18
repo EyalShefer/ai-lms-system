@@ -1,3 +1,18 @@
+/**
+ * שמות רמות הקושי במערכת (הוראה דיפרנציאלית)
+ *
+ * המפתחות הטכניים נשארים: support, core, enrichment
+ * אבל השמות בעברית שמוצגים למשתמשים הם:
+ * - support → הבנה (לתלמידים מתקשים)
+ * - core → יישום (לרוב התלמידים)
+ * - enrichment → העמקה (לתלמידים מתקדמים)
+ */
+export const DIFFICULTY_LEVELS = {
+    support: { key: 'support', label: 'הבנה', description: 'לתלמידים מתקשים' },
+    core: { key: 'core', label: 'יישום', description: 'לרוב התלמידים' },
+    enrichment: { key: 'enrichment', label: 'העמקה', description: 'לתלמידים מתקדמים' }
+} as const;
+
 export const GRADE_OPTIONS = [
     {
         label: "בית ספר יסודי (א' - ו')",

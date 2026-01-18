@@ -121,7 +121,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
                         {[
                             { icon: IconVideo, title: "1. העלה תוכן", desc: "הדבק קישור ליוטיוב, העלה קובץ PDF או טקסט חופשי", color: "text-wizdi-royal", bg: "bg-white", border: "border-indigo-100" },
-                            { icon: IconSchool, title: "2. בחר רמה", desc: "הגדר את שכבת הגיל וסוג הפעילות (תרגול, מבחן או העשרה)", color: "text-wizdi-royal", bg: "bg-white", border: "border-indigo-100" },
+                            { icon: IconSchool, title: "2. בחר רמה", desc: "הגדר את שכבת הגיל וסוג הפעילות (תרגול, מבחן או העמקה)", color: "text-wizdi-royal", bg: "bg-white", border: "border-indigo-100" },
                             { icon: IconRocket, title: "3. קבל שיעור", desc: "המערכת מייצרת אוטומטית שאלות, סיכומים ופעילות אינטראקטיבית", color: "text-wizdi-lime", bg: "bg-wizdi-royal text-white", border: "border-transparent" }
                         ].map((step, idx) => (
                             <div key={idx} className="relative flex flex-col items-center text-center group cursor-pointer">
@@ -162,7 +162,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                 </div>
                                 <h3 className="text-3xl font-bold text-wizdi-royal mb-3">דיפרנציאציה אמיתית</h3>
                                 <p className="text-slate-500 text-lg leading-relaxed mb-8">
-                                    במקום להתאמץ להתאים את החומר לכל תלמיד, המערכת מייצרת אוטומטית גרסאות שונות של אותו השיעור: תמיכה למתקשים, ליבה לכולם, והעשרה למצטיינים.
+                                    במקום להתאמץ להתאים את החומר לכל תלמיד, המערכת מייצרת אוטומטית גרסאות שונות של אותו השיעור: הבנה למתקשים, יישום לכולם, והעמקה למצטיינים.
                                 </p>
                             </div>
                             {/* Abstract Visual - Stacking Cards */}
@@ -171,17 +171,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                     <div className="w-72 h-14 bg-white rounded-2xl shadow-md flex items-center px-4 gap-3 border border-slate-100 z-30 relative">
                                         <span className="w-3 h-3 rounded-full bg-green-400"></span>
                                         <div className="h-2 bg-slate-100 rounded-full w-24"></div>
-                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">תמיכה</span>
+                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">הבנה</span>
                                     </div>
                                     <div className="w-72 h-14 bg-slate-50 rounded-2xl shadow-sm flex items-center px-4 gap-3 translate-x-6 border border-slate-100 z-20 relative opacity-90">
                                         <span className="w-3 h-3 rounded-full bg-blue-400"></span>
                                         <div className="h-2 bg-slate-200 rounded-full w-24"></div>
-                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">ליבה</span>
+                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">יישום</span>
                                     </div>
                                     <div className="w-72 h-14 bg-slate-100 rounded-2xl shadow-sm flex items-center px-4 gap-3 translate-x-12 border border-slate-100 z-10 relative opacity-80">
                                         <span className="w-3 h-3 rounded-full bg-purple-400"></span>
                                         <div className="h-2 bg-slate-200 rounded-full w-24"></div>
-                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">העשרה</span>
+                                        <span className="text-sm font-bold text-wizdi-royal mr-auto">העמקה</span>
                                     </div>
                                 </div>
                             </div>

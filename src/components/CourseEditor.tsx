@@ -1241,9 +1241,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                             } as LearningUnit;
                         };
 
-                        const unitSupport = createDiffUnit("תמיכה", diffContent.support);
-                        const unitCore = createDiffUnit("ליבה", diffContent.core);
-                        const unitEnrichment = createDiffUnit("העשרה", diffContent.enrichment);
+                        const unitSupport = createDiffUnit("הבנה", diffContent.support);
+                        const unitCore = createDiffUnit("יישום", diffContent.core);
+                        const unitEnrichment = createDiffUnit("העמקה", diffContent.enrichment);
 
                         // Replace the single placeholder unit with our 3 new units
                         const syllabusWithDiff = syllabus.map((mod: any) => ({

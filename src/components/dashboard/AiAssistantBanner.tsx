@@ -52,7 +52,7 @@ const QUICK_ACTIONS = [
         id: 'activity',
         label: 'הצע פעילות',
         icon: <IconBulb className="w-4 h-4" />,
-        question: 'הצע פעילות העשרה מעניינת שמתאימה לרמת הכיתה שלי'
+        question: 'הצע פעילות העמקה מעניינת שמתאימה לרמת הכיתה שלי'
     },
     {
         id: 'feedback',
@@ -87,7 +87,7 @@ const TEACHER_SYSTEM_PROMPT = `אתה עוזר AI מקצועי למורים במ
 // Placeholder examples for typing animation
 const PLACEHOLDER_EXAMPLES = [
     "מי מהתלמידים צריך חיזוק?",
-    "הצע פעילות העשרה לכיתה...",
+    "הצע פעילות העמקה לכיתה...",
     "נתח לי את ביצועי הכיתה...",
     "עזור לי לנסח משוב לתלמיד...",
     "איזה נושאים הכיתה מתקשה בהם?"
