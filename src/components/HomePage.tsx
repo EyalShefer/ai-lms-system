@@ -6,8 +6,15 @@ import {
     IconChart, IconBack,
     IconStudent, IconConstruction
 } from '../icons';
+import { TeacherHomeDashboard } from './dashboard/TeacherHomeDashboard';
 
-const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: string) => void, onNavigateToDashboard: () => void }) => {
+interface HomePageProps {
+    onCreateNew: (mode: string) => void;
+    onNavigateToDashboard: () => void;
+    onNavigateToTask?: (classId: string, taskId: string) => void;
+}
+
+const HomePage = ({ onCreateNew, onNavigateToDashboard, onNavigateToTask }: HomePageProps) => {
     const { currentUser } = useAuth();
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
     const [activeStep, setActiveStep] = useState<number>(0);
@@ -68,6 +75,19 @@ const HomePage = ({ onCreateNew, onNavigateToDashboard }: { onCreateNew: (mode: 
                     <p className="text-xl text-gray-400 font-light max-w-xl mx-auto">
                         הסטודיו שלך ליצירה, למידה והערכה חכמה
                     </p>
+                </div>
+
+                {/* Dashboard Widget */}
+                <div className="mb-12 max-w-md mx-auto" dir="rtl">
+                    <TeacherHomeDashboard
+                        onClassClick={(classId, taskId) => {
+                            if (onNavigateToTask) {
+                                onNavigateToTask(classId, taskId);
+                            } else {
+                                onNavigateToDashboard();
+                            }
+                        }}
+                    />
                 </div>
 
                 {/* Cards Grid - Eedi Style */}
