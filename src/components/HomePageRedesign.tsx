@@ -282,26 +282,29 @@ const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDas
                                     </div>
                                 </button>
 
-                                {/* סוכן הוראה */}
-                                <button
-                                    onClick={() => handleCardClick("TeachingAgent", () => window.open('https://wizdi-gen.web.app/', '_blank'))}
-                                    className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
-                                    aria-label="סוכן הוראה - מורה פרטי אישי"
+                                {/* סוכן הוראה - Coming Soon */}
+                                <div
+                                    className="sub-btn bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl p-4 text-right opacity-60 cursor-not-allowed"
+                                    aria-label="סוכן הוראה - בקרוב"
                                 >
                                     <div className="flex items-start gap-3">
-                                        <div className="icon-container w-12 h-12 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors" aria-hidden="true">
-                                            <IconRobot className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
+                                        <div className="icon-container w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                                            <IconRobot className="w-6 h-6 text-slate-400" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">סוכן הוראה</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">חונך אישי מנהל דיאלוג לימודי המקנה ידע ומתרגל אותו, תוך התאמה אישית לרמת הלומד</p>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="font-bold text-slate-500 dark:text-slate-400">סוכן הוראה</h3>
+                                                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full">
+                                                    בקרוב
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">חונך אישי מנהל דיאלוג לימודי המקנה ידע ומתרגל אותו, תוך התאמה אישית לרמת הלומד</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">
-                                        התחל
-                                        <IconChevronLeft className="w-4 h-4" />
+                                    <div className="flex items-center gap-1 text-slate-400 text-sm font-medium mt-3" aria-hidden="true">
+                                        בקרוב...
                                     </div>
-                                </button>
+                                </div>
 
                                 {/* פעילות לתלמיד */}
                                 <button
