@@ -29,7 +29,7 @@ export interface AccessCode {
     usageLimit?: number | null;
     usedCount: number;
     isActive: boolean;
-    groupType?: 'support' | 'core' | 'enrichment' | null;
+    groupType?: 'הבנה' | 'יישום' | 'העמקה' | null;  // Hebrew: Understanding, Application, Deepening
 }
 
 export interface AccessCodeValidation {
@@ -43,7 +43,7 @@ export interface AccessCodeValidation {
 export interface CreateCodeOptions {
     expiresAt?: Date;
     usageLimit?: number;
-    groupType?: 'support' | 'core' | 'enrichment';
+    groupType?: 'הבנה' | 'יישום' | 'העמקה';  // Hebrew: Understanding, Application, Deepening
     customCode?: string;
 }
 
@@ -299,7 +299,7 @@ export const updateCodeSettings = async (
     updates: {
         expiresAt?: Date | null;
         usageLimit?: number | null;
-        groupType?: 'support' | 'core' | 'enrichment' | null;
+        groupType?: 'הבנה' | 'יישום' | 'העמקה' | null;  // Hebrew: Understanding, Application, Deepening
     }
 ): Promise<void> => {
     const cleanedCode = cleanCode(code);

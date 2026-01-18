@@ -655,9 +655,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
         }
 
         // --- Standard Logic for Close-Ended Questions ---
-        setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
-
+        // ✅ NEW: 3-attempt limit with progressive hints (excludes memory game)
         const isCorrect = userAnswers[blockId] === block.content.correctAnswer;
+        const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
+        const hints = block.metadata?.progressiveHints || [];
 
         if (!isCorrect) {
             setBlockMistakes(prev => ({ ...prev, [blockId]: (prev[blockId] || 0) + 1 }));
@@ -677,14 +678,38 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
         setGradingState(prev => ({ ...prev, [blockId]: attemptAndScore }));
 
-        // GAMIFICATION
+        // GAMIFICATION & Feedback Logic
         if (!isExamMode) {
             if (isCorrect) {
+                setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
                 triggerXp(hintsUsed > 0 ? 50 : 100);
                 playSound('success');
             } else {
-                playSound('failure');
+                // ✅ NEW: Check if max attempts reached
+                if (newAttempts >= maxAttempts) {
+                    // Final attempt - show correct answer
+                    setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
+                    playSound('failure');
+                    // Show all hints
+                    if (hints.length > 0) {
+                        setHintsVisible(prev => ({ ...prev, [blockId]: hints.length }));
+                    }
+                } else {
+                    // Still have attempts - show progressive hint, don't reveal answer
+                    playSound('failure');
+                    const currentHintLevel = hintsVisible[blockId] || 0;
+                    if (currentHintLevel < hints.length) {
+                        setHintsVisible(prev => ({ ...prev, [blockId]: currentHintLevel + 1 }));
+                    }
+                    // Clear answer to allow re-selection
+                    setUserAnswers(prev => ({ ...prev, [blockId]: undefined }));
+                    // Keep feedbackVisible false to not show correct answer
+                    // But we need to show the hint feedback somehow
+                }
             }
+        } else {
+            // Exam mode - always show feedback
+            setFeedbackVisible(prev => ({ ...prev, [blockId]: true }));
         }
     };
 

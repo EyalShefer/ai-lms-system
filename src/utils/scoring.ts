@@ -5,6 +5,7 @@ export const SCORING_CONFIG = {
     CORRECT_FIRST_TRY: 100,
     HINT_PENALTY: 2,
     RETRY_PARTIAL: 50,
+    MAX_ATTEMPTS: 3, // Maximum attempts before showing correct answer (excludes memory game)
 };
 
 export const OPEN_QUESTION_SCORES = {

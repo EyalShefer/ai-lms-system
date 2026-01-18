@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
@@ -11,6 +11,7 @@ import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, 
 import AIBlogWidget from './AIBlogWidget';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import SmartCreationChat from './SmartCreationChat';
 
 interface RecentActivity {
     id: string;
@@ -21,94 +22,11 @@ interface RecentActivity {
     submissionCount?: number;
 }
 
-const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents, onNavigateToUsage, onNavigateToSpeedAnalytics }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void, onNavigateToUsage?: () => void, onNavigateToSpeedAnalytics?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents, onNavigateToUsage, onNavigateToSpeedAnalytics }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onCreateWithWizardData?: (wizardData: any) => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void, onNavigateToUsage?: () => void, onNavigateToSpeedAnalytics?: () => void }) => {
     const { currentUser, isAdmin } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(true);
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
-
-    // Smart Prompt State
-    const [smartPromptValue, setSmartPromptValue] = useState('');
-    const [placeholderText, setPlaceholderText] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
-
-    const placeholderExamples = [
-        "צרו מבחן בחשבון לכיתה ד׳...",
-        "בנו שיעור על מלחמת העולם השנייה...",
-        "הכינו פעילות אינטראקטיבית באנגלית...",
-        "סכמו פרק בביולוגיה לכיתה י׳...",
-        "צרו חידון בגיאוגרפיה על יבשות...",
-        "בנו מערך שיעור בספרות על ביאליק..."
-    ];
-
-    // Typing animation effect for placeholder
-    useEffect(() => {
-        if (smartPromptValue) return; // Don't animate if user is typing
-
-        let currentIndex = 0;
-        let charIndex = 0;
-        let isDeleting = false;
-        let timeoutId: NodeJS.Timeout;
-
-        const type = () => {
-            const currentText = placeholderExamples[currentIndex];
-
-            if (!isDeleting) {
-                setPlaceholderText(currentText.substring(0, charIndex + 1));
-                charIndex++;
-
-                if (charIndex === currentText.length) {
-                    isDeleting = true;
-                    timeoutId = setTimeout(type, 2000); // Pause before deleting
-                    return;
-                }
-            } else {
-                setPlaceholderText(currentText.substring(0, charIndex - 1));
-                charIndex--;
-
-                if (charIndex === 0) {
-                    isDeleting = false;
-                    currentIndex = (currentIndex + 1) % placeholderExamples.length;
-                }
-            }
-
-            timeoutId = setTimeout(type, isDeleting ? 30 : 80);
-        };
-
-        type();
-        return () => clearTimeout(timeoutId);
-    }, [smartPromptValue]);
-
-    // Intent classification and action handler
-    const handleSmartPromptSubmit = () => {
-        if (!smartPromptValue.trim()) return;
-
-        const input = smartPromptValue.toLowerCase();
-
-        // Intent classification based on keywords
-        if (input.includes('מבחן') || input.includes('בוחן') || input.includes('מבדק') || input.includes('חידון')) {
-            onCreateNew('learning', 'exam');
-        } else if (input.includes('שיעור') || input.includes('מערך') || input.includes('יחידת לימוד')) {
-            onCreateNew('learning', 'lesson');
-        } else if (input.includes('פעילות') || input.includes('תרגול') || input.includes('משחק') || input.includes('אינטראקטיב')) {
-            onCreateNew('learning', 'activity');
-        } else if (input.includes('סוכן') || input.includes('חונך') || input.includes('מורה פרטי')) {
-            window.open('https://wizdi-gen.web.app/', '_blank');
-        } else {
-            // Default to lesson for general content creation
-            onCreateNew('learning', 'lesson');
-        }
-
-        setSmartPromptValue('');
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSmartPromptSubmit();
-        }
-    };
 
     // Fetch recent activities
     useEffect(() => {
@@ -324,34 +242,18 @@ const HomePageRedesign = ({ onCreateNew, onNavigateToDashboard, onEditCourse, on
                                 <span className="bg-wizdi-action-light text-wizdi-action-dark text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
                             </div>
 
-                            {/* Smart Prompt Section */}
+                            {/* Smart Creation Chat */}
                             <div className="mb-6">
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white text-center mb-4">
-                                    הפכו את הרעיונות שלכם לתוכן לימודי
-                                </h3>
-                                <div className="relative bg-white dark:bg-slate-700 rounded-2xl border-2 border-slate-100 dark:border-slate-600 focus-within:border-wizdi-royal transition-all">
-                                    <textarea
-                                        ref={inputRef}
-                                        value={smartPromptValue}
-                                        onChange={(e) => setSmartPromptValue(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        placeholder={placeholderText || "תארו מה תרצו ליצור..."}
-                                        className="w-full bg-transparent text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-lg p-4 pb-14 resize-none focus:outline-none min-h-[100px] text-right"
-                                        dir="rtl"
-                                        rows={2}
-                                    />
-                                    <div className="absolute bottom-3 left-3 flex items-center">
-                                        {/* Submit button */}
-                                        <button
-                                            onClick={handleSmartPromptSubmit}
-                                            disabled={!smartPromptValue.trim()}
-                                            className="w-10 h-10 bg-wizdi-royal hover:bg-wizdi-royal/90 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-xl flex items-center justify-center transition-colors disabled:cursor-not-allowed"
-                                            aria-label="צור תוכן"
-                                        >
-                                            <IconArrowUp className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
+                                <SmartCreationChat
+                                    onCreateContent={(wizardData) => {
+                                        if (onCreateWithWizardData) {
+                                            onCreateWithWizardData(wizardData);
+                                        } else {
+                                            // Fallback to old method
+                                            onCreateNew('learning', wizardData.settings?.productType || 'activity');
+                                        }
+                                    }}
+                                />
                                 <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-3">
                                     או בחרו מהאפשרויות המוכנות למטה
                                 </p>

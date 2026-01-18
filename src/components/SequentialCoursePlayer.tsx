@@ -157,6 +157,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [isRemediating, setIsRemediating] = useState(false); // NEW: Remediation Loading State
     const [isCheckingOpenQuestion, setIsCheckingOpenQuestion] = useState(false); // NEW: Open Question AI Check
     const [openQuestionAttempts, setOpenQuestionAttempts] = useState<Record<string, number>>({}); // Track attempts per block
+    const [blockAttempts, setBlockAttempts] = useState<Record<string, number>>({}); // Track attempts for all question types
 
     // --- State: Results Tracking (for Timeline Colors & Persistence) ---
     const [stepResults, setStepResults] = useState<Record<string, 'success' | 'failure' | 'viewed'>>({});
@@ -196,7 +197,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [recentAccuracy, setRecentAccuracy] = useState(0.5);
 
     // --- ADAPTIVE: Track which variant is being shown for each block ---
-    const [activeVariants, setActiveVariants] = useState<Record<string, 'original' | 'scaffolding' | 'enrichment'>>({});
+    // Hebrew: הבנה=Understanding, יישום=Application, העמקה=Deepening
+    const [activeVariants, setActiveVariants] = useState<Record<string, 'יישום' | 'הבנה' | 'העמקה'>>({});
 
     // Initial Load & Streak Check + Profile-based Starting Level
     useEffect(() => {
@@ -261,19 +263,19 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             'table_completion', 'text_selection', 'rating_scale', 'matrix'
         ];
         if (questionTypes.includes(currentBlock.type) && !activeVariants[currentBlock.id]) {
-            // Check if this block has variants available
-            const hasScaffolding = !!currentBlock.metadata?.scaffolding_id;
-            const hasEnrichment = !!currentBlock.metadata?.enrichment_id;
+            // Check if this block has variants available (הבנה=Understanding, העמקה=Deepening)
+            const hasHavana = !!currentBlock.metadata?.הבנה_id || !!currentBlock.metadata?.scaffolding_id;
+            const hasHaamaka = !!currentBlock.metadata?.העמקה_id || !!currentBlock.metadata?.enrichment_id;
 
-            if (hasScaffolding || hasEnrichment) {
+            if (hasHavana || hasHaamaka) {
                 // Select variant based on current mastery and accuracy
                 const selectedVariant = selectVariant(currentBlock, currentMastery, recentAccuracy);
 
-                if (selectedVariant !== 'original') {
+                if (selectedVariant !== 'יישום') {
                     // Get the variant block from metadata (where it's stored during generation)
-                    const variantBlock = selectedVariant === 'scaffolding'
-                        ? currentBlock.metadata?.scaffolding_variant
-                        : currentBlock.metadata?.enrichment_variant;
+                    const variantBlock = selectedVariant === 'הבנה'
+                        ? (currentBlock.metadata?.הבנה_variant || currentBlock.metadata?.scaffolding_variant)
+                        : (currentBlock.metadata?.העמקה_variant || currentBlock.metadata?.enrichment_variant);
 
                     if (variantBlock) {
                         // Update the queue with the variant block
@@ -301,29 +303,29 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         }
 
                         // Show subtle toast for variant selection
-                        if (selectedVariant === 'scaffolding') {
+                        if (selectedVariant === 'הבנה') {
                             setAdaptiveToast({
                                 show: true,
                                 type: 'info',
-                                title: '📚 תוכן מותאם',
+                                title: '📚 רמת הבנה',
                                 description: 'הותאם לך תוכן עם דוגמאות נוספות'
                             });
                             setTimeout(() => setAdaptiveToast(null), 2500);
-                        } else if (selectedVariant === 'enrichment') {
+                        } else if (selectedVariant === 'העמקה') {
                             setAdaptiveToast({
                                 show: true,
                                 type: 'challenge',
-                                title: '🚀 אתגר!',
+                                title: '🚀 רמת העמקה!',
                                 description: 'קיבלת שאלה ברמה מתקדמת'
                             });
                             setTimeout(() => setAdaptiveToast(null), 2500);
                         }
                     } else {
                         console.warn(`⚠️ Variant ${selectedVariant} selected but variant block not found in metadata`);
-                        setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'original' }));
+                        setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'יישום' }));
                     }
                 } else {
-                    setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'original' }));
+                    setActiveVariants(prev => ({ ...prev, [currentBlock.id]: 'יישום' }));
                 }
             }
         }
@@ -415,6 +417,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     };
 
     // 2a. Check Open Question with AI (Scaffolded Feedback)
+    // ✅ NEW: 3-attempt limit with progressive hints
     const handleCheckOpenQuestion = useCallback(async () => {
         const answer = userAnswers[currentBlock.id];
         if (!answer || answer.trim().length < 3) return;
@@ -422,6 +425,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         setIsCheckingOpenQuestion(true);
         const currentAttempts = (openQuestionAttempts[currentBlock.id] || 0) + 1;
         setOpenQuestionAttempts(prev => ({ ...prev, [currentBlock.id]: currentAttempts }));
+
+        const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
+        const hints = currentBlock.metadata?.progressiveHints || [];
 
         try {
             // Get context from course
@@ -433,7 +439,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             const question = currentBlock.content?.question || '';
             const modelAnswer = currentBlock.metadata?.modelAnswer || currentBlock.content?.modelAnswer || '';
 
-            console.log('📝 Checking open question:', { question, answer, modelAnswer: modelAnswer?.substring(0, 50), sourceTextLength: sourceText.length });
+            console.log('📝 Checking open question:', { question, answer, modelAnswer: modelAnswer?.substring(0, 50), sourceTextLength: sourceText.length, attempt: `${currentAttempts}/${maxAttempts}` });
 
             const result = await checkOpenQuestionAnswer(
                 question,
@@ -461,20 +467,53 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 setShowFloater({ id: Date.now(), amount: xpGain });
 
             } else if (result.status === 'partial') {
-                // Keep in ready_to_check state - allow retry with guidance
-                setStepStatus('ready_to_check');
-                setFeedbackMsg(result.feedback || 'כמעט! נסה להרחיב את התשובה.');
-                playSound('failure');
+                // Check if max attempts reached
+                if (currentAttempts >= maxAttempts) {
+                    setStepStatus('failure');
+                    setStepResults(prev => ({ ...prev, [currentBlock.id]: 'failure' }));
+                    playSound('failure');
+                    if (hints.length > 0) {
+                        setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
+                    }
+                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה המלאה: ${modelAnswer}` : (result.feedback || 'נסה שאלה אחרת.')}`);
+                } else {
+                    // Allow retry with guidance
+                    setStepStatus('ready_to_check');
+                    playSound('failure');
+                    const attemptsLeft = maxAttempts - currentAttempts;
+                    const currentHintLevel = hintsVisible[currentBlock.id] || 0;
+                    if (currentHintLevel < hints.length) {
+                        setHintsVisible(prev => ({ ...prev, [currentBlock.id]: currentHintLevel + 1 }));
+                        setFeedbackMsg(`${result.feedback || 'כמעט! נסה להרחיב את התשובה.'}\nנותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
+                    } else {
+                        setFeedbackMsg(`${result.feedback || 'כמעט! נסה להרחיב את התשובה.'}\nנותרו ${attemptsLeft} ניסיונות.`);
+                    }
+                }
 
             } else {
-                // Incorrect - give scaffolded hint
-                setStepStatus('ready_to_check'); // Allow retry
-                setFeedbackMsg(result.feedback || 'נסה שוב. קרא שוב את הטקסט ושים לב לפרטים.');
-                playSound('failure');
+                // Incorrect
+                if (currentAttempts >= maxAttempts) {
+                    // Final attempt - show model answer
+                    setStepStatus('failure');
+                    setStepResults(prev => ({ ...prev, [currentBlock.id]: 'failure' }));
+                    playSound('failure');
+                    if (hints.length > 0) {
+                        setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
+                    }
+                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה הנכונה: ${modelAnswer}` : (result.feedback || 'נסה שאלה אחרת.')}`);
+                } else {
+                    // Still have attempts - show progressive hint
+                    setStepStatus('ready_to_check');
+                    playSound('failure');
+                    const attemptsLeft = maxAttempts - currentAttempts;
+                    const currentHintLevel = hintsVisible[currentBlock.id] || 0;
 
-                // After 3 attempts, show more help
-                if (currentAttempts >= 3) {
-                    setFeedbackMsg(prev => (prev || '') + '\n💡 רמז: ' + (currentBlock.metadata?.progressiveHints?.[0] || 'חפש את המילים המרכזיות בטקסט.'));
+                    if (currentHintLevel < hints.length) {
+                        setHintsVisible(prev => ({ ...prev, [currentBlock.id]: currentHintLevel + 1 }));
+                        setFeedbackMsg(`${result.feedback || 'נסה שוב.'}\nנותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
+                    } else {
+                        setFeedbackMsg(`${result.feedback || 'נסה שוב.'}\nנותרו ${attemptsLeft} ניסיונות.`);
+                    }
                 }
             }
         } catch (error: any) {
@@ -484,7 +523,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         } finally {
             setIsCheckingOpenQuestion(false);
         }
-    }, [currentBlock, userAnswers, course, isExamMode, openQuestionAttempts, playSound]);
+    }, [currentBlock, userAnswers, course, isExamMode, openQuestionAttempts, hintsVisible, playSound]);
 
     // 2b. Check Action (The "Lime Button")
     const handleCheck = useCallback(() => {
@@ -524,16 +563,20 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // 3. Process Result (Gamification + ADAPTIVE BKT Logic)
     // ✅ FIXED: Now uses central scoring system according to PROJECT_DNA.md
+    // ✅ NEW: 3-attempt limit with progressive hints before showing correct answer
     const processResult = async (isCorrect: boolean) => {
+        // Track attempts for this block
+        const currentAttempts = (blockAttempts[currentBlock.id] || 0) + 1;
+        setBlockAttempts(prev => ({ ...prev, [currentBlock.id]: currentAttempts }));
+
         // Save Result for Timeline
         setStepResults(prev => ({ ...prev, [currentBlock.id]: isCorrect ? 'success' : 'failure' }));
 
         // ✅ CRITICAL FIX: Calculate score using the central scoring function
         const hintsUsed = hintsVisible[currentBlock.id] || 0;
-        const prevAttempts = stepResults[currentBlock.id] ? 1 : 0; // If already attempted, it's at least attempt #2
 
         // --- ADAPTIVE: Track telemetry for profile ---
-        telemetry.onAnswerSubmitted(isCorrect, prevAttempts + 1);
+        telemetry.onAnswerSubmitted(isCorrect, currentAttempts);
 
         // --- ADAPTIVE: Collect error tags for Error Fingerprint ---
         if (!isCorrect && currentBlock.metadata?.adaptive_analysis?.distractor_analysis) {
@@ -548,12 +591,12 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
         const score = calculateQuestionScore({
             isCorrect,
-            attempts: prevAttempts + 1,
+            attempts: currentAttempts,
             hintsUsed: hintsUsed,
             responseTimeSec: 0 // Could track actual time if needed
         });
 
-        console.log(`🎯 Scoring: isCorrect=${isCorrect}, attempts=${prevAttempts + 1}, hints=${hintsUsed}, score=${score}`);
+        console.log(`🎯 Scoring: isCorrect=${isCorrect}, attempts=${currentAttempts}/${SCORING_CONFIG.MAX_ATTEMPTS}, hints=${hintsUsed}, score=${score}`);
 
         if (isCorrect) {
             setStepStatus('success');
@@ -607,13 +650,50 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             }
 
         } else {
-            setStepStatus('failure');
-            playSound('failure');
-            setCombo(0);
+            // ✅ NEW: 3-attempt logic with progressive hints
+            const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
+            const hints = currentBlock.metadata?.progressiveHints || [];
 
-            setFeedbackMsg(currentBlock.type === 'multiple-choice'
-                ? `התשובה הנכונה: ${currentBlock.content.correctAnswer}`
-                : "לא נורא, נסו שוב!");
+            if (currentAttempts >= maxAttempts) {
+                // Final attempt - show correct answer and lock
+                setStepStatus('failure');
+                playSound('failure');
+                setCombo(0);
+
+                // Show all remaining hints + correct answer
+                if (hints.length > 0) {
+                    setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
+                }
+
+                const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
+                setFeedbackMsg(currentBlock.type === 'multiple-choice'
+                    ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
+                    : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+            } else {
+                // Still have attempts - show progressive hint and allow retry
+                setStepStatus('ready_to_check'); // Allow retry
+                playSound('failure');
+                setCombo(0);
+
+                // Auto-reveal next hint if available
+                const currentHintLevel = hintsVisible[currentBlock.id] || 0;
+                const nextHintIndex = currentHintLevel;
+
+                if (nextHintIndex < hints.length) {
+                    // Show next progressive hint
+                    setHintsVisible(prev => ({ ...prev, [currentBlock.id]: nextHintIndex + 1 }));
+                    const hintText = hints[nextHintIndex];
+                    const attemptsLeft = maxAttempts - currentAttempts;
+                    setFeedbackMsg(`לא נכון. נותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${nextHintIndex + 1}: ${hintText}`);
+                } else {
+                    // No more hints but still have attempts
+                    const attemptsLeft = maxAttempts - currentAttempts;
+                    setFeedbackMsg(`לא נכון. נותרו ${attemptsLeft} ניסיונות. נסה שוב!`);
+                }
+
+                // Clear user answer to allow re-selection
+                setUserAnswers(prev => ({ ...prev, [currentBlock.id]: undefined }));
+            }
         }
 
         // --- ADAPTIVE BRAIN SYNC (Cloud) ---
@@ -1253,11 +1333,34 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     </div>
                 );
             case 'image':
+                // Check if image URL is empty or missing - show completion message instead
+                if (!currentBlock.content || currentBlock.content.trim() === '') {
+                    return (
+                        <div className="flex flex-col items-center gap-6 p-8 text-center bg-gradient-to-br from-green-50 to-emerald-100 rounded-3xl border-2 border-green-200">
+                            <div className="relative">
+                                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                                    <IconCheck className="w-10 h-10 text-white" />
+                                </div>
+                                <IconStar className="absolute -top-1 -right-1 w-6 h-6 text-yellow-400 animate-bounce" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-800">סיימת את הפעילות!</h2>
+                            <p className="text-lg text-slate-600 max-w-md">
+                                כל הכבוד! סיימת לעבור על כל התכנים.
+                            </p>
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 mt-2">
+                                <p className="text-blue-800 font-bold flex items-center gap-2 justify-center">
+                                    <IconBell className="w-5 h-5" />
+                                    לחץ על כפתור "הגש פעילות" הירוק בראש המסך
+                                </p>
+                            </div>
+                        </div>
+                    );
+                }
                 return (
                     <div className="flex flex-col items-center gap-4">
                         <img
                             src={currentBlock.content}
-                            alt="Lesson Content"
+                            alt="תמונה מהשיעור"
                             className="rounded-2xl shadow-md max-h-[50vh] object-contain"
                             loading="lazy"
                             decoding="async"
@@ -1725,15 +1828,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                                     className="border-0 rounded-xl min-h-[250px] lg:min-h-[350px]"
                                                 />
                                             ) : (
-                                                <div className="prose prose-lg lg:prose-xl prose-indigo max-w-none text-slate-800 dir-rtl">
-                                                    {prevBlock.content.split('\n').map((line: string, i: number) => {
-                                                        if (!line.trim()) return <br key={i} />;
-                                                        if (line.startsWith('#')) {
-                                                            return <h3 key={i} className="text-xl lg:text-2xl xl:text-3xl font-bold mb-3 lg:mb-4 text-indigo-600">{line.replace(/^#+\s*/, '')}</h3>;
-                                                        }
-                                                        return <p key={i} className="text-lg lg:text-xl xl:text-2xl leading-relaxed font-medium mb-3 lg:mb-4">{line}</p>;
-                                                    })}
-                                                </div>
+                                                <div
+                                                    className="prose prose-lg lg:prose-xl prose-indigo max-w-none text-slate-800 dir-rtl"
+                                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(prevBlock.content) }}
+                                                />
                                             )}
                                         </div>
 

@@ -43,24 +43,24 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             icon: <IconLink size={18} className="text-blue-500" />
         },
         {
-            key: 'support',
-            label: 'Support Level',
-            description: 'Direct access to Support materials only.',
-            url: unitId ? `${baseUrl}&unit=${unitId}&group=support` : `${baseUrl}&group=support`,
+            key: 'הבנה',
+            label: 'רמת הבנה',
+            description: 'גישה לחומרי הבנה ותמיכה.',
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=הבנה` : `${baseUrl}&group=הבנה`,
             icon: <div className="w-4 h-4 rounded-full bg-green-100 border border-green-400" />
         },
         {
-            key: 'core',
-            label: 'Core Level',
-            description: 'Standard curriculum access.',
-            url: unitId ? `${baseUrl}&unit=${unitId}&group=core` : `${baseUrl}&group=core`,
+            key: 'יישום',
+            label: 'רמת יישום',
+            description: 'גישה לתוכנית הלימודים הסטנדרטית.',
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=יישום` : `${baseUrl}&group=יישום`,
             icon: <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-400" />
         },
         {
-            key: 'enrichment',
-            label: 'Enrichment Level',
-            description: 'Advanced challenges and extra projects.',
-            url: unitId ? `${baseUrl}&unit=${unitId}&group=enrichment` : `${baseUrl}&group=enrichment`,
+            key: 'העמקה',
+            label: 'רמת העמקה',
+            description: 'אתגרים מתקדמים ופרויקטים נוספים.',
+            url: unitId ? `${baseUrl}&unit=${unitId}&group=העמקה` : `${baseUrl}&group=העמקה`,
             icon: <div className="w-4 h-4 rounded-full bg-purple-100 border border-purple-400" />
         }
     ];

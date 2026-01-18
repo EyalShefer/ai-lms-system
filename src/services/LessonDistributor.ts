@@ -1,7 +1,13 @@
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export type GroupType = 'remediation' | 'standard' | 'challenge';
+/**
+ * Group types for adaptive content delivery:
+ * - הבנה (Understanding) - for struggling students
+ * - יישום (Application) - for standard students
+ * - העמקה (Deepening) - for advanced students
+ */
+export type GroupType = 'הבנה' | 'יישום' | 'העמקה';
 
 interface AIConfig {
     bloom_level: string;
@@ -20,7 +26,7 @@ interface AIConfig {
  */
 export const generateGroupConfig = (topic: string, groupType: GroupType): AIConfig => {
     switch (groupType) {
-        case 'remediation':
+        case 'הבנה': // Understanding - for struggling students
             return {
                 difficulty: "Easy",
                 bloom_level: "Remember/Understand",
@@ -29,7 +35,7 @@ export const generateGroupConfig = (topic: string, groupType: GroupType): AIConf
                 preferred_modules: ["memory_game", "sorting", "simple_quiz"],
                 focus: "Core Concepts & Visuals"
             };
-        case 'challenge':
+        case 'העמקה': // Deepening - for advanced students
             return {
                 difficulty: "Hard",
                 bloom_level: "Analyze/Evaluate",
@@ -39,7 +45,7 @@ export const generateGroupConfig = (topic: string, groupType: GroupType): AIConf
                 format: "Escape Room / Riddle",
                 extra: "Critical Thinking Questions"
             };
-        case 'standard':
+        case 'יישום': // Application - standard level
         default:
             return {
                 difficulty: "Medium",
@@ -77,7 +83,7 @@ export const assignLessonToGroup = async (
             groupType,
             config, // The "Prompt Engineering" payload
             studentIds, // The auto-assignment target
-            priority: groupType === 'remediation' ? 'high' : 'normal' // Prioritize help for strugglers
+            priority: groupType === 'הבנה' ? 'high' : 'normal' // Prioritize help for strugglers
         });
 
         console.log(`Job enqueued: ${docRef.id} for ${groupType} group.`);

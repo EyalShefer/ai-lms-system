@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
-import { calculateQuestionScore } from '../utils/scoring';
+import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring';
 import { MathRenderer } from './MathRenderer';
 
 interface OrderingQuestionProps {
@@ -104,38 +104,43 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     };
 
     const checkOrder = () => {
-        setIsSubmitted(true);
         setHasAttempted(true); // ✨ Unlock hints after first attempt
         attemptsRef.current += 1;
 
         const isCorrect = JSON.stringify(items) === JSON.stringify(correct_order);
+        const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
 
-        // ✅ FIXED: Use central scoring function with hints tracking
-        const score = calculateQuestionScore({
-            isCorrect,
-            attempts: attemptsRef.current,
-            hintsUsed: hintsUsedRef.current, // ✨ Now tracking hints!
-            responseTimeSec: (Date.now() - startTimeRef.current) / 1000
-        });
+        // ✅ NEW: 3-attempt logic with progressive hints
+        if (isCorrect || attemptsRef.current >= maxAttempts) {
+            // Correct or final attempt - lock the question
+            setIsSubmitted(true);
 
-        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
-
-        if (onComplete) {
-            onComplete(score, {
-                timeSeconds: Math.round(timeSpent),
+            // ✅ FIXED: Use central scoring function with hints tracking
+            const score = calculateQuestionScore({
+                isCorrect,
                 attempts: attemptsRef.current,
-                hintsUsed: hintsUsedRef.current, // ✨ Pass actual hints used
-                lastAnswer: items
+                hintsUsed: hintsUsedRef.current,
+                responseTimeSec: (Date.now() - startTimeRef.current) / 1000
             });
-        }
-    };
 
-    // ✨ NEW: Handle hint reveal
-    const handleShowHint = () => {
-        if (currentHintLevel < hints.length) {
-            setCurrentHintLevel(prev => prev + 1);
-            hintsUsedRef.current += 1;
-            onHintUsed?.(); // Notify parent
+            const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+
+            if (onComplete) {
+                onComplete(score, {
+                    timeSeconds: Math.round(timeSpent),
+                    attempts: attemptsRef.current,
+                    hintsUsed: hintsUsedRef.current,
+                    lastAnswer: items
+                });
+            }
+        } else {
+            // Still have attempts - show progressive hint and allow retry
+            if (currentHintLevel < hints.length) {
+                setCurrentHintLevel(prev => prev + 1);
+                hintsUsedRef.current += 1;
+                onHintUsed?.();
+            }
+            // Don't lock - allow user to continue reordering
         }
     };
 
@@ -211,52 +216,23 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
             </div>
             <p className="sr-only">השתמש בחצים למעלה ולמטה כדי לשנות את סדר הפריטים</p>
 
-            {/* ✨ NEW: Progressive Hints Section */}
-            {!isExamMode && hints.length > 0 && !isSubmitted && (
-                <div className="mb-6">
-                    {currentHintLevel === 0 ? (
-                        <div className="text-center">
-                            <button
-                                onClick={handleShowHint}
-                                disabled={!hasAttempted}
-                                className={`px-6 py-2 rounded-full font-medium transition-all ${
-                                    hasAttempted
-                                        ? 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg'
-                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                }`}
-                            >
-                                💡 {hasAttempted ? 'רמז' : 'רמז (זמין אחרי ניסיון ראשון)'}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {hints.slice(0, currentHintLevel).map((hint, idx) => (
-                                <div
-                                    key={idx}
-                                    className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <span className="text-2xl">💡</span>
-                                        <div className="flex-1">
-                                            <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
-                                            <div className="text-gray-700">{hint}</div>
-                                        </div>
-                                    </div>
+            {/* Progressive Hints - Auto-revealed after wrong attempts, no manual button */}
+            {!isExamMode && hints.length > 0 && currentHintLevel > 0 && !isSubmitted && (
+                <div className="mb-6 space-y-2">
+                    {hints.slice(0, currentHintLevel).map((hint, idx) => (
+                        <div
+                            key={idx}
+                            className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl">💡</span>
+                                <div className="flex-1">
+                                    <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
+                                    <div className="text-gray-700">{hint}</div>
                                 </div>
-                            ))}
-
-                            {currentHintLevel < hints.length && (
-                                <div className="text-center">
-                                    <button
-                                        onClick={handleShowHint}
-                                        className="px-6 py-2 rounded-full font-medium bg-yellow-500 text-white hover:bg-yellow-600 shadow-md hover:shadow-lg transition-all"
-                                    >
-                                        💡 רמז נוסף ({currentHintLevel}/{hints.length})
-                                    </button>
-                                </div>
-                            )}
+                            </div>
                         </div>
-                    )}
+                    ))}
                 </div>
             )}
 

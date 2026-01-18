@@ -20,7 +20,9 @@ import { AiRefineToolbar } from './AiRefineToolbar';
 import { uploadMediaFile } from '../firebaseUtils';
 import { MultimodalService } from '../services/multimodalService'; // Restore Import
 import {
-    enrichActivityBlock
+    enrichActivityBlock,
+    generateHavanaVariant,
+    generateHaamakaVariant
 } from '../services/adaptiveContentService';
 import {
     enrichActivityWithImages, isActivityEnriched, generateContextImageBlock
@@ -44,7 +46,8 @@ import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
     IconArrowDown, IconCheck, IconX, IconSave, IconBack,
-    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone, IconInfographic
+    IconRobot, IconPalette, IconBalance, IconBrain, IconLink, IconWand, IconEye, IconClock, IconLayer, IconHeadphones, IconBook, IconLoader, IconMicrophone, IconInfographic,
+    IconHavana, IconYisum, IconHaamaka, IconRefresh
 } from '../icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -153,6 +156,10 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
     const [inspectorMode, setInspectorMode] = useState(false); // INSPECTOR STATE
+
+    // --- Three Levels Editing State ---
+    const [blockEditLevel, setBlockEditLevel] = useState<Record<string, 'הבנה' | 'יישום' | 'העמקה'>>({});
+    const [regeneratingVariantBlock, setRegeneratingVariantBlock] = useState<{ blockId: string; level: 'הבנה' | 'העמקה' } | null>(null);
 
     // --- Podcast Custom Source State ---
     const [podcastSourceMode, setPodcastSourceMode] = useState<Record<string, 'full' | 'custom'>>({});
@@ -737,6 +744,108 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             )
         }));
         setIsDirty(true);
+    };
+
+    // --- Three Levels Helper Functions ---
+    const getBlockContentForLevel = (block: any, level: 'הבנה' | 'יישום' | 'העמקה'): any => {
+        if (level === 'יישום') return block.content;
+        const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+        const variant = block.metadata?.[variantKey];
+        return variant?.content || block.content;
+    };
+
+    const updateBlockForLevel = (blockId: string, content: any, level: 'הבנה' | 'יישום' | 'העמקה') => {
+        if (level === 'יישום') {
+            updateBlock(blockId, content);
+        } else {
+            const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+            if (!block) return;
+            const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+            const existingVariant = block.metadata?.[variantKey] || {};
+            updateBlock(blockId, block.content, {
+                [variantKey]: { ...existingVariant, content },
+                has_variants: true
+            });
+        }
+    };
+
+    const regenerateVariant = async (blockId: string, level: 'הבנה' | 'העמקה') => {
+        const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
+        if (!block) return;
+
+        setRegeneratingVariantBlock({ blockId, level });
+        try {
+            const topic = editedUnit.title || 'נושא כללי';
+            let variant = null;
+
+            if (level === 'הבנה') {
+                variant = await generateHavanaVariant(block, topic);
+            } else {
+                variant = await generateHaamakaVariant(block, topic);
+            }
+
+            if (variant) {
+                const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+                updateBlock(blockId, block.content, {
+                    [variantKey]: variant,
+                    has_variants: true
+                });
+            }
+        } catch (error) {
+            console.error(`Failed to regenerate ${level} variant:`, error);
+            alert(`שגיאה ביצירת גרסת ${level}`);
+        } finally {
+            setRegeneratingVariantBlock(null);
+        }
+    };
+
+    // LevelSelector Component for Three Levels Editing
+    const LevelSelector: React.FC<{
+        blockId: string;
+        hasVariants: boolean;
+        currentLevel: 'הבנה' | 'יישום' | 'העמקה';
+        onChange: (level: 'הבנה' | 'יישום' | 'העמקה') => void;
+    }> = ({ blockId, hasVariants, currentLevel, onChange }) => {
+        if (!hasVariants) return null;
+
+        const levels = [
+            { key: 'הבנה' as const, label: 'הבנה', icon: IconHavana, bgColor: 'bg-blue-500', hoverBg: 'hover:bg-blue-100', textColor: 'text-blue-600' },
+            { key: 'יישום' as const, label: 'יישום', icon: IconYisum, bgColor: 'bg-amber-500', hoverBg: 'hover:bg-amber-100', textColor: 'text-amber-600' },
+            { key: 'העמקה' as const, label: 'העמקה', icon: IconHaamaka, bgColor: 'bg-purple-500', hoverBg: 'hover:bg-purple-100', textColor: 'text-purple-600' }
+        ];
+
+        const isRegenerating = regeneratingVariantBlock?.blockId === blockId;
+
+        return (
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                {levels.map(level => (
+                    <button
+                        key={level.key}
+                        onClick={() => onChange(level.key)}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                            ${currentLevel === level.key
+                                ? `${level.bgColor} text-white shadow-sm`
+                                : `${level.textColor} ${level.hoverBg}`}`}
+                    >
+                        <level.icon className="w-4 h-4" />
+                        {level.label}
+                    </button>
+                ))}
+                {/* Regenerate button for non-יישום levels */}
+                {currentLevel !== 'יישום' && (
+                    <button
+                        onClick={() => regenerateVariant(blockId, currentLevel)}
+                        disabled={isRegenerating}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors disabled:opacity-50"
+                        title={`צור מחדש רמת ${currentLevel}`}
+                    >
+                        {isRegenerating && regeneratingVariantBlock?.level === currentLevel
+                            ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                            : <IconRefresh className="w-4 h-4" />}
+                    </button>
+                )}
+            </div>
+        );
     };
 
     const handlePersonaChange = (blockId: string, newPersona: string, currentContent: any) => {
@@ -1450,6 +1559,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
                                     <span className="absolute top-2 right-12 text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-1 rounded-full uppercase tracking-wide border border-white/50">{BLOCK_TYPE_MAPPING[block.type] || block.type}</span>
 
+                                    {/* Three Levels Badge */}
+                                    {(block.metadata?.has_variants || block.metadata?.scaffolding_variant || block.metadata?.enrichment_variant) && (
+                                        <div className="absolute top-2 right-36 flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-blue-100 via-amber-100 to-purple-100 rounded-full text-xs font-medium border border-white/50 shadow-sm">
+                                            <IconHavana className="w-3 h-3 text-blue-600" />
+                                            <IconYisum className="w-3 h-3 text-amber-600" />
+                                            <IconHaamaka className="w-3 h-3 text-purple-600" />
+                                            <span className="text-slate-600 font-bold">3 רמות</span>
+                                        </div>
+                                    )}
+
                                     {inspectorMode && (
                                         <div className="absolute top-2 left-32 z-20">
                                             <InspectorBadge block={block} mode={showScoring ? 'exam' : 'learning'} />
@@ -1460,14 +1579,25 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {/* TEXT BLOCK */}
                                         {block.type === 'text' && (
                                             <div>
+                                                {/* Three Levels Selector for blocks with variants */}
+                                                {(block.metadata?.has_variants || block.metadata?.scaffolding_variant || block.metadata?.enrichment_variant) && (
+                                                    <div className="mb-3">
+                                                        <LevelSelector
+                                                            blockId={block.id}
+                                                            hasVariants={true}
+                                                            currentLevel={blockEditLevel[block.id] || 'יישום'}
+                                                            onChange={(level) => setBlockEditLevel(prev => ({ ...prev, [block.id]: level }))}
+                                                        />
+                                                    </div>
+                                                )}
                                                 {block.metadata?.isLoading || block.metadata?.isSkeleton ? (
                                                     <div className="w-full p-8 border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-2xl flex flex-col items-center justify-center text-center gap-4 min-h-[180px]">
                                                         <TypewriterLoader contentType={typewriterContentType} isVisible={true} />
                                                     </div>
                                                 ) : (
                                                     <RichTextEditor
-                                                        value={block.content || ''}
-                                                        onChange={(html) => updateBlock(block.id, html)}
+                                                        value={getBlockContentForLevel(block, blockEditLevel[block.id] || 'יישום') || ''}
+                                                        onChange={(html) => updateBlockForLevel(block.id, html, blockEditLevel[block.id] || 'יישום')}
                                                         placeholder={`כתבו כאן את תוכן ${productTypeHebrew}...`}
                                                         minHeight="200px"
                                                     />
@@ -1487,8 +1617,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <AiRefineToolbar
                                                         blockId={block.id}
                                                         blockType="text"
-                                                        content={block.content}
-                                                        onUpdate={(newContent) => updateBlock(block.id, newContent)}
+                                                        content={getBlockContentForLevel(block, blockEditLevel[block.id] || 'יישום')}
+                                                        onUpdate={(newContent) => updateBlockForLevel(block.id, newContent, blockEditLevel[block.id] || 'יישום')}
                                                     />
                                                 </div>
                                             </div>
@@ -1923,6 +2053,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {/* QUESTIONS - TEAL THEME (NO ORANGE) */}
                                         {(block.type === 'multiple-choice' || block.type === 'open-question') && (
                                             <div className={`${block.type === 'multiple-choice' ? 'bg-sky-50/40 border-sky-100' : 'bg-teal-50/40 border-teal-100'} p-5 rounded-xl border backdrop-blur-sm`}>
+                                                {/* Three Levels Selector for question blocks with variants */}
+                                                {(block.metadata?.has_variants || block.metadata?.scaffolding_variant || block.metadata?.enrichment_variant) && (
+                                                    <div className="mb-3">
+                                                        <LevelSelector
+                                                            blockId={block.id}
+                                                            hasVariants={true}
+                                                            currentLevel={blockEditLevel[block.id] || 'יישום'}
+                                                            onChange={(level) => setBlockEditLevel(prev => ({ ...prev, [block.id]: level }))}
+                                                        />
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex-1 flex gap-2">
                                                         <div className={`mt-1 ${block.type === 'multiple-choice' ? 'text-sky-500' : 'text-teal-500'}`}>{block.type === 'multiple-choice' ? <IconList className="w-5 h-5" /> : <IconEdit className="w-5 h-5" />}</div>

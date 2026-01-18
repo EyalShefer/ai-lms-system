@@ -206,33 +206,19 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
                 </div>
             )}
 
-            {/* Progressive Hints UI */}
-            {canShowHint && (
+            {/* Progressive Hints UI - Now auto-revealed after wrong attempts, no manual button */}
+            {canShowHint && hintsVisibleLevel > 0 && (
                 <div className="mt-6 flex flex-col items-start gap-3">
-                    {/* Render Revealed Hints */}
-                    {hintsVisibleLevel > 0 && (
-                        <div className="space-y-2 w-full animate-fade-in">
-                            {hints.slice(0, hintsVisibleLevel).map((hint, idx) => (
-                                <div key={idx} className="relative bg-amber-50 border border-amber-200 p-3 pr-4 rounded-xl text-amber-900 text-sm shadow-sm flex gap-3 items-start">
-                                    <span className="font-bold bg-amber-200 text-amber-800 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                        {idx + 1}
-                                    </span>
-                                    <span className="flex-1">{renderMarkdownWithCitations(hint)}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Reveal Button */}
-                    {!isMaxHints && onShowHint && (
-                        <button
-                            onClick={onShowHint}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 shadow-sm transition-all"
-                        >
-                            <IconSparkles className="w-4 h-4" />
-                            {hintsVisibleLevel === 0 ? 'קבל רמז' : 'רמז נוסף'}
-                        </button>
-                    )}
+                    <div className="space-y-2 w-full animate-fade-in">
+                        {hints.slice(0, hintsVisibleLevel).map((hint, idx) => (
+                            <div key={idx} className="relative bg-amber-50 border border-amber-200 p-3 pr-4 rounded-xl text-amber-900 text-sm shadow-sm flex gap-3 items-start">
+                                <span className="font-bold bg-amber-200 text-amber-800 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                    {idx + 1}
+                                </span>
+                                <span className="flex-1">{renderMarkdownWithCitations(hint)}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 

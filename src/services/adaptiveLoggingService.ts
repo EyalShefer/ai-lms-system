@@ -9,11 +9,11 @@ import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc, increment, getDoc } from 'firebase/firestore';
 
 export type AdaptiveEventType =
-    | 'variant_selected'      // When scaffolding/enrichment variant is chosen
+    | 'variant_selected'      // When הבנה/העמקה variant is chosen (Understanding/Deepening)
     | 'bkt_update'           // When BKT calculates new mastery
-    | 'challenge_mode'       // When challenge mode is activated (skip easy content)
+    | 'העמקה_mode'           // When העמקה mode is activated (skip easy content for advanced)
     | 'mastery_skip'         // When topic is mastered and skipped
-    | 'remediation_injected' // When remedial block is generated and inserted
+    | 'הבנה_injected'        // When הבנה (remedial) block is generated and inserted
     | 'session_start'        // When student starts a lesson
     | 'session_complete';    // When student completes a lesson
 
@@ -27,8 +27,8 @@ export interface AdaptiveEvent {
 
     // Event-specific data
     data: {
-        // For variant_selected
-        variantType?: 'scaffolding' | 'enrichment' | 'original';
+        // For variant_selected (Hebrew: הבנה=Understanding, יישום=Application, העמקה=Deepening)
+        variantType?: 'הבנה' | 'יישום' | 'העמקה';
         mastery?: number;
         accuracy?: number;
 
@@ -38,12 +38,12 @@ export interface AdaptiveEvent {
         action?: string; // continue/challenge/remediate/mastered
         isCorrect?: boolean;
 
-        // For challenge_mode / mastery_skip
+        // For העמקה_mode / mastery_skip
         skippedBlocks?: number;
         targetTopicId?: string;
 
-        // For remediation_injected
-        remediationBlockId?: string;
+        // For הבנה_injected
+        הבנהBlockId?: string;
         wrongAnswer?: any;
 
         // General
@@ -118,12 +118,13 @@ export const getAdaptiveStats = async (userId: string): Promise<{
 
 /**
  * Helper: Log variant selection event
+ * Hebrew variants: הבנה (Understanding), יישום (Application), העמקה (Deepening)
  */
 export const logVariantSelected = (
     userId: string,
     courseId: string,
     blockId: string,
-    variantType: 'scaffolding' | 'enrichment' | 'original',
+    variantType: 'הבנה' | 'יישום' | 'העמקה',
     mastery: number,
     accuracy: number
 ): void => {

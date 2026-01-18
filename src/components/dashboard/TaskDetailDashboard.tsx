@@ -100,21 +100,21 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
     const stats = useMemo(() => {
         if (!student.journey || student.journey.length === 0) {
             return {
-                success: 0, failure: 0, remediation: 0, total: 0, completionRate: 0,
-                startingPath: null as 'scaffolding' | 'original' | 'enrichment' | null,
-                variantCounts: { scaffolding: 0, original: 0, enrichment: 0 }
+                success: 0, failure: 0, הבנה: 0, total: 0, completionRate: 0,
+                startingPath: null as 'הבנה' | 'יישום' | 'העמקה' | null,
+                variantCounts: { הבנה: 0, יישום: 0, העמקה: 0 }
             };
         }
 
         const success = student.journey.filter(n => n.status === 'success').length;
         const failure = student.journey.filter(n => n.status === 'failure').length;
-        const remediation = student.journey.filter(n => n.type === 'remediation').length;
+        const הבנהCount = student.journey.filter(n => n.type === 'הבנה').length;
         const total = student.journey.length;
         const completionRate = total > 0 ? Math.round((success / (success + failure || 1)) * 100) : 0;
 
-        // Analyze variants used
-        const variantCounts = { scaffolding: 0, original: 0, enrichment: 0 };
-        let startingPath: 'scaffolding' | 'original' | 'enrichment' | null = null;
+        // Analyze variants used (הבנה=Understanding, יישום=Application, העמקה=Deepening)
+        const variantCounts = { הבנה: 0, יישום: 0, העמקה: 0 };
+        let startingPath: 'הבנה' | 'יישום' | 'העמקה' | null = null;
 
         student.journey.forEach((node, idx) => {
             if (node.variantUsed) {
@@ -126,7 +126,7 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
             }
         });
 
-        return { success, failure, remediation, total, completionRate, startingPath, variantCounts };
+        return { success, failure, הבנה: הבנהCount, total, completionRate, startingPath, variantCounts };
     }, [student.journey]);
 
     const hintsUsed = student.performance?.hintDependency
@@ -196,12 +196,12 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                     <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-xs text-slate-500">מסלול נוכחי:</span>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            stats.startingPath === 'scaffolding' ? 'bg-amber-100 text-amber-700' :
-                            stats.startingPath === 'enrichment' ? 'bg-purple-100 text-purple-700' :
+                            stats.startingPath === 'הבנה' ? 'bg-amber-100 text-amber-700' :
+                            stats.startingPath === 'העמקה' ? 'bg-purple-100 text-purple-700' :
                             'bg-slate-100 text-slate-600'
                         }`}>
-                            {stats.startingPath === 'scaffolding' ? 'תמיכה' :
-                             stats.startingPath === 'enrichment' ? 'העשרה' : 'ליבה'}
+                            {stats.startingPath === 'הבנה' ? 'הבנה' :
+                             stats.startingPath === 'העמקה' ? 'העמקה' : 'יישום'}
                         </span>
                     </div>
                 )}
@@ -343,17 +343,17 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
                                             {/* Spacer */}
                                             <div className="flex-1"></div>
 
-                                            {/* Variant Badge - Show for all variants including original */}
+                                            {/* Variant Badge - Show for all variants including יישום (Application) */}
                                             {node.variantUsed && (
                                                 <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${
-                                                    node.variantUsed === 'scaffolding'
+                                                    node.variantUsed === 'הבנה'
                                                         ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                                        : node.variantUsed === 'enrichment'
+                                                        : node.variantUsed === 'העמקה'
                                                         ? 'bg-purple-100 text-purple-700 border border-purple-200'
                                                         : 'bg-slate-100 text-slate-600 border border-slate-200'
                                                 }`}>
-                                                    {node.variantUsed === 'scaffolding' ? 'תמיכה' :
-                                                     node.variantUsed === 'enrichment' ? 'העשרה' : 'ליבה'}
+                                                    {node.variantUsed === 'הבנה' ? 'הבנה' :
+                                                     node.variantUsed === 'העמקה' ? 'העמקה' : 'יישום'}
                                                 </span>
                                             )}
                                         </div>
@@ -634,11 +634,11 @@ const ClassAnalyticsOverview: React.FC<{
                         </div>
                         {classStats.struggling.length > 0 && (
                             <button
-                                onClick={() => onCreateGroupRemediation('scaffolding')}
+                                onClick={() => onCreateGroupRemediation('הבנה')}
                                 className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
                                 <IconSparkles size={14} className="text-amber-500" />
-                                צור משימת תגבור לקבוצה
+                                צור משימת הבנה לקבוצה
                             </button>
                         )}
                     </div>
@@ -663,11 +663,11 @@ const ClassAnalyticsOverview: React.FC<{
                         </div>
                         {classStats.average.length > 0 && (
                             <button
-                                onClick={() => onCreateGroupRemediation('standard')}
+                                onClick={() => onCreateGroupRemediation('יישום')}
                                 className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
                                 <IconSparkles size={14} className="text-slate-500" />
-                                צור משימה מותאמת לקבוצה
+                                צור משימת יישום לקבוצה
                             </button>
                         )}
                     </div>
@@ -692,11 +692,11 @@ const ClassAnalyticsOverview: React.FC<{
                         </div>
                         {classStats.advanced.length > 0 && (
                             <button
-                                onClick={() => onCreateGroupRemediation('enrichment')}
+                                onClick={() => onCreateGroupRemediation('העמקה')}
                                 className="w-full py-2 px-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
                             >
                                 <IconSparkles size={14} className="text-wizdi-action" />
-                                צור משימת העשרה לקבוצה
+                                צור משימת העמקה לקבוצה
                             </button>
                         )}
                     </div>
@@ -1185,9 +1185,9 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
             onCreateRemediation(undefined, groupType);
         } else {
             const typeLabels: Record<string, string> = {
-                'scaffolding': 'תגבור למתקשים',
-                'standard': 'מותאמת לרמת כיתה',
-                'enrichment': 'העשרה למתקדמים'
+                'הבנה': 'הבנה למתקשים',
+                'יישום': 'יישום לרמת כיתה',
+                'העמקה': 'העמקה למתקדמים'
             };
             alert(`יצירת משימת ${typeLabels[groupType] || groupType} - יתווסף בקרוב`);
         }

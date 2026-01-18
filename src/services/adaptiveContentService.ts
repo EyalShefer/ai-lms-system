@@ -96,22 +96,26 @@ import { v4 as uuidv4 } from 'uuid';
 /**
  * Content Variants System
  *
- * Generates scaffolding (easier) and enrichment (harder) variants for question blocks.
+ * Generates three difficulty variants for question blocks:
+ * - הבנה (Understanding) - easier variant for struggling students
+ * - יישום (Application) - standard level (original)
+ * - העמקה (Deepening) - harder variant for advanced students
+ *
  * These are pre-generated during content creation and stored for adaptive delivery.
  */
 
 export interface ContentVariants {
-    scaffolding?: ActivityBlock;   // Easier variant with hints, simpler options
-    enrichment?: ActivityBlock;    // Harder variant with extension challenges
+    הבנה?: ActivityBlock;    // Easier variant with hints, simpler options (Understanding)
+    העמקה?: ActivityBlock;   // Harder variant with extension challenges (Deepening)
 }
 
 /**
- * Generates a scaffolding (easier) variant of a question block.
+ * Generates a הבנה (Understanding/easier) variant of a question block.
  * - Adds more hints
  * - Simplifies language
  * - Provides worked examples
  */
-export const generateScaffoldingVariant = async (
+export const generateHavanaVariant = async (
     block: ActivityBlock,
     topic: string
 ): Promise<ActivityBlock | null> => {
@@ -168,14 +172,14 @@ export const generateScaffoldingVariant = async (
             return null;
         }
 
-        const scaffoldedBlock: ActivityBlock = {
-            id: `${block.id}_scaffolding`,
+        const havanaBlock: ActivityBlock = {
+            id: `${block.id}_הבנה`,
             type: block.type,
             content: result.scaffolded_content,
             metadata: {
                 ...block.metadata,
                 isVariant: true,
-                variantType: 'scaffolding',
+                variantType: 'הבנה',
                 originalBlockId: block.id,
                 progressiveHints: result.progressive_hints || [],
                 preContext: result.pre_context,
@@ -183,21 +187,21 @@ export const generateScaffoldingVariant = async (
             }
         };
 
-        return scaffoldedBlock;
+        return havanaBlock;
 
     } catch (e) {
-        console.error("Scaffolding Gen Failed:", e);
+        console.error("הבנה Gen Failed:", e);
         return null;
     }
 };
 
 /**
- * Generates an enrichment (harder) variant of a question block.
+ * Generates a העמקה (Deepening/harder) variant of a question block.
  * - Adds complexity
  * - Requires deeper thinking
  * - Extends to related concepts
  */
-export const generateEnrichmentVariant = async (
+export const generateHaamakaVariant = async (
     block: ActivityBlock,
     topic: string
 ): Promise<ActivityBlock | null> => {
@@ -254,32 +258,32 @@ export const generateEnrichmentVariant = async (
             return null;
         }
 
-        const enrichedBlock: ActivityBlock = {
-            id: `${block.id}_enrichment`,
+        const haamakaBlock: ActivityBlock = {
+            id: `${block.id}_העמקה`,
             type: block.type,
             content: result.enriched_content,
             metadata: {
                 ...block.metadata,
                 isVariant: true,
-                variantType: 'enrichment',
+                variantType: 'העמקה',
                 originalBlockId: block.id,
                 extensionQuestion: result.extension_question,
                 connectionNote: result.connection_note,
                 difficulty_level: Math.min(1, (block.metadata?.difficulty_level || 0.5) + 0.2),
-                bloom_taxonomy: 'Analyze' // Enrichment typically requires higher-order thinking
+                bloom_taxonomy: 'Analyze' // העמקה typically requires higher-order thinking
             }
         };
 
-        return enrichedBlock;
+        return haamakaBlock;
 
     } catch (e) {
-        console.error("Enrichment Gen Failed:", e);
+        console.error("העמקה Gen Failed:", e);
         return null;
     }
 };
 
 /**
- * Generates both scaffolding and enrichment variants for a block.
+ * Generates both הבנה and העמקה variants for a block.
  * Returns the variants to be stored in metadata for adaptive selection.
  */
 export const generateContentVariants = async (
@@ -287,12 +291,12 @@ export const generateContentVariants = async (
     topic: string
 ): Promise<ContentVariants> => {
     // Run both in parallel for efficiency
-    const [scaffolding, enrichment] = await Promise.all([
-        generateScaffoldingVariant(block, topic),
-        generateEnrichmentVariant(block, topic)
+    const [הבנה, העמקה] = await Promise.all([
+        generateHavanaVariant(block, topic),
+        generateHaamakaVariant(block, topic)
     ]);
 
-    return { scaffolding, enrichment };
+    return { הבנה, העמקה };
 };
 
 /**
@@ -303,10 +307,10 @@ export const enrichBlockWithVariants = async (
     block: ActivityBlock,
     topic: string
 ): Promise<ActivityBlock> => {
-    // First enrich the base block
+    // First enrich the base block (יישום level)
     const enrichedBlock = await enrichActivityBlock(block, topic);
 
-    // Then generate variants
+    // Then generate variants (הבנה and העמקה)
     const variants = await generateContentVariants(enrichedBlock, topic);
 
     // Store variant IDs AND the full variant content in metadata for retrieval
@@ -315,12 +319,12 @@ export const enrichBlockWithVariants = async (
         ...enrichedBlock,
         metadata: {
             ...enrichedBlock.metadata,
-            scaffolding_id: variants.scaffolding?.id,
-            enrichment_id: variants.enrichment?.id,
-            has_variants: !!(variants.scaffolding || variants.enrichment),
+            הבנה_id: variants.הבנה?.id,
+            העמקה_id: variants.העמקה?.id,
+            has_variants: !!(variants.הבנה || variants.העמקה),
             // Store the full variant blocks for runtime selection
-            scaffolding_variant: variants.scaffolding || null,
-            enrichment_variant: variants.enrichment || null
+            הבנה_variant: variants.הבנה || null,
+            העמקה_variant: variants.העמקה || null
         }
     };
 };
@@ -328,6 +332,9 @@ export const enrichBlockWithVariants = async (
 /**
  * Selects the appropriate variant based on student state.
  * Called by the adaptive policy when delivering content.
+ * - הבנה (Understanding) for struggling students
+ * - יישום (Application) for standard students (original block)
+ * - העמקה (Deepening) for advanced students
  */
 export const selectBlockVariant = (
     originalBlock: ActivityBlock,
@@ -335,19 +342,19 @@ export const selectBlockVariant = (
     studentMastery: number,
     recentAccuracy: number
 ): ActivityBlock => {
-    // Use scaffolding for struggling students
-    if (studentMastery < 0.4 && recentAccuracy < 0.5 && variants.scaffolding) {
-        console.log(`📚 Selecting SCAFFOLDING variant for block ${originalBlock.id}`);
-        return variants.scaffolding;
+    // Use הבנה for struggling students
+    if (studentMastery < 0.4 && recentAccuracy < 0.5 && variants.הבנה) {
+        console.log(`📚 Selecting הבנה variant for block ${originalBlock.id}`);
+        return variants.הבנה;
     }
 
-    // Use enrichment for excelling students
-    if (studentMastery > 0.8 && recentAccuracy > 0.9 && variants.enrichment) {
-        console.log(`🚀 Selecting ENRICHMENT variant for block ${originalBlock.id}`);
-        return variants.enrichment;
+    // Use העמקה for excelling students
+    if (studentMastery > 0.8 && recentAccuracy > 0.9 && variants.העמקה) {
+        console.log(`🚀 Selecting העמקה variant for block ${originalBlock.id}`);
+        return variants.העמקה;
     }
 
-    // Default to original
+    // Default to original (יישום)
     return originalBlock;
 };
 

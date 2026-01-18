@@ -40,12 +40,12 @@ export interface StudentAnalytics {
 
 export interface JourneyNode {
     id: string;
-    type: 'question' | 'content' | 'remediation' | 'challenge' | 'skipped';
+    type: 'question' | 'content' | 'הבנה' | 'העמקה' | 'skipped';  // הבנה replaces remediation
     status: 'success' | 'failure' | 'skipped' | 'viewed';
     timestamp: number;
     blockId?: string;
     blockType?: string;
-    variantUsed?: 'original' | 'scaffolding' | 'enrichment';
+    variantUsed?: 'יישום' | 'הבנה' | 'העמקה';  // Hebrew: Application, Understanding, Deepening
     metadata?: any;
     connection?: 'direct' | 'branched';
 }
@@ -85,7 +85,7 @@ const sessionsToJourney = (sessions: any[]): JourneyNode[] => {
             if (interaction.type === 'text' || interaction.type === 'video' || interaction.type === 'pdf') {
                 nodeType = 'content';
             } else if (interaction.isRemediation) {
-                nodeType = 'remediation';
+                nodeType = 'הבנה';  // Remediation uses הבנה (Understanding) variant
             } else if (interaction.wasSkipped) {
                 nodeType = 'skipped';
             }
@@ -305,9 +305,9 @@ const MOCK_TOPICS = ['שברים פשוטים', 'שברים מורכבים', 'ע
 
 /**
  * 3 Demo Students representing different learner profiles:
- * 1. Struggling - needs scaffolding, high risk
- * 2. Average - uses original content, medium risk
- * 3. Advanced - gets enrichment, low risk
+ * 1. Struggling - needs הבנה (Understanding), high risk
+ * 2. Average - uses יישום (Application/original), medium risk
+ * 3. Advanced - gets העמקה (Deepening), low risk
  */
 const MOCK_STUDENTS = [
     {
@@ -316,7 +316,7 @@ const MOCK_STUDENTS = [
         email: 'dani@demo.wizdi.co',
         risk: 'high' as const,
         profile: 'struggling',
-        expectedVariant: 'scaffolding',
+        expectedVariant: 'הבנה',
         mastery: { base: 0.28, variance: 0.1 },
         performance: {
             accuracy: 0.35,
@@ -337,7 +337,7 @@ const MOCK_STUDENTS = [
         email: 'michal@demo.wizdi.co',
         risk: 'medium' as const,
         profile: 'average',
-        expectedVariant: 'original',
+        expectedVariant: 'יישום',
         mastery: { base: 0.58, variance: 0.15 },
         performance: {
             accuracy: 0.67,
@@ -357,7 +357,7 @@ const MOCK_STUDENTS = [
         email: 'yossi@demo.wizdi.co',
         risk: 'low' as const,
         profile: 'advanced',
-        expectedVariant: 'enrichment',
+        expectedVariant: 'העמקה',
         mastery: { base: 0.91, variance: 0.05 },
         performance: {
             accuracy: 0.94,
@@ -373,9 +373,9 @@ const MOCK_STUDENTS = [
 
 /**
  * Generate mock journey for testing with variant information
- * - Struggling students (high risk) → get scaffolding variants
- * - Average students (medium risk) → get original variants
- * - Advanced students (low risk) → get enrichment variants
+ * - Struggling students (high risk) → get הבנה (Understanding) variants
+ * - Average students (medium risk) → get יישום (Application) variants
+ * - Advanced students (low risk) → get העמקה (Deepening) variants
  */
 const generateMockJourney = (risk: 'low' | 'medium' | 'high'): JourneyNode[] => {
     const nodes: JourneyNode[] = [];
@@ -383,9 +383,9 @@ const generateMockJourney = (risk: 'low' | 'medium' | 'high'): JourneyNode[] => 
     let time = now - 1000 * 60 * 60;
 
     // Determine primary variant based on risk level
-    const primaryVariant: 'scaffolding' | 'original' | 'enrichment' =
-        risk === 'high' ? 'scaffolding' :
-        risk === 'low' ? 'enrichment' : 'original';
+    const primaryVariant: 'הבנה' | 'יישום' | 'העמקה' =
+        risk === 'high' ? 'הבנה' :
+        risk === 'low' ? 'העמקה' : 'יישום';
 
     for (let i = 1; i <= 8; i++) {
         const success = risk === 'low' ? Math.random() > 0.1 :
@@ -409,11 +409,11 @@ const generateMockJourney = (risk: 'low' | 'medium' | 'high'): JourneyNode[] => 
         // Sometimes the system adjusts mid-activity based on performance
         let questionVariant = primaryVariant;
         if (risk === 'high' && i > 4 && Math.random() > 0.7) {
-            // Struggling student improving - might get original
-            questionVariant = 'original';
+            // Struggling student improving - might get יישום
+            questionVariant = 'יישום';
         } else if (risk === 'low' && !success) {
-            // Advanced student struggling on one - might get original
-            questionVariant = 'original';
+            // Advanced student struggling on one - might get יישום
+            questionVariant = 'יישום';
         }
 
         nodes.push({
@@ -431,11 +431,11 @@ const generateMockJourney = (risk: 'low' | 'medium' | 'high'): JourneyNode[] => 
             const remediationSuccess = Math.random() > 0.2;
             nodes.push({
                 id: `remedial-${i}`,
-                type: 'remediation',
+                type: 'הבנה',  // Remediation uses הבנה (Understanding) level
                 status: remediationSuccess ? 'success' : 'failure',
                 timestamp: time,
                 connection: 'branched',
-                variantUsed: 'scaffolding' // Remediation is always scaffolding
+                variantUsed: 'הבנה' // Remediation is always הבנה (Understanding)
             });
             time += 1000 * 60 * 3;
         }

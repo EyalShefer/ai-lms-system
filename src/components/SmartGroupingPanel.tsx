@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconSparkles, IconBrain, IconX } from '../icons'; // Assuming these exist
+import { IconSparkles, IconBrain, IconX, IconHavana, IconYisum, IconHaamaka } from '../icons';
 import { assignLessonToGroup, type GroupType } from '../services/LessonDistributor';
 
 interface SmartGroupingPanelProps {
@@ -12,14 +12,15 @@ interface SmartGroupingPanelProps {
 
 export const SmartGroupingPanel: React.FC<SmartGroupingPanelProps> = ({ classId, teacherId, students, onAssignmentCreated }) => {
     // 1. Logic to segment students (Simplified for UI demo, real logic might be more complex)
-    const remediationGroup = students.filter(s => s.score < 60);
-    const standardGroup = students.filter(s => s.score >= 60 && s.score < 90);
-    const challengeGroup = students.filter(s => s.score >= 90);
+    // Using Hebrew level names: הבנה (Understanding), יישום (Application), העמקה (Deepening)
+    const הבנהGroup = students.filter(s => s.score < 60);
+    const יישוםGroup = students.filter(s => s.score >= 60 && s.score < 90);
+    const העמקהGroup = students.filter(s => s.score >= 90);
 
-    const groups: { type: GroupType; label: string; data: any[], color: string, description: string }[] = [
-        { type: 'remediation', label: 'חיזוק (Remediation)', data: remediationGroup, color: "bg-red-50 border-red-200 text-red-700", description: "ציונים נמוכים, זקוקים לפירוק לגורמים ועידוד." },
-        { type: 'standard', label: 'רגיל (Standard)', data: standardGroup, color: "bg-blue-50 border-blue-200 text-blue-700", description: "קצב רגיל, תוכנית לימודים סטנדרטית." },
-        { type: 'challenge', label: 'אתגר (Challenge)', data: challengeGroup, color: "bg-purple-50 border-purple-200 text-purple-700", description: "מצטיינים, זקוקים לחשיבה ביקורתית ואתגר." }
+    const groups: { type: GroupType; label: string; icon: React.FC<{ className?: string }>; data: any[], color: string, description: string }[] = [
+        { type: 'הבנה', label: 'הבנה', icon: IconHavana, data: הבנהGroup, color: "bg-blue-50 border-blue-200 text-blue-700", description: "ציונים נמוכים, זקוקים לפירוק לגורמים ועידוד." },
+        { type: 'יישום', label: 'יישום', icon: IconYisum, data: יישוםGroup, color: "bg-amber-50 border-amber-200 text-amber-700", description: "קצב רגיל, תוכנית לימודים סטנדרטית." },
+        { type: 'העמקה', label: 'העמקה', icon: IconHaamaka, data: העמקהGroup, color: "bg-purple-50 border-purple-200 text-purple-700", description: "מצטיינים, זקוקים לחשיבה ביקורתית ואתגר." }
     ];
 
     // Modal State
@@ -63,12 +64,15 @@ export const SmartGroupingPanel: React.FC<SmartGroupingPanelProps> = ({ classId,
                 {groups.map((group) => (
                     <div key={group.type} className={`p-6 rounded-2xl border ${group.color} relative overflow-hidden transition-all hover:shadow-md`}>
                         <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <IconSparkles className="w-24 h-24" />
+                            <group.icon className="w-24 h-24" />
                         </div>
 
                         <div className="relative z-10">
                             <div className="flex justify-between items-start mb-4">
-                                <h4 className="text-lg font-black">{group.label}</h4>
+                                <div className="flex items-center gap-2">
+                                    <group.icon className="w-6 h-6" />
+                                    <h4 className="text-lg font-black">{group.label}</h4>
+                                </div>
                                 <span className="bg-white/50 px-3 py-1 rounded-full text-xs font-bold shadow-sm backdrop-blur-sm">
                                     {group.data.length} תלמידים
                                 </span>
@@ -116,7 +120,7 @@ export const SmartGroupingPanel: React.FC<SmartGroupingPanelProps> = ({ classId,
 
                         <div className="space-y-4">
                             <div className="bg-indigo-50 p-4 rounded-xl text-indigo-900 text-sm">
-                                <span className="font-bold block mb-1">הקבוצה הנבחרת: {activeGroup === 'remediation' ? 'בסיס / חיזוק' : activeGroup === 'challenge' ? 'מצטיינים / אתגר' : 'רגילה'}</span>
+                                <span className="font-bold block mb-1">הקבוצה הנבחרת: {activeGroup === 'הבנה' ? 'הבנה' : activeGroup === 'העמקה' ? 'העמקה' : 'יישום'}</span>
                                 המערכת תתאים אוטומטית את רמת הקושי, סגנון השאלות והמשוב עבור תלמידים אלו.
                             </div>
 

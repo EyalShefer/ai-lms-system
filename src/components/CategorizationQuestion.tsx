@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
+import { SCORING_CONFIG } from '../utils/scoring';
 
 interface CategorizationQuestionProps {
     block: ActivityBlock;
@@ -44,6 +45,7 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     const [bankItems, setBankItems] = useState<Item[]>([]);
     const [buckets, setBuckets] = useState<Record<string, Item[]>>({});
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [currentHintLevel, setCurrentHintLevel] = useState(0); // ✨ NEW: Progressive hints
 
     useEffect(() => {
         // Reset Telemetry
@@ -149,7 +151,6 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
             return;
         }
 
-        setIsSubmitted(true);
         attemptsRef.current += 1;
 
         let correctCount = 0;
@@ -166,17 +167,33 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
         // In this implementation, total items is based on what's defined in the block
         totalItems = items.length;
 
-        const score = Math.round((correctCount / totalItems) * 100);
+        const isFullyCorrect = correctCount === totalItems;
+        const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
 
-        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+        // ✅ NEW: 3-attempt logic with progressive hints
+        if (isFullyCorrect || attemptsRef.current >= maxAttempts) {
+            // Correct or final attempt - lock the question
+            setIsSubmitted(true);
 
-        if (onComplete) {
-            onComplete(score, {
-                timeSeconds: Math.round(timeSpent),
-                attempts: attemptsRef.current,
-                hintsUsed: 0,
-                lastAnswer: buckets // Detailed bucket state
-            });
+            const score = Math.round((correctCount / totalItems) * 100);
+            const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+
+            if (onComplete) {
+                onComplete(score, {
+                    timeSeconds: Math.round(timeSpent),
+                    attempts: attemptsRef.current,
+                    hintsUsed: hintsUsedRef.current,
+                    lastAnswer: buckets
+                });
+            }
+        } else {
+            // Still have attempts - show progressive hint and allow retry
+            if (currentHintLevel < hints.length) {
+                setCurrentHintLevel(prev => prev + 1);
+                hintsUsedRef.current += 1;
+                onHintUsed?.();
+            }
+            // Don't lock - allow user to continue dragging
         }
     };
 
@@ -260,6 +277,26 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                     );
                 })}
             </div>
+
+            {/* Progressive Hints - Auto-revealed after wrong attempts, no manual button */}
+            {!isExamMode && hints.length > 0 && currentHintLevel > 0 && !isSubmitted && (
+                <div className="mb-6 space-y-2">
+                    {hints.slice(0, currentHintLevel).map((hint, idx) => (
+                        <div
+                            key={idx}
+                            className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl">💡</span>
+                                <div className="flex-1">
+                                    <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
+                                    <div className="text-gray-700">{hint}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="text-center">
                 <button

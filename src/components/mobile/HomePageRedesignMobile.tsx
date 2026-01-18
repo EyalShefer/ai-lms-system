@@ -47,20 +47,28 @@ interface RecentActivity {
 
 interface HomePageRedesignMobileProps {
     onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
+    onCreateWithWizardData?: (wizardData: any) => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
     onNavigateToPrompts?: () => void;
     onNavigateToQA?: () => void;
     onNavigateToKnowledgeBase?: () => void;
+    onNavigateToAgents?: () => void;
+    onNavigateToUsage?: () => void;
+    onNavigateToSpeedAnalytics?: () => void;
 }
 
 const HomePageRedesignMobile = ({
     onCreateNew,
+    onCreateWithWizardData,
     onNavigateToDashboard,
     onEditCourse,
     onNavigateToPrompts,
     onNavigateToQA,
-    onNavigateToKnowledgeBase
+    onNavigateToKnowledgeBase,
+    onNavigateToAgents,
+    onNavigateToUsage,
+    onNavigateToSpeedAnalytics
 }: HomePageRedesignMobileProps) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);

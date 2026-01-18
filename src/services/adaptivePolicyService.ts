@@ -23,7 +23,7 @@ export interface PolicyDecision {
     action: 'continue' | 'skip' | 'skip_to_topic' | 'load_variant';
     skipCount?: number;           // How many blocks to skip
     targetTopicId?: string;       // Topic to jump to (for mastery skip)
-    variantType?: 'easy' | 'hard'; // Which variant to load
+    variantType?: 'הבנה' | 'העמקה'; // Which variant to load (Hebrew: Understanding/Deepening)
     message?: string;             // Feedback message for student
     toast?: {                     // Toast notification config
         type: 'success' | 'info' | 'challenge';
@@ -275,36 +275,41 @@ export const getNextTopicsForStudent = async (
 
 /**
  * Check if a block has variants available
+ * הבנה = Understanding (easier) variant
+ * העמקה = Deepening (harder) variant
  */
 export const hasVariants = (block: ActivityBlock): {
-    hasScaffolding: boolean;
-    hasEnrichment: boolean;
+    hasHavana: boolean;    // הבנה - easier variant
+    hasHaamaka: boolean;   // העמקה - harder variant
 } => {
     return {
-        hasScaffolding: !!block.metadata?.scaffolding_id,
-        hasEnrichment: !!block.metadata?.enrichment_id
+        hasHavana: !!block.metadata?.הבנה_id || !!block.metadata?.scaffolding_id,
+        hasHaamaka: !!block.metadata?.העמקה_id || !!block.metadata?.enrichment_id
     };
 };
 
 /**
  * Select appropriate variant based on student performance
+ * הבנה = Understanding (easier variant for struggling students)
+ * יישום = Application (standard variant)
+ * העמקה = Deepening (harder variant for advanced students)
  */
 export const selectVariant = (
     block: ActivityBlock,
     mastery: number,
     recentAccuracy: number
-): 'original' | 'scaffolding' | 'enrichment' => {
-    // If struggling, use easier variant
-    if (mastery < 0.4 && recentAccuracy < 0.5 && block.metadata?.scaffolding_id) {
-        return 'scaffolding';
+): 'יישום' | 'הבנה' | 'העמקה' => {
+    // If struggling, use easier variant (הבנה)
+    if (mastery < 0.4 && recentAccuracy < 0.5 && (block.metadata?.הבנה_id || block.metadata?.scaffolding_id)) {
+        return 'הבנה';
     }
 
-    // If excelling, use harder variant
-    if (mastery > 0.8 && recentAccuracy > 0.9 && block.metadata?.enrichment_id) {
-        return 'enrichment';
+    // If excelling, use harder variant (העמקה)
+    if (mastery > 0.8 && recentAccuracy > 0.9 && (block.metadata?.העמקה_id || block.metadata?.enrichment_id)) {
+        return 'העמקה';
     }
 
-    return 'original';
+    return 'יישום';
 };
 
 /**
@@ -313,31 +318,34 @@ export const selectVariant = (
  *
  * @param topicMastery - The student's existing mastery for this specific topic (0-1)
  * @param block - The content block being delivered
- * @returns The variant to start with
+ * @returns The variant to start with:
+ *   - הבנה (Understanding) - for struggling students
+ *   - יישום (Application) - standard level
+ *   - העמקה (Deepening) - for advanced students
  */
 export const getInitialVariant = (
     topicMastery: number | undefined,
     block: ActivityBlock
-): 'original' | 'scaffolding' | 'enrichment' => {
-    // If no existing profile data, start with original
+): 'יישום' | 'הבנה' | 'העמקה' => {
+    // If no existing profile data, start with יישום (standard)
     if (topicMastery === undefined) {
-        return 'original';
+        return 'יישום';
     }
 
-    // High existing mastery in this topic → start with enrichment
-    if (topicMastery > 0.75 && block.metadata?.enrichment_id) {
-        console.log(`🎯 Initial variant: enrichment (existing mastery: ${topicMastery.toFixed(2)})`);
-        return 'enrichment';
+    // High existing mastery in this topic → start with העמקה (deepening)
+    if (topicMastery > 0.75 && (block.metadata?.העמקה_id || block.metadata?.enrichment_id)) {
+        console.log(`🎯 Initial variant: העמקה (existing mastery: ${topicMastery.toFixed(2)})`);
+        return 'העמקה';
     }
 
-    // Low existing mastery in this topic → start with scaffolding
-    if (topicMastery < 0.35 && block.metadata?.scaffolding_id) {
-        console.log(`🎯 Initial variant: scaffolding (existing mastery: ${topicMastery.toFixed(2)})`);
-        return 'scaffolding';
+    // Low existing mastery in this topic → start with הבנה (understanding)
+    if (topicMastery < 0.35 && (block.metadata?.הבנה_id || block.metadata?.scaffolding_id)) {
+        console.log(`🎯 Initial variant: הבנה (existing mastery: ${topicMastery.toFixed(2)})`);
+        return 'הבנה';
     }
 
-    // Middle ground → original
-    return 'original';
+    // Middle ground → יישום (application/standard)
+    return 'יישום';
 };
 
 /**

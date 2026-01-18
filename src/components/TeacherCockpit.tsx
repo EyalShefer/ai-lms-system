@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize, IconBalance } from '../icons';
+import { IconSparkles, IconBook, IconVideo, IconTarget, IconCheck, IconPrinter, IconEdit, IconX, IconWand, IconPlus, IconTrash, IconArrowUp, IconArrowDown, IconShare, IconText, IconImage, IconList, IconChat, IconUpload, IconPalette, IconLink, IconChevronRight, IconHeadphones, IconLayer, IconBrain, IconClock, IconMicrophone, IconInfographic, IconEye, IconSend, IconMaximize, IconBalance, IconHavana, IconYisum, IconHaamaka, IconRefresh } from '../icons';
 import type { LearningUnit, ActivityBlock, Course } from '../shared/types/courseTypes';
 import { refineBlockContent, generateAiImage, generateInfographicFromText, type InfographicType } from '../services/ai/geminiApi';
 import {
@@ -20,6 +20,7 @@ import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { RichTextEditor } from './RichTextEditor';
 import { sanitizeHtml } from '../utils/sanitize';
 import { TypewriterLoader } from './ui/Loading/TypewriterLoader';
+import { generateHavanaVariant, generateHaamakaVariant } from '../services/adaptiveContentService';
 
 // Interactive Question Components for preview mode
 import MultipleChoiceQuestion from './MultipleChoiceQuestion';
@@ -173,6 +174,11 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
     // Variant Preview Modal State
     const [variantPreviewBlock, setVariantPreviewBlock] = useState<ActivityBlock | null>(null);
+
+    // Variant Editing State
+    const [editingVariantLevel, setEditingVariantLevel] = useState<'הבנה' | 'יישום' | 'העמקה' | null>(null);
+    const [editedVariantContent, setEditedVariantContent] = useState<any>(null);
+    const [regeneratingVariant, setRegeneratingVariant] = useState<'הבנה' | 'העמקה' | null>(null);
 
     // AI Block Generation State
     const [generatingBlockIndex, setGeneratingBlockIndex] = useState<number | null>(null);
@@ -361,6 +367,102 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             return b;
         }) || [];
         updateUnitBlocks(newBlocks);
+    };
+
+    // --- Variant Editing Helpers ---
+    const getVariantContent = (block: ActivityBlock, level: 'הבנה' | 'יישום' | 'העמקה') => {
+        if (level === 'יישום') return block.content;
+        // Map Hebrew levels to variant field names used in the codebase
+        const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+        const variant = block.metadata?.[variantKey];
+        return variant?.content || block.content;
+    };
+
+    const startEditingVariant = (level: 'הבנה' | 'יישום' | 'העמקה') => {
+        if (!variantPreviewBlock) return;
+        setEditingVariantLevel(level);
+        setEditedVariantContent(getVariantContent(variantPreviewBlock, level));
+    };
+
+    const saveVariantEdit = () => {
+        if (!variantPreviewBlock || !editingVariantLevel) return;
+
+        if (editingVariantLevel === 'יישום') {
+            // Update the main content
+            updateBlockContent(variantPreviewBlock.id, editedVariantContent);
+        } else {
+            // Update the specific variant
+            const variantKey = editingVariantLevel === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+            const existingVariant = variantPreviewBlock.metadata?.[variantKey] || {};
+            updateBlockContent(variantPreviewBlock.id, variantPreviewBlock.content, {
+                [variantKey]: { ...existingVariant, content: editedVariantContent }
+            });
+        }
+
+        // Update local state to reflect the change
+        setVariantPreviewBlock(prev => {
+            if (!prev) return null;
+            if (editingVariantLevel === 'יישום') {
+                return { ...prev, content: editedVariantContent };
+            }
+            const variantKey = editingVariantLevel === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+            return {
+                ...prev,
+                metadata: {
+                    ...prev.metadata,
+                    [variantKey]: { ...prev.metadata?.[variantKey], content: editedVariantContent }
+                }
+            };
+        });
+
+        setEditingVariantLevel(null);
+        setEditedVariantContent(null);
+    };
+
+    const cancelVariantEdit = () => {
+        setEditingVariantLevel(null);
+        setEditedVariantContent(null);
+    };
+
+    const regenerateVariantContent = async (level: 'הבנה' | 'העמקה') => {
+        if (!variantPreviewBlock) return;
+
+        setRegeneratingVariant(level);
+        try {
+            const topic = unit.title || 'נושא כללי';
+            let newVariant = null;
+
+            if (level === 'הבנה') {
+                newVariant = await generateHavanaVariant(variantPreviewBlock, topic);
+            } else {
+                newVariant = await generateHaamakaVariant(variantPreviewBlock, topic);
+            }
+
+            if (newVariant) {
+                const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+                updateBlockContent(variantPreviewBlock.id, variantPreviewBlock.content, {
+                    [variantKey]: newVariant,
+                    has_variants: true
+                });
+
+                // Update local state
+                setVariantPreviewBlock(prev => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        metadata: {
+                            ...prev.metadata,
+                            [variantKey]: newVariant,
+                            has_variants: true
+                        }
+                    };
+                });
+            }
+        } catch (error) {
+            console.error(`Failed to regenerate ${level} variant:`, error);
+        } finally {
+            setRegeneratingVariant(null);
+        }
     };
 
     const saveGoals = () => {
@@ -2160,19 +2262,26 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
             {/* Variant Preview Modal */}
             {variantPreviewBlock && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setVariantPreviewBlock(null)}>
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { setVariantPreviewBlock(null); cancelVariantEdit(); }}>
                     <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
+                        <div className="bg-gradient-to-r from-blue-600 via-amber-500 to-purple-600 text-white p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h2 className="text-2xl font-bold mb-1">תצוגת 3 רמות התוכן</h2>
+                                    <h2 className="text-2xl font-bold mb-1 flex items-center gap-3">
+                                        <IconHavana className="w-6 h-6" />
+                                        <IconYisum className="w-6 h-6" />
+                                        <IconHaamaka className="w-6 h-6" />
+                                        תצוגת 3 רמות התוכן
+                                    </h2>
                                     <p className="text-white/80 text-sm">
-                                        המערכת בוחרת אוטומטית את הרמה המתאימה לכל תלמיד לפי הביצועים שלו
+                                        {editingVariantLevel
+                                            ? `עריכת רמת ${editingVariantLevel === 'הבנה' ? 'הבנה' : editingVariantLevel === 'יישום' ? 'יישום' : 'העמקה'}`
+                                            : 'לחץ על "ערוך" כדי לערוך רמה ספציפית'}
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => setVariantPreviewBlock(null)}
+                                    onClick={() => { setVariantPreviewBlock(null); cancelVariantEdit(); }}
                                     className="p-2 hover:bg-white/20 rounded-full transition-colors"
                                 >
                                     <IconX className="w-6 h-6" />
@@ -2181,39 +2290,85 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         </div>
 
                         {/* 3-Column Grid */}
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                            {/* Scaffolding (תמיכה) */}
-                            <div className="bg-amber-50 rounded-xl border-2 border-amber-200 overflow-hidden">
-                                <div className="bg-amber-500 text-white p-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl">📚</span>
-                                        <div>
-                                            <h3 className="font-bold">תמיכה</h3>
-                                            <p className="text-xs text-white/80">לתלמידים שמתקשים</p>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+                            {/* הבנה (Understanding) - Blue */}
+                            <div className={`bg-blue-50 rounded-xl border-2 overflow-hidden transition-all ${editingVariantLevel === 'הבנה' ? 'border-blue-500 ring-2 ring-blue-400' : 'border-blue-200'}`}>
+                                <div className="bg-blue-500 text-white p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <IconHavana className="w-6 h-6" />
+                                            <div>
+                                                <h3 className="font-bold">הבנה</h3>
+                                                <p className="text-xs text-white/80">לתלמידים שמתקשים</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {!editingVariantLevel && (
+                                                <>
+                                                    <button
+                                                        onClick={() => startEditingVariant('הבנה')}
+                                                        className="p-1.5 hover:bg-white/20 rounded transition-colors"
+                                                        title="ערוך"
+                                                    >
+                                                        <IconEdit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => regenerateVariantContent('הבנה')}
+                                                        disabled={regeneratingVariant === 'הבנה'}
+                                                        className="p-1.5 hover:bg-white/20 rounded transition-colors disabled:opacity-50"
+                                                        title="צור מחדש"
+                                                    >
+                                                        {regeneratingVariant === 'הבנה'
+                                                            ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                            : <IconRefresh className="w-4 h-4" />}
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="p-4">
-                                    {variantPreviewBlock.metadata?.scaffolding_variant ? (
+                                    {editingVariantLevel === 'הבנה' ? (
+                                        <div className="space-y-3">
+                                            {typeof editedVariantContent === 'string' ? (
+                                                <RichTextEditor
+                                                    value={editedVariantContent}
+                                                    onChange={setEditedVariantContent}
+                                                    placeholder="ערוך את התוכן..."
+                                                />
+                                            ) : (
+                                                <textarea
+                                                    value={JSON.stringify(editedVariantContent, null, 2)}
+                                                    onChange={(e) => {
+                                                        try { setEditedVariantContent(JSON.parse(e.target.value)); }
+                                                        catch { /* ignore parse errors during typing */ }
+                                                    }}
+                                                    className="w-full h-48 p-3 text-sm font-mono border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                                    dir="ltr"
+                                                />
+                                            )}
+                                            <div className="flex gap-2 justify-end">
+                                                <button onClick={cancelVariantEdit} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">ביטול</button>
+                                                <button onClick={saveVariantEdit} className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">שמור</button>
+                                            </div>
+                                        </div>
+                                    ) : variantPreviewBlock.metadata?.scaffolding_variant ? (
                                         <div className="prose prose-sm max-w-none">
-                                            {/* Pre-context hint if available */}
                                             {variantPreviewBlock.metadata?.scaffolding_variant?.metadata?.preContext && (
-                                                <div className="bg-emerald-100 p-3 rounded-lg mb-3 text-sm">
+                                                <div className="bg-blue-100 p-3 rounded-lg mb-3 text-sm">
                                                     <strong>💡 רמז:</strong> {variantPreviewBlock.metadata.scaffolding_variant.metadata.preContext}
                                                 </div>
                                             )}
-                                            {/* Question content */}
                                             <div className="text-slate-700">
                                                 {typeof variantPreviewBlock.metadata.scaffolding_variant.content === 'string'
-                                                    ? variantPreviewBlock.metadata.scaffolding_variant.content
-                                                    : JSON.stringify(variantPreviewBlock.metadata.scaffolding_variant.content, null, 2)}
+                                                    ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(variantPreviewBlock.metadata.scaffolding_variant.content) }} />
+                                                    : <pre className="text-xs bg-slate-100 p-2 rounded overflow-auto">{JSON.stringify(variantPreviewBlock.metadata.scaffolding_variant.content, null, 2)}</pre>}
                                             </div>
-                                            {/* Progressive hints */}
                                             {variantPreviewBlock.metadata?.scaffolding_variant?.metadata?.progressiveHints?.length > 0 && (
                                                 <div className="mt-3 space-y-2">
-                                                    <p className="text-xs font-bold text-emerald-700">רמזים מדורגים:</p>
+                                                    <p className="text-xs font-bold text-blue-700">רמזים מדורגים:</p>
                                                     {variantPreviewBlock.metadata.scaffolding_variant.metadata.progressiveHints.map((hint: string, i: number) => (
-                                                        <div key={i} className="text-xs bg-white p-2 rounded border border-emerald-200">
+                                                        <div key={i} className="text-xs bg-white p-2 rounded border border-blue-200">
                                                             {i + 1}. {hint}
                                                         </div>
                                                     ))}
@@ -2221,58 +2376,150 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                             )}
                                         </div>
                                     ) : (
-                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסת תמיכה</p>
+                                        <div className="text-center py-6">
+                                            <p className="text-slate-400 text-sm mb-3">לא נוצרה גרסת הבנה</p>
+                                            <button
+                                                onClick={() => regenerateVariantContent('הבנה')}
+                                                disabled={regeneratingVariant === 'הבנה'}
+                                                className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors disabled:opacity-50"
+                                            >
+                                                {regeneratingVariant === 'הבנה' ? 'יוצר...' : 'צור גרסת הבנה'}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Original (ליבה) */}
-                            <div className="bg-slate-50 rounded-xl border-2 border-slate-300 overflow-hidden ring-2 ring-slate-400">
-                                <div className="bg-slate-500 text-white p-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl">📄</span>
-                                        <div>
-                                            <h3 className="font-bold">ליבה</h3>
-                                            <p className="text-xs text-white/80">רמה סטנדרטית</p>
+                            {/* יישום (Application) - Amber/Original */}
+                            <div className={`bg-amber-50 rounded-xl border-2 overflow-hidden transition-all ${editingVariantLevel === 'יישום' ? 'border-amber-500 ring-2 ring-amber-400' : 'border-amber-200'}`}>
+                                <div className="bg-amber-500 text-white p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <IconYisum className="w-6 h-6" />
+                                            <div>
+                                                <h3 className="font-bold">יישום</h3>
+                                                <p className="text-xs text-white/80">רמה סטנדרטית</p>
+                                            </div>
                                         </div>
+                                        {!editingVariantLevel && (
+                                            <button
+                                                onClick={() => startEditingVariant('יישום')}
+                                                className="p-1.5 hover:bg-white/20 rounded transition-colors"
+                                                title="ערוך"
+                                            >
+                                                <IconEdit className="w-4 h-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="p-4">
-                                    <div className="prose prose-sm max-w-none text-slate-700">
-                                        {typeof variantPreviewBlock.content === 'string'
-                                            ? variantPreviewBlock.content
-                                            : JSON.stringify(variantPreviewBlock.content, null, 2)}
-                                    </div>
+                                    {editingVariantLevel === 'יישום' ? (
+                                        <div className="space-y-3">
+                                            {typeof editedVariantContent === 'string' ? (
+                                                <RichTextEditor
+                                                    value={editedVariantContent}
+                                                    onChange={setEditedVariantContent}
+                                                    placeholder="ערוך את התוכן..."
+                                                />
+                                            ) : (
+                                                <textarea
+                                                    value={JSON.stringify(editedVariantContent, null, 2)}
+                                                    onChange={(e) => {
+                                                        try { setEditedVariantContent(JSON.parse(e.target.value)); }
+                                                        catch { /* ignore parse errors during typing */ }
+                                                    }}
+                                                    className="w-full h-48 p-3 text-sm font-mono border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                                                    dir="ltr"
+                                                />
+                                            )}
+                                            <div className="flex gap-2 justify-end">
+                                                <button onClick={cancelVariantEdit} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">ביטול</button>
+                                                <button onClick={saveVariantEdit} className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600">שמור</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="prose prose-sm max-w-none text-slate-700">
+                                            {typeof variantPreviewBlock.content === 'string'
+                                                ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(variantPreviewBlock.content) }} />
+                                                : <pre className="text-xs bg-slate-100 p-2 rounded overflow-auto">{JSON.stringify(variantPreviewBlock.content, null, 2)}</pre>}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Enrichment (העשרה) */}
-                            <div className="bg-purple-50 rounded-xl border-2 border-purple-200 overflow-hidden">
+                            {/* העמקה (Deepening) - Purple */}
+                            <div className={`bg-purple-50 rounded-xl border-2 overflow-hidden transition-all ${editingVariantLevel === 'העמקה' ? 'border-purple-500 ring-2 ring-purple-400' : 'border-purple-200'}`}>
                                 <div className="bg-purple-500 text-white p-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl">🚀</span>
-                                        <div>
-                                            <h3 className="font-bold">העשרה</h3>
-                                            <p className="text-xs text-white/80">לתלמידים מצטיינים</p>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <IconHaamaka className="w-6 h-6" />
+                                            <div>
+                                                <h3 className="font-bold">העמקה</h3>
+                                                <p className="text-xs text-white/80">לתלמידים מצטיינים</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {!editingVariantLevel && (
+                                                <>
+                                                    <button
+                                                        onClick={() => startEditingVariant('העמקה')}
+                                                        className="p-1.5 hover:bg-white/20 rounded transition-colors"
+                                                        title="ערוך"
+                                                    >
+                                                        <IconEdit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => regenerateVariantContent('העמקה')}
+                                                        disabled={regeneratingVariant === 'העמקה'}
+                                                        className="p-1.5 hover:bg-white/20 rounded transition-colors disabled:opacity-50"
+                                                        title="צור מחדש"
+                                                    >
+                                                        {regeneratingVariant === 'העמקה'
+                                                            ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                            : <IconRefresh className="w-4 h-4" />}
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="p-4">
-                                    {variantPreviewBlock.metadata?.enrichment_variant ? (
+                                    {editingVariantLevel === 'העמקה' ? (
+                                        <div className="space-y-3">
+                                            {typeof editedVariantContent === 'string' ? (
+                                                <RichTextEditor
+                                                    value={editedVariantContent}
+                                                    onChange={setEditedVariantContent}
+                                                    placeholder="ערוך את התוכן..."
+                                                />
+                                            ) : (
+                                                <textarea
+                                                    value={JSON.stringify(editedVariantContent, null, 2)}
+                                                    onChange={(e) => {
+                                                        try { setEditedVariantContent(JSON.parse(e.target.value)); }
+                                                        catch { /* ignore parse errors during typing */ }
+                                                    }}
+                                                    className="w-full h-48 p-3 text-sm font-mono border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                                    dir="ltr"
+                                                />
+                                            )}
+                                            <div className="flex gap-2 justify-end">
+                                                <button onClick={cancelVariantEdit} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">ביטול</button>
+                                                <button onClick={saveVariantEdit} className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded-lg hover:bg-purple-600">שמור</button>
+                                            </div>
+                                        </div>
+                                    ) : variantPreviewBlock.metadata?.enrichment_variant ? (
                                         <div className="prose prose-sm max-w-none">
-                                            {/* Question content */}
                                             <div className="text-slate-700">
                                                 {typeof variantPreviewBlock.metadata.enrichment_variant.content === 'string'
-                                                    ? variantPreviewBlock.metadata.enrichment_variant.content
-                                                    : JSON.stringify(variantPreviewBlock.metadata.enrichment_variant.content, null, 2)}
+                                                    ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(variantPreviewBlock.metadata.enrichment_variant.content) }} />
+                                                    : <pre className="text-xs bg-slate-100 p-2 rounded overflow-auto">{JSON.stringify(variantPreviewBlock.metadata.enrichment_variant.content, null, 2)}</pre>}
                                             </div>
-                                            {/* Extension question */}
                                             {variantPreviewBlock.metadata?.enrichment_variant?.metadata?.extensionQuestion && (
                                                 <div className="mt-3 bg-purple-100 p-3 rounded-lg text-sm">
                                                     <strong>🎯 שאלת הרחבה:</strong> {variantPreviewBlock.metadata.enrichment_variant.metadata.extensionQuestion}
                                                 </div>
                                             )}
-                                            {/* Connection note */}
                                             {variantPreviewBlock.metadata?.enrichment_variant?.metadata?.connectionNote && (
                                                 <div className="mt-2 text-xs text-purple-600">
                                                     <em>קישור לנושאים מתקדמים: {variantPreviewBlock.metadata.enrichment_variant.metadata.connectionNote}</em>
@@ -2280,7 +2527,16 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                                             )}
                                         </div>
                                     ) : (
-                                        <p className="text-slate-400 text-sm text-center py-8">לא נוצרה גרסת העשרה</p>
+                                        <div className="text-center py-6">
+                                            <p className="text-slate-400 text-sm mb-3">לא נוצרה גרסת העמקה</p>
+                                            <button
+                                                onClick={() => regenerateVariantContent('העמקה')}
+                                                disabled={regeneratingVariant === 'העמקה'}
+                                                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50"
+                                            >
+                                                {regeneratingVariant === 'העמקה' ? 'יוצר...' : 'צור גרסת העמקה'}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -2288,8 +2544,20 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
 
                         {/* Footer with info */}
                         <div className="bg-slate-100 p-4 text-center text-sm text-slate-600">
-                            <span className="font-semibold">איך זה עובד?</span> המערכת עוקבת אחרי ביצועי התלמיד ובוחרת אוטומטית את הגרסה המתאימה.
-                            תלמידים מתקשים מקבלים גרסה עם רמזים, תלמידים מצטיינים מקבלים אתגרים נוספים.
+                            <div className="flex items-center justify-center gap-4 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                    <IconHavana className="w-4 h-4 text-blue-500" />
+                                    <span><strong>הבנה:</strong> תמיכה ורמזים</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <IconYisum className="w-4 h-4 text-amber-500" />
+                                    <span><strong>יישום:</strong> רמה סטנדרטית</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <IconHaamaka className="w-4 h-4 text-purple-500" />
+                                    <span><strong>העמקה:</strong> אתגרים נוספים</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

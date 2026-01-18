@@ -74,6 +74,7 @@ export const ResponsiveSequentialCoursePlayer: React.FC<SequentialPlayerProps> =
  */
 interface HomePageProps {
     onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
+    onCreateWithWizardData?: (wizardData: any) => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
     onNavigateToPrompts?: () => void;
@@ -81,6 +82,7 @@ interface HomePageProps {
     onNavigateToKnowledgeBase?: () => void;
     onNavigateToAgents?: () => void;
     onNavigateToUsage?: () => void;
+    onNavigateToSpeedAnalytics?: () => void;
 }
 
 export const ResponsiveHomePage: React.FC<HomePageProps> = (props) => {

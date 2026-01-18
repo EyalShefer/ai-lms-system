@@ -24,6 +24,7 @@ import {
     IconChevronLeft,
     IconRefresh
 } from '@tabler/icons-react';
+import { IconHavana, IconYisum, IconHaamaka } from '../../icons';
 import type { Course } from '../../shared/types/courseTypes';
 
 // ============ TYPES ============
@@ -48,9 +49,9 @@ interface StudentSubmission {
         timeSpentSeconds?: number;
     };
     answers?: Record<string, any>;
-    // For adaptive tracking
+    // For adaptive tracking (Hebrew: הבנה=Understanding, יישום=Application, העמקה=Deepening)
     masteryLevel?: number;
-    variantUsed?: 'scaffolding' | 'original' | 'enrichment';
+    variantUsed?: 'הבנה' | 'יישום' | 'העמקה';
 }
 
 interface QuestionAnalysis {
@@ -148,12 +149,17 @@ const StudentRow: React.FC<{
     const getVariantBadge = () => {
         if (contentType !== 'activity' || !student.variantUsed) return null;
         const variants = {
-            scaffolding: { label: '📚 תגבור', color: 'bg-blue-100 text-blue-700' },
-            original: { label: '📖 רגיל', color: 'bg-slate-100 text-slate-600' },
-            enrichment: { label: '🚀 העשרה', color: 'bg-purple-100 text-purple-700' }
+            הבנה: { label: 'הבנה', icon: IconHavana, color: 'bg-blue-100 text-blue-700' },
+            יישום: { label: 'יישום', icon: IconYisum, color: 'bg-amber-100 text-amber-700' },
+            העמקה: { label: 'העמקה', icon: IconHaamaka, color: 'bg-purple-100 text-purple-700' }
         };
         const v = variants[student.variantUsed];
-        return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${v.color}`}>{v.label}</span>;
+        return (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${v.color} flex items-center gap-1`}>
+                <v.icon className="w-3 h-3" />
+                {v.label}
+            </span>
+        );
     };
 
     return (
@@ -305,13 +311,13 @@ const ScoreDistribution: React.FC<{ submissions: StudentSubmission[] }> = ({ sub
     );
 };
 
-// Mastery Heatmap (for Activities)
+// Mastery Heatmap (for Activities) - Using Hebrew level names
 const MasteryHeatmap: React.FC<{ submissions: StudentSubmission[] }> = ({ submissions }) => {
     const masteryGroups = useMemo(() => {
         const groups = {
-            scaffolding: submissions.filter(s => s.variantUsed === 'scaffolding' || (s.masteryLevel && s.masteryLevel < 0.4)),
-            original: submissions.filter(s => s.variantUsed === 'original' || (s.masteryLevel && s.masteryLevel >= 0.4 && s.masteryLevel <= 0.8)),
-            enrichment: submissions.filter(s => s.variantUsed === 'enrichment' || (s.masteryLevel && s.masteryLevel > 0.8))
+            הבנה: submissions.filter(s => s.variantUsed === 'הבנה' || (s.masteryLevel && s.masteryLevel < 0.4)),
+            יישום: submissions.filter(s => s.variantUsed === 'יישום' || (s.masteryLevel && s.masteryLevel >= 0.4 && s.masteryLevel <= 0.8)),
+            העמקה: submissions.filter(s => s.variantUsed === 'העמקה' || (s.masteryLevel && s.masteryLevel > 0.8))
         };
         return groups;
     }, [submissions]);
@@ -323,62 +329,68 @@ const MasteryHeatmap: React.FC<{ submissions: StudentSubmission[] }> = ({ submis
                 מפת רמות התלמידים
             </h3>
             <div className="grid grid-cols-3 gap-4">
-                {/* Scaffolding (תמיכה) */}
+                {/* הבנה (Understanding) */}
+                <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <IconHavana className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-blue-800">הבנה</p>
+                            <p className="text-xs text-blue-600">צריכים עזרה</p>
+                        </div>
+                    </div>
+                    <p className="text-3xl font-black text-blue-700">{masteryGroups.הבנה.length}</p>
+                    <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
+                        {masteryGroups.הבנה.slice(0, 5).map(s => (
+                            <p key={s.id} className="text-xs text-blue-600 truncate">{s.studentName}</p>
+                        ))}
+                        {masteryGroups.הבנה.length > 5 && (
+                            <p className="text-xs text-blue-400">+{masteryGroups.הבנה.length - 5} נוספים</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* יישום (Application) */}
                 <div className="bg-amber-50 rounded-xl p-4 border-2 border-amber-200">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">📚</span>
+                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                            <IconYisum className="w-6 h-6 text-amber-600" />
+                        </div>
                         <div>
-                            <p className="font-bold text-amber-800">תמיכה</p>
-                            <p className="text-xs text-amber-600">צריכים עזרה</p>
+                            <p className="font-bold text-amber-800">יישום</p>
+                            <p className="text-xs text-amber-600">מתקדמים יציב</p>
                         </div>
                     </div>
-                    <p className="text-3xl font-black text-amber-700">{masteryGroups.scaffolding.length}</p>
+                    <p className="text-3xl font-black text-amber-700">{masteryGroups.יישום.length}</p>
                     <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
-                        {masteryGroups.scaffolding.slice(0, 5).map(s => (
+                        {masteryGroups.יישום.slice(0, 5).map(s => (
                             <p key={s.id} className="text-xs text-amber-600 truncate">{s.studentName}</p>
                         ))}
-                        {masteryGroups.scaffolding.length > 5 && (
-                            <p className="text-xs text-amber-400">+{masteryGroups.scaffolding.length - 5} נוספים</p>
+                        {masteryGroups.יישום.length > 5 && (
+                            <p className="text-xs text-amber-400">+{masteryGroups.יישום.length - 5} נוספים</p>
                         )}
                     </div>
                 </div>
 
-                {/* Original (ליבה) */}
-                <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">📖</span>
-                        <div>
-                            <p className="font-bold text-slate-800">ליבה</p>
-                            <p className="text-xs text-slate-600">מתקדמים יציב</p>
-                        </div>
-                    </div>
-                    <p className="text-3xl font-black text-slate-700">{masteryGroups.original.length}</p>
-                    <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
-                        {masteryGroups.original.slice(0, 5).map(s => (
-                            <p key={s.id} className="text-xs text-slate-600 truncate">{s.studentName}</p>
-                        ))}
-                        {masteryGroups.original.length > 5 && (
-                            <p className="text-xs text-slate-400">+{masteryGroups.original.length - 5} נוספים</p>
-                        )}
-                    </div>
-                </div>
-
-                {/* Enrichment */}
+                {/* העמקה (Deepening) */}
                 <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🚀</span>
+                        <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <IconHaamaka className="w-6 h-6 text-purple-600" />
+                        </div>
                         <div>
-                            <p className="font-bold text-purple-800">העשרה</p>
+                            <p className="font-bold text-purple-800">העמקה</p>
                             <p className="text-xs text-purple-600">מצטיינים</p>
                         </div>
                     </div>
-                    <p className="text-3xl font-black text-purple-700">{masteryGroups.enrichment.length}</p>
+                    <p className="text-3xl font-black text-purple-700">{masteryGroups.העמקה.length}</p>
                     <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
-                        {masteryGroups.enrichment.slice(0, 5).map(s => (
+                        {masteryGroups.העמקה.slice(0, 5).map(s => (
                             <p key={s.id} className="text-xs text-purple-600 truncate">{s.studentName}</p>
                         ))}
-                        {masteryGroups.enrichment.length > 5 && (
-                            <p className="text-xs text-purple-400">+{masteryGroups.enrichment.length - 5} נוספים</p>
+                        {masteryGroups.העמקה.length > 5 && (
+                            <p className="text-xs text-purple-400">+{masteryGroups.העמקה.length - 5} נוספים</p>
                         )}
                     </div>
                 </div>

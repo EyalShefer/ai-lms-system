@@ -38,6 +38,7 @@ const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionRev
 const TeachingAgentsLibrary = React.lazy(() => import('./components/TeachingAgentsLibrary'));
 const UsageDashboard = React.lazy(() => import('./components/admin/UsageDashboard'));
 const GenerationSpeedAnalytics = React.lazy(() => import('./components/admin/GenerationSpeedAnalytics'));
+const ThreeLevelsTest = React.lazy(() => import('./components/dev/ThreeLevelsTest'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -549,7 +550,7 @@ const AuthenticatedApp = () => {
               onClick={() => setMode('student-dashboard')}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-bold cursor-pointer text-sm animate-pulse-slow"
             >
-              <span>👨‍🎓</span> <span>כנס לאזור התלמיד</span>
+              <span>👨‍🎓</span> <span>אזור התלמיד</span>
             </button>
           )}
           <div className="h-6 w-px bg-gray-300 mx-1"></div>
@@ -604,7 +605,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onCreateWithWizardData={handleWizardComplete} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && (() => {
                   console.log("📱 App: Rendering SequentialCoursePlayer in STUDENT mode");
@@ -714,6 +715,7 @@ function App() {
 
   // Check if we're on a Wizdi route - these bypass normal auth
   const isWizdiRoute = location.pathname.startsWith('/wizdi');
+  const isDevRoute = location.pathname.startsWith('/dev');
 
   if (isWizdiRoute) {
     return (
@@ -722,6 +724,19 @@ function App() {
           <Route path="/wizdi/*" element={<WizdiRoutes />} />
         </Routes>
       </Suspense>
+    );
+  }
+
+  // Dev routes - require auth but have their own UI
+  if (isDevRoute) {
+    return (
+      <AuthProvider>
+        <Suspense fallback={<div className="h-screen flex items-center justify-center">טוען...</div>}>
+          <Routes>
+            <Route path="/dev/three-levels-test" element={<ThreeLevelsTest />} />
+          </Routes>
+        </Suspense>
+      </AuthProvider>
     );
   }
 
