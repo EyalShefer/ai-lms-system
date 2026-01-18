@@ -13,19 +13,26 @@ export interface CollectedData {
     grade: string | null;
     subject: string | null;
     activityLength: 'short' | 'medium' | 'long' | null;
-    profile: 'balanced' | 'educational' | 'game' | null;
-    difficultyLevel: 'support' | 'core' | 'enrichment' | null; // הבנה/יישום/העמקה
+    profile: 'balanced' | 'educational' | 'game' | 'custom' | null;
+    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all' | null; // הבנה/יישום/העמקה/כולם
     constraints: string[];
+    // New fields for advanced capabilities
+    sourceMode: 'topic' | 'file' | 'text' | 'textbook' | 'youtube' | null;
+    includeBot: boolean | null;
+    customQuestionTypes: string[] | null;
+    hasFileToUpload: boolean | null;
+    textbookInfo: string | null; // e.g., "ספר מתמטיקה כיתה ד פרק 3"
+    youtubeUrl: string | null;
 }
 
 export interface ContentOption {
     id: number;
     title: string;
     description: string;
-    productType: 'lesson' | 'exam' | 'activity';
-    profile: 'balanced' | 'educational' | 'game';
+    productType: 'lesson' | 'exam' | 'activity' | 'podcast';
+    profile: 'balanced' | 'educational' | 'game' | 'custom';
     activityLength: 'short' | 'medium' | 'long';
-    difficultyLevel: 'support' | 'core' | 'enrichment'; // הבנה/יישום/העמקה
+    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all'; // הבנה/יישום/העמקה/כולם
     questionCount: number;
     estimatedTime: string;
     questionTypes: string[];
@@ -47,10 +54,22 @@ export interface ConversationMessage {
 // System prompt for the AI
 const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי במערכת Wizdi. תפקידך לעזור למורים ליצור תוכן מותאם בצורה יעילה וממוקדת.
 
-## יכולות המערכת:
+## יכולות המערכת - סוגי מוצרים:
 - שיעור (lesson): מערך שיעור מלא למורה עם פתיחה (Hook), הקניה (Direct Instruction), תרגול מונחה (Guided Practice), תרגול עצמאי (Independent Practice), דיון וסיכום
 - פעילות (activity): תרגול אינטראקטיבי לתלמידים עם שאלות מגוונות ומשחקים
 - מבחן (exam): שאלון הערכה לבדיקת ידע עם ציונים ומשוב
+- פודקאסט (podcast): פרק אודיו עם שני מגישים (דן ונועה) שמסבירים את הנושא בצורה מעניינת ונגישה
+
+## מקורות תוכן אפשריים:
+- נושא חופשי (topic): המערכת תייצר תוכן על בסיס הידע שלה + AI
+- קובץ (file): המורה יעלה קובץ PDF/תמונה/טקסט והמערכת תייצר על בסיסו
+- טקסט להדבקה (text): המורה תדביק טקסט ישירות והמערכת תעבד אותו
+- ספר לימוד (textbook): בחירה מספרי הלימוד המועלים למערכת (עם בחירת פרקים)
+- YouTube (youtube): המערכת תתמלל סרטון ותייצר תוכן על בסיסו
+
+## אפשרויות מתקדמות:
+- בוט מלווה (includeBot): בוט סוקרטי שמלווה את התלמיד ונותן רמזים
+- סוגי שאלות מותאמים (custom): בחירה ספציפית של סוגי שאלות רצויים
 
 ## ⭐ שלוש רמות קושי (הוראה דיפרנציאלית):
 המערכת יכולה לייצר תוכן ב-3 רמות קושי שונות:
@@ -108,6 +127,17 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 10. אם המורה מזכירה "מחוננים", "מתקדמים", "אתגר" - זה רמז לרמה 3 (העמקה)
 11. אם המורה שואלת "מה ההבדל בין הרמות?" - הסבר בקצרה ושאל לאיזו רמה היא צריכה
 
+## זיהוי מקורות תוכן:
+12. אם המורה אומרת "יש לי קובץ", "רוצה להעלות", "יש לי PDF" - סמן sourceMode: "file" ו-hasFileToUpload: true
+13. אם המורה אומרת "יש לי טקסט", "רוצה להדביק" - סמן sourceMode: "text"
+14. אם המורה מזכירה "מתוך ספר הלימוד", "מהספר של..." - סמן sourceMode: "textbook"
+15. אם המורה נותנת לינק יוטיוב או אומרת "יש לי סרטון" - סמן sourceMode: "youtube"
+
+## זיהוי אפשרויות מתקדמות:
+16. אם המורה מבקשת "עם בוט", "עם עזרה", "עם רמזים אוטומטיים" - סמן includeBot: true
+17. אם המורה מבקשת סוגי שאלות ספציפיים ("רק בחירה מרובה", "בלי משחקים", "רק שאלות פתוחות") - סמן customQuestionTypes
+18. אם המורה מבקשת "פודקאסט" או "משהו לשמיעה" - סמן productType: "podcast"
+
 ## פורמט תשובה (JSON):
 {
   "type": "question" | "options" | "info",
@@ -116,13 +146,18 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
   "options": [...],  // רק אם type=options
   "collectedData": {  // תמיד - מה הבנת מהשיחה
     "intent": "create" | "advise" | "question" | null,
-    "productType": "lesson" | "exam" | "activity" | null,
+    "productType": "lesson" | "exam" | "activity" | "podcast" | null,
     "topic": "הנושא" | null,
     "grade": "כיתה X" | null,
     "subject": "מקצוע" | null,
     "activityLength": "short" | "medium" | "long" | null,
-    "profile": "balanced" | "educational" | "game" | null,
-    "difficultyLevel": "support" | "core" | "enrichment" | null
+    "profile": "balanced" | "educational" | "game" | "custom" | null,
+    "difficultyLevel": "support" | "core" | "enrichment" | "all" | null,
+    "sourceMode": "topic" | "file" | "text" | "textbook" | "youtube" | null,
+    "includeBot": true | false | null,
+    "hasFileToUpload": true | false | null,
+    "customQuestionTypes": ["multiple_choice", "open_question", ...] | null,
+    "youtubeUrl": "https://..." | null
   }
 }
 
@@ -229,6 +264,87 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
     "intent": "create",
     "difficultyLevel": "all"
   }
+}
+
+קלט: "רוצה פודקאסט על מלחמת העצמאות"
+תשובה:
+{
+  "type": "question",
+  "message": "רעיון מעולה! פודקאסט עם דן ונועה על מלחמת העצמאות. לאיזו כיתה?",
+  "quickReplies": ["כיתה ו׳", "כיתה ז׳", "כיתה ח׳"],
+  "collectedData": {
+    "intent": "create",
+    "productType": "podcast",
+    "topic": "מלחמת העצמאות",
+    "subject": "היסטוריה"
+  }
+}
+
+קלט: "יש לי קובץ PDF שרוצה להפוך לפעילות"
+תשובה:
+{
+  "type": "question",
+  "message": "מצוין! אעביר אותך להעלאת הקובץ. לאיזו כיתה ואיזה סוג פעילות?",
+  "quickReplies": ["כיתה ד׳ - פעילות משחקית", "כיתה ה׳ - מבחן", "כיתה ו׳ - שיעור"],
+  "collectedData": {
+    "intent": "create",
+    "sourceMode": "file",
+    "hasFileToUpload": true
+  }
+}
+
+קלט: "רוצה מבחן עם בוט שעוזר לתלמידים"
+תשובה:
+{
+  "type": "question",
+  "message": "רעיון נהדר! מבחן עם בוט סוקרטי שנותן רמזים. על איזה נושא ולאיזו כיתה?",
+  "quickReplies": ["כיתה ה׳", "כיתה ו׳", "נושא ספציפי"],
+  "collectedData": {
+    "intent": "create",
+    "productType": "exam",
+    "includeBot": true
+  }
+}
+
+קלט: "רוצה פעילות רק עם שאלות פתוחות ובחירה מרובה"
+תשובה:
+{
+  "type": "question",
+  "message": "הבנתי - פעילות עם שאלות פתוחות ובחירה מרובה בלבד. על איזה נושא?",
+  "quickReplies": ["מתמטיקה", "מדעים", "היסטוריה"],
+  "collectedData": {
+    "intent": "create",
+    "productType": "activity",
+    "profile": "custom",
+    "customQuestionTypes": ["open_question", "multiple_choice"]
+  }
+}
+
+קלט: "יש לי סרטון ביוטיוב שרוצה להפוך לשיעור"
+תשובה:
+{
+  "type": "question",
+  "message": "מעולה! שלחי את הלינק ליוטיוב ואני אתמלל ואייצר שיעור ממנו.",
+  "quickReplies": [],
+  "collectedData": {
+    "intent": "create",
+    "productType": "lesson",
+    "sourceMode": "youtube"
+  }
+}
+
+קלט: "מתוך ספר הלימוד במתמטיקה פרק השברים"
+תשובה:
+{
+  "type": "question",
+  "message": "אעביר אותך לבחירה מספר הלימוד. לאיזו כיתה ומה סוג התוכן?",
+  "quickReplies": ["כיתה ד׳ - פעילות", "כיתה ה׳ - מבחן", "כיתה ו׳ - שיעור"],
+  "collectedData": {
+    "intent": "create",
+    "sourceMode": "textbook",
+    "subject": "מתמטיקה",
+    "textbookInfo": "פרק השברים"
+  }
 }`;
 
 /**
@@ -306,6 +422,13 @@ function normalizeResponse(response: any): AIResponse {
         if (response.collectedData.activityLength) collectedData.activityLength = response.collectedData.activityLength;
         if (response.collectedData.profile) collectedData.profile = response.collectedData.profile;
         if (response.collectedData.difficultyLevel) collectedData.difficultyLevel = response.collectedData.difficultyLevel;
+        // New fields
+        if (response.collectedData.sourceMode) collectedData.sourceMode = response.collectedData.sourceMode;
+        if (response.collectedData.includeBot !== undefined) collectedData.includeBot = response.collectedData.includeBot;
+        if (response.collectedData.hasFileToUpload !== undefined) collectedData.hasFileToUpload = response.collectedData.hasFileToUpload;
+        if (response.collectedData.customQuestionTypes) collectedData.customQuestionTypes = response.collectedData.customQuestionTypes;
+        if (response.collectedData.textbookInfo) collectedData.textbookInfo = response.collectedData.textbookInfo;
+        if (response.collectedData.youtubeUrl) collectedData.youtubeUrl = response.collectedData.youtubeUrl;
     }
 
     const result: AIResponse = {
@@ -346,7 +469,16 @@ export function prepareWizardData(
     collectedData: CollectedData
 ): any {
     // Map profile to question preferences
-    const getQuestionPreferences = (profile: string, questionTypes: string[]) => {
+    const getQuestionPreferences = (profile: string, questionTypes: string[], customTypes?: string[] | null) => {
+        // If custom types are specified, use them
+        if (profile === 'custom' && customTypes && customTypes.length > 0) {
+            return {
+                profile: 'custom',
+                allowedTypes: customTypes,
+                priorityTypes: customTypes.slice(0, 3)
+            };
+        }
+
         switch (profile) {
             case 'educational':
                 return {
@@ -395,36 +527,57 @@ export function prepareWizardData(
         }
     };
 
-    const questionPreferences = getQuestionPreferences(selectedOption.profile, selectedOption.questionTypes);
+    const questionPreferences = getQuestionPreferences(
+        selectedOption.profile,
+        selectedOption.questionTypes,
+        collectedData.customQuestionTypes
+    );
 
     // Check if user wants all 3 levels (differentiated teaching)
-    const isDifferentiated = (collectedData.difficultyLevel as any) === 'all';
+    const isDifferentiated = (collectedData.difficultyLevel as any) === 'all' || selectedOption.difficultyLevel === 'all';
 
     // Get appropriate taxonomy based on difficulty level
     const taxonomy = getTaxonomyForLevel(isDifferentiated ? 'core' : selectedOption.difficultyLevel);
 
+    // Determine mode based on sourceMode
+    const getMode = () => {
+        switch (collectedData.sourceMode) {
+            case 'file': return 'upload';
+            case 'text': return 'text';
+            case 'textbook': return 'textbook';
+            case 'youtube': return 'multimodal';
+            default: return 'topic';
+        }
+    };
+
     return {
-        mode: 'topic',
+        mode: getMode(),
         file: null,
         pastedText: '',
         title: collectedData.topic || selectedOption.title,
         originalTopic: collectedData.topic || selectedOption.title,
-        textbookSelection: null,
+        textbookSelection: collectedData.textbookInfo ? { info: collectedData.textbookInfo } : null,
+        youtubeUrl: collectedData.youtubeUrl || null,
         settings: {
             subject: collectedData.subject || 'כללי',
             grade: collectedData.grade || 'כיתה ה׳',
             targetAudience: collectedData.grade || 'כיתה ה׳',
             activityLength: selectedOption.activityLength,
             taxonomy,
-            includeBot: false,
-            botPersona: null,
+            includeBot: collectedData.includeBot || false,
+            botPersona: collectedData.includeBot ? 'socratic' : null,
             courseMode: selectedOption.productType === 'exam' ? 'exam' : 'learning',
             productType: selectedOption.productType,
             isDifferentiated, // Will create 3 levels if true
             difficultyLevel: isDifferentiated ? null : selectedOption.difficultyLevel, // Single level if not differentiated
             questionPreferences
         },
-        targetAudience: collectedData.grade || 'כיתה ה׳'
+        targetAudience: collectedData.grade || 'כיתה ה׳',
+        // Flags for UI to handle
+        requiresFileUpload: collectedData.hasFileToUpload || false,
+        requiresTextPaste: collectedData.sourceMode === 'text',
+        requiresTextbookSelection: collectedData.sourceMode === 'textbook',
+        requiresYoutubeUrl: collectedData.sourceMode === 'youtube' && !collectedData.youtubeUrl
     };
 }
 
@@ -444,7 +597,14 @@ export function mergeCollectedData(
         activityLength: newData.activityLength ?? existing.activityLength,
         profile: newData.profile ?? existing.profile,
         difficultyLevel: newData.difficultyLevel ?? existing.difficultyLevel,
-        constraints: [...existing.constraints, ...(newData.constraints || [])]
+        constraints: [...existing.constraints, ...(newData.constraints || [])],
+        // New fields
+        sourceMode: newData.sourceMode ?? existing.sourceMode,
+        includeBot: newData.includeBot ?? existing.includeBot,
+        customQuestionTypes: newData.customQuestionTypes ?? existing.customQuestionTypes,
+        hasFileToUpload: newData.hasFileToUpload ?? existing.hasFileToUpload,
+        textbookInfo: newData.textbookInfo ?? existing.textbookInfo,
+        youtubeUrl: newData.youtubeUrl ?? existing.youtubeUrl
     };
 }
 
@@ -461,6 +621,13 @@ export function getInitialCollectedData(): CollectedData {
         activityLength: null,
         profile: null,
         difficultyLevel: null,
-        constraints: []
+        constraints: [],
+        // New fields
+        sourceMode: null,
+        includeBot: null,
+        customQuestionTypes: null,
+        hasFileToUpload: null,
+        textbookInfo: null,
+        youtubeUrl: null
     };
 }

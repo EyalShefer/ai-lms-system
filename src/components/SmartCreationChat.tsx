@@ -14,7 +14,12 @@ import {
     IconClock,
     IconHash,
     IconChevronLeft,
-    IconRefresh
+    IconRefresh,
+    IconMicrophone,
+    IconUpload,
+    IconBook,
+    IconBrandYoutube,
+    IconRobot
 } from '@tabler/icons-react';
 import {
     analyzeTeacherIntent,
@@ -52,7 +57,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             id: '1',
             role: 'assistant',
             content: 'היי! מה נרצה ליצור היום? ספרו לי על הנושא, הכיתה וסוג התוכן שאתם צריכים.',
-            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריכים רעיונות'],
+            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'פודקאסט', 'יש לי קובץ'],
             timestamp: Date.now()
         }
     ]);
@@ -179,7 +184,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             id: '1',
             role: 'assistant',
             content: 'בסדר, מתחילים מחדש! מה תרצו ליצור?',
-            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'צריכים רעיונות'],
+            quickReplies: ['שיעור', 'פעילות אינטראקטיבית', 'מבחן', 'פודקאסט', 'יש לי קובץ'],
             timestamp: Date.now()
         }]);
         setCollectedData(getInitialCollectedData());
@@ -202,7 +207,18 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
             case 'lesson': return <IconLayoutList className="w-5 h-5" />;
             case 'exam': return <IconClipboardCheck className="w-5 h-5" />;
             case 'activity': return <IconMoodSmile className="w-5 h-5" />;
+            case 'podcast': return <IconMicrophone className="w-5 h-5" />;
             default: return <IconSparkles className="w-5 h-5" />;
+        }
+    };
+
+    // Get source mode icon
+    const getSourceIcon = (mode: string | null) => {
+        switch (mode) {
+            case 'file': return <IconUpload className="w-4 h-4" />;
+            case 'textbook': return <IconBook className="w-4 h-4" />;
+            case 'youtube': return <IconBrandYoutube className="w-4 h-4" />;
+            default: return null;
         }
     };
 
@@ -315,14 +331,36 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
                                                     </p>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         {/* Difficulty Level Badge */}
-                                                        {option.difficultyLevel && (
+                                                        {option.difficultyLevel && option.difficultyLevel !== 'all' && (
                                                             <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getDifficultyLevelDisplay(option.difficultyLevel).color}`}>
                                                                 {getDifficultyLevelDisplay(option.difficultyLevel).label}
                                                             </span>
                                                         )}
+                                                        {/* Three levels badge */}
+                                                        {option.difficultyLevel === 'all' && (
+                                                            <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-gradient-to-r from-green-100 via-blue-100 to-purple-100 text-slate-700 dark:from-green-900/30 dark:via-blue-900/30 dark:to-purple-900/30 dark:text-slate-300">
+                                                                3 רמות
+                                                            </span>
+                                                        )}
                                                         <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getProfileColor(option.profile)}`}>
-                                                            {option.profile === 'educational' ? 'לימודי' : option.profile === 'game' ? 'משחקי' : 'מאוזן'}
+                                                            {option.profile === 'educational' ? 'לימודי' : option.profile === 'game' ? 'משחקי' : option.profile === 'custom' ? 'מותאם' : 'מאוזן'}
                                                         </span>
+                                                        {/* Source mode indicator */}
+                                                        {collectedData.sourceMode && collectedData.sourceMode !== 'topic' && (
+                                                            <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                {getSourceIcon(collectedData.sourceMode)}
+                                                                {collectedData.sourceMode === 'file' ? 'מקובץ' :
+                                                                 collectedData.sourceMode === 'textbook' ? 'מספר' :
+                                                                 collectedData.sourceMode === 'youtube' ? 'מיוטיוב' : 'מטקסט'}
+                                                            </span>
+                                                        )}
+                                                        {/* Bot indicator */}
+                                                        {collectedData.includeBot && (
+                                                            <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                                                <IconRobot className="w-3 h-3" />
+                                                                בוט מלווה
+                                                            </span>
+                                                        )}
                                                         <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500">
                                                             <IconHash className="w-3 h-3" />
                                                             {option.questionCount} שאלות

@@ -1223,11 +1223,14 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         topicToUse,
                         extractedGrade,
                         processedSourceText || course.title,
-                        userSubject
+                        userSubject,
+                        data.settings?.productType || 'activity', // Pass product type for exam vs activity
+                        data.settings?.activityLength || 'medium' // Pass activity length
                     );
 
                     if (diffContent) {
                         // Helper to create a unit from raw items
+                        const isExam = data.settings?.productType === 'exam';
                         const createDiffUnit = (levelName: string, items: any[]) => {
                             const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
                             return {
@@ -1237,7 +1240,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 // isCompleted: false, // Removed: Not in interface
                                 baseContent: processedSourceText || "", // Required
                                 activityBlocks: blocks,
-                                type: 'practice' // 'acquisition' | 'practice' | 'test'
+                                type: isExam ? 'test' : 'practice' // 'acquisition' | 'practice' | 'test'
                             } as LearningUnit;
                         };
 

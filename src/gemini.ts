@@ -3920,55 +3920,97 @@ export const generateDifferentiatedContent = async (
   topic: string,
   gradeLevel: string,
   sourceText: string,
-  subject: string = "כללי"
+  subject: string = "כללי",
+  productType: 'activity' | 'exam' | 'lesson' = 'activity',
+  activityLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<{
   support: any[];
   core: any[];
   enrichment: any[];
 } | null> => {
   try {
+    // Determine question count based on activity length
+    const questionCounts = {
+      short: 3,
+      medium: 5,
+      long: 7
+    };
+    const numQuestions = questionCounts[activityLength] || 5;
+
+    // Different prompts for exam vs activity
+    const isExam = productType === 'exam';
+
+    const contentTypeDescription = isExam
+      ? `EXAM QUESTIONS (מבחן) - formal assessment questions with clear right/wrong answers, point values, and scoring rubrics`
+      : `LEARNING ACTIVITIES (פעילות) - interactive exercises with varied question types including games and practice`;
+
+    const questionTypesAllowed = isExam
+      ? `"multiple_choice", "open_question", "true_false", "fill_in_blanks", "matching"`
+      : `"multiple_choice", "open_question", "flashcards", "sorting", "memory_game", "categorization", "matching", "true_false", "fill_in_blanks"`;
+
     const sysPrompt = `
         You are an expert curriculum developer specializing in Differentiated Instruction (Bloom's Taxonomy).
-        Your goal is to generate 3 DISTINCT sets of learning activities based on the provided source text.
-        
+        Your goal is to generate 3 DISTINCT sets of ${contentTypeDescription} based on the provided source text.
+
         The 3 levels are:
-        1. Level 1: Support (Knowledge & Comprehension). Focus on basics, vocabulary, and simple recall.
-        2. Level 2: Core (Application & Analysis). Focus on standard grade-level tasks, applying concepts.
-        3. Level 3: Enrichment (Evaluation & Synthesis). Focus on critical thinking, creative projects, and deep analysis.
+        1. Level 1: Support (הבנה - Knowledge & Comprehension). Focus on basics, vocabulary, and simple recall.
+           - Simple language (short sentences, up to 10 words)
+           - Direct questions - answer appears explicitly in text
+           - Clear wrong answers that are easy to eliminate
+           - Include progressive hints
+           - Bloom levels: Remember, Understand
+
+        2. Level 2: Core (יישום - Application & Analysis). Focus on standard grade-level tasks, applying concepts.
+           - Age-appropriate language (sentences up to 15 words)
+           - Requires understanding, not just information retrieval
+           - Plausible distractors that require thinking
+           - Bloom levels: Understand, Apply, Analyze
+
+        3. Level 3: Enrichment (העמקה - Evaluation & Synthesis). Focus on critical thinking, creative projects, and deep analysis.
+           - Academic, complex language
+           - Critical thinking - evaluation, synthesis
+           - All distractors appear plausible
+           - "Why" and "How" questions, not just "What"
+           - Bloom levels: Analyze, Evaluate, Create
 
         OUTPUT FORMAT:
         You must return a single JSON object with exactly these 3 keys:
         {
-            "level_1_support": [ Array of 4-5 Activity Objects ],
-            "level_2_core": [ Array of 4-5 Activity Objects ],
-            "level_3_enrichment": [ Array of 4-5 Activity Objects ]
+            "level_1_support": [ Array of ${numQuestions} Question Objects ],
+            "level_2_core": [ Array of ${numQuestions} Question Objects ],
+            "level_3_enrichment": [ Array of ${numQuestions} Question Objects ]
         }
 
-        Each "Activity Object" must follow the standard schema used in this system:
+        Each "Question Object" must follow this schema:
         {
-            "type": "multiple_choice" | "open_question" | "flashcards" | "sorting",
+            "type": ${questionTypesAllowed},
             "question": "...",
-            "options": [...], // for multiple choice
+            "options": [...], // for multiple choice/true_false
             "correct_answer": "...",
             "explanation": "...", // explanation for feedback
-            "bloom_level": "knowledge" | "application" | "evaluation"
+            "bloom_level": "knowledge" | "application" | "evaluation"${isExam ? `,
+            "points": number // point value for this question (1-10)` : ''}
         }
 
         STRICT RULES:
-        1. "level_1_support" must use simple language and scaffolding. 
+        1. "level_1_support" must use simple language and scaffolding.
         2. "level_3_enrichment" must be challenging.
         3. All content must be in HEBREW.
         4. Return ONLY valid JSON.
+        5. Each level must have exactly ${numQuestions} questions.
+        ${isExam ? '6. For exams: Include point values, use formal assessment language, avoid game-like question types.' : '6. For activities: Include variety of question types including interactive/game-like questions.'}
         `;
 
     const userPrompt = `
         Topic: ${topic}
         Grade: ${gradeLevel}
         Subject: ${subject}
+        Content Type: ${isExam ? 'מבחן (Exam)' : 'פעילות (Activity)'}
+        Questions per level: ${numQuestions}
         Source Material:
         """${sourceText.slice(0, 15000)}"""
-        
-        Generate the 3 levels now.
+
+        Generate the 3 differentiated levels now.
         `;
 
     const response = await openai.chat.completions.create({
