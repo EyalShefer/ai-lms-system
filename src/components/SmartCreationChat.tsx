@@ -239,7 +239,7 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
                     </div>
                     <div>
                         <h3 className="font-bold text-slate-800 dark:text-white text-sm">יצירת תוכן חכמה</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">ספרו לי מה אתם צריכים</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">כתבו בחופשיות, או בחרו מתוך הצעות</p>
                     </div>
                 </div>
                 <button
