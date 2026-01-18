@@ -77,6 +77,77 @@ export const callGeminiChat = async (
 };
 
 /**
+ * Call Gemini Chat FAST via Cloud Function (Flash model)
+ * For quick conversational responses
+ */
+export const callGeminiChatFast = async (
+    messages: ChatMessage[],
+    options?: ChatOptions
+): Promise<string> => {
+    return await withRetry(
+        async () => {
+            return await withTimeout(
+                async () => {
+                    const geminiChatFastFn = httpsCallable(functions, 'geminiChatFast', {
+                        timeout: 30000 // 30 seconds
+                    });
+
+                    const result = await geminiChatFastFn({ messages, options });
+                    const data = result.data as { content: string; type: string };
+
+                    return data.content;
+                },
+                30000,
+                'הבקשה ארכה זמן רב מדי. נסה שוב.'
+            );
+        },
+        {
+            maxRetries: 2,
+            initialDelay: 500,
+            backoffMultiplier: 2,
+            onRetry: (attempt, error) => {
+                console.warn(
+                    `[Gemini Fast Retry] Attempt ${attempt}/2:`,
+                    getErrorMessage(error)
+                );
+            },
+            shouldRetry: (error: Error) => {
+                const message = error.message.toLowerCase();
+                if (message.includes('unauthenticated') || message.includes('invalid-argument')) {
+                    return false;
+                }
+                return (
+                    message.includes('network') ||
+                    message.includes('timeout') ||
+                    message.includes('internal') ||
+                    message.includes('unavailable')
+                );
+            }
+        }
+    );
+};
+
+/**
+ * Call Gemini Chat FAST and parse JSON response
+ */
+export const callGeminiJSONFast = async <T = any>(
+    messages: ChatMessage[],
+    options?: Omit<ChatOptions, 'responseFormat'>
+): Promise<T> => {
+    const content = await callGeminiChatFast(messages, {
+        ...options,
+        responseFormat: { type: 'json_object' }
+    });
+
+    try {
+        return JSON.parse(content) as T;
+    } catch (error) {
+        console.error('Failed to parse Gemini Fast JSON response:', content.substring(0, 500));
+        throw new Error('תשובה לא תקינה מהשרת');
+    }
+};
+
+/**
  * Call Gemini Chat and parse JSON response
  */
 export const callGeminiJSON = async <T = any>(

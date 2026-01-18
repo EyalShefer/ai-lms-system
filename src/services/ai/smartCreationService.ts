@@ -3,7 +3,7 @@
  * AI-powered conversation for intelligent content creation
  */
 
-import { callGeminiJSON, ChatMessage } from '../ProxyService';
+import { callGeminiJSONFast, ChatMessage } from '../ProxyService';
 
 // Types
 export interface CollectedData {
@@ -382,7 +382,7 @@ ${historyText || '(שיחה חדשה)'}
     ];
 
     try {
-        const response = await callGeminiJSON<AIResponse>(messages, {
+        const response = await callGeminiJSONFast<AIResponse>(messages, {
             temperature: 0.7
         });
 

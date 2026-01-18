@@ -94,6 +94,106 @@ export const geminiChat = onCall({
     }
 });
 
+// --- GEMINI CHAT FAST (Flash model for quick responses) ---
+/**
+ * Fast Gemini Chat endpoint using Flash model
+ * For quick conversational responses (SmartCreationChat, etc.)
+ */
+export const geminiChatFast = onCall({
+    secrets: [geminiApiKey],
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    const { messages, options } = request.data as {
+        messages: ChatMessage[];
+        options?: {
+            temperature?: number;
+            maxTokens?: number;
+            responseFormat?: { type: 'json_object' | 'text' };
+        };
+    };
+
+    if (!messages || !Array.isArray(messages)) {
+        throw new HttpsError('invalid-argument', 'messages array is required');
+    }
+
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    logger.info(`⚡ Gemini Chat FAST request from user ${userId}`, {
+        messageCount: messages.length
+    });
+
+    try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error('GEMINI_API_KEY not configured');
+        }
+
+        const client = new GoogleGenAI({ apiKey });
+
+        // Convert messages to prompt
+        let systemPrompt = '';
+        const conversationParts: string[] = [];
+
+        for (const msg of messages) {
+            if (msg.role === 'system') {
+                systemPrompt = typeof msg.content === 'string' ? msg.content : '';
+            } else {
+                const prefix = msg.role === 'user' ? 'User: ' : 'Assistant: ';
+                const content = typeof msg.content === 'string' ? msg.content : '';
+                conversationParts.push(`${prefix}${content}`);
+            }
+        }
+
+        let fullPrompt = systemPrompt ? `${systemPrompt}\n\n` : '';
+        fullPrompt += conversationParts.join('\n\n');
+
+        if (options?.responseFormat?.type === 'json_object') {
+            fullPrompt += '\n\nIMPORTANT: Respond with valid JSON only. No explanations or markdown.';
+        }
+
+        // Use Flash model for speed
+        const response = await client.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: fullPrompt,
+            config: {
+                temperature: options?.temperature ?? 0.7,
+                maxOutputTokens: options?.maxTokens ?? 2048
+            }
+        });
+
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        logger.info(`⚡ Gemini Flash completed`, {
+            outputLength: text.length
+        });
+
+        if (options?.responseFormat?.type === 'json_object') {
+            // Clean and parse JSON
+            let jsonText = text
+                .replace(/```json\n?/g, '')
+                .replace(/```\n?/g, '')
+                .trim();
+            const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                jsonText = jsonMatch[0];
+            }
+            return { content: jsonText, type: 'json' };
+        }
+
+        return { content: text, type: 'text' };
+
+    } catch (error: any) {
+        logger.error('Gemini Chat Fast error:', error);
+        throw new HttpsError('internal', `שגיאה: ${error.message}`);
+    }
+});
+
 // --- GEMINI 3 PRO INFOGRAPHIC (HTML via Vertex AI) ---
 export { generateGemini3Infographic as generateGemini3InfographicHttp } from "./gemini3InfographicService";
 

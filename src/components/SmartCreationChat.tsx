@@ -413,6 +413,43 @@ const SmartCreationChat: React.FC<SmartCreationChatProps> = ({
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* File upload indicator */}
+            {collectedData.hasFileToUpload && (
+                <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                            <IconUpload className="w-4 h-4" />
+                            <span className="text-sm font-medium">יש להעלות קובץ</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                // Trigger file selection in parent (wizard)
+                                const wizardData = prepareWizardData(
+                                    {
+                                        id: 0,
+                                        title: collectedData.topic || 'תוכן חדש',
+                                        description: '',
+                                        productType: collectedData.productType || 'activity',
+                                        profile: collectedData.profile || 'balanced',
+                                        activityLength: collectedData.activityLength || 'medium',
+                                        difficultyLevel: collectedData.difficultyLevel || 'core',
+                                        questionCount: 5,
+                                        estimatedTime: '15 דקות',
+                                        questionTypes: []
+                                    },
+                                    collectedData
+                                );
+                                onCreateContent(wizardData);
+                            }}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+                        >
+                            <IconUpload className="w-4 h-4" />
+                            העלאת קובץ
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Input area */}
             <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-end gap-2">
