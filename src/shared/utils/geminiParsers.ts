@@ -282,11 +282,32 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         }
         // Handle Standard Grouping
         else {
-            categories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
+            // Categories can be array of strings or array of objects with {id, label}
+            const rawCategories = rawData.groups || rawData.categories || ["קטגוריה 1", "קטגוריה 2"];
+
+            // Build category map for id -> label lookup
+            const categoryMap: Record<string, string> = {};
+            categories = rawCategories.map((cat: any) => {
+                if (typeof cat === 'string') return cat;
+                if (typeof cat === 'object' && cat.label) {
+                    // Store mapping from id to label
+                    if (cat.id) categoryMap[cat.id] = cat.label;
+                    return cat.label;
+                }
+                return String(cat);
+            });
+
             const rawListing = rawData.items || [];
 
             // Map items with group index if needed
-            items = rawListing.map((item) => {
+            items = rawListing.map((item: any) => {
+                // If item is object with 'category_id' prop (new format)
+                if (typeof item === 'object' && item.category_id) {
+                    const txt = item.text || item.content || JSON.stringify(item);
+                    // Look up the label from categoryMap, fallback to category_id
+                    const categoryLabel = categoryMap[item.category_id] || item.category_id;
+                    return { text: txt, category: categoryLabel };
+                }
                 // If item is object with 'category' prop
                 if (typeof item === 'object' && item.category) {
                     const txt = item.text || item.content || JSON.stringify(item);
@@ -389,6 +410,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         if (Array.isArray(pairs)) {
             pairs.forEach((p: any) => {
                 if (p.card_a && p.card_b) normalizedPairs.push({ card_a: p.card_a, card_b: p.card_b });
+                else if (p.card1 && p.card2) normalizedPairs.push({ card_a: p.card1, card_b: p.card2 });
                 else if (p.left && p.right) normalizedPairs.push({ card_a: p.left, card_b: p.right });
                 else if (p.term && p.definition) normalizedPairs.push({ card_a: p.term, card_b: p.definition });
                 else if (p.concept && p.meaning) normalizedPairs.push({ card_a: p.concept, card_b: p.meaning });
@@ -557,6 +579,31 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 hints: rawData.hints || rawData.progressive_hints || []
             },
             metadata: { ...commonMetadata, score: calculateQuestionWeight('matrix', commonMetadata.bloomLevel) }
+        };
+    }
+
+    // === CASE: FILL IN BLANKS (השלמת משפטים) ===
+    if (typeString === 'fill_in_blank' || typeString === 'fill_in_blanks' || typeString === 'fill_blank' || typeString === 'cloze') {
+        console.log("🎮 Handling as FILL IN BLANKS");
+        const sentences = rawData.sentences || [];
+        const bank = rawData.bank || rawData.word_bank || [];
+
+        // Build the fill-in-blank content
+        const blanks: { sentence: string; answer: string }[] = sentences.map((s: any) => ({
+            sentence: s.text || s.sentence || "",
+            answer: s.answer || s.correct || ""
+        }));
+
+        return {
+            id: uuidv4(),
+            type: 'fill_in_blanks' as ActivityBlockType,  // Note: plural to match ActivityBlockType
+            content: {
+                instruction: questionText || "השלימו את המשפטים הבאים:",
+                blanks: blanks,
+                wordBank: bank,
+                hints: rawData.hints || rawData.progressive_hints || []
+            },
+            metadata: { ...commonMetadata, score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel) }
         };
     }
 
