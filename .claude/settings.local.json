@@ -76,7 +76,12 @@
       "Bash(cmd.exe /c \"dir C:\\\\Users\\\\eyal\\\\Downloads\\\\*girl* /b\")",
       "Bash(firebase firestore:rules:get:*)",
       "Bash(npx ts-node:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(clear)",
+      "Bash(C:/Users/eyal/AppData/Local/Programs/Python/Python312/python.exe:*)",
+      "Bash(C:/Python312/python.exe:*)",
+      "Bash(C:/Python311/python.exe --version)",
+      "Bash(C:/Python310/python.exe:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\eyal\\Desktop\\ai-lms-system\\ai-lms-system"

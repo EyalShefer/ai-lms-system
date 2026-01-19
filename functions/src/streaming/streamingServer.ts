@@ -56,6 +56,17 @@ export interface StreamChunk {
     totalExpected?: number;
     itemType?: string;
     level?: string;
+    // Activity streaming fields
+    phase?: 'skeleton' | 'steps' | 'complete' | 'content';
+    stepNumber?: number;
+    totalSteps?: number;
+    stepCount?: number;
+    skeleton?: any;
+    // Timing metrics
+    duration?: number;
+    totalTime?: number;
+    skeletonTime?: number;
+    contentTime?: number;
   };
 }
 
