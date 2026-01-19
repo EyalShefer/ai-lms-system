@@ -63,63 +63,79 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
 };
 
 // Enhanced PDF extraction - extracts both text and renders pages as images
+// OPTIMIZED: Uses parallel processing for faster extraction
 const extractTextAndImagesFromPDF = async (file: File): Promise<PDFExtractionResult> => {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let fullText = "";
-  const pageImages: Array<{ pageNum: number; base64: string; mimeType: string }> = [];
 
   // Limit to 5 pages
   const maxPages = Math.min(pdf.numPages, 5);
+  const pageNumbers = Array.from({ length: maxPages }, (_, i) => i + 1);
 
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await pdf.getPage(i);
+  // Process all pages in parallel for faster extraction
+  const pageResults = await Promise.all(
+    pageNumbers.map(async (pageNum) => {
+      const page = await pdf.getPage(pageNum);
 
-    // Extract text
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-    fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+      // Extract text
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      const textLength = pageText.trim().length;
 
-    // Check if page has minimal text (likely image-heavy or scanned)
-    const textLength = pageText.trim().length;
+      // Check if we should render this page as image
+      // Render if: little text (< 100 chars) OR first page (often has diagrams/headers)
+      let imageData: { pageNum: number; base64: string; mimeType: string } | null = null;
 
-    // Render page as image if it has little text (< 100 chars) or is the first page
-    // First page often has important diagrams/headers
-    if (textLength < 100 || i === 1) {
-      try {
-        const scale = 1.5; // Good balance between quality and size
-        const viewport = page.getViewport({ scale });
+      if (textLength < 100 || pageNum === 1) {
+        try {
+          const scale = 1.5; // Good balance between quality and size
+          const viewport = page.getViewport({ scale });
 
-        // Create canvas
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
+          // Create canvas
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
 
-        if (context) {
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
+          if (context) {
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
 
-          // Render page to canvas
-          await page.render({
-            canvasContext: context,
-            viewport: viewport
-          }).promise;
+            // Render page to canvas
+            await page.render({
+              canvasContext: context,
+              viewport: viewport
+            }).promise;
 
-          // Convert to base64 (JPEG for smaller size)
-          const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+            // Convert to base64 (JPEG for smaller size)
+            const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 
-          pageImages.push({
-            pageNum: i,
-            base64,
-            mimeType: 'image/jpeg'
-          });
+            imageData = {
+              pageNum,
+              base64,
+              mimeType: 'image/jpeg'
+            };
 
-          console.log(`📸 Rendered page ${i} as image (text length: ${textLength})`);
+            console.log(`📸 Rendered page ${pageNum} as image (text length: ${textLength})`);
+          }
+        } catch (renderError) {
+          console.warn(`Failed to render page ${pageNum} as image:`, renderError);
         }
-      } catch (renderError) {
-        console.warn(`Failed to render page ${i} as image:`, renderError);
       }
-    }
-  }
+
+      return {
+        pageNum,
+        text: `--- Page ${pageNum} ---\n${pageText}\n\n`,
+        imageData
+      };
+    })
+  );
+
+  // Sort by page number and combine results
+  pageResults.sort((a, b) => a.pageNum - b.pageNum);
+
+  const fullText = pageResults.map(r => r.text).join('');
+  const pageImages = pageResults
+    .filter(r => r.imageData !== null)
+    .map(r => r.imageData!);
 
   return {
     text: fullText,

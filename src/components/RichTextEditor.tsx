@@ -267,6 +267,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         extensions: [
             StarterKit.configure({
                 heading: { levels: [2, 3] },
+                // Disable Link and Underline from StarterKit - we configure them separately below
+                // This prevents "Duplicate extension names" warning in TipTap v3
+                link: false,
+                underline: false,
             }),
             Underline,
             TextAlign.configure({

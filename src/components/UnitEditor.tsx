@@ -29,6 +29,11 @@ import {
 } from '../services/activityMediaService';
 import { createBlock } from '../shared/config/blockDefinitions'; // DECOUPLER FIX
 import { saveGenerationTiming } from '../services/generationTimingService'; // Speed Analytics
+import { streamActivityContent, isStreamingSupported } from '../services/streamingService'; // NEW: Streaming support
+import { mapSystemItemToBlock as parseStepToBlock } from '../shared/utils/geminiParsers';
+
+// Feature flag for streaming mode - set to true to use new fast parallel streaming
+const USE_STREAMING_GENERATION = true;
 
 // ... (existing imports)
 
@@ -353,6 +358,148 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     return;
                 }
 
+                // ============================================================
+                // 🚀 NEW STREAMING PATH - Parallel generation in one call
+                // ============================================================
+                if (USE_STREAMING_GENERATION && productType === 'activity' && isStreamingSupported()) {
+                    console.log("🚀 Using NEW streaming generation (parallel, faster)...");
+
+                    try {
+                        const streamStartTime = performance.now();
+                        const streamedBlocks: ActivityBlock[] = [];
+
+                        const { result } = await streamActivityContent(
+                            {
+                                topic: unit.title,
+                                gradeLevel,
+                                subject: settings.subject || 'כללי',
+                                sourceText: sourceText,
+                                activityLength: targetLength,
+                                productType: productType,
+                                questionPreferences: settings.questionPreferences
+                            },
+                            {
+                                onProgress: (message, metadata) => {
+                                    console.log(`⏳ [Streaming] ${message}`, metadata);
+                                    // Update placeholder with progress
+                                    setEditedUnit((prev: any) => ({
+                                        ...prev,
+                                        activityBlocks: [
+                                            { id: 'streaming-progress', type: 'text', content: message, metadata: { isSkeleton: true } }
+                                        ]
+                                    }));
+                                },
+                                onSkeletonComplete: (skeleton) => {
+                                    console.log("📋 [Streaming] Skeleton ready:", skeleton.steps?.length, "steps");
+                                    timer.mark('skeleton_complete');
+                                    timer.setStepCount(skeleton.steps?.length || 5);
+
+                                    // Start context image generation in parallel
+                                    if (skeleton.context_image_prompt) {
+                                        const topic = unit.title || course?.title || '';
+                                        const subject = settings.subject || 'כללי';
+                                        generateContextImageBlock(topic, subject, gradeLevel, skeleton.context_image_prompt)
+                                            .then(imgBlock => {
+                                                if (imgBlock) {
+                                                    console.log("🖼️ [Streaming] Context image ready!");
+                                                    setEditedUnit((prev: any) => ({
+                                                        ...prev,
+                                                        activityBlocks: [imgBlock, ...prev.activityBlocks.filter((b: any) => b.id !== 'streaming-progress')]
+                                                    }));
+                                                }
+                                            })
+                                            .catch(err => console.warn("⚠️ Context image failed:", err));
+                                    }
+                                },
+                                onStepComplete: (step, stepNumber, totalSteps) => {
+                                    console.log(`✅ [Streaming] Step ${stepNumber}/${totalSteps} complete`);
+
+                                    // Parse step into blocks
+                                    const teachBlock: ActivityBlock = {
+                                        id: uuidv4(),
+                                        type: 'teach',
+                                        content: step.teach_content || '',
+                                        metadata: {
+                                            stepNumber: step.step_number,
+                                            bloomLevel: step.bloom_level
+                                        }
+                                    };
+
+                                    const interactionBlock = mapSystemItemToBlock(step) as ActivityBlock | null;
+
+                                    streamedBlocks.push(teachBlock);
+                                    if (interactionBlock) {
+                                        streamedBlocks.push(interactionBlock);
+                                    }
+
+                                    // Update UI with new blocks
+                                    setEditedUnit((prev: any) => ({
+                                        ...prev,
+                                        activityBlocks: streamedBlocks.filter(b => b.id !== 'streaming-progress')
+                                    }));
+                                },
+                                onComplete: (finalResult) => {
+                                    const streamDuration = performance.now() - streamStartTime;
+                                    console.log(`🏁 [Streaming] Complete in ${(streamDuration / 1000).toFixed(1)}s`);
+                                    timer.mark('content_complete');
+                                },
+                                onError: (error) => {
+                                    console.error("❌ [Streaming] Error:", error);
+                                    throw new Error(error);
+                                }
+                            }
+                        );
+
+                        // Wait for streaming to complete
+                        const finalResult = await result;
+                        console.log("✅ [Streaming] Final result:", finalResult.title, "with", finalResult.steps?.length, "steps");
+
+                        // Ensure all blocks are set
+                        if (streamedBlocks.length === 0 && finalResult.steps) {
+                            // Parse all steps from final result
+                            for (const step of finalResult.steps) {
+                                const teachBlock: ActivityBlock = {
+                                    id: uuidv4(),
+                                    type: 'teach',
+                                    content: step.teach_content || '',
+                                    metadata: { stepNumber: step.step_number, bloomLevel: step.bloom_level }
+                                };
+                                streamedBlocks.push(teachBlock);
+
+                                const interactionBlock = mapSystemItemToBlock(step) as ActivityBlock | null;
+                                if (interactionBlock) {
+                                    streamedBlocks.push(interactionBlock);
+                                }
+                            }
+                        }
+
+                        // Final update
+                        setEditedUnit((prev: any) => ({
+                            ...prev,
+                            title: finalResult.title || prev.title,
+                            activityBlocks: streamedBlocks
+                        }));
+
+                        // Save
+                        setTimeout(() => {
+                            onSave(editedUnitRef.current);
+                        }, 100);
+
+                        // Finish timing
+                        await timer.finish(true);
+                        setIsAutoGenerating(false);
+                        return; // Exit early - don't run old flow
+
+                    } catch (streamError: any) {
+                        console.warn("⚠️ [Streaming] Failed, falling back to legacy flow:", streamError.message);
+                        // Fall through to legacy flow
+                    }
+                }
+
+                // ============================================================
+                // LEGACY PATH - Original skeleton + step-by-step generation
+                // ============================================================
+
                 // --- STANDARD SKELETON GENERATION ---
                 const skeleton = await generateUnitSkeleton(
                     unit.title,
@@ -541,29 +688,26 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     const topic = unit.title || course?.title || '';
                     const subject = settings.subject || 'כללי';
 
-                    // Need to get fresh unit from ref after state updates
-                    setTimeout(() => {
-                        const currentUnit = editedUnitRef.current;
-                        if (currentUnit && !isActivityEnriched(currentUnit)) {
-                            enrichActivityWithImages(
-                                currentUnit,
-                                topic,
-                                subject,
-                                gradeLevel,
-                                (step, current, total) => {
-                                    console.log(`🖼️ Media Generation: ${step} (${current}/${total})`);
-                                }
-                            ).then(enrichedUnit => {
-                                console.log("✅ Activity enriched with images!");
-                                setEditedUnit(enrichedUnit);
-                                setTimeout(() => {
-                                    onSave(enrichedUnit);
-                                }, 100);
-                            }).catch(err => {
-                                console.warn("⚠️ Image enrichment failed (activity still works):", err);
-                            });
-                        }
-                    }, 200);
+                    // Use current ref directly - no need for extra delay since we just saved
+                    const currentUnit = editedUnitRef.current;
+                    if (currentUnit && !isActivityEnriched(currentUnit)) {
+                        // Run enrichment in background - don't block
+                        enrichActivityWithImages(
+                            currentUnit,
+                            topic,
+                            subject,
+                            gradeLevel,
+                            (step, current, total) => {
+                                console.log(`🖼️ Media Generation: ${step} (${current}/${total})`);
+                            }
+                        ).then(enrichedUnit => {
+                            console.log("✅ Activity enriched with images!");
+                            setEditedUnit(enrichedUnit);
+                            onSave(enrichedUnit);
+                        }).catch(err => {
+                            console.warn("⚠️ Image enrichment failed (activity still works):", err);
+                        });
+                    }
                 }
 
             } catch (error: any) {

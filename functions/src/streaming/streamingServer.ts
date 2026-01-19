@@ -759,5 +759,333 @@ ${sourceText ? `\nחומר מקור:\n"""${sourceText.substring(0, 15000)}"""` :
 החזר רק JSON תקין, ללא טקסט נוסף.`;
 }
 
+// ============================================================
+// SINGLE ACTIVITY STREAMING ENDPOINT
+// ============================================================
+
+/**
+ * Single activity streaming endpoint
+ * POST /stream/activity
+ *
+ * Streams a complete activity with skeleton and all step content in one call.
+ * Uses PARALLEL generation for all steps simultaneously.
+ *
+ * This replaces the old flow of:
+ * 1. generateStudentUnitSkeleton (Cloud Function)
+ * 2. generateStepContent x N (Cloud Functions, sequential)
+ *
+ * With a single streaming call that:
+ * 1. Generates skeleton (fast)
+ * 2. Generates all steps in PARALLEL
+ * 3. Streams progress updates to the client
+ */
+app.post('/stream/activity', async (req, res) => {
+  // Verify authentication
+  const userId = await verifyAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const {
+    topic,
+    gradeLevel,
+    subject,
+    sourceText,
+    activityLength,
+    mode,
+    questionPreferences
+  } = req.body;
+
+  if (!topic && !sourceText) {
+    res.status(400).json({ error: 'topic or sourceText is required' });
+    return;
+  }
+
+  const stepCount = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
+
+  logger.info(`🚀 Starting STREAMING activity generation for user ${userId}`, {
+    topic,
+    gradeLevel,
+    stepCount,
+    hasSourceText: !!sourceText
+  });
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  try {
+    const startTime = Date.now();
+
+    // ============ PHASE 1: GENERATE SKELETON ============
+    sendSSE(res, 'progress', {
+      type: 'progress',
+      content: 'מייצר מבנה פעילות...',
+      metadata: { phase: 'skeleton', stepCount }
+    });
+
+    const skeletonPrompt = buildActivitySkeletonPrompt(
+      topic,
+      gradeLevel,
+      sourceText,
+      stepCount,
+      mode
+    );
+
+    let skeletonContent = '';
+    for await (const chunk of streamFromGemini(skeletonPrompt, undefined, {
+      temperature: 0.7,
+      maxTokens: 4096
+    })) {
+      skeletonContent += chunk;
+    }
+
+    // Parse skeleton
+    let skeleton: any = null;
+    try {
+      let jsonText = skeletonContent
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        skeleton = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      logger.error('Failed to parse skeleton:', e);
+      throw new Error('Failed to parse activity skeleton');
+    }
+
+    if (!skeleton || !skeleton.steps || !Array.isArray(skeleton.steps)) {
+      throw new Error('Invalid skeleton format');
+    }
+
+    const skeletonTime = Date.now() - startTime;
+    logger.info(`📋 Skeleton generated in ${skeletonTime}ms with ${skeleton.steps.length} steps`);
+
+    // Send skeleton to client
+    sendSSE(res, 'skeleton_complete', {
+      type: 'json_complete',
+      content: JSON.stringify(skeleton),
+      metadata: {
+        phase: 'skeleton',
+        duration: skeletonTime,
+        stepCount: skeleton.steps.length
+      }
+    });
+
+    // ============ PHASE 2: GENERATE ALL STEPS IN PARALLEL ============
+    sendSSE(res, 'progress', {
+      type: 'progress',
+      content: `מייצר ${skeleton.steps.length} צעדים במקביל...`,
+      metadata: { phase: 'content', totalSteps: skeleton.steps.length }
+    });
+
+    const questionTypes = questionPreferences?.allowedTypes?.join(', ') ||
+      'multiple_choice, true_false, matching, memory_game, categorization, ordering, fill_in_blank, open_question';
+
+    // Generate all steps in parallel
+    const stepPromises = skeleton.steps.map(async (step: any, index: number) => {
+      const stepPrompt = buildStepContentPrompt(
+        topic,
+        gradeLevel,
+        sourceText,
+        step,
+        mode,
+        questionTypes
+      );
+
+      let stepContent = '';
+      for await (const chunk of streamFromGemini(stepPrompt, undefined, {
+        temperature: 0.7,
+        maxTokens: 4096
+      })) {
+        stepContent += chunk;
+      }
+
+      // Parse step content
+      let parsed: any = null;
+      try {
+        let jsonText = stepContent
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        }
+      } catch (e) {
+        logger.warn(`Failed to parse step ${index + 1}:`, e);
+        parsed = { error: 'parse_failed', rawContent: stepContent };
+      }
+
+      return {
+        stepNumber: index + 1,
+        ...step,
+        ...parsed
+      };
+    });
+
+    // Wait for all steps to complete
+    const completedSteps = await Promise.all(stepPromises);
+
+    // Sort by step number and send each one
+    completedSteps.sort((a, b) => a.stepNumber - b.stepNumber);
+
+    for (const step of completedSteps) {
+      sendSSE(res, 'step_complete', {
+        type: 'json_complete',
+        content: JSON.stringify(step),
+        metadata: {
+          phase: 'content',
+          stepNumber: step.stepNumber,
+          totalSteps: skeleton.steps.length
+        }
+      });
+    }
+
+    // ============ PHASE 3: SEND FINAL RESULT ============
+    const totalTime = Date.now() - startTime;
+
+    const finalResult = {
+      title: skeleton.unit_title || topic,
+      steps: completedSteps,
+      metadata: {
+        topic,
+        gradeLevel,
+        stepCount: completedSteps.length,
+        generationTime: totalTime,
+        method: 'streaming_parallel'
+      }
+    };
+
+    sendSSE(res, 'done', {
+      type: 'json_complete',
+      content: JSON.stringify(finalResult),
+      metadata: {
+        phase: 'complete',
+        totalTime,
+        skeletonTime,
+        contentTime: totalTime - skeletonTime,
+        stepCount: completedSteps.length
+      }
+    });
+
+    logger.info(`✅ Activity stream completed for user ${userId} in ${totalTime}ms`, {
+      skeletonTime,
+      contentTime: totalTime - skeletonTime,
+      stepCount: completedSteps.length
+    });
+
+  } catch (error: any) {
+    logger.error('Activity streaming error:', error);
+    sendSSE(res, 'error', {
+      type: 'error',
+      content: error.message || 'Activity generation failed'
+    });
+  }
+
+  res.end();
+});
+
+/**
+ * Build activity skeleton prompt
+ */
+function buildActivitySkeletonPrompt(
+  topic: string,
+  gradeLevel: string | undefined,
+  sourceText: string | undefined,
+  stepCount: number,
+  mode: string | undefined
+): string {
+  const contextPart = sourceText
+    ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
+    : `Topic: "${topic}"`;
+
+  return `Task: Create a "Skeleton" for a learning activity.
+${contextPart}
+
+**TARGET AUDIENCE: ${gradeLevel || 'כיתה ה'}**
+Mode: ${mode === 'exam' ? 'STRICT EXAMINATION MODE' : 'Learning/Tutorial Mode'}
+Count: Exactly ${stepCount} steps.
+Language: Hebrew.
+
+Create a learning path with ${stepCount} distinct steps, each focusing on a different aspect of the topic.
+Each step should target a different Bloom level for variety.
+
+Output JSON Structure:
+{
+  "unit_title": "כותרת מותאמת גיל בעברית",
+  "context_image_prompt": "A detailed English prompt for generating a context image that represents the topic",
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "כותרת הצעד",
+      "narrative_focus": "על מה הצעד מתמקד",
+      "forbidden_topics": ["נושאים שלא לגעת בהם"],
+      "bloom_level": "remember|understand|apply|analyze|evaluate|create",
+      "suggested_interaction_type": "multiple_choice|true_false|matching|memory_game|categorization|ordering|fill_in_blank|open_question"
+    }
+  ]
+}
+
+Return ONLY valid JSON, no additional text.`;
+}
+
+/**
+ * Build step content prompt
+ */
+function buildStepContentPrompt(
+  topic: string,
+  gradeLevel: string | undefined,
+  sourceText: string | undefined,
+  stepInfo: any,
+  mode: string | undefined,
+  questionTypes: string
+): string {
+  const contextPart = sourceText
+    ? `Source text:\n"""${sourceText.substring(0, 3000)}"""`
+    : `Topic: ${topic}`;
+
+  return `Generate content for step ${stepInfo.step_number} of a learning activity.
+
+${contextPart}
+
+Step Information:
+- Title: ${stepInfo.title}
+- Focus: ${stepInfo.narrative_focus || 'General'}
+- Bloom Level: ${stepInfo.bloom_level || 'apply'}
+- Suggested Interaction: ${stepInfo.suggested_interaction_type || 'multiple_choice'}
+- Forbidden Topics: ${JSON.stringify(stepInfo.forbidden_topics || [])}
+
+Target Audience: ${gradeLevel || 'כיתה ה'}
+Mode: ${mode === 'exam' ? 'Examination' : 'Learning'}
+Available Question Types: ${questionTypes}
+
+Create engaging content with:
+1. A "teach_content" section (2-3 sentences explaining the concept in an engaging way)
+2. An interactive question/activity matching the suggested type
+
+Return JSON:
+{
+  "step_number": ${stepInfo.step_number},
+  "bloom_level": "${stepInfo.bloom_level || 'apply'}",
+  "teach_content": "הסבר קצר ומעניין בעברית...",
+  "selected_interaction": "${stepInfo.suggested_interaction_type || 'multiple_choice'}",
+  "data": {
+    "progressive_hints": ["רמז 1", "רמז 2"],
+    "source_reference_hint": "מקור בטקסט...",
+    "question": "שאלה בעברית",
+    // Type-specific fields (options, pairs, categories, etc.)
+  }
+}
+
+Return ONLY valid JSON.`;
+}
+
 // Export the app
 export default app;

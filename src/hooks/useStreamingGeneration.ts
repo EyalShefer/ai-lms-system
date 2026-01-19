@@ -11,8 +11,10 @@ import {
   streamDifferentiatedContent,
   streamLessonContent,
   streamPodcastContent,
+  streamActivityContent,
   StreamContentOptions,
-  DifferentiatedResult
+  DifferentiatedResult,
+  ActivityStreamResult
 } from '../services/streamingService';
 
 // ============================================================
@@ -24,6 +26,8 @@ export interface StreamingState {
   progress: string;
   currentLevel?: string;
   currentPart?: string;
+  currentStep?: number;
+  totalSteps?: number;
   streamedText: string;
   error: string | null;
 }
@@ -51,6 +55,12 @@ export interface UseStreamingGenerationResult {
     options: StreamContentOptions
   ) => Promise<any>;
 
+  startActivityStreaming: (
+    options: StreamContentOptions,
+    onStepComplete?: (step: any, stepNumber: number, totalSteps: number) => void,
+    onSkeletonComplete?: (skeleton: any) => void
+  ) => Promise<ActivityStreamResult>;
+
   cancelStreaming: () => void;
 
   // Reset
@@ -66,6 +76,8 @@ const initialState: StreamingState = {
   progress: '',
   currentLevel: undefined,
   currentPart: undefined,
+  currentStep: undefined,
+  totalSteps: undefined,
   streamedText: '',
   error: null
 };
@@ -407,12 +419,90 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
     }
   }, [resetState]);
 
+  /**
+   * Start activity content streaming (single activity with parallel steps)
+   */
+  const startActivityStreaming = useCallback(async (
+    options: StreamContentOptions,
+    onStepComplete?: (step: any, stepNumber: number, totalSteps: number) => void,
+    onSkeletonComplete?: (skeleton: any) => void
+  ): Promise<ActivityStreamResult> => {
+    resetState();
+
+    setState(prev => ({
+      ...prev,
+      isStreaming: true,
+      progress: 'מתחיל ליצור פעילות...'
+    }));
+
+    try {
+      const { controller, result } = await streamActivityContent(
+        options,
+        {
+          onProgress: (message, metadata) => {
+            setState(prev => ({
+              ...prev,
+              progress: message,
+              currentStep: metadata?.stepNumber,
+              totalSteps: metadata?.totalSteps
+            }));
+          },
+          onSkeletonComplete: (skeleton) => {
+            setState(prev => ({
+              ...prev,
+              progress: `מבנה פעילות מוכן - ${skeleton.steps?.length || 5} צעדים`,
+              totalSteps: skeleton.steps?.length || 5
+            }));
+            onSkeletonComplete?.(skeleton);
+          },
+          onStepComplete: (step, stepNumber, totalSteps) => {
+            setState(prev => ({
+              ...prev,
+              progress: `צעד ${stepNumber}/${totalSteps} הושלם`,
+              currentStep: stepNumber,
+              totalSteps: totalSteps
+            }));
+            onStepComplete?.(step, stepNumber, totalSteps);
+          },
+          onComplete: () => {
+            setState(prev => ({
+              ...prev,
+              isStreaming: false,
+              progress: 'הפעילות הושלמה!',
+              currentStep: undefined,
+              totalSteps: undefined
+            }));
+          },
+          onError: (error) => {
+            setState(prev => ({
+              ...prev,
+              isStreaming: false,
+              error
+            }));
+          }
+        }
+      );
+
+      abortControllerRef.current = controller;
+      return await result;
+
+    } catch (error: any) {
+      setState(prev => ({
+        ...prev,
+        isStreaming: false,
+        error: error.message
+      }));
+      throw error;
+    }
+  }, [resetState]);
+
   return {
     state,
     startStreaming,
     startDifferentiatedStreaming,
     startLessonStreaming,
     startPodcastStreaming,
+    startActivityStreaming,
     cancelStreaming,
     resetState
   };

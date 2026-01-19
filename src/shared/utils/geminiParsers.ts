@@ -95,7 +95,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
     // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===
     // Compare against normalized strings (all hyphens converted to underscores)
-    if (typeString === 'multiple_choice' || typeString === 'true_false' || typeString === 'teach_then_ask') {
+    // Note: true_false_speed is a gamified version of true_false - treat the same way
+    if (typeString === 'multiple_choice' || typeString === 'true_false' || typeString === 'true_false_speed' || typeString === 'teach_then_ask') {
         console.log("🎮 Handling as MULTIPLE CHOICE");
         // Robust Options Extraction
         let options: (string | RichOption)[] = [];
@@ -111,7 +112,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
         // Fallback if empty options
         if (normalizedOptions.length < 2) {
-            if (typeString === 'true_false') {
+            if (typeString === 'true_false' || typeString === 'true_false_speed') {
                 normalizedOptions.push("נכון", "לא נכון");
             } else {
                 console.warn("Invalid options detected for MC, returning null to force retry/skip");

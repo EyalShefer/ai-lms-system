@@ -632,6 +632,214 @@ export async function streamPodcastContent(
 }
 
 // ============================================================
+// SINGLE ACTIVITY STREAMING
+// ============================================================
+
+export interface ActivityStreamResult {
+  title: string;
+  steps: any[];
+  skeleton?: any;
+  metadata?: {
+    topic: string;
+    gradeLevel: string;
+    stepCount: number;
+    generationTime: number;
+    method: string;
+  };
+}
+
+export interface ActivityStreamCallbacks {
+  onProgress?: (message: string, metadata?: any) => void;
+  onSkeletonComplete?: (skeleton: any) => void;
+  onStepComplete?: (step: any, stepNumber: number, totalSteps: number) => void;
+  onComplete?: (result: ActivityStreamResult) => void;
+  onError?: (error: string) => void;
+}
+
+/**
+ * Stream a single activity generation
+ *
+ * This replaces the old flow of:
+ * 1. generateStudentUnitSkeleton (Cloud Function)
+ * 2. generateStepContent x N (Cloud Functions, sequential)
+ *
+ * With a single streaming call that generates everything in parallel
+ *
+ * @param options - Generation options
+ * @param callbacks - Callbacks for streaming events
+ * @returns AbortController and a promise that resolves with the full activity
+ */
+export async function streamActivityContent(
+  options: StreamContentOptions,
+  callbacks: ActivityStreamCallbacks
+): Promise<{ controller: AbortController; result: Promise<ActivityStreamResult> }> {
+  const token = await getAuthToken();
+  const controller = new AbortController();
+
+  const result = new Promise<ActivityStreamResult>(async (resolve, reject) => {
+    try {
+      const response = await fetch(`${STREAMING_BASE_URL}/stream/activity`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          topic: options.topic,
+          gradeLevel: options.gradeLevel,
+          subject: options.subject,
+          sourceText: options.sourceText,
+          activityLength: options.activityLength,
+          mode: options.productType === 'exam' ? 'exam' : 'learning',
+          questionPreferences: options.questionPreferences
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        callbacks.onError?.(error);
+        reject(new Error(error));
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        reject(new Error('No response body'));
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let skeleton: any = null;
+      const steps: any[] = [];
+      let finalResult: ActivityStreamResult | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          if (line.startsWith('event: ')) {
+            const eventType = line.slice(7).trim();
+            const nextLine = lines[i + 1];
+
+            if (nextLine?.startsWith('data: ')) {
+              const chunk = parseSSEData(nextLine);
+              if (!chunk) continue;
+
+              switch (eventType) {
+                case 'progress':
+                  callbacks.onProgress?.(chunk.content, chunk.metadata);
+                  break;
+
+                case 'skeleton_complete':
+                  try {
+                    skeleton = JSON.parse(chunk.content);
+                    callbacks.onSkeletonComplete?.(skeleton);
+                  } catch (e) {
+                    console.warn('Failed to parse skeleton:', e);
+                  }
+                  break;
+
+                case 'step_complete':
+                  try {
+                    const step = JSON.parse(chunk.content);
+                    steps.push(step);
+                    callbacks.onStepComplete?.(
+                      step,
+                      chunk.metadata?.stepNumber || steps.length,
+                      chunk.metadata?.totalSteps || 5
+                    );
+                  } catch (e) {
+                    console.warn('Failed to parse step:', e);
+                  }
+                  break;
+
+                case 'done':
+                  try {
+                    finalResult = JSON.parse(chunk.content);
+                    callbacks.onComplete?.(finalResult!);
+                    resolve(finalResult!);
+                    return;
+                  } catch (e) {
+                    // Construct result from collected data
+                    finalResult = {
+                      title: skeleton?.unit_title || options.topic || 'פעילות',
+                      steps: steps,
+                      skeleton: skeleton,
+                      metadata: chunk.metadata
+                    };
+                    callbacks.onComplete?.(finalResult);
+                    resolve(finalResult);
+                    return;
+                  }
+
+                case 'error':
+                  callbacks.onError?.(chunk.content);
+                  reject(new Error(chunk.content));
+                  return;
+              }
+              i++; // Skip the data line we just processed
+            }
+            continue;
+          }
+
+          // Handle standalone data lines
+          const chunk = parseSSEData(line);
+          if (!chunk) continue;
+
+          if (chunk.type === 'done') {
+            try {
+              finalResult = JSON.parse(chunk.content);
+            } catch (e) {
+              finalResult = {
+                title: skeleton?.unit_title || options.topic || 'פעילות',
+                steps: steps,
+                skeleton: skeleton
+              };
+            }
+            callbacks.onComplete?.(finalResult!);
+            resolve(finalResult!);
+            return;
+          } else if (chunk.type === 'error') {
+            callbacks.onError?.(chunk.content);
+            reject(new Error(chunk.content));
+            return;
+          }
+        }
+      }
+
+      // If we got here without resolving, construct result from collected data
+      if (!finalResult) {
+        finalResult = {
+          title: skeleton?.unit_title || options.topic || 'פעילות',
+          steps: steps,
+          skeleton: skeleton
+        };
+        callbacks.onComplete?.(finalResult);
+        resolve(finalResult);
+      }
+
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        callbacks.onError?.(error.message || 'Stream failed');
+        reject(error);
+      }
+    }
+  });
+
+  return { controller, result };
+}
+
+// ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
 

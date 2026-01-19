@@ -165,9 +165,10 @@ export class GenerationTimer {
 
         const user = auth.currentUser;
 
+        // Build timing data - filter out undefined values for Firestore compatibility
         const timingData: GenerationTimingData = {
             userId: user?.uid || 'anonymous',
-            userEmail: user?.email || undefined,
+            ...(user?.email && { userEmail: user.email }),
             courseId: this.courseId,
             unitId: this.unitId,
             productType: this.productType,
@@ -179,10 +180,10 @@ export class GenerationTimer {
                 skeleton,
                 contentGeneration,
                 perStepAverage: this.stepCount > 0 ? contentGeneration / this.stepCount : 0,
-                imageGeneration,
+                ...(imageGeneration !== undefined && { imageGeneration }),
             },
             success,
-            errorMessage,
+            ...(errorMessage && { errorMessage }),
         };
 
         // Log summary to console
