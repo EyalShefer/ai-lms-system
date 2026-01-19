@@ -800,7 +800,36 @@ This section documents ALL AI agents in the system, their locations, purposes, a
 | Image (Standard) | DALL-E 3 | - | $0.040 |
 | Image (Economy) | Imagen 3 | - | $0.020 |
 
-## 19.12 Prompt Files Registry
+## 19.12 Streaming & Performance Optimization
+*Last Updated: 2026-01-19*
+
+### Model Selection Strategy (CRITICAL - DO NOT CHANGE WITHOUT APPROVAL)
+| Component | Model | Reason |
+|-----------|-------|--------|
+| **Skeleton Generation** | `gemini-2.0-flash` | Structure only, no content - speed is priority |
+| **Step Content** | `gemini-3-pro-preview` | Quality content requires best model |
+| **Images/Infographics** | Imagen 3 / Gemini Pro Image | **NEVER CHANGE** - quality is critical |
+| **Differentiated Content** | `gemini-3-pro-preview` | Educational quality |
+| **Podcasts** | `gemini-3-pro-preview` | Creative content quality |
+
+### Why Flash for Skeleton?
+The skeleton is just **metadata** (titles, Bloom levels, interaction types) - not actual educational content.
+Using Flash reduces skeleton time from ~27s to ~8s without affecting content quality.
+
+### What NOT to Change
+- **Steps** must use Pro - these contain the actual questions and teaching content
+- **Images** must use current model - quality is critical for student engagement
+- **Infographics** - never touch without explicit permission
+
+### Performance Targets
+| Phase | Before | After (with Flash skeleton) |
+|-------|--------|---------------------------|
+| Skeleton | 27s | ~8s |
+| Steps (parallel) | 38s | 38s (unchanged) |
+| Image (parallel) | 22s | 22s (unchanged) |
+| **Total** | **66s** | **~45s** |
+
+## 19.13 Prompt Files Registry
 | File | Purpose |
 |------|---------|
 | `src/services/ai/prompts.ts` | Bot personas, validation prompts |

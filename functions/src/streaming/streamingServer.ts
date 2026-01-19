@@ -22,6 +22,7 @@ import { GoogleGenAI } from '@google/genai';
 // ============================================================
 
 const GEMINI_MODEL = 'gemini-3-pro-preview';
+const GEMINI_FLASH_MODEL = 'gemini-2.0-flash';  // Fast model for skeleton generation
 const CORS_ORIGINS = [
   'https://ai-lms-pro.web.app',
   'https://ai-lms-pro.firebaseapp.com',
@@ -97,6 +98,7 @@ export async function* streamFromGemini(
   options: {
     temperature?: number;
     maxTokens?: number;
+    useFastModel?: boolean;  // Use Flash model for faster generation
   } = {}
 ): AsyncGenerator<string, void, unknown> {
   const client = getGeminiClient();
@@ -105,9 +107,12 @@ export async function* streamFromGemini(
   let fullPrompt = systemPrompt ? `${systemPrompt}\n\n` : '';
   fullPrompt += prompt;
 
+  // Choose model based on speed requirements
+  const model = options.useFastModel ? GEMINI_FLASH_MODEL : GEMINI_MODEL;
+
   try {
     const response = await client.models.generateContentStream({
-      model: GEMINI_MODEL,
+      model,
       contents: fullPrompt,
       config: {
         temperature: options.temperature ?? 0.7,
@@ -123,7 +128,7 @@ export async function* streamFromGemini(
       }
     }
   } catch (error: any) {
-    logger.error('Gemini streaming error:', error);
+    logger.error(`Gemini streaming error (${model}):`, error);
     throw error;
   }
 }
@@ -847,10 +852,14 @@ app.post('/stream/activity', async (req, res) => {
       mode
     );
 
+    // Use FLASH model for skeleton - it's just structure, not content
+    // This significantly reduces skeleton generation time (27s -> ~8s)
+    // NOTE: Steps still use Pro model for quality content
     let skeletonContent = '';
     for await (const chunk of streamFromGemini(skeletonPrompt, undefined, {
       temperature: 0.7,
-      maxTokens: 4096
+      maxTokens: 4096,
+      useFastModel: true  // Flash for skeleton only
     })) {
       skeletonContent += chunk;
     }
