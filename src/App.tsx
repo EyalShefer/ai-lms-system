@@ -736,9 +736,14 @@ const AppWrapper = () => {
   const { currentUser, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
 
+  // Check if this is a student link (should bypass auth)
+  const params = new URLSearchParams(window.location.search);
+  const isStudentLink = params.has('studentCourseId') || params.has('assignmentId');
+
   if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען מערכת...</div>;
 
-  if (currentUser) {
+  // Allow student links to access the app without authentication
+  if (currentUser || isStudentLink) {
     return (
       <GeoGuard bypassInDev={true} failOpen={true}>
         <AuthenticatedApp />
