@@ -287,11 +287,162 @@ export function checkPerformanceBudget(
   }
 }
 
+// ============================================
+// Activity Creation Performance Timer
+// ============================================
+
+interface TimerStep {
+  name: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+}
+
+class ActivityCreationTimer {
+  private sessionId: string = '';
+  private sessionStartTime: number = 0;
+  private steps: TimerStep[] = [];
+  private currentStep: TimerStep | null = null;
+
+  /**
+   * Start a new timing session for activity creation
+   */
+  startSession(productType: string = 'activity') {
+    this.sessionId = `session_${Date.now()}`;
+    this.sessionStartTime = performance.now();
+    this.steps = [];
+    this.currentStep = null;
+
+    console.log('\n');
+    console.log('╔══════════════════════════════════════════════════════════════╗');
+    console.log(`║  ⏱️  ACTIVITY CREATION TIMER - ${productType.toUpperCase().padEnd(20)}       ║`);
+    console.log(`║  Session: ${this.sessionId.padEnd(45)}  ║`);
+    console.log('╠══════════════════════════════════════════════════════════════╣');
+  }
+
+  /**
+   * Start timing a specific step
+   */
+  startStep(stepName: string) {
+    // End previous step if exists
+    if (this.currentStep && !this.currentStep.endTime) {
+      this.endStep();
+    }
+
+    const step: TimerStep = {
+      name: stepName,
+      startTime: performance.now(),
+    };
+
+    this.currentStep = step;
+    this.steps.push(step);
+
+    console.log(`║  ▶️  START: ${stepName.padEnd(45)}  ║`);
+  }
+
+  /**
+   * End the current step
+   */
+  endStep(additionalInfo?: string) {
+    if (!this.currentStep) return;
+
+    this.currentStep.endTime = performance.now();
+    this.currentStep.duration = this.currentStep.endTime - this.currentStep.startTime;
+
+    const durationStr = this.formatDuration(this.currentStep.duration);
+    const info = additionalInfo ? ` (${additionalInfo})` : '';
+
+    console.log(`║  ✅ END:   ${this.currentStep.name.substring(0, 30).padEnd(30)} ${durationStr.padStart(8)}${info.substring(0, 10).padEnd(10)} ║`);
+
+    this.currentStep = null;
+  }
+
+  /**
+   * Log an intermediate checkpoint within a step
+   */
+  checkpoint(message: string) {
+    const elapsed = this.currentStep
+      ? performance.now() - this.currentStep.startTime
+      : performance.now() - this.sessionStartTime;
+
+    console.log(`║     📍 ${message.substring(0, 40).padEnd(40)} +${this.formatDuration(elapsed).padStart(7)} ║`);
+  }
+
+  /**
+   * End the timing session and print summary
+   */
+  endSession() {
+    // End any open step
+    if (this.currentStep && !this.currentStep.endTime) {
+      this.endStep();
+    }
+
+    const totalDuration = performance.now() - this.sessionStartTime;
+
+    console.log('╠══════════════════════════════════════════════════════════════╣');
+    console.log('║                         📊 SUMMARY                           ║');
+    console.log('╠══════════════════════════════════════════════════════════════╣');
+
+    // Sort steps by duration (longest first)
+    const sortedSteps = [...this.steps]
+      .filter(s => s.duration !== undefined)
+      .sort((a, b) => (b.duration || 0) - (a.duration || 0));
+
+    sortedSteps.forEach((step, index) => {
+      const percent = ((step.duration || 0) / totalDuration * 100).toFixed(1);
+      const bar = this.createBar(Number(percent));
+      console.log(`║  ${(index + 1).toString().padStart(2)}. ${step.name.substring(0, 25).padEnd(25)} ${this.formatDuration(step.duration || 0).padStart(8)} ${percent.padStart(5)}% ${bar} ║`);
+    });
+
+    console.log('╠══════════════════════════════════════════════════════════════╣');
+    console.log(`║  🏁 TOTAL TIME: ${this.formatDuration(totalDuration).padEnd(42)} ║`);
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log('\n');
+
+    // Store in window for debugging
+    if (typeof window !== 'undefined') {
+      (window as any).__lastActivityTiming = {
+        sessionId: this.sessionId,
+        totalDuration,
+        steps: this.steps,
+      };
+    }
+
+    return {
+      sessionId: this.sessionId,
+      totalDuration,
+      steps: this.steps,
+    };
+  }
+
+  private formatDuration(ms: number): string {
+    if (ms < 1000) {
+      return `${ms.toFixed(0)}ms`;
+    } else if (ms < 60000) {
+      return `${(ms / 1000).toFixed(1)}s`;
+    } else {
+      const mins = Math.floor(ms / 60000);
+      const secs = ((ms % 60000) / 1000).toFixed(0);
+      return `${mins}m ${secs}s`;
+    }
+  }
+
+  private createBar(percent: number): string {
+    const width = 10;
+    const filled = Math.round((percent / 100) * width);
+    return '█'.repeat(filled) + '░'.repeat(width - filled);
+  }
+}
+
+// Singleton instance
+export const activityTimer = new ActivityCreationTimer();
+
 // Export for debugging
 if (typeof window !== 'undefined') {
   (window as any).__monitoring = {
     getPerformanceStats,
     getErrorSummary,
     clearMetrics,
+    activityTimer,
   };
 }

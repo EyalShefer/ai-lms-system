@@ -19,6 +19,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Keep db for direct doc updates if needed
 import { saveCourseToFirestore, saveCourseToFirestoreImmediate, saveUnitToFirestore } from '../firebaseUtils';
 import type { LearningUnit, ActivityBlock, Module } from '../shared/types/courseTypes';
+import { activityTimer } from '../utils/monitoring';
 
 // הגדרת ה-Worker עבור PDF.js (פתרון תואם Vite)
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -1047,6 +1048,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     const handleWizardComplete = async (data: any) => {
         if (isGenerating) return; // מניעת לחיצות כפולות
 
+        // ⏱️ Performance timing
+        activityTimer.startStep('CourseEditor: Initial setup');
+
         wizardHasRun.current = true;
         setShowWizard(false);
         // setShowLoader(true); // Removed by user request
@@ -1069,26 +1073,30 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             const userSubject = data.settings?.subject || data.subject || "כללי";
 
             setForcedGrade(extractedGrade);
+            activityTimer.endStep();
 
             // --- עיבוד הקובץ לפני השליחה (הוזז למעלה כדי לשמור ב-DB) ---
+            activityTimer.startStep('File/Text processing');
             let processedFileData = undefined; // עבור תמונות
             let processedSourceText = undefined; // עבור טקסט/PDF
 
             if (data.file) {
                 const file = data.file;
-                // console.log("Processing file:", file.name, file.type);
+                activityTimer.checkpoint(`Processing file: ${file.name}`);
 
                 try {
                     if (file.type === 'application/pdf') {
                         // חילוץ טקסט מ-PDF
                         processedSourceText = await extractTextFromPDF(file);
-                        // console.log("PDF Text Extracted (First 5 pages)");
+                        activityTimer.checkpoint('PDF text extracted');
                     } else if (file.type.startsWith('image/')) {
                         // המרה ל-Base64 עבור תמונות
                         processedFileData = await fileToBase64(file);
+                        activityTimer.checkpoint('Image converted to base64');
                     } else if (file.type === 'text/plain') {
                         // קריאת קובץ טקסט
                         processedSourceText = await file.text();
+                        activityTimer.checkpoint('Text file read');
                     } else {
                         console.warn("Unsupported file type for AI analysis, using metadata solely.");
                     }
@@ -1097,22 +1105,21 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     alert("שגיאה בעיבוד הקובץ. המערכת תמשיך על בסיס הנושא בלבד.");
                 }
             } else if (data.pastedText) {
-                console.log("📝 Using pasted text as source, length:", data.pastedText.length);
                 processedSourceText = data.pastedText;
+                activityTimer.checkpoint(`Pasted text: ${data.pastedText.length} chars`);
             }
-
-            // DEBUG: Log what we're sending to AI
-            console.log("🔍 DEBUG - processedSourceText:", processedSourceText ? `${processedSourceText.substring(0, 200)}... (${processedSourceText.length} chars)` : "UNDEFINED");
+            activityTimer.endStep();
 
             // --- חילוץ נושא מטקסט מודבק אם לא סופק נושא ---
             let topicToUse = data.topic || data.title || course.title;
             if ((!topicToUse || topicToUse === "פעילות טקסט חופשי" || topicToUse === "נושא כללי") && processedSourceText && processedSourceText.length > 100) {
-                console.log("🔍 No topic provided, extracting from pasted text...");
+                activityTimer.startStep('AI: Extract topic from text');
                 topicToUse = await extractTopicFromText(processedSourceText);
-                console.log("✅ Extracted topic:", topicToUse);
+                activityTimer.endStep();
             }
             topicToUse = topicToUse || "נושא כללי";
 
+            activityTimer.startStep('Firestore: Save course metadata');
             const updatedCourseState = {
                 ...course,
                 title: topicToUse,
@@ -1142,15 +1149,14 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             }));
 
             await updateDoc(doc(db, "courses", course.id), cleanDataForFirestore);
+            activityTimer.endStep();
 
             // יצירת סילבוס (מבנה בלבד עבור מערך שיעור, מלא עבור אחרים)
             let syllabus: Module[] = [];
 
-            console.log("📋 SYLLABUS CREATION - productType:", data.settings?.productType, "isDifferentiated:", data.settings?.isDifferentiated);
-
             if (data.settings?.productType === 'lesson') {
                 // progressive loading strategy
-                console.log("🏗️ LESSON PATH - Building Skeleton Syllabus...");
+                activityTimer.startStep('AI: Generate lesson syllabus');
                 syllabus = await generateCourseSyllabus(
                     topicToUse,
                     extractedGrade,
@@ -1159,6 +1165,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     processedSourceText,
                     data.settings?.productType
                 );
+                activityTimer.endStep();
 
 
                 // --- PROGRESSIVE QUEUE TRIGGER ---
@@ -1174,7 +1181,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
             } else {
                 // legacy / cloud function strategy (games, exams)
-                console.log("📦 NON-LESSON PATH - Using generateCoursePlan...");
+                activityTimer.startStep('AI: Generate course plan');
                 syllabus = await generateCoursePlan(
                     topicToUse,
                     extractedGrade,
@@ -1187,25 +1194,23 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     data.settings?.taxonomy, // 🆕 Taxonomy
                     data.settings?.questionPreferences // 🆕 הגדרות מתקדמות לסוגי שאלות
                 );
+                activityTimer.endStep();
             }
 
+            activityTimer.startStep('Firestore: Save syllabus');
             const courseWithSyllabus = { ...updatedCourseState, syllabus };
             setCourse(courseWithSyllabus);
 
             // ARCHITECT FIX: Use immediate save for wizard completion (critical checkpoint)
             await saveCourseToFirestoreImmediate(courseWithSyllabus);
-
-            console.log("🔍 CHECKING SYLLABUS - length:", syllabus.length, "units:", syllabus[0]?.learningUnits?.length);
+            activityTimer.endStep();
 
             if (syllabus.length > 0 && syllabus[0].learningUnits.length > 0) {
                 const firstUnit = syllabus[0].learningUnits[0];
 
-                // DEBUG: Log all relevant settings
-                console.log("🔍 DEBUG CourseEditor - productType:", data.settings?.productType, "isDifferentiated:", data.settings?.isDifferentiated, "full settings:", JSON.stringify(data.settings));
-
                 // --- PODCAST PRODUCT HANDLER ---
                 if (data.settings?.productType === 'podcast') {
-                    console.log("🎙️ Generating Podcast Product with streaming...");
+                    activityTimer.startStep('AI: Generate podcast script');
 
                     // 🌊 STREAMING: Use streaming for podcast content
                     const useStreaming = isStreamingSupported();
@@ -1270,13 +1275,16 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         // ARCHITECT FIX: Use immediate save for podcast completion
                         await saveCourseToFirestoreImmediate(finalCourse);
                         setSelectedUnitId(firstUnit.id);
+                        activityTimer.endStep();
                     } else {
+                        activityTimer.endStep();
                         alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
                     }
+                    activityTimer.endSession();
                 }
                 // --- DIFFERENTIATED INSTRUCTION HANDLER ---
                 else if (data.settings?.isDifferentiated) {
-                    console.log("🧬 ENTERING DIFFERENTIATED BRANCH! isDifferentiated =", data.settings?.isDifferentiated);
+                    activityTimer.startStep('AI: Generate differentiated content');
 
                     let diffContent: { support: any[]; core: any[]; enrichment: any[] } | null = null;
 
@@ -1361,14 +1369,15 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         if (data.settings?.productType === 'lesson') {
                             setPreviewUnit(unitCore);
                         }
+                        activityTimer.endStep();
                     } else {
+                        activityTimer.endStep();
                         alert("שגיאה ביצירת תוכן דיפרנציאלי.");
                     }
+                    activityTimer.endSession();
                 }
                 // --- STANDARD UNIT HANDLER ---
                 else {
-                    console.log("⚠️ ENTERING STANDARD BRANCH (not differentiated). isDifferentiated =", data.settings?.isDifferentiated);
-
                     // CHECK FOR LESSON MODE -> PROGRESSIVE BUILD
                     if (data.settings?.productType === 'lesson' || updatedCourseState.mode === 'lesson') {
                         // Lesson Mode: We want to build the WHOLE plan progressively.
@@ -1378,6 +1387,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         setSelectedUnitId(null); // Ensure Overview is shown
 
                         // 3. Trigger Background Progressive Build
+                        activityTimer.startStep('Background: Lesson plan queue');
                         processLessonPlanQueue(
                             syllabus, // Use the fresh syllabus
                             processedSourceText || updatedCourseState.fullBookContent,
@@ -1387,11 +1397,13 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                             data.settings?.taxonomy,
                             data.settings?.productType
                         );
+                        activityTimer.endStep();
+                        activityTimer.endSession();
                         return; // Exit here, queue runs in background
                     }
 
                     // ORIGINAL SINGLE UNIT LOGIC (For Legacy/Game Modes)
-                    // console.log("🧠 Starting Standard Single Unit Generation for:", firstUnit.title);
+                    activityTimer.startStep('AI: Generate unit skeleton');
 
                     // 1. BRAIN: Generate Skeleton
                     const skeleton = await generateUnitSkeleton(
@@ -1403,9 +1415,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         data.settings?.taxonomy, // Pass Dynamic Bloom Preferences
                         data.settings?.productType // Pass product type (lesson/game/exam)
                     );
+                    activityTimer.endStep();
 
                     if (skeleton && skeleton.steps) {
                         // 2. HANDS: Generate Step Content (Parallel)
+                        activityTimer.startStep(`AI: Generate ${skeleton.steps.length} steps (parallel)`);
                         const totalSteps = skeleton.steps.length;
                         const stepPromises = skeleton.steps.map(async (step: any) => {
                             const stepContent = await generateStepContent(
@@ -1425,10 +1439,12 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
                         // Wait for all hands to finish
                         const newBlocksRaw = await Promise.all(stepPromises);
+                        activityTimer.endStep();
 
                         // Filter out nulls (failures)
                         const newBlocks = newBlocksRaw.filter((b: any) => b !== null);
 
+                        activityTimer.startStep('Firestore: Save final content');
                         const syllabusWithContent = syllabus.map((mod: any) => ({
                             ...mod,
                             learningUnits: mod.learningUnits.map((u: any) =>
@@ -1440,17 +1456,20 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         setCourse(finalCourse);
                         // ARCHITECT FIX: Use immediate save for final content
                         await saveCourseToFirestoreImmediate(finalCourse);
+                        activityTimer.endStep();
 
                         setSelectedUnitId(firstUnit.id);
                     } else {
                         console.error("❌ Skeleton Generation Failed");
                         setSelectedUnitId(firstUnit.id);
                     }
+                    activityTimer.endSession();
                 }
             }
 
         } catch (error) {
             console.error("Error generating content:", error);
+            activityTimer.endSession();
             // CRITICAL FIX: Close loader IMMEDIATELY before alert
             // setShowLoader(false);
             // Small timeout to allow React to render the closed state before alert blocks thread

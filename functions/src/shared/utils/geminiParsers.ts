@@ -224,13 +224,35 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             };
         }
 
-        // === CASE D: CATEGORIZATION / GROUPING / MATCHING ===
-        if (typeString === 'categorization' || typeString === 'grouping' || typeString === 'matching') {
+        // === CASE D-EARLY: MATCHING with leftItems (new format) - must come BEFORE categorization ===
+        // This handles the new matching format with leftItems/rightItems (line drawing)
+        if (typeString === 'matching' && (rawData.leftItems || rawData.left_items)) {
+            const leftItems = rawData.leftItems || rawData.left_items || [];
+            const rightItems = rawData.rightItems || rawData.right_items || [];
+            const correctMatches = rawData.correctMatches || rawData.correct_matches || [];
+
+            return {
+                id: uuidv4(),
+                type: 'matching',
+                content: {
+                    instruction: questionText || rawData.instruction || "התאימו בין הפריטים:",
+                    leftItems: leftItems.length > 0 ? leftItems : [{ id: '1', text: 'פריט 1' }],
+                    rightItems: rightItems.length > 0 ? rightItems : [{ id: 'a', text: 'התאמה 1' }],
+                    correctMatches: correctMatches,
+                    hints: rawData.hints || rawData.progressive_hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matching') }
+            };
+        }
+
+        // === CASE D: CATEGORIZATION / GROUPING ===
+        // Note: 'matching' with pairs (old format) still falls through here
+        if (typeString === 'categorization' || typeString === 'grouping' || (typeString === 'matching' && rawData.pairs)) {
             let categories: string[] = [];
             let items: { text: string; category: string }[] = [];
 
-            // Handle Matching (Pairs)
-            if (typeString === 'matching' || rawData.pairs) {
+            // Handle Matching (Pairs) - old format
+            if (rawData.pairs) {
                 const pairs = rawData.pairs || [];
                 const uniqueCats = new Set<string>();
                 pairs.forEach((p) => uniqueCats.add(p.right || p.category || ""));

@@ -11,6 +11,7 @@ import TextbookSelector from './TextbookSelector';
 import type { TextbookSelection } from '../services/textbookService';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { activityTimer } from '../utils/monitoring';
 
 // --- רשימות מיושרות עם הדשבורד ---
 const GRADES = [
@@ -673,6 +674,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         } else if (step === 2 && canProceed()) {
             setStep(3);
         } else if (step === 3) {
+            // ⏱️ Start activity creation timer
+            activityTimer.startSession(selectedProduct || 'activity');
+            activityTimer.startStep('Wizard: Preparing data');
+
             setIsProcessing(true);
             const finalData = {
                 mode,
@@ -708,8 +713,10 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                 },
                 targetAudience: grade
             };
-            console.log("DEBUG: finalData.settings.isDifferentiated =", finalData.settings.isDifferentiated, "isDifferentiated state =", isDifferentiated);
+            activityTimer.endStep();
+            activityTimer.startStep('Wizard: Calling onComplete');
             if (onComplete) await onComplete(finalData);
+            activityTimer.endStep();
         }
     };
 
