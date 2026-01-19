@@ -14,6 +14,8 @@ export interface TypewriterLoaderProps {
   customMessages?: string[];
   /** Show the AI spinner */
   showSpinner?: boolean;
+  /** Show the "AI is working" status badge below the text */
+  showStatusBadge?: boolean;
   /** Additional CSS classes */
   className?: string;
   /** Typing speed in ms per character */
@@ -132,6 +134,7 @@ export const TypewriterLoader: React.FC<TypewriterLoaderProps> = ({
   isComplete = false,
   customMessages,
   showSpinner = true,
+  showStatusBadge = true,
   className = '',
   typingSpeed = 40,
   pauseDuration = 1200,
@@ -242,6 +245,16 @@ export const TypewriterLoader: React.FC<TypewriterLoaderProps> = ({
           />
         </span>
       </div>
+
+      {/* Status badge - clarifies that AI is actively working */}
+      {showStatusBadge && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-full border border-indigo-100 dark:border-indigo-800">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-sm text-indigo-600 dark:text-indigo-300 font-medium">
+            {showingCompletion ? 'מסיים...' : 'AI עובד על זה - זה עלול לקחת עד דקה'}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

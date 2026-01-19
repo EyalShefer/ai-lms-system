@@ -153,14 +153,35 @@ export const getSkeletonPrompt = (
     **IMPORTANT:** The example above shows DIFFERENT interaction types for each step. Follow this pattern!
   `;
 
+/**
+ * Generate step content prompt based on product type
+ *
+ * @param productType - Determines content style:
+ *   - 'activity': Student-facing interactive content. NO teach_content, NO infographics.
+ *                 Only scenario_image for dilemmas/real-world problems.
+ *   - 'lesson': Teacher lesson plan. REQUIRES teach_content, allows infographics.
+ *   - 'exam': Assessment mode. NO teach_content, NO hints, NO media.
+ */
 export const getStepContentPrompt = (
   contextText: string,
   examEnforcer: string,
   stepInfo: any,
   mode: string,
   linguisticConstraints: string,
-  gradeLevel: string
-) => `
+  gradeLevel: string,
+  productType: string = 'lesson', // activity | lesson | exam
+  contentTone: string = 'friendly' // friendly | professional | playful | neutral
+) => {
+  // Build tone instruction based on contentTone
+  const toneInstructions: Record<string, string> = {
+    friendly: 'חם, ידידותי ומעודד. פנה ישירות לתלמיד בלשון יחיד. השתמש בשפה פשוטה ונגישה.',
+    professional: 'מקצועי וממוקד. ישיר וללא הקדמות מיותרות. עניני.',
+    playful: 'משחקי וקליל. ניתן להשתמש בהומור קל, להפוך את הלמידה לחוויה מהנה.',
+    neutral: 'ניטרלי וישיר. ללא סגנון מיוחד, פשוט ותכליתי.'
+  };
+  const toneInstruction = toneInstructions[contentTone] || toneInstructions.friendly;
+
+  return `
     ${contextText}
     ${examEnforcer}
 
@@ -177,12 +198,14 @@ export const getStepContentPrompt = (
        - **CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
        - **Focus:** Discuss ONLY: ${stepInfo.narrative_focus || "current step's topic"}.
        - **BAN:** Do NOT mention: ${JSON.stringify(stepInfo.forbidden_topics || [])}.
-       ${mode === 'exam'
+       ${mode === 'exam' || productType === 'exam'
     ? `- **EXAM MODE:** Do NOT output 'teach_content'. Set it to null or empty string. Focus entirely on the Question.`
-    : `- **Constraint:** If the text requires multiple paragraphs, ensure the question relates to the *entire* chunk or breaks it down.`
+    : productType === 'activity'
+    ? `- **STUDENT ACTIVITY MODE:** Do NOT output 'teach_content'. Set it to null or empty string. The activity should be 100% interactive - questions only, no explanatory text blocks.`
+    : `- **LESSON MODE:** The 'teach_content' field is REQUIRED. Provide clear explanations before each question.`
   }
 
-       - **Tone Override:** ${mode === 'exam' ? 'Objective, Examiner Tone (No Humor)' : 'Follow the Linguistic Constraints for this grade level'}.
+       - **Tone Override:** ${mode === 'exam' || productType === 'exam' ? 'Objective, Examiner Tone (No Humor)' : toneInstruction}.
 
   4. ** STRICT GROUNDING(Anti - Hallucination V3):**
        - ** Rule:** Use ONLY the provided Source Text.If it's not in the PDF, it doesn't exist.
@@ -239,23 +262,35 @@ export const getStepContentPrompt = (
        - **Feedback:** Explain WHY specific wrong choice is incorrect.
 
     9. **MEDIA SUGGESTION GUIDELINES (IMAGE/INFOGRAPHIC DECISION):**
+       ${productType === 'exam' || mode === 'exam'
+    ? `**EXAM MODE:** Do NOT suggest any media. Always return: "suggested_media": { "needed": false }`
+    : productType === 'activity'
+    ? `**STUDENT ACTIVITY MODE - SCENARIO IMAGES ONLY:**
+       - ONLY suggest "scenario_image" for questions that present real-world dilemmas/problems
+       - Do NOT suggest "infographic" - infographics are for lesson plans only!
+       - Add scenario_image when:
+         * Bloom Level is Application, Analysis, Evaluation, or Creation
+         * The question presents a decision-making situation
+         * Visualization would help students understand the problem BEFORE answering
+
+       **DO NOT add any image for:**
+       - "categorization" / "memory_game" / "ordering" / "fill_in_blanks" / "true_false"
+       - Simple fact recall questions
+
+       **If you suggest media (ONLY scenario_image for activities):**
+       \`"suggested_media": {
+          "needed": true,
+          "type": "scenario_image",
+          "prompt_hint": "Brief description of the scenario to visualize (in English, 2-3 sentences)"
+       }\``
+    : `**LESSON MODE - FULL MEDIA SUPPORT:**
        Decide whether this step would benefit from a generated image or infographic.
 
-       **ADD image suggestion ("suggested_media") when ALL conditions are met:**
-       - Bloom Level is Application, Analysis, Evaluation, or Creation (NOT Remember/Understand)
-       - Interaction Type is "multiple_choice" or "open_question"
+       **ADD scenario_image when:**
        - The question presents a real-world scenario, dilemma, or problem to solve
        - Visualization would help students understand the situation BEFORE answering
 
-       **DO NOT add image for:**
-       - "categorization" questions (the items themselves are the visual element)
-       - "memory_game" questions (matching pairs are self-explanatory)
-       - "ordering" questions (sequence is the focus, not visualization)
-       - "fill_in_blanks" questions (text-based by nature)
-       - "true_false" questions (simple fact verification)
-       - Simple fact recall at Remember/Understand levels
-
-       **ADD infographic suggestion when:**
+       **ADD infographic when:**
        - Content explains a PROCESS with clear steps → type: "flowchart"
        - Content describes HISTORICAL events or chronological sequence → type: "timeline"
        - Content COMPARES two or more concepts/options → type: "comparison"
@@ -267,7 +302,8 @@ export const getStepContentPrompt = (
           "type": "scenario_image" | "infographic",
           "infographic_type": "flowchart" | "timeline" | "comparison" | "cycle" (only if type is infographic),
           "prompt_hint": "Brief description of what the image/infographic should show (in English, 2-3 sentences)"
-       }\`
+       }\``
+  }
 
        **If no media is needed:**
        \`"suggested_media": { "needed": false }\`
@@ -276,16 +312,25 @@ export const getStepContentPrompt = (
     {
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}",
-       "teach_content": ${mode === 'exam' ? "null" : "\"Full explanation text (Simplified for ${gradeLevel})...\""},
+       "teach_content": ${(mode === 'exam' || productType === 'exam' || productType === 'activity') ? "null" : `"Full explanation text (Simplified for ${gradeLevel})..."`},
        "selected_interaction": "${stepInfo.suggested_interaction_type}",
-       "suggested_media": {
+       ${productType === 'exam' || mode === 'exam'
+    ? `"suggested_media": { "needed": false },`
+    : productType === 'activity'
+    ? `"suggested_media": {
+          "needed": true | false,
+          "type": "scenario_image",
+          "prompt_hint": "English description of the scenario (if needed=true)"
+       },`
+    : `"suggested_media": {
           "needed": true | false,
           "type": "scenario_image" | "infographic",
           "infographic_type": "flowchart" | "timeline" | "comparison" | "cycle",
           "prompt_hint": "English description of what to generate (if needed=true)"
-       },
+       },`
+  }
        "data": {
-          "progressive_hints": ["Hint 1", "Hint 2"],
+          ${(mode === 'exam' || productType === 'exam') ? '"progressive_hints": [],' : '"progressive_hints": ["Hint 1", "Hint 2"],'}
           "source_reference_hint": "See section '...'",
           // DYNAMIC STRUCTURE BASED ON INTERACTION TYPE:
           // 1. MULTIPLE CHOICE / TRUE_FALSE:
@@ -388,6 +433,7 @@ export const getStepContentPrompt = (
        }
     }
 `;
+};
 
 export const getPodcastPrompt = (topic: string, sourceText: string) => `
       generate a "Deep Dive" podcast script between two hosts, Dan and Noa.

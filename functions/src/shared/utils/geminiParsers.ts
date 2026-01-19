@@ -47,14 +47,41 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         // 1. ROBUST DATA NORMALIZATION
         // console.log("Raw AI Item for Mapping:", JSON.stringify(item)); // DEBUG LOG
 
-        // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
-        // Sometimes AI returns data: { data: { ... } }
-        // We use 'as RawAiItem' because the nesting can be recursive and unpredictable, but we know it conforms to the partial shape
-        const rawData: RawAiItem = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
+        // Handle different AI nesting styles:
+        // - Direct object
+        // - 'data' wrapper: { data: { ... } }
+        // - 'interactive_question' wrapper
+        // - NEW: 'interaction' wrapper: { interaction: { type: "...", ...data } }
 
-        // Extract Type
-        // Keep as string for loose matching against AI outputs (which might use underscores)
-        const typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
+        // First, check if there's a nested 'interaction' object (new AI format)
+        // AI sometimes returns 'interaction' instead of 'data' for the question content
+        const interactionObj = item.interaction || (item.data as any)?.interaction;
+
+        // If we have an interaction object, use it as the primary data source
+        let rawData: RawAiItem;
+        if (interactionObj && typeof interactionObj === 'object') {
+            // New format: { stepNumber, title, interaction: { type, pairs/options/etc } }
+            // Merge the interaction data with top-level metadata AND item.data (for hints etc)
+            const dataObj = item.data && typeof item.data === 'object' ? item.data : {};
+            rawData = { ...item, ...dataObj, ...interactionObj } as RawAiItem;
+            console.log("🎮 Found nested interaction object, merging data. Keys:", Object.keys(rawData));
+        } else {
+            // Old format: direct data or wrapped in 'data'/'interactive_question'
+            rawData = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
+        }
+
+        // Extract Type - check multiple sources including the new 'interaction' object
+        // Priority: interaction.type > suggested_interaction_type > selected_interaction > item.type > rawData.type
+        let typeString =
+            interactionObj?.type ||
+            item.suggested_interaction_type ||
+            item.selected_interaction ||
+            item.type ||
+            rawData.type ||
+            'multiple_choice';
+
+        // Normalize: convert hyphens to underscores for consistent matching
+        typeString = typeString.replace(/-/g, '_');
 
         // Extract Question Text (Handle all known variations - Check Root AND Data)
         const questionObj = rawData.question || item.question;
@@ -343,20 +370,27 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             };
         }
 
-        if (typeString === 'fill_in_blanks' || typeString === 'cloze') {
-            const rawSentence = rawData.text || rawData.content || questionText || "חסר טקסט להשלמה";
-            let bank = rawData.word_bank || rawData.options || [];
+        if (typeString === 'fill_in_blank' || typeString === 'fill_in_blanks' || typeString === 'fill_blank' || typeString === 'cloze') {
+            // Handle multiple AI response formats:
+            // Format 1: { text: "sentence with [blanks]" }
+            // Format 2: { sentence: "...", word_bank: [...] }
+            const rawSentence = rawData.text || rawData.sentence || rawData.content || questionText || "חסר טקסט להשלמה";
+            let bank = rawData.word_bank || rawData.bank || rawData.options || [];
+
+            console.log("🎮 FILL IN BLANKS: Using text:", rawSentence.substring(0, 50) + "...");
 
             return {
                 id: uuidv4(),
                 type: 'fill_in_blanks',
                 content: {
-                    sentence: rawSentence,
+                    text: rawSentence, // Use 'text' to match ClozeQuestion's expected format
+                    hidden_words: bank,
+                    distractors: []
                 },
                 metadata: {
                     ...commonMetadata,
                     score: calculateQuestionPoints(commonMetadata.bloomLevel, 'fill_in_blanks'),
-                    wordBank: bank // Optional word bank
+                    wordBank: bank // Backup for ClozeQuestion's fallback logic
                 }
             };
         }

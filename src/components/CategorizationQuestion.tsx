@@ -46,6 +46,8 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     const [buckets, setBuckets] = useState<Record<string, Item[]>>({});
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [currentHintLevel, setCurrentHintLevel] = useState(0); // ✨ NEW: Progressive hints
+    const [draggingId, setDraggingId] = useState<string | null>(null); // Track which item is being dragged
+    const [justDroppedId, setJustDroppedId] = useState<string | null>(null); // Track recently dropped item for bounce animation
 
     useEffect(() => {
         // Reset Telemetry
@@ -89,8 +91,14 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
 
     const handleDragStart = (e: React.DragEvent, itemId: string, source: 'bank' | string) => {
         setIsSubmitted(false);
+        setDraggingId(itemId);
         e.dataTransfer.setData("itemId", itemId);
         e.dataTransfer.setData("source", source);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragEnd = () => {
+        setDraggingId(null);
     };
 
     const handleDrop = (e: React.DragEvent, targetCategory: string | 'bank') => {
@@ -138,6 +146,12 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
 
         setBankItems(newBank);
         setBuckets(newBuckets);
+
+        // Trigger bounce animation for dropped item
+        if (item) {
+            setJustDroppedId(item.id);
+            setTimeout(() => setJustDroppedId(null), 400);
+        }
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -217,17 +231,31 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                         role="listitem"
                         draggable={!isSubmitted}
                         onDragStart={(e) => handleDragStart(e, item.id, 'bank')}
+                        onDragEnd={handleDragEnd}
                         tabIndex={isSubmitted ? -1 : 0}
                         aria-label={`פריט: ${item.text}`}
-                        className="px-4 py-2 min-h-[44px] flex items-center bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-wizdi-cyan hover:shadow-md select-none transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+                        className={`px-4 py-2.5 min-h-[48px] flex items-center bg-white dark:bg-slate-700 border-2 border-gray-200 dark:border-slate-600 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
+                            ${draggingId === item.id
+                                ? 'shadow-xl scale-105 rotate-2 border-indigo-400 opacity-90 z-10'
+                                : justDroppedId === item.id
+                                    ? 'animate-bounce-land shadow-lg'
+                                    : 'shadow-md hover:shadow-lg hover:border-indigo-400 hover:-translate-y-0.5 hover:scale-[1.02]'
+                            }
+                        `}
                     >
-                        <span className="text-gray-700 dark:text-slate-200">{item.text}</span>
+                        <span className="text-gray-700 dark:text-slate-200 font-medium">{item.text}</span>
                     </div>
                 ))}
             </div>
 
-            {/* Buckets Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {/* Buckets Grid - Dynamic columns based on category count */}
+            <div className={`grid gap-4 mb-8 ${
+                categories.length === 2
+                    ? 'grid-cols-2'
+                    : categories.length === 3
+                        ? 'grid-cols-1 md:grid-cols-3'
+                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+            }`}>
                 {categories.map(category => {
                     const bucketItems = buckets[category] || [];
                     return (
@@ -237,38 +265,50 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                             role="group"
                             aria-labelledby={`category-${category}`}
                         >
-                            <div id={`category-${category}`} className="bg-indigo-600 dark:bg-indigo-700 text-white py-2 px-4 min-h-[44px] flex items-center justify-center rounded-t-xl font-bold text-center shadow-sm">
+                            <div id={`category-${category}`} className="bg-indigo-600 dark:bg-indigo-700 text-white py-3 px-4 min-h-[48px] flex items-center justify-center rounded-t-xl font-bold text-center shadow-md text-sm md:text-base">
                                 {category}
                             </div>
                             <div
-                                className={`flex-1 min-h-[200px] bg-slate-50 dark:bg-slate-800 border-x border-b border-gray-200 dark:border-slate-600 rounded-b-xl p-3 flex flex-col gap-2 transition-colors
-                                    ${!isSubmitted && 'hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30'}
+                                className={`flex-1 min-h-[180px] bg-white dark:bg-slate-800 border-2 border-t-0 border-indigo-200 dark:border-slate-600 rounded-b-xl p-3 flex flex-col gap-2 transition-all shadow-inner
+                                    ${!isSubmitted && 'hover:bg-indigo-50/70 dark:hover:bg-indigo-900/40 hover:border-indigo-300'}
                                 `}
                                 onDrop={(e) => handleDrop(e, category)}
                                 onDragOver={handleDragOver}
                                 role="list"
                                 aria-label={`קטגוריה ${category} - שחרר פריטים כאן`}
                             >
+                                {bucketItems.length === 0 && (
+                                    <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-slate-500 text-sm italic">
+                                        גרור פריטים לכאן
+                                    </div>
+                                )}
                                 {bucketItems.map(item => (
                                     <div
                                         key={item.id}
                                         role="listitem"
                                         draggable={!isSubmitted}
                                         onDragStart={(e) => handleDragStart(e, item.id, category)}
+                                        onDragEnd={handleDragEnd}
                                         tabIndex={isSubmitted ? -1 : 0}
                                         aria-label={`${item.text}${isSubmitted ? (item.category === category ? ', במקום נכון' : ', במקום שגוי') : ''}`}
-                                        className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium shadow-sm border flex justify-between items-center bg-white dark:bg-slate-700 border-gray-100 dark:border-slate-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
+                                        className={`px-3 py-2.5 min-h-[46px] rounded-xl text-sm font-medium border-2 flex justify-between items-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
                                             ${isSubmitted
-                                                ? (item.category === category ? 'border-green-300 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300')
-                                                : 'cursor-grab active:cursor-grabbing text-gray-700 dark:text-slate-200'
+                                                ? (item.category === category
+                                                    ? 'border-green-400 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 shadow-md'
+                                                    : 'border-red-400 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 shadow-md')
+                                                : draggingId === item.id
+                                                    ? 'shadow-xl scale-105 -rotate-2 border-indigo-400 bg-white dark:bg-slate-600 opacity-90 z-10'
+                                                    : justDroppedId === item.id
+                                                        ? 'animate-bounce-land shadow-lg bg-white dark:bg-slate-700 border-indigo-300'
+                                                        : 'cursor-grab active:cursor-grabbing text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 shadow-md hover:shadow-lg hover:border-indigo-400 hover:-translate-y-0.5 hover:scale-[1.02]'
                                             }
                                         `}
                                     >
                                         <span>{item.text}</span>
                                         {isSubmitted && (
                                             item.category === category
-                                                ? <IconCheck className="w-4 h-4 text-green-600 dark:text-green-400" aria-hidden="true" />
-                                                : <IconX className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
+                                                ? <IconCheck className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+                                                : <IconX className="w-5 h-5 text-red-600 dark:text-red-400" aria-hidden="true" />
                                         )}
                                     </div>
                                 ))}

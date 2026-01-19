@@ -29,6 +29,8 @@ interface RichTextEditorProps {
     placeholder?: string;
     /** Minimum height of the editor area */
     minHeight?: string;
+    /** Maximum height of the editor area (enables scrolling) */
+    maxHeight?: string;
     /** Whether to show the toolbar (default: true) */
     showToolbar?: boolean;
     /** Text direction - defaults to 'rtl' for Hebrew */
@@ -257,6 +259,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onChange,
     placeholder = 'התחילו לכתוב...',
     minHeight = '200px',
+    maxHeight,
     showToolbar = true,
     direction = 'rtl',
     disabled = false,
@@ -327,7 +330,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             {showToolbar && <RichTextToolbar editor={editor} />}
             <EditorContent
                 editor={editor}
-                style={{ minHeight }}
+                className={maxHeight ? 'rte-scrollable' : ''}
+                style={{ minHeight, maxHeight }}
             />
         </div>
     );

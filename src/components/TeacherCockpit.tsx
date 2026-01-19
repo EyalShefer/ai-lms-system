@@ -18,8 +18,9 @@ import { downloadLessonPlanPDF } from '../services/pdfExportService';
 import { uploadGeneratedImage } from '../services/storageService';
 import type { TeacherLessonPlan } from '../shared/types/gemini.types';
 import { RichTextEditor } from './RichTextEditor';
-import { sanitizeHtml } from '../utils/sanitize';
+import { sanitizeHtml, formatTeacherContent } from '../utils/sanitize';
 import { TypewriterLoader } from './ui/Loading/TypewriterLoader';
+import { ImageGenerationSkeleton } from './ui/Loading/ImageGenerationSkeleton';
 import { generateHavanaVariant, generateHaamakaVariant } from '../services/adaptiveContentService';
 
 // Interactive Question Components for preview mode
@@ -899,7 +900,7 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                         <TypewriterLoader contentType="activity" isVisible={true} showSpinner={true} />
                     </div>
                 ) : activeInsertIndex === index ? (
-                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 flex flex-wrap gap-3 animate-scale-in items-center justify-center backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl mx-auto" onClick={(e) => e.stopPropagation()}>
+                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 animate-scale-in backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-3xl mx-auto" onClick={(e) => e.stopPropagation()}>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('video', index); }} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
@@ -939,7 +940,8 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                 )}
             </div>
             <style>{`
-                .insert-btn { @apply px-3 py-2 bg-white/50 border border-white/60 rounded-lg text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm flex-col md:flex-row; }
+                .insert-btn { @apply w-20 h-20 p-2 bg-white/50 border border-white/60 rounded-xl text-[10px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm text-center leading-tight; }
+                .insert-btn svg { @apply w-6 h-6 flex-shrink-0; }
             `}</style>
         </div>
     );
@@ -1150,6 +1152,15 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
         // --- MEDIA BLOCKS ---
         if (block.type === 'image') {
             if (!block.content) {
+                // Show skeleton while generating
+                if (loadingBlockId === block.id) {
+                    return (
+                        <ImageGenerationSkeleton
+                            height="h-48"
+                            prompt={mediaInputValue[block.id]}
+                        />
+                    );
+                }
                 return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
                         <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
@@ -1181,6 +1192,15 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
                             )}
                         </button>
                     </div>
+                );
+            }
+            // Show skeleton over existing image while regenerating
+            if (loadingBlockId === block.id) {
+                return (
+                    <ImageGenerationSkeleton
+                        height="h-80"
+                        prompt={mediaInputValue[block.id]}
+                    />
                 );
             }
             return (
@@ -1624,9 +1644,14 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
             return (
                 <div onClick={() => setEditingBlockId(block.id)} className="cursor-pointer hover:ring-2 hover:ring-blue-100 rounded-xl p-2 transition-all -m-2">
                     <h3 className="text-lg font-bold mb-4">שאלה לדיון: <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} /></h3>
-                    <p className="text-sm bg-slate-50 p-4 rounded-lg italic border-r-2 border-slate-300">
-                        {(block.content as any).model_answer || (block.content as any).modelAnswer || "תשובה לדוגמה לא זמינה"}
-                    </p>
+                    <div
+                        className="text-sm bg-slate-50 p-4 rounded-lg border-r-2 border-slate-300 leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                            __html: formatTeacherContent(
+                                (block.content as any).model_answer || (block.content as any).modelAnswer
+                            ) || "תשובה לדוגמה לא זמינה"
+                        }}
+                    />
                 </div>
             )
         }

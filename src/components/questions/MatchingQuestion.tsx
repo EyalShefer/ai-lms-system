@@ -95,14 +95,15 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         const isAllCorrect = correctCount === correctMatches.length && connections.length === correctMatches.length;
 
-        const score = calculateQuestionScore({
-            isCorrect: isAllCorrect,
-            attempts: attemptsRef.current,
-            hintsUsed: hintsUsedRef.current,
-            responseTimeSec: (Date.now() - startTimeRef.current) / 1000
-        });
+        // Only call onComplete when all answers are correct
+        if (isAllCorrect && onComplete) {
+            const score = calculateQuestionScore({
+                isCorrect: true,
+                attempts: attemptsRef.current,
+                hintsUsed: hintsUsedRef.current,
+                responseTimeSec: (Date.now() - startTimeRef.current) / 1000
+            });
 
-        if (onComplete) {
             onComplete(score, {
                 timeSeconds: Math.round((Date.now() - startTimeRef.current) / 1000),
                 attempts: attemptsRef.current,
@@ -325,22 +326,92 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
             {/* Results */}
             {isSubmitted && (
-                <div className="mt-6 text-center animate-fade-in">
+                <div className="mt-6 animate-fade-in">
                     {Object.values(results).every(r => r) && connections.length === correctMatches.length ? (
-                        <span className="text-green-400 flex items-center justify-center gap-2 text-lg font-bold">
-                            <IconCheck className="w-6 h-6" /> כל הכבוד! כל ההתאמות נכונות
-                        </span>
+                        <div className="text-center">
+                            <span className="text-green-400 flex items-center justify-center gap-2 text-lg font-bold">
+                                <IconCheck className="w-6 h-6" /> כל הכבוד! כל ההתאמות נכונות
+                            </span>
+                        </div>
                     ) : (
                         <div className="space-y-4">
-                            <span className="text-red-400 flex items-center justify-center gap-2 text-lg font-bold">
-                                <IconX className="w-6 h-6" /> יש התאמות שגויות
-                            </span>
-                            <button
-                                onClick={resetQuestion}
-                                className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700"
-                            >
-                                נסה שוב
-                            </button>
+                            <div className="text-center">
+                                <span className="text-red-400 flex items-center justify-center gap-2 text-lg font-bold">
+                                    <IconX className="w-6 h-6" /> יש התאמות שגויות
+                                </span>
+                            </div>
+
+                            {/* Detailed feedback for wrong answers */}
+                            <div className="bg-white/10 backdrop-blur rounded-xl p-4 space-y-3">
+                                <p className="text-white/80 text-sm font-medium text-center">בדוק את ההתאמות שלך:</p>
+                                <div className="space-y-2">
+                                    {connections.map((conn) => {
+                                        const leftItem = leftItems.find(i => i.id === conn.leftId);
+                                        const rightItem = rightItems.find(i => i.id === conn.rightId);
+                                        const isCorrect = results[conn.leftId];
+
+                                        return (
+                                            <div
+                                                key={conn.leftId}
+                                                className={`flex items-center justify-between p-3 rounded-lg ${
+                                                    isCorrect
+                                                        ? 'bg-green-500/20 border border-green-400/50'
+                                                        : 'bg-red-500/20 border border-red-400/50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    {isCorrect ? (
+                                                        <IconCheck className="w-5 h-5 text-green-400 flex-shrink-0" />
+                                                    ) : (
+                                                        <IconX className="w-5 h-5 text-red-400 flex-shrink-0" />
+                                                    )}
+                                                    <span className="text-white text-sm">
+                                                        {leftItem?.text} ↔ {rightItem?.text}
+                                                    </span>
+                                                </div>
+                                                {!isCorrect && (
+                                                    <span className="text-red-300 text-xs mr-2">נסה התאמה אחרת</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Encouragement message based on progress */}
+                                <p className="text-white/70 text-sm text-center mt-3">
+                                    {Object.values(results).filter(r => r).length > 0
+                                        ? `יפה! ${Object.values(results).filter(r => r).length} מתוך ${correctMatches.length} התאמות נכונות. נסה לתקן את השאר.`
+                                        : 'קרא שוב את הפריטים ונסה למצוא את הקשרים ביניהם.'
+                                    }
+                                </p>
+                            </div>
+
+                            {/* Hint suggestion after wrong answer */}
+                            {!isExamMode && hints.length > 0 && currentHintLevel < hints.length && (
+                                <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-xl p-4 text-center">
+                                    <p className="text-yellow-200 text-sm mb-2">
+                                        צריך עזרה? יש רמז זמין שיכול לעזור לך.
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            handleShowHint();
+                                            resetQuestion();
+                                        }}
+                                        className="bg-yellow-500 text-white px-6 py-2 rounded-full font-medium hover:bg-yellow-600 transition-colors"
+                                    >
+                                        💡 קבל רמז ונסה שוב
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="text-center">
+                                <button
+                                    onClick={resetQuestion}
+                                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700"
+                                >
+                                    נסה שוב {!isExamMode && hints.length > 0 && currentHintLevel < hints.length ? 'בלי רמז' : ''}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

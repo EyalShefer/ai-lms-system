@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IconSparkles, IconWand, IconX, IconCheck, IconArrowDown } from '../icons';
+import { IconSparkles, IconWand, IconX, IconCheck, IconChevronLeft, IconChevronRight } from '../icons';
 import { refineBlockContent, refineActivityIntroImage } from '../services/ai/geminiApi';
+import { useVersionHistory } from '../hooks/useVersionHistory';
 
 interface AiRefineToolbarProps {
     blockId: string;
@@ -8,139 +9,64 @@ interface AiRefineToolbarProps {
     content: any;
     onUpdate: (newContent: any) => void;
     className?: string;
+    unitId?: string; // Required for version history
 }
 
 /**
  * Generate a smart default prompt suggestion based on block type and content
- * Returns a ready-to-use prompt that requires minimal editing from the teacher
+ * Returns a focused, minimal prompt - favors refinement over expansion
  */
 const generateDefaultPrompt = (blockType: string, content: any): string => {
-    // Extract options count for multiple choice
-    const getOptionsCount = (): number => {
-        if (!content || typeof content === 'string') return 0;
-        return (content.options || []).length;
+    // Check if content exists and has substance
+    const hasContent = (): boolean => {
+        if (!content) return false;
+        if (typeof content === 'string') return content.trim().length > 0;
+        if (content.question) return content.question.trim().length > 0;
+        if (content.text) return content.text.trim().length > 0;
+        if (content.pairs?.length > 0) return true;
+        if (content.items?.length > 0) return true;
+        if (content.correct_order?.length > 0) return true;
+        return false;
     };
 
-    // Extract items count for ordering/categorization
-    const getItemsCount = (): number => {
-        if (!content || typeof content === 'string') return 0;
-        return (content.items || content.pairs || []).length;
-    };
-
-    // Generate ready-to-use suggestions based on block type
-    switch (blockType) {
-        case 'multiple_choice':
-        case 'multipleChoice':
-        case 'multiple-choice': {
-            const count = getOptionsCount();
-            if (count < 4) {
-                return `הוסף עוד ${4 - count} מסיחים שגויים אבל הגיוניים`;
-            }
-            return `הפוך את המסיחים למתוחכמים יותר - שיהיו קרובים לתשובה הנכונה`;
+    // If no content, suggest creation; otherwise suggest refinement
+    if (!hasContent()) {
+        // Empty content - suggest creating
+        switch (blockType) {
+            case 'multiple_choice':
+            case 'multipleChoice':
+            case 'multiple-choice':
+                return `צור שאלת רב-ברירה עם 4 תשובות`;
+            case 'open_question':
+            case 'openQuestion':
+            case 'open-question':
+                return `צור שאלה פתוחה`;
+            case 'matching':
+                return `צור 5 זוגות התאמה`;
+            case 'sorting':
+            case 'ordering':
+                return `צור רצף של 5 שלבים`;
+            case 'fill_blanks':
+            case 'fillBlanks':
+            case 'fill_in_blanks':
+                return `צור משפט עם מילים חסרות`;
+            case 'categorization':
+                return `צור 2 קטגוריות עם פריטים`;
+            case 'memory_game':
+                return `צור 6 זוגות למשחק זיכרון`;
+            case 'true_false_speed':
+                return `צור 5 משפטים לאמת/שקר`;
+            default:
+                return `צור תוכן על הנושא`;
         }
-
-        case 'open_question':
-        case 'openQuestion':
-        case 'open-question':
-            return `הפוך את השאלה למאתגרת יותר והוסף הנחיות ברורות לתשובה`;
-
-        case 'matching': {
-            const count = getItemsCount();
-            if (count < 5) {
-                return `הוסף עוד 2 זוגות להתאמה`;
-            }
-            return `שפר את הניסוח כדי שההתאמה תהיה מאתגרת יותר`;
-        }
-
-        case 'sorting':
-        case 'ordering': {
-            const count = getItemsCount();
-            if (count < 5) {
-                return `הוסף עוד שלבים לרצף`;
-            }
-            return `הוסף הסברים קצרים לכל שלב`;
-        }
-
-        case 'fill_blanks':
-        case 'fillBlanks':
-        case 'fill_in_blanks':
-            return `הוסף רמזים בסוגריים ליד כל מילה חסרה`;
-
-        case 'info':
-        case 'text':
-        case 'content':
-            return `פשט את השפה והוסף דוגמה מחיי היומיום`;
-
-        case 'video':
-            return `הוסף 3 שאלות מנחות לצפייה בסרטון`;
-
-        case 'image':
-            return `הוסף תיאור לתמונה ושאלת התבוננות אחת`;
-
-        case 'activity-intro':
-            return `צור תמונה בסגנון אחר - יותר צבעונית ומזמינה`;
-
-        case 'discussion':
-            return `הוסף 3 שאלות מנחות לדיון`;
-
-        case 'interactive_chat':
-        case 'interactiveChat':
-        case 'interactive-chat':
-            return `הוסף תרחיש נוסף לשיחה`;
-
-        case 'summary':
-            return `הוסף 3 נקודות מפתח לסיכום`;
-
-        case 'categorization': {
-            const count = getItemsCount();
-            if (count < 6) {
-                return `הוסף עוד פריטים לכל קטגוריה`;
-            }
-            return `הוסף קטגוריה נוספת עם פריטים מתאימים`;
-        }
-
-        case 'memory_game': {
-            const count = getItemsCount();
-            if (count < 6) {
-                return `הוסף עוד 3 זוגות למשחק`;
-            }
-            return `שפר את הניסוח של הזוגות כדי שיהיו מאתגרים יותר`;
-        }
-
-        case 'podcast':
-            return `הוסף נקודות מפתח לדיון בסוף הפודקאסט`;
-
-        case 'infographic':
-            return `הוסף עוד נתון אחד לאינפוגרפיקה`;
-
-        // New question types
-        case 'highlight':
-            return `הוסף עוד 2 מילים או ביטויים לסימון`;
-
-        case 'sentence_builder':
-            return `הוסף עוד משפט אחד לבנייה`;
-
-        case 'image_labeling':
-            return `הוסף עוד 2 תוויות לתמונה`;
-
-        case 'table_completion':
-            return `הוסף עוד שורה אחת לטבלה`;
-
-        case 'text_selection':
-            return `הוסף עוד קטע טקסט לבחירה`;
-
-        case 'rating_scale':
-            return `הוסף תיאור לכל רמה בסקאלה`;
-
-        case 'matrix':
-            return `הוסף עוד שורה ועמודה למטריצה`;
-
-        default:
-            return `פשט את השפה והוסף דוגמה`;
     }
+
+    // Content exists - suggest refinement (not expansion!)
+    // Return empty string so the user writes their own specific instruction
+    return '';
 };
 
-export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, blockType, content, onUpdate, className }) => {
+export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, blockType, content, onUpdate, className, unitId }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [instruction, setInstruction] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -150,9 +76,17 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
     // Store user's custom prompt to preserve it across open/close
     const userEditedPromptRef = useRef<string | null>(null);
 
-    // Store content before AI refinement to allow reverting if result is not good
-    const contentBeforeRefineRef = useRef<any>(null);
-    const [canRevert, setCanRevert] = useState(false);
+    // Version history hook - only active when unitId is provided
+    const {
+        saveVersion,
+        goToPrevious,
+        goToNext,
+        canGoBack,
+        canGoForward,
+        currentVersionNumber,
+        totalVersions,
+        hasHistory
+    } = useVersionHistory(unitId || '', blockId, content, onUpdate);
 
     // When opening the panel, set default prompt if user hasn't edited one
     useEffect(() => {
@@ -175,10 +109,6 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
     const handleRefine = async () => {
         if (!instruction.trim()) return;
 
-        // Save the current content BEFORE refinement so user can revert if result is not good
-        contentBeforeRefineRef.current = JSON.parse(JSON.stringify(content));
-        console.log(`💾 Saved content before refinement for block ${blockId}`);
-
         setIsLoading(true);
         setError(null);
 
@@ -197,15 +127,20 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                 refinedContent = await refineBlockContent(blockType, content, instruction);
             }
 
-            // Check if content actually changed (deep compare or just naive check)
+            // Check if content actually changed
             if (JSON.stringify(refinedContent) === JSON.stringify(content)) {
-                // Even if identical, we treat it as success but maybe warn?
-                // Actually, LLM might return same content if instruction was "keep as is".
+                // Content didn't change - show warning to user
+                setError("התוכן לא השתנה. נסה הוראה אחרת או הוסף פרטים נוספים.");
+                return;
+            }
+
+            // Save to version history (if unitId provided)
+            if (unitId) {
+                saveVersion(refinedContent, instruction);
             }
 
             onUpdate(refinedContent);
             setSuccess(true);
-            setCanRevert(true); // Enable revert option after successful refinement
             setTimeout(() => {
                 setSuccess(false);
                 setIsOpen(false);
@@ -215,20 +150,8 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
         } catch (err) {
             console.error("Refine failed", err);
             setError("שגיאה בשיפור התוכן. נסה שוב.");
-            // Clear saved content on error since we didn't change anything
-            contentBeforeRefineRef.current = null;
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    // Revert to content before AI refinement
-    const handleRevert = () => {
-        if (contentBeforeRefineRef.current) {
-            console.log(`↩️ Reverting block ${blockId} to pre-refinement content`);
-            onUpdate(contentBeforeRefineRef.current);
-            contentBeforeRefineRef.current = null;
-            setCanRevert(false);
         }
     };
 
@@ -245,17 +168,39 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                     שפרו עם AI
                 </button>
 
-                {/* Revert button - shows when AI refinement was just applied */}
-                {canRevert && contentBeforeRefineRef.current && (
-                    <button
-                        onClick={handleRevert}
-                        className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all shadow-sm
-                        bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
-                        title="חזרה לגרסה הקודמת"
-                    >
-                        <IconArrowDown className="w-3 h-3 rotate-180" />
-                        בטל שיפור
-                    </button>
+                {/* Version history navigation - shows when there are saved versions */}
+                {hasHistory && totalVersions > 1 && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-1">
+                        <button
+                            onClick={goToPrevious}
+                            disabled={!canGoBack}
+                            className={`p-1 rounded-full transition-colors ${
+                                canGoBack
+                                    ? 'hover:bg-gray-200 text-gray-600'
+                                    : 'text-gray-300 cursor-not-allowed'
+                            }`}
+                            title="גרסה קודמת"
+                        >
+                            <IconChevronRight className="w-3 h-3" />
+                        </button>
+
+                        <span className="font-medium min-w-[32px] text-center text-gray-600">
+                            {currentVersionNumber}/{totalVersions}
+                        </span>
+
+                        <button
+                            onClick={goToNext}
+                            disabled={!canGoForward}
+                            className={`p-1 rounded-full transition-colors ${
+                                canGoForward
+                                    ? 'hover:bg-gray-200 text-gray-600'
+                                    : 'text-gray-300 cursor-not-allowed'
+                            }`}
+                            title="גרסה הבאה"
+                        >
+                            <IconChevronLeft className="w-3 h-3" />
+                        </button>
+                    </div>
                 )}
             </div>
         );
@@ -282,8 +227,8 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                 <textarea
                     value={instruction}
                     onChange={(e) => handleInstructionChange(e.target.value)}
-                    placeholder="למשל: 'הוסיפו עוד 2 מסיחים', 'הפכו את השאלה לקשה יותר', 'תנו דוגמאות מעולם החי'..."
-                    className="w-full min-w-[350px] text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[120px] resize-y bg-white/80"
+                    placeholder="כתבו בשפה חופשית מה לשנות, למשל: 'נסח בטון יותר מקצועי', 'קצר את הטקסט', 'הוסף דוגמה אחת'..."
+                    className="w-full min-w-[350px] text-sm p-3 pr-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 min-h-[100px] resize-y bg-white/80"
                     disabled={isLoading}
                     autoFocus
                     onKeyDown={(e) => {
@@ -293,6 +238,9 @@ export const AiRefineToolbar: React.FC<AiRefineToolbarProps> = ({ blockId, block
                         }
                     }}
                 />
+                <div className="text-[10px] text-gray-400 mt-1">
+                    טיפ: ככל שההוראה ממוקדת יותר, כך התוצאה תהיה קרובה יותר לציפיות
+                </div>
             </div>
 
             {/* Actions / Status */}

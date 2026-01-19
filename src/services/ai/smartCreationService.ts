@@ -3,7 +3,7 @@
  * AI-powered conversation for intelligent content creation
  */
 
-import { callGeminiJSONFast, ChatMessage } from '../ProxyService';
+import { callGeminiJSONFast, type ChatMessage } from '../ProxyService';
 
 // Types
 export interface CollectedData {

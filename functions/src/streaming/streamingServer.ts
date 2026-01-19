@@ -16,7 +16,7 @@ import corsMiddleware from 'cors';
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { GoogleGenAI } from '@google/genai';
-import { getSkeletonPrompt, getStepContentPrompt } from '../ai/prompts';
+import { getSkeletonPrompt, getStepContentPrompt, getLinguisticConstraintsByGrade } from '../ai/prompts';
 
 // ============================================================
 // CONFIGURATION
@@ -811,7 +811,9 @@ app.post('/stream/activity', async (req, res) => {
     sourceText,
     activityLength,
     mode,
-    questionPreferences
+    productType, // activity | lesson | exam - determines content style
+    questionPreferences,
+    contentTone // friendly | professional | playful | neutral
   } = req.body;
 
   if (!topic && !sourceText) {
@@ -850,7 +852,9 @@ app.post('/stream/activity', async (req, res) => {
       gradeLevel,
       sourceText,
       stepCount,
-      mode
+      mode,
+      productType || 'activity', // Pass productType for content style decisions
+      contentTone || 'friendly' // Pass contentTone for writing style
     );
 
     // Use FLASH model for skeleton - it's just structure, not content
@@ -917,7 +921,9 @@ app.post('/stream/activity', async (req, res) => {
         sourceText,
         step,
         mode,
-        questionTypes
+        questionTypes,
+        productType || 'activity', // Pass productType for content style decisions
+        contentTone || 'friendly' // Pass contentTone for writing style
       );
 
       let stepContent = '';
@@ -1017,20 +1023,33 @@ app.post('/stream/activity', async (req, res) => {
 
 /**
  * Build activity skeleton prompt - uses the full prompt from prompts.ts
+ *
+ * @param productType - 'activity' | 'lesson' | 'exam' - determines content style:
+ *   - activity: 100% interactive, minimal text, context_image_prompt required
+ *   - lesson: teach_content + questions, infographics allowed
+ *   - exam: questions only, no hints, no teach_content
  */
 function buildActivitySkeletonPrompt(
   topic: string,
   gradeLevel: string | undefined,
   sourceText: string | undefined,
   stepCount: number,
-  mode: string | undefined
+  mode: string | undefined,
+  productType: string, // activity | lesson | exam
+  contentTone: string = 'friendly' // friendly | professional | playful | neutral
 ): string {
   const contextPart = sourceText
     ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
     : `Topic: "${topic}"`;
 
-  const personalityInstruction = ''; // Can be customized later
-  const productType = mode === 'exam' ? 'exam' : 'learning';
+  // Build tone instruction based on contentTone
+  const toneInstructions: Record<string, string> = {
+    friendly: 'חם, ידידותי ומעודד. פנה ישירות לתלמיד בלשון יחיד. השתמש בשפה פשוטה ונגישה.',
+    professional: 'מקצועי וממוקד. ישיר וללא הקדמות מיותרות. עניני.',
+    playful: 'משחקי וקליל. ניתן להשתמש בהומור קל, להפוך את הלמידה לחוויה מהנה.',
+    neutral: 'ניטרלי וישיר. ללא סגנון מיוחד, פשוט ותכליתי.'
+  };
+  const personalityInstruction = `**WRITING TONE:** ${toneInstructions[contentTone] || toneInstructions.friendly}`;
 
   // Generate bloom steps distribution for variety
   const bloomLevels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate'];
@@ -1050,7 +1069,7 @@ function buildActivitySkeletonPrompt(
     gradeLevel || 'כיתה ה',
     personalityInstruction,
     mode || 'learning',
-    productType,
+    productType, // Pass actual productType instead of deriving from mode
     stepCount,
     bloomSteps,
     structureGuide
@@ -1059,6 +1078,11 @@ function buildActivitySkeletonPrompt(
 
 /**
  * Build step content prompt - uses the full prompt from prompts.ts
+ *
+ * @param productType - 'activity' | 'lesson' | 'exam' - determines content style:
+ *   - activity: NO teach_content, NO infographics, only scenario_image for dilemmas
+ *   - lesson: teach_content required, infographics allowed
+ *   - exam: NO teach_content, NO hints, NO images
  */
 function buildStepContentPrompt(
   topic: string,
@@ -1066,7 +1090,9 @@ function buildStepContentPrompt(
   sourceText: string | undefined,
   stepInfo: any,
   mode: string | undefined,
-  questionTypes: string
+  questionTypes: string,
+  productType: string, // activity | lesson | exam
+  contentTone: string = 'friendly' // friendly | professional | playful | neutral
 ): string {
   const contextText = sourceText
     ? `Source text:\n"""${sourceText.substring(0, 5000)}"""\n\nTopic: ${topic}`
@@ -1076,13 +1102,9 @@ function buildStepContentPrompt(
     ? `**EXAM MODE ACTIVE:** This is an assessment. No teaching content, no hints. Just questions.`
     : '';
 
-  // Linguistic constraints based on grade level
-  const linguisticConstraints = `
-    - Use vocabulary appropriate for ${gradeLevel || 'כיתה ה'}
-    - Sentences should be clear and not too complex
-    - Avoid jargon unless explaining it first
-    - Use active voice when possible
-  `;
+  // Use full linguistic constraints based on grade level (from prompts.ts)
+  // This provides detailed CEFR-aligned language guidelines for each age group
+  const linguisticConstraints = getLinguisticConstraintsByGrade(gradeLevel || 'כיתה ה');
 
   // Use the full prompt from prompts.ts
   return getStepContentPrompt(
@@ -1091,7 +1113,9 @@ function buildStepContentPrompt(
     stepInfo,
     mode || 'learning',
     linguisticConstraints,
-    gradeLevel || 'כיתה ה'
+    gradeLevel || 'כיתה ה',
+    productType, // Pass productType for content style decisions
+    contentTone // Pass contentTone for writing style
   );
 }
 

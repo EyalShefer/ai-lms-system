@@ -110,6 +110,36 @@ const QUESTION_PROFILES: Record<QuestionProfile, {
     }
 };
 
+// === טון/סגנון כתיבה ===
+type ContentTone = 'friendly' | 'professional' | 'playful' | 'neutral';
+
+const CONTENT_TONES: Record<ContentTone, {
+    label: string;
+    description: string;
+    emoji: string;
+}> = {
+    friendly: {
+        label: 'ידידותי',
+        description: 'חם ומעודד, מתאים לרוב התלמידים',
+        emoji: '😊'
+    },
+    professional: {
+        label: 'מקצועי',
+        description: 'עניני וממוקד, ללא הקדמות מיותרות',
+        emoji: '📋'
+    },
+    playful: {
+        label: 'משחקי',
+        description: 'קליל ומהנה, עם הומור קל',
+        emoji: '🎮'
+    },
+    neutral: {
+        label: 'ניטרלי',
+        description: 'פשוט וישיר, ללא סגנון מיוחד',
+        emoji: '📝'
+    }
+};
+
 const ALL_QUESTION_TYPES = [
     // בסיסי
     { id: 'multiple_choice', label: 'בחירה מרובה', category: 'basic' },
@@ -393,6 +423,9 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     // const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
     const [isDifferentiated, setIsDifferentiated] = useState(false);
+
+    // בחירת טון/סגנון כתיבה
+    const [contentTone, setContentTone] = useState<'friendly' | 'professional' | 'playful' | 'neutral'>('friendly');
 
     // הגדרות מתקדמות לסוגי שאלות - נפרד לכל סוג מוצר
     const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -700,6 +733,7 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     // showSourceToStudent,
                     productType: selectedProduct, // Pass the product type!
                     isDifferentiated, // Pass new flag
+                    contentTone, // טון/סגנון הכתיבה
                     // הגדרות מתקדמות לסוגי שאלות
                     questionPreferences: {
                         profile: questionProfile,
@@ -1194,6 +1228,39 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                         )}
                                                     </div>
                                                 )}
+
+                                                {/* === בחירת טון/סגנון כתיבה === */}
+                                                <div className="mt-6 pt-4 border-t border-slate-100">
+                                                    <label className="block text-sm font-bold text-slate-700 mb-3">טון הכתיבה</label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {(Object.entries(CONTENT_TONES) as [ContentTone, typeof CONTENT_TONES['friendly']][]).map(([key, tone]) => (
+                                                            <button
+                                                                key={key}
+                                                                type="button"
+                                                                onClick={() => setContentTone(key)}
+                                                                className={`
+                                                                    p-3 rounded-xl border-2 transition-all text-right flex items-center gap-3
+                                                                    ${contentTone === key
+                                                                        ? 'border-indigo-400 bg-indigo-50 shadow-sm'
+                                                                        : 'border-slate-100 bg-white hover:border-slate-200'}
+                                                                `}
+                                                            >
+                                                                <span className="text-xl">{tone.emoji}</span>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className={`font-bold text-sm ${contentTone === key ? 'text-indigo-700' : 'text-slate-600'}`}>
+                                                                        {tone.label}
+                                                                    </div>
+                                                                    <div className="text-xs text-slate-400 leading-tight">
+                                                                        {tone.description}
+                                                                    </div>
+                                                                </div>
+                                                                {contentTone === key && (
+                                                                    <IconCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+                                                                )}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

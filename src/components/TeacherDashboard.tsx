@@ -15,7 +15,7 @@ import {
     IconBrain, IconX, IconSparkles, IconEdit, IconTrash,
     IconEye, IconSearch, IconLayer, IconBook, IconArrowBack,
     IconLink, IconCheck, IconStudent, IconList,
-    IconArrowUp, IconArrowDown, IconLoader, IconFlag, IconAlertTriangle
+    IconArrowUp, IconArrowDown, IconLoader, IconFlag, IconAlertTriangle, IconCopy
 } from '../icons';
 
 // --- Lazy Load CoursePlayer ---
@@ -260,14 +260,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     // Assignment Modal State
     const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
-    const [assignmentData, setAssignmentData] = useState({
-        courseId: '',
-        courseTitle: '',
-        title: '',
-        dueDate: new Date().toISOString().split('T')[0],
-        dueTime: '23:59',
-        instructions: ''
+    const [assignmentData, setAssignmentData] = useState(() => {
+        const defaultDate = new Date();
+        defaultDate.setDate(defaultDate.getDate() + 3);
+        return {
+            courseId: '',
+            courseTitle: '',
+            title: '',
+            dueDate: defaultDate.toISOString().split('T')[0],
+            dueTime: '23:59',
+            instructions: ''
+        };
     });
+    const [createdAssignmentLink, setCreatedAssignmentLink] = useState<string | null>(null);
 
     // Share Modal State
     const [shareModalCourse, setShareModalCourse] = useState<{ id: string; title: string } | null>(null);
@@ -761,15 +766,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
             });
 
             const link = `${window.location.origin}/?assignmentId=${docRef.id}`;
-            navigator.clipboard.writeText(link);
+            setCreatedAssignmentLink(link);
             setCopiedId(assignmentData.courseId);
-            setAssignmentModalOpen(false);
             setTimeout(() => setCopiedId(null), 2000);
-            alert("קישור משימה הועתק!");
         } catch (e) {
             console.error("Error creating assignment", e);
             alert("שגיאה ביצירת המשימה");
         }
+    };
+
+    const handleCopyCreatedLink = () => {
+        if (createdAssignmentLink) {
+            navigator.clipboard.writeText(createdAssignmentLink);
+        }
+    };
+
+    const handleCloseAssignmentModal = () => {
+        setAssignmentModalOpen(false);
+        setCreatedAssignmentLink(null);
     };
 
     const handleEditClick = (e: React.MouseEvent, courseId: string) => {
@@ -1545,43 +1559,81 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 text-right" dir="rtl">
                             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
                                 <div className="bg-gradient-to-l from-wizdi-royal to-wizdi-cyan p-4 text-white flex justify-between items-center">
-                                    <h3 className="font-bold text-lg flex items-center gap-2"><IconLink className="w-5 h-5" /> יצירת קישור למשימה</h3>
-                                    <button onClick={() => setAssignmentModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full"><IconX className="w-5 h-5" /></button>
+                                    <h3 className="font-bold text-lg flex items-center gap-2"><IconLink className="w-5 h-5" /> {createdAssignmentLink ? 'הקישור מוכן!' : 'יצירת קישור למשימה'}</h3>
+                                    <button onClick={handleCloseAssignmentModal} className="hover:bg-white/20 p-1 rounded-full"><IconX className="w-5 h-5" /></button>
                                 </div>
                                 <div className="p-6 space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-wizdi-royal mb-1">שם המשימה / מבחן</label>
-                                        <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan focus:ring-1 focus:ring-wizdi-cyan outline-none"
-                                            value={assignmentData.title} onChange={e => setAssignmentData({ ...assignmentData, title: e.target.value })}
-                                            placeholder="למשל: סיום פרק ב׳ - חזרה למבחן"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-wizdi-royal mb-1">תאריך הגשה</label>
-                                            <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
-                                                value={assignmentData.dueDate} onChange={e => setAssignmentData({ ...assignmentData, dueDate: e.target.value })}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-wizdi-royal mb-1">שעה</label>
-                                            <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
-                                                value={assignmentData.dueTime} onChange={e => setAssignmentData({ ...assignmentData, dueTime: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-wizdi-royal mb-1">הנחיות לתלמיד (אופציונלי)</label>
-                                        <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none h-20 resize-none"
-                                            value={assignmentData.instructions} onChange={e => setAssignmentData({ ...assignmentData, instructions: e.target.value })}
-                                            placeholder="הנחיות מיוחדות, זמן מומלץ, וכו'..."
-                                        />
-                                    </div>
+                                    {createdAssignmentLink ? (
+                                        <>
+                                            <div className="text-center py-4">
+                                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <IconCheck className="w-8 h-8 text-green-600" />
+                                                </div>
+                                                <p className="text-lg font-bold text-slate-700 mb-2">הקישור נוצר בהצלחה!</p>
+                                                <p className="text-sm text-slate-500">שלחו את הקישור לתלמידים</p>
+                                            </div>
+                                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                                <label className="block text-xs font-bold text-slate-500 mb-2">קישור למשימה:</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value={createdAssignmentLink}
+                                                        className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-600 select-all"
+                                                        onClick={e => (e.target as HTMLInputElement).select()}
+                                                    />
+                                                    <button
+                                                        onClick={handleCopyCreatedLink}
+                                                        className="px-4 py-2 bg-wizdi-royal text-white rounded-lg font-bold hover:bg-wizdi-royal/90 transition-colors flex items-center gap-1 text-sm"
+                                                    >
+                                                        <IconCopy className="w-4 h-4" /> העתק
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleCloseAssignmentModal}
+                                                className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors mt-2"
+                                            >
+                                                סגור
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-bold text-wizdi-royal mb-1">שם המשימה / מבחן</label>
+                                                <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan focus:ring-1 focus:ring-wizdi-cyan outline-none"
+                                                    value={assignmentData.title} onChange={e => setAssignmentData({ ...assignmentData, title: e.target.value })}
+                                                    placeholder="למשל: סיום פרק ב׳ - חזרה למבחן"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-wizdi-royal mb-1">תאריך הגשה</label>
+                                                    <input type="date" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
+                                                        value={assignmentData.dueDate} onChange={e => setAssignmentData({ ...assignmentData, dueDate: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-bold text-wizdi-royal mb-1">שעה</label>
+                                                    <input type="time" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none"
+                                                        value={assignmentData.dueTime} onChange={e => setAssignmentData({ ...assignmentData, dueTime: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-wizdi-royal mb-1">הנחיות לתלמיד (אופציונלי)</label>
+                                                <textarea className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-wizdi-cyan outline-none h-20 resize-none"
+                                                    value={assignmentData.instructions} onChange={e => setAssignmentData({ ...assignmentData, instructions: e.target.value })}
+                                                    placeholder="הנחיות מיוחדות, זמן מומלץ, וכו'..."
+                                                />
+                                            </div>
 
-                                    <button onClick={handleCreateAssignment} className="w-full btn-lip-action py-3 flex justify-center items-center gap-2 mt-2">
-                                        <IconLink className="w-5 h-5" /> צור קישור והעתק
-                                    </button>
-                                    <p className="text-xs text-center text-slate-400">הקישור ישמר בהיסטוריית המשימות של הכיתה</p>
+                                            <button onClick={handleCreateAssignment} className="w-full btn-lip-action py-3 flex justify-center items-center gap-2 mt-2">
+                                                <IconLink className="w-5 h-5" /> צור קישור
+                                            </button>
+                                            <p className="text-xs text-center text-slate-400">הקישור ישמר בהיסטוריית המשימות של הכיתה</p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

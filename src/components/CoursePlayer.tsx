@@ -23,7 +23,7 @@ import { CitationService } from '../services/citationService'; // GROUNDED QA
 
 import QuizBlock from './QuizBlock';
 import type { TelemetryData } from '../shared/types/courseTypes';
-import { sanitizeHtml } from '../utils/sanitize';
+import { sanitizeHtml, formatTeacherContent, sanitizeWithMarkdown } from '../utils/sanitize';
 import InspectorDashboard from './InspectorDashboard'; // Wizdi-Monitor
 import InspectorBadge from './InspectorBadge'; // Wizdi-Monitor
 import { AudioRecorderBlock } from './AudioRecorderBlock';
@@ -1071,22 +1071,27 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
 
             case 'text': {
                 const textContent = typeof block.content === 'string' ? block.content : ((block.content as any)?.teach_content || (block.content as any)?.text || "");
-                // Check if content contains HTML tags
+                // Check if content contains HTML tags (but not markdown asterisks)
                 const containsHtmlTags = /<(div|p|h[1-6]|ul|ol|li|strong|em|span|br|table|tr|td|th)[^>]*>/i.test(textContent);
+                // Check if content has markdown patterns
+                const hasMarkdown = /\*\*[^*]+\*\*|\*[^*]+\*/.test(textContent);
 
-                if (containsHtmlTags) {
+                // If has both HTML and Markdown, use sanitizeWithMarkdown
+                if (containsHtmlTags || hasMarkdown) {
                     return (
                         <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl teacher-lesson-content">
-                            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(textContent) }} />
+                            <div dangerouslySetInnerHTML={{ __html: sanitizeWithMarkdown(textContent) }} />
                         </div>
                     );
                 }
 
+                // Plain text - split by newlines and render as paragraphs (like TeacherCockpit)
                 return (
                     <div key={block.id} className="prose max-w-none text-gray-800 mb-8 glass bg-white/70 p-6 rounded-2xl">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {textContent}
-                        </ReactMarkdown>
+                        {textContent.split('\n').map((line: string, i: number) => {
+                            if (line.startsWith('#')) return null;
+                            return <p key={i} className="mb-2">{line}</p>;
+                        })}
                     </div>
                 );
             }
@@ -1410,7 +1415,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                     <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1">
                                         <IconInfo className="w-3 h-3" /> הנחיות למורה / תשובה מצופה:
                                     </div>
-                                    <div className="text-sm text-yellow-900 leading-relaxed whitespace-pre-wrap">{block.metadata.modelAnswer}</div>
+                                    <div
+                                        className="text-sm text-yellow-900 leading-relaxed"
+                                        dangerouslySetInnerHTML={{ __html: formatTeacherContent(block.metadata.modelAnswer) }}
+                                    />
                                 </div>
                             )
                         }
@@ -1504,7 +1512,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         )}
                         <h4 className="font-bold mb-3 text-lg flex items-center gap-2">
-                            <span className="bg-blue-100 text-blue-800 text-xs font-black px-2 py-1 rounded-full">שאלה פתוחה</span>
+                            <span className="bg-purple-100 text-purple-800 text-xs font-black px-2 py-1 rounded-full">סידור לפי קטגוריות</span>
                             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
                         </h4>
                         {catMedia && (
@@ -1823,7 +1831,15 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 </header>
 
                                 <div className="space-y-6">
-                                    {activeUnit.activityBlocks?.map(renderBlock)}
+                                    {activeUnit.activityBlocks?.map((block, index) => (
+                                        <div
+                                            key={`block-wrapper-${block.id}`}
+                                            className="animate-fade-in-up"
+                                            style={{ animationDelay: `${index * 0.15}s`, opacity: 0 }}
+                                        >
+                                            {renderBlock(block)}
+                                        </div>
+                                    ))}
                                 </div>
 
                                 <div className="mt-16 flex justify-center">

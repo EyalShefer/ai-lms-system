@@ -56,6 +56,12 @@ export interface CategorizationContent {
     items: { text: string; category: string }[];
 }
 
+export interface MemoryGameContent {
+    pairs: { card_a: string; card_b: string }[];
+    cardBackEmoji?: string;  // Emoji to show on card back (e.g., "🧠", "🏃")
+    cardBackImage?: string;  // Image URL to show on card back
+}
+
 export interface DragAndDropContent {
     instruction: string;
     zones: { id: string; label: string; color?: string }[];
@@ -318,8 +324,13 @@ export interface MediaBlock extends ActivityBlockBase {
 
 // Complex / Legacy Blocks
 export interface GenericBlock extends ActivityBlockBase {
-    type: 'interactive-chat' | 'memory_game' | 'fill_in_blanks' | 'true_false_speed';
+    type: 'interactive-chat' | 'fill_in_blanks' | 'true_false_speed';
     content: any;
+}
+
+export interface MemoryGameBlock extends ActivityBlockBase {
+    type: 'memory_game';
+    content: MemoryGameContent;
 }
 
 
@@ -409,6 +420,7 @@ export type ActivityBlock =
     | CategorizationBlock
     | MediaBlock
     | GenericBlock
+    | MemoryGameBlock
     | PodcastBlock
     | AudioResponseBlock
     | MindMapBlock

@@ -9,11 +9,13 @@ export interface RawAiItem {
     // Top-level variations
     type?: string;
     selected_interaction?: string;
+    suggested_interaction_type?: string; // New AI format uses this at top level
     bloom_level?: string;
 
     // Nesting wrappers
     data?: RawAiItem | any; // Sometimes nested as { data: { ... } }
     interactive_question?: RawAiItem;
+    interaction?: RawAiItem | any; // New format: { interaction: { type: "...", ...data } }
 
     // Question Text Variations
     question?: string | { text: string };

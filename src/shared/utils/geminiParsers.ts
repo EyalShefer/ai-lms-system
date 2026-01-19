@@ -50,14 +50,40 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     console.log("🎮 mapSystemItemToBlock - Input:", JSON.stringify(item, null, 2));
 
     // 1. ROBUST DATA NORMALIZATION
-    // Handle different AI nesting styles (Direct object vs 'data' wrapper vs 'interactive_question' wrapper)
-    // Sometimes AI returns data: { data: { ... } }
-    // We use 'as RawAiItem' because the nesting can be recursive and unpredictable, but we know it conforms to the partial shape
-    const rawData: RawAiItem = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
+    // Handle different AI nesting styles:
+    // - Direct object
+    // - 'data' wrapper: { data: { ... } }
+    // - 'interactive_question' wrapper
+    // - NEW: 'interaction' wrapper: { interaction: { type: "...", ...data } }
 
-    // Extract Type - normalize underscores and hyphens
-    // Keep as string for loose matching against AI outputs (which might use underscores)
-    let typeString = item.selected_interaction || item.type || rawData.type || 'multiple_choice';
+    // First, check if there's a nested 'interaction' object (new AI format)
+    // AI sometimes returns 'interaction' instead of 'data' for the question content
+    const interactionObj = item.interaction || (item.data as any)?.interaction;
+
+    // If we have an interaction object, use it as the primary data source
+    let rawData: RawAiItem;
+    if (interactionObj && typeof interactionObj === 'object') {
+        // New format: { stepNumber, title, interaction: { type, pairs/options/etc } }
+        // Merge the interaction data with top-level metadata AND item.data (for hints etc)
+        const dataObj = item.data && typeof item.data === 'object' ? item.data : {};
+        rawData = { ...item, ...dataObj, ...interactionObj } as RawAiItem;
+        console.log("🎮 Found nested interaction object, merging data. Keys:", Object.keys(rawData));
+    } else {
+        // Old format: direct data or wrapped in 'data'/'interactive_question'
+        rawData = (item.data?.data || item.data || item.interactive_question || item) as RawAiItem;
+        console.log("🎮 Using standard data path. Keys:", Object.keys(rawData));
+    }
+
+    // Extract Type - check multiple sources including the new 'interaction' object
+    // Priority: interaction.type > suggested_interaction_type > selected_interaction > item.type > rawData.type
+    let typeString =
+        interactionObj?.type ||
+        item.suggested_interaction_type ||
+        item.selected_interaction ||
+        item.type ||
+        rawData.type ||
+        'multiple_choice';
+
     // Normalize: convert hyphens to underscores for consistent matching
     typeString = typeString.replace(/-/g, '_');
 
@@ -608,10 +634,39 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     // === CASE: FILL IN BLANKS (השלמת משפטים) ===
     if (typeString === 'fill_in_blank' || typeString === 'fill_in_blanks' || typeString === 'fill_blank' || typeString === 'cloze') {
         console.log("🎮 Handling as FILL IN BLANKS");
+
+        // Handle multiple AI response formats:
+        // Format 1: { sentences: [{text, answer}, ...], bank: [...] }
+        // Format 2: { text: "sentence with [blanks]" } - ClozeQuestion component parses brackets
+        // Format 3: questionText contains the cloze sentence directly
+
         const sentences = rawData.sentences || [];
         const bank = rawData.bank || rawData.word_bank || [];
 
-        // Build the fill-in-blank content
+        // If AI returned a single text field (Format 2), use ClozeQuestion's built-in parsing
+        // ClozeQuestion can handle text with [brackets] for blanks, e.g., "The [Sun] is a [star]"
+        const directText = rawData.text || rawData.sentence || rawData.content;
+
+        if (directText && sentences.length === 0) {
+            // AI returned a single text string - let ClozeQuestion handle bracket parsing
+            console.log("🎮 FILL IN BLANKS: Using direct text format:", directText.substring(0, 50) + "...");
+            return {
+                id: uuidv4(),
+                type: 'fill_in_blanks' as ActivityBlockType,
+                content: {
+                    text: directText, // ClozeQuestion will parse [brackets] from this
+                    hidden_words: bank, // Word bank as hidden_words fallback
+                    distractors: []
+                },
+                metadata: {
+                    ...commonMetadata,
+                    score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel),
+                    wordBank: bank // Backup for ClozeQuestion's fallback logic
+                }
+            };
+        }
+
+        // Build the fill-in-blank content from sentences array (Format 1)
         const blanks: { sentence: string; answer: string }[] = sentences.map((s: any) => ({
             sentence: s.text || s.sentence || "",
             answer: s.answer || s.correct || ""

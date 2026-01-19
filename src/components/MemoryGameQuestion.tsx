@@ -27,10 +27,14 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
             card_a: p.card_a || p.front || '?',
             card_b: p.card_b || p.back || '?'
         }));
-        return { pairs: processedPairs };
+        return {
+            pairs: processedPairs,
+            cardBackEmoji: rawContent.cardBackEmoji || rawContent.card_back_emoji,
+            cardBackImage: rawContent.cardBackImage || rawContent.card_back_image
+        };
     }, [block.content]);
 
-    const { pairs = [] } = content || {};
+    const { pairs = [], cardBackEmoji, cardBackImage } = content || {};
 
     const [cards, setCards] = useState<Card[]>([]);
     const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
@@ -135,8 +139,8 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
 
     return (
         <div className="w-full mx-auto" role="region" aria-labelledby="memory-title">
-            <h3 id="memory-title" className="text-3xl font-black mb-4 text-white dark:text-white text-center drop-shadow-sm">תרגול זיכרון</h3>
-            <div className="text-white/80 dark:text-white/70 mb-6 text-sm flex justify-between px-4">
+            <h3 id="memory-title" className="text-3xl font-black mb-4 text-indigo-800 dark:text-white text-center">תרגול זיכרון</h3>
+            <div className="text-gray-600 dark:text-white/70 mb-6 text-sm flex justify-between px-4">
                 <span>מצא את הזוגות התואמים</span>
                 <span className="sr-only">לחץ על קלף כדי להפוך אותו. מצא זוגות תואמים.</span>
             </div>
@@ -163,22 +167,32 @@ const MemoryGameQuestion: React.FC<MemoryGameQuestionProps> = ({ block, onComple
                         >
                             {/* Card Back (Face Down) */}
                             <div
-                                className="absolute inset-0 w-full h-full bg-indigo-600 dark:bg-indigo-700 rounded-xl flex items-center justify-center shadow-inner"
+                                className="absolute inset-0 w-full h-full bg-indigo-600 dark:bg-indigo-700 rounded-xl flex items-center justify-center shadow-inner overflow-hidden"
                                 style={{ backfaceVisibility: 'hidden' }}
                                 aria-hidden="true"
                             >
-                                <div className="text-white text-4xl opacity-20 font-bold select-none">?</div>
+                                {cardBackImage ? (
+                                    <img
+                                        src={cardBackImage}
+                                        alt=""
+                                        className="w-full h-full object-cover opacity-40"
+                                    />
+                                ) : cardBackEmoji ? (
+                                    <div className="text-5xl select-none opacity-80">{cardBackEmoji}</div>
+                                ) : (
+                                    <div className="text-white text-4xl opacity-20 font-bold select-none">?</div>
+                                )}
                             </div>
 
                             {/* Card Front (Face Up) */}
                             <div
-                                className="absolute inset-0 w-full h-full bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center p-4 text-center border-2 border-indigo-100 dark:border-indigo-500/30"
+                                className="absolute inset-0 w-full h-full bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center p-3 text-center border-2 border-indigo-100 dark:border-indigo-500/30"
                                 style={{
                                     backfaceVisibility: 'hidden',
                                     transform: 'rotateY(180deg)'
                                 }}
                             >
-                                <span className={`font-bold text-gray-800 dark:text-slate-100 ${card.content.length > 20 ? 'text-xs' : 'text-sm'} select-none`}>
+                                <span className="font-bold text-gray-800 dark:text-slate-100 text-base leading-tight break-words hyphens-auto select-none max-w-full overflow-hidden">
                                     {card.content}
                                 </span>
                                 {card.isMatched && (

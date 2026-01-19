@@ -55,6 +55,8 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     const [isSubmitted, setIsSubmitted] = useState(false);
     const draggingItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
+    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     // ✨ NEW: Hint state
     const [currentHintLevel, setCurrentHintLevel] = useState(0);
@@ -77,30 +79,46 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
 
     const handleDragStart = (e: React.DragEvent, position: number) => {
         draggingItem.current = position;
+        setDraggingIndex(position);
         e.dataTransfer.effectAllowed = "move";
-        // Ghost image styling workaround if needed, but default is usually fine
+
+        // Make the drag ghost semi-transparent
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '0.5';
+        }
     };
 
     const handleDragEnter = (_: React.DragEvent, position: number) => {
         dragOverItem.current = position;
-
-        // Optional: Pre-swap visual feedback could go here, but keeping it simple for now
+        setDragOverIndex(position);
     };
 
-    const handleDragEnd = () => {
-        const dragIndex = draggingItem.current;
-        const dragOverIndex = dragOverItem.current;
+    const handleDragLeave = () => {
+        // Only clear if we're leaving the list area entirely
+        // The state will be updated by the next dragEnter
+    };
 
-        if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex && !isSubmitted) {
+    const handleDragEnd = (e: React.DragEvent) => {
+        // Restore opacity
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '1';
+        }
+
+        const dragIndex = draggingItem.current;
+        const targetIndex = dragOverItem.current;
+
+        if (dragIndex !== null && targetIndex !== null && dragIndex !== targetIndex && !isSubmitted) {
             const newItems = [...items];
             const draggedItemContent = newItems[dragIndex];
             newItems.splice(dragIndex, 1);
-            newItems.splice(dragOverIndex, 0, draggedItemContent);
+            newItems.splice(targetIndex, 0, draggedItemContent);
             setItems(newItems);
         }
 
         draggingItem.current = null;
         dragOverItem.current = null;
+        setDraggingIndex(null);
+        setDragOverIndex(null);
     };
 
     const checkOrder = () => {
@@ -146,8 +164,8 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
 
     return (
         <div className="w-full mx-auto" role="region" aria-labelledby="ordering-title">
-            <h3 id="ordering-title" className="text-3xl font-black mb-4 text-white dark:text-white text-center drop-shadow-sm">סידור לפי סדר</h3>
-            <p className="text-lg text-white/90 mb-8 text-center font-medium" id="ordering-instruction">{instruction}</p>
+            <h3 id="ordering-title" className="text-3xl font-black mb-4 text-indigo-800 dark:text-white text-center">סידור לפי סדר</h3>
+            <p className="text-lg text-gray-600 dark:text-white/90 mb-8 text-center font-medium" id="ordering-instruction">{instruction}</p>
 
             <div
                 className="space-y-3 mb-8"
@@ -157,6 +175,8 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
             >
                 {items.map((item, index) => {
                     const isCorrectPosition = items[index] === correct_order[index];
+                    const isDragging = draggingIndex === index;
+                    const isDragOver = dragOverIndex === index && draggingIndex !== null && draggingIndex !== index;
 
                     return (
                         <div
@@ -164,6 +184,7 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                             draggable={!isSubmitted}
                             onDragStart={(e) => handleDragStart(e, index)}
                             onDragEnter={(e) => handleDragEnter(e, index)}
+                            onDragLeave={handleDragLeave}
                             onDragEnd={handleDragEnd}
                             onDragOver={(e) => e.preventDefault()}
                             role="listitem"
@@ -184,12 +205,22 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                                     setItems(newItems);
                                 }
                             }}
-                            className={`p-4 min-h-[44px] bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-xl shadow-sm flex items-center gap-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
-                                ${isSubmitted
-                                    ? (isCorrectPosition ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : 'border-red-300 bg-red-50 dark:bg-red-900/30')
-                                    : 'cursor-grab active:cursor-grabbing hover:border-wizdi-action hover:shadow-md'
+                            className={`p-4 min-h-[56px] bg-white dark:bg-slate-700 border-2 rounded-xl shadow-sm flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2
+                                ${isDragging
+                                    ? 'opacity-50 border-dashed border-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                                    : isDragOver
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.02] shadow-lg'
+                                        : isSubmitted
+                                            ? (isCorrectPosition ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : 'border-red-300 bg-red-50 dark:bg-red-900/30')
+                                            : 'border-gray-200 dark:border-slate-600 cursor-grab active:cursor-grabbing hover:border-wizdi-action hover:shadow-md'
                                 }
+                                transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out
                             `}
+                            style={{
+                                // Prevent layout shift by keeping items in place during drag
+                                transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+                                willChange: draggingIndex !== null ? 'transform' : 'auto'
+                            }}
                         >
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
                                 ${isSubmitted

@@ -266,3 +266,153 @@ export const generateContextImageBlock = async (
 
     return null;
 };
+
+/**
+ * Processes suggested_media from AI-generated steps and creates media blocks
+ * This should be called after content generation to add scenario images/infographics
+ *
+ * @param steps - Array of AI-generated steps with suggested_media field
+ * @param topic - The activity topic
+ * @param onProgress - Progress callback
+ * @returns Array of media blocks to insert
+ */
+export const processSuggestedMedia = async (
+    steps: Array<{
+        step_number: number;
+        suggested_media?: {
+            needed: boolean;
+            type?: 'scenario_image' | 'infographic';
+            infographic_type?: 'flowchart' | 'timeline' | 'comparison' | 'cycle';
+            prompt_hint?: string;
+        };
+        teach_content?: string;
+    }>,
+    topic: string,
+    onProgress?: MediaProgressCallback
+): Promise<Map<number, ActivityBlock>> => {
+    const mediaBlocks = new Map<number, ActivityBlock>();
+
+    // Filter steps that need SCENARIO IMAGES only
+    // IMPORTANT: Infographics are for LESSON PLANS, not student activities
+    // Student activities should only have scenario images (dilemmas, real-world situations)
+    const stepsNeedingMedia = steps.filter(s =>
+        s.suggested_media?.needed &&
+        s.suggested_media?.type === 'scenario_image'  // Exclude infographics
+    );
+
+    if (stepsNeedingMedia.length === 0) {
+        console.log('📷 [SuggestedMedia] No steps need scenario images');
+        return mediaBlocks;
+    }
+
+    // Limit to 2 scenario images (budget constraint)
+    const stepsToProcess = stepsNeedingMedia.slice(0, 2);
+    console.log(`📷 [SuggestedMedia] Processing ${stepsToProcess.length} media requests`);
+
+    let current = 0;
+    const total = stepsToProcess.length;
+
+    for (const step of stepsToProcess) {
+        const media = step.suggested_media!;
+        current++;
+        onProgress?.(`יוצר מדיה לצעד ${step.step_number}...`, current, total);
+
+        try {
+            if (media.type === 'scenario_image') {
+                // Generate scenario image
+                const prompt = media.prompt_hint
+                    ? `Create an educational illustration: ${media.prompt_hint}.
+                       Style: Semi-realistic, warm colors.
+                       CRITICAL: NO TEXT AT ALL in the image.`
+                    : `Create an educational problem-solving scenario image related to "${topic}".
+                       Show a moment that requires student decision-making.
+                       Style: Semi-realistic, warm colors.
+                       CRITICAL: NO TEXT AT ALL in the image.`;
+
+                console.log(`🖼️ [SuggestedMedia] Generating scenario image for step ${step.step_number}`);
+                const imageUrl = await generateAndUploadImage(prompt, 'ai-image');
+
+                if (imageUrl) {
+                    const scenarioBlock: ActivityBlock = {
+                        id: uuidv4(),
+                        type: 'scenario-image',
+                        content: {
+                            imageUrl,
+                            caption: 'התבונן בתמונה ובחר את התשובה הנכונה',
+                            imagePrompt: prompt,
+                            relatedBlockId: `step-${step.step_number}`
+                        } as ScenarioImageContent
+                    };
+                    mediaBlocks.set(step.step_number, scenarioBlock);
+                    console.log(`✅ [SuggestedMedia] Scenario image ready for step ${step.step_number}`);
+                }
+            } else if (media.type === 'infographic') {
+                // Generate infographic using the infographic service
+                const infographicPrompt = buildInfographicPrompt(
+                    step.teach_content || topic,
+                    media.infographic_type || 'flowchart',
+                    media.prompt_hint
+                );
+
+                console.log(`📊 [SuggestedMedia] Generating ${media.infographic_type} infographic for step ${step.step_number}`);
+                const imageUrl = await generateAndUploadImage(infographicPrompt, 'infographic');
+
+                if (imageUrl) {
+                    const infographicBlock: ActivityBlock = {
+                        id: uuidv4(),
+                        type: 'scenario-image', // Use same type for rendering
+                        content: {
+                            imageUrl,
+                            caption: getInfographicCaption(media.infographic_type),
+                            imagePrompt: infographicPrompt,
+                            relatedBlockId: `step-${step.step_number}`
+                        } as ScenarioImageContent
+                    };
+                    mediaBlocks.set(step.step_number, infographicBlock);
+                    console.log(`✅ [SuggestedMedia] Infographic ready for step ${step.step_number}`);
+                }
+            }
+        } catch (error) {
+            console.warn(`⚠️ [SuggestedMedia] Failed to generate media for step ${step.step_number}:`, error);
+            // Continue without this media
+        }
+    }
+
+    return mediaBlocks;
+};
+
+/**
+ * Builds an infographic generation prompt based on type
+ */
+const buildInfographicPrompt = (
+    content: string,
+    type: 'flowchart' | 'timeline' | 'comparison' | 'cycle',
+    promptHint?: string
+): string => {
+    const typeInstructions: Record<string, string> = {
+        flowchart: 'Create a clean flowchart diagram showing the process steps with arrows connecting them.',
+        timeline: 'Create a horizontal timeline showing events/stages in chronological order.',
+        comparison: 'Create a side-by-side comparison diagram with clear visual differences.',
+        cycle: 'Create a circular diagram showing a recurring process with arrows indicating flow.'
+    };
+
+    return `Create an educational infographic in Hebrew.
+${typeInstructions[type]}
+Content to visualize: ${promptHint || content.substring(0, 500)}
+Style: Clean, professional, educational. Use warm colors.
+CRITICAL: Include Hebrew text labels. Make it easy to read.
+Age-appropriate for students.`;
+};
+
+/**
+ * Gets caption for infographic based on type
+ */
+const getInfographicCaption = (type?: string): string => {
+    const captions: Record<string, string> = {
+        flowchart: 'תרשים זרימה של התהליך',
+        timeline: 'ציר זמן של האירועים',
+        comparison: 'השוואה בין המושגים',
+        cycle: 'מחזור התהליך'
+    };
+    return captions[type || 'flowchart'] || 'תרשים להמחשה';
+};

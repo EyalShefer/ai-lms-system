@@ -742,6 +742,35 @@ export const refineBlockContent = async (_blockType: string, content: any, instr
             return content;
         }
 
+        // Validate that arrays are not empty when they should have content
+        const validateArraysNotEmpty = (obj: any, blockType: string): boolean => {
+            switch (blockType) {
+                case 'true_false_speed':
+                    return obj.statements && obj.statements.length > 0;
+                case 'memory_game':
+                    return obj.pairs && obj.pairs.length > 0;
+                case 'categorization':
+                    return obj.items && obj.items.length > 0 && obj.categories && obj.categories.length > 0;
+                case 'ordering':
+                    return obj.correct_order && obj.correct_order.length > 0;
+                case 'matching':
+                    return (obj.pairs && obj.pairs.length > 0) ||
+                           (obj.leftItems && obj.leftItems.length > 0) ||
+                           (obj.correctMatches && obj.correctMatches.length > 0);
+                case 'multiple_choice':
+                case 'multipleChoice':
+                case 'multiple-choice':
+                    return obj.options && obj.options.length > 0;
+                default:
+                    return true; // For other types, no specific validation
+            }
+        };
+
+        if (!validateArraysNotEmpty(parsed, _blockType)) {
+            console.warn(`⚠️ AI returned empty arrays for ${_blockType}, keeping original content`);
+            return content;
+        }
+
         // If original was string, extract the text back from the response
         if (isStringContent && _blockType === 'text') {
             // Try to extract text from various possible response formats

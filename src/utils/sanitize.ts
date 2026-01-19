@@ -226,6 +226,140 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/**
+ * Convert Markdown formatting to HTML
+ * Handles bold (**text**), italic (*text*), and line breaks
+ *
+ * @param text - Text with markdown formatting
+ * @returns HTML string with proper formatting tags
+ */
+export function markdownToHtml(text: string | undefined | null): string {
+  if (!text) return '';
+
+  let formatted = text;
+
+  // 1. Convert bold markdown (**text**) to <strong>
+  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // 2. Convert italic markdown (*text*) to <em> - but not if it's a bullet point
+  // Only match *text* that has content and is not at the start of a line (bullet)
+  formatted = formatted.replace(/(?<!\n|^)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // 3. Convert bullet points (* at start of line) to proper list items
+  // First, identify if we have bullet points
+  if (/(?:^|\n)\s*\*\s+/.test(formatted)) {
+    // Replace bullet point lines with list items
+    formatted = formatted.replace(/(?:^|\n)\s*\*\s+([^\n]+)/g, '\n<li>$1</li>');
+    // Wrap consecutive <li> items in <ul>
+    formatted = formatted.replace(/(<li>[\s\S]*?<\/li>)+/g, '<ul dir="rtl">$&</ul>');
+  }
+
+  // 4. Normalize arrows for consistent display
+  formatted = formatted.replace(/->/g, '→');
+  formatted = formatted.replace(/<-/g, '←');
+
+  // 5. Convert double newlines to paragraph breaks
+  formatted = formatted.replace(/\n{2,}/g, '</p><p>');
+
+  // 6. Convert single newlines to line breaks (except inside lists)
+  formatted = formatted.replace(/(?<!<\/li>)\n(?!<)/g, '<br>');
+
+  // 7. Wrap in paragraph if not already wrapped
+  if (!formatted.startsWith('<p>') && !formatted.startsWith('<ul')) {
+    formatted = '<p>' + formatted + '</p>';
+  }
+
+  // 8. Clean up empty paragraphs and extra breaks
+  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+  formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  formatted = formatted.replace(/^<br>|<br>$/g, '');
+
+  return formatted;
+}
+
+/**
+ * Sanitize HTML with Markdown conversion
+ * First converts any Markdown syntax to HTML, then sanitizes the result
+ *
+ * @param dirty - HTML or Markdown string
+ * @returns Sanitized HTML string
+ */
+export function sanitizeWithMarkdown(dirty: string | undefined | null): string {
+  if (!dirty) return '';
+
+  // Check if content has markdown patterns (asterisks for bold/italic)
+  const hasMarkdown = /\*\*[^*]+\*\*|\*[^*]+\*/.test(dirty);
+
+  if (hasMarkdown) {
+    const converted = markdownToHtml(dirty);
+    return sanitizeHtml(converted);
+  }
+
+  return sanitizeHtml(dirty);
+}
+
+/**
+ * Format teacher content (model_answer, teacher_notes) for clean display
+ *
+ * Transforms raw AI-generated text with asterisks and messy formatting
+ * into clean, structured HTML suitable for display.
+ *
+ * @param text - Raw text that may contain asterisks, arrows, etc.
+ * @returns Formatted HTML string
+ *
+ * @example
+ * Input: "* תיאור התהליך: מים -> אדים * הסיבה: חום"
+ * Output: "<strong>תיאור התהליך:</strong> מים → אדים<br><br><strong>הסיבה:</strong> חום"
+ */
+export function formatTeacherContent(text: string | undefined | null): string {
+  if (!text) return '';
+
+  // 0. First, strip ALL existing HTML tags to get plain text
+  // This handles cases where AI sends content with HTML like <p style="...">
+  let formatted = sanitizeToText(text);
+
+  // 1. Remove asterisks used as bullet points (* at start of line or after newline)
+  formatted = formatted.replace(/(?:^|\n)\s*\*\s*/g, '\n');
+
+  // 2. Remove asterisks used for bold (**text** or *text*)
+  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '$1');
+  formatted = formatted.replace(/\*([^*]+)\*/g, '$1');
+
+  // 3. Identify and bold section headers (Hebrew text followed by colon)
+  // Matches patterns like "תיאור התהליך:" or "הסיבה להמשך השימוש:"
+  formatted = formatted.replace(
+    /(?:^|\n)([א-ת\s]{2,30}:)/g,
+    '\n<strong>$1</strong>'
+  );
+
+  // 4. Normalize arrows for consistent display
+  formatted = formatted.replace(/->/g, '→');
+  formatted = formatted.replace(/<-/g, '←');
+
+  // 5. Convert newlines to HTML breaks
+  formatted = formatted.replace(/\n{2,}/g, '<br><br>'); // Double newline = paragraph break
+  formatted = formatted.replace(/\n/g, '<br>'); // Single newline = line break
+
+  // 6. Clean up extra whitespace
+  formatted = formatted.replace(/^\s+|\s+$/g, ''); // Trim
+  formatted = formatted.replace(/<br>\s*<br>\s*<br>/g, '<br><br>'); // Max 2 breaks
+  formatted = formatted.replace(/^<br>|<br>$/g, ''); // Remove leading/trailing breaks
+
+  // 7. Sanitize the result for safety
+  return sanitizeHtml(formatted);
+}
+
+/**
+ * Format teacher content and wrap in a styled container
+ * Returns HTML with proper RTL styling for Hebrew content
+ */
+export function formatTeacherContentStyled(text: string | undefined | null): string {
+  const content = formatTeacherContent(text);
+  if (!content) return '';
+
+  return `<div dir="rtl" style="text-align: right; line-height: 1.8;">${content}</div>`;
+}
+
 export default {
   sanitizeHtml,
   sanitizeStrictHtml,
@@ -233,4 +367,8 @@ export default {
   sanitizeMathHtml,
   isSafeUrl,
   sanitizeUrl,
+  formatTeacherContent,
+  formatTeacherContentStyled,
+  markdownToHtml,
+  sanitizeWithMarkdown,
 };

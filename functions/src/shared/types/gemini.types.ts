@@ -9,11 +9,13 @@ export interface RawAiItem {
     // Top-level variations
     type?: string;
     selected_interaction?: string;
+    suggested_interaction_type?: string; // New AI format uses this at top level
     bloom_level?: string;
 
     // Nesting wrappers
     data?: RawAiItem | any; // Sometimes nested as { data: { ... } }
     interactive_question?: RawAiItem;
+    interaction?: RawAiItem | any; // New format: { interaction: { type: "...", ...data } }
 
     // Question Text Variations
     question?: string | { text: string };
@@ -57,6 +59,9 @@ export interface RawAiItem {
 
     // Fill in Blanks
     word_bank?: string[];
+    bank?: string[]; // Alternative to word_bank
+    sentence?: string; // Single sentence for fill-in-blank
+    sentences?: { text?: string; answer?: string; correct?: string }[]; // Multiple sentences format
 
     // === NEW QUESTION TYPES (8 additional types) ===
 

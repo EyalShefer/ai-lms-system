@@ -65,6 +65,7 @@ export interface StreamContentOptions {
   sourceText?: string;
   productType?: string;
   questionPreferences?: any;
+  contentTone?: 'friendly' | 'professional' | 'playful' | 'neutral';
 }
 
 // ============================================================
@@ -690,7 +691,9 @@ export async function streamActivityContent(
           subject: options.subject,
           sourceText: options.sourceText,
           activityLength: options.activityLength,
+          // Send both mode (for exam enforcement) and productType (for content style)
           mode: options.productType === 'exam' ? 'exam' : 'learning',
+          productType: options.productType || 'activity', // activity | lesson | exam
           questionPreferences: options.questionPreferences
         }),
         signal: controller.signal
