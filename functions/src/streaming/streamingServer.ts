@@ -16,6 +16,7 @@ import corsMiddleware from 'cors';
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { GoogleGenAI } from '@google/genai';
+import { getSkeletonPrompt, getStepContentPrompt } from '../ai/prompts';
 
 // ============================================================
 // CONFIGURATION
@@ -974,6 +975,8 @@ app.post('/stream/activity', async (req, res) => {
     const finalResult = {
       title: skeleton.unit_title || topic,
       steps: completedSteps,
+      skeleton: skeleton,  // Include full skeleton with context_image_prompt
+      context_image_prompt: skeleton.context_image_prompt,  // Expose at top level for convenience
       metadata: {
         topic,
         gradeLevel,
@@ -1013,7 +1016,7 @@ app.post('/stream/activity', async (req, res) => {
 });
 
 /**
- * Build activity skeleton prompt
+ * Build activity skeleton prompt - uses the full prompt from prompts.ts
  */
 function buildActivitySkeletonPrompt(
   topic: string,
@@ -1026,38 +1029,36 @@ function buildActivitySkeletonPrompt(
     ? `BASE CONTENT ON THIS TEXT ONLY:\n"""${sourceText.substring(0, 15000)}"""\nIgnore outside knowledge if it contradicts the text.`
     : `Topic: "${topic}"`;
 
-  return `Task: Create a "Skeleton" for a learning activity.
-${contextPart}
+  const personalityInstruction = ''; // Can be customized later
+  const productType = mode === 'exam' ? 'exam' : 'learning';
 
-**TARGET AUDIENCE: ${gradeLevel || 'כיתה ה'}**
-Mode: ${mode === 'exam' ? 'STRICT EXAMINATION MODE' : 'Learning/Tutorial Mode'}
-Count: Exactly ${stepCount} steps.
-Language: Hebrew.
+  // Generate bloom steps distribution for variety
+  const bloomLevels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate'];
+  const bloomSteps = Array.from({ length: stepCount }, (_, i) =>
+    bloomLevels[i % bloomLevels.length]
+  );
 
-Create a learning path with ${stepCount} distinct steps, each focusing on a different aspect of the topic.
-Each step should target a different Bloom level for variety.
+  const structureGuide = `
+    - Step 1: Introduction/Overview (Remember level)
+    - Steps 2-${Math.ceil(stepCount/2)}: Core concepts (Understand/Apply)
+    - Steps ${Math.ceil(stepCount/2)+1}-${stepCount}: Application/Analysis
+  `;
 
-Output JSON Structure:
-{
-  "unit_title": "כותרת מותאמת גיל בעברית",
-  "context_image_prompt": "A detailed English prompt for generating a context image that represents the topic",
-  "steps": [
-    {
-      "step_number": 1,
-      "title": "כותרת הצעד",
-      "narrative_focus": "על מה הצעד מתמקד",
-      "forbidden_topics": ["נושאים שלא לגעת בהם"],
-      "bloom_level": "remember|understand|apply|analyze|evaluate|create",
-      "suggested_interaction_type": "multiple_choice|true_false|matching|memory_game|categorization|ordering|fill_in_blank|open_question"
-    }
-  ]
-}
-
-Return ONLY valid JSON, no additional text.`;
+  // Use the full prompt from prompts.ts
+  return getSkeletonPrompt(
+    contextPart,
+    gradeLevel || 'כיתה ה',
+    personalityInstruction,
+    mode || 'learning',
+    productType,
+    stepCount,
+    bloomSteps,
+    structureGuide
+  );
 }
 
 /**
- * Build step content prompt
+ * Build step content prompt - uses the full prompt from prompts.ts
  */
 function buildStepContentPrompt(
   topic: string,
@@ -1067,44 +1068,31 @@ function buildStepContentPrompt(
   mode: string | undefined,
   questionTypes: string
 ): string {
-  const contextPart = sourceText
-    ? `Source text:\n"""${sourceText.substring(0, 3000)}"""`
+  const contextText = sourceText
+    ? `Source text:\n"""${sourceText.substring(0, 5000)}"""\n\nTopic: ${topic}`
     : `Topic: ${topic}`;
 
-  return `Generate content for step ${stepInfo.step_number} of a learning activity.
+  const examEnforcer = mode === 'exam'
+    ? `**EXAM MODE ACTIVE:** This is an assessment. No teaching content, no hints. Just questions.`
+    : '';
 
-${contextPart}
+  // Linguistic constraints based on grade level
+  const linguisticConstraints = `
+    - Use vocabulary appropriate for ${gradeLevel || 'כיתה ה'}
+    - Sentences should be clear and not too complex
+    - Avoid jargon unless explaining it first
+    - Use active voice when possible
+  `;
 
-Step Information:
-- Title: ${stepInfo.title}
-- Focus: ${stepInfo.narrative_focus || 'General'}
-- Bloom Level: ${stepInfo.bloom_level || 'apply'}
-- Suggested Interaction: ${stepInfo.suggested_interaction_type || 'multiple_choice'}
-- Forbidden Topics: ${JSON.stringify(stepInfo.forbidden_topics || [])}
-
-Target Audience: ${gradeLevel || 'כיתה ה'}
-Mode: ${mode === 'exam' ? 'Examination' : 'Learning'}
-Available Question Types: ${questionTypes}
-
-Create engaging content with:
-1. A "teach_content" section (2-3 sentences explaining the concept in an engaging way)
-2. An interactive question/activity matching the suggested type
-
-Return JSON:
-{
-  "step_number": ${stepInfo.step_number},
-  "bloom_level": "${stepInfo.bloom_level || 'apply'}",
-  "teach_content": "הסבר קצר ומעניין בעברית...",
-  "selected_interaction": "${stepInfo.suggested_interaction_type || 'multiple_choice'}",
-  "data": {
-    "progressive_hints": ["רמז 1", "רמז 2"],
-    "source_reference_hint": "מקור בטקסט...",
-    "question": "שאלה בעברית",
-    // Type-specific fields (options, pairs, categories, etc.)
-  }
-}
-
-Return ONLY valid JSON.`;
+  // Use the full prompt from prompts.ts
+  return getStepContentPrompt(
+    contextText,
+    examEnforcer,
+    stepInfo,
+    mode || 'learning',
+    linguisticConstraints,
+    gradeLevel || 'כיתה ה'
+  );
 }
 
 // Export the app

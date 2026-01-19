@@ -61,11 +61,9 @@ const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDas
                 const activities: RecentActivity[] = [];
                 const courseIds: string[] = [];
 
-                console.log("📊 Courses found:", coursesSnapshot.size, "for user:", currentUser.uid);
                 coursesSnapshot.forEach(doc => {
                     const data = doc.data();
                     courseIds.push(doc.id);
-                    console.log("📝 Course:", doc.id, "Title:", data.title, "createdAt:", data.createdAt);
 
                     // Determine type based on mode or syllabus
                     let type: 'test' | 'activity' | 'lesson' = 'activity';
@@ -95,8 +93,6 @@ const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDas
                     const bTime = b.createdAt?.toMillis?.() || (b.createdAt?.seconds * 1000) || 0;
                     return bTime - aTime;
                 });
-
-                console.log("📊 Valid activities after sort:", validActivities.slice(0, 3).map(a => a.title));
 
                 // Fetch submission counts for recent courses
                 const recentCourseIds = validActivities.slice(0, 5).map(a => a.id);
