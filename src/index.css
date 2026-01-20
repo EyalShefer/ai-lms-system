@@ -808,3 +808,41 @@
 [dir="rtl"] .ProseMirror ol {
     @apply pr-5 pl-0;
 }
+
+/* Collapsible RTE - View Mode */
+.rte-view-mode {
+    @apply border border-transparent bg-slate-50/30 rounded-lg transition-all;
+}
+
+.rte-view-mode:hover {
+    @apply bg-slate-100/60 border-slate-200;
+}
+
+.rte-content-preview {
+    @apply text-slate-800 leading-relaxed py-2 px-3;
+}
+
+.rte-content-preview p {
+    @apply mb-2;
+}
+
+.rte-content-preview p:last-child {
+    @apply mb-0;
+}
+
+/* Collapsible RTE - Edit Mode */
+.rte-edit-mode {
+    @apply ring-2 ring-violet-300;
+}
+
+.rte-toolbar-wrapper {
+    @apply flex items-center justify-between bg-slate-50/80 backdrop-blur-sm border-b border-slate-200;
+}
+
+.rte-toolbar-wrapper .rte-toolbar {
+    @apply border-b-0 flex-1;
+}
+
+.rte-done-btn {
+    @apply p-2 mx-2 rounded-lg text-white bg-green-500 hover:bg-green-600 transition-all;
+}

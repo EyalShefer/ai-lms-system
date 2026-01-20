@@ -11,7 +11,9 @@ import {
   streamDifferentiatedContent,
   streamLessonContent,
   streamPodcastContent,
-  streamActivityContent,
+  streamActivityContent
+} from '../services/streamingService';
+import type {
   StreamContentOptions,
   DifferentiatedResult,
   ActivityStreamResult

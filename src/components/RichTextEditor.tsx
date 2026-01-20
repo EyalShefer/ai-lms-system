@@ -18,6 +18,7 @@ import {
     IconAlignLeft,
     IconClearFormatting,
     IconLink,
+    IconCheck,
 } from '../icons';
 
 interface RichTextEditorProps {
@@ -41,6 +42,8 @@ interface RichTextEditorProps {
     className?: string;
     /** Auto-focus on mount */
     autoFocus?: boolean;
+    /** Collapsible mode - shows view/edit toggle (default: false) */
+    collapsible?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -265,7 +268,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     disabled = false,
     className = '',
     autoFocus = false,
+    collapsible = false,
 }) => {
+    const [isEditing, setIsEditing] = useState(autoFocus || !collapsible);
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
@@ -314,6 +319,36 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }
     }, [disabled, editor]);
 
+    // Handle click outside to exit edit mode
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!collapsible || !isEditing) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsEditing(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [collapsible, isEditing]);
+
+    // Handle Escape key to exit edit mode
+    useEffect(() => {
+        if (!collapsible || !isEditing) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsEditing(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [collapsible, isEditing]);
+
     if (!editor) {
         return (
             <div className={`rte-container ${className}`} style={{ minHeight }}>
@@ -322,12 +357,52 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         );
     }
 
+    // Collapsible mode - View state (not editing)
+    if (collapsible && !isEditing) {
+        const handleEnterEditMode = () => {
+            if (disabled) return;
+            setIsEditing(true);
+            setTimeout(() => editor?.commands.focus(), 50);
+        };
+
+        return (
+            <div
+                ref={containerRef}
+                className={`rte-container rte-view-mode ${className} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-text'}`}
+                dir={direction}
+                onClick={handleEnterEditMode}
+            >
+                <div
+                    className="rte-content-preview"
+                    style={{ minHeight: '24px' }}
+                    dangerouslySetInnerHTML={{ __html: value || `<p class="text-slate-400">${placeholder}</p>` }}
+                />
+            </div>
+        );
+    }
+
+    // Edit mode (or non-collapsible mode)
     return (
         <div
-            className={`rte-container ${className} ${disabled ? 'opacity-60' : ''}`}
+            ref={containerRef}
+            className={`rte-container ${className} ${disabled ? 'opacity-60' : ''} ${collapsible ? 'rte-edit-mode' : ''}`}
             dir={direction}
         >
-            {showToolbar && <RichTextToolbar editor={editor} />}
+            {showToolbar && (
+                <div className="rte-toolbar-wrapper">
+                    <RichTextToolbar editor={editor} />
+                    {collapsible && (
+                        <button
+                            type="button"
+                            onClick={() => setIsEditing(false)}
+                            className="rte-done-btn"
+                            title="סיום עריכה"
+                        >
+                            <IconCheck className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+            )}
             <EditorContent
                 editor={editor}
                 className={maxHeight ? 'rte-scrollable' : ''}

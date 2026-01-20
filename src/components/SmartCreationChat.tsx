@@ -25,7 +25,9 @@ import {
     analyzeTeacherIntent,
     prepareWizardData,
     mergeCollectedData,
-    getInitialCollectedData,
+    getInitialCollectedData
+} from '../services/ai/smartCreationService';
+import type {
     CollectedData,
     ContentOption,
     ConversationMessage,

@@ -5,7 +5,7 @@ import {
     IconSparkles,
     IconChevronLeft, IconChevronRight,
     IconCheck, IconX, IconStar, IconLink,
-    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell
+    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell, IconInfo
 } from '../icons';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import { getIconForBlockType } from '../utils/pedagogicalIcons';
@@ -152,7 +152,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     // Status Flow: 'idle' -> 'selected' (for MC) -> 'checked' -> 'correct'/'incorrect'
     // For Complex blocks (cloze/ordering), they might handle their own internal checking, 
     // but here we enforce a global "Continue" step.
-    const [stepStatus, setStepStatus] = useState<'idle' | 'ready_to_check' | 'success' | 'failure'>('idle');
+    const [stepStatus, setStepStatus] = useState<'idle' | 'ready_to_check' | 'success' | 'failure' | 'partial'>('idle');
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
     const [isRemediating, setIsRemediating] = useState(false); // NEW: Remediation Loading State
     const [isCheckingOpenQuestion, setIsCheckingOpenQuestion] = useState(false); // NEW: Open Question AI Check
@@ -160,7 +160,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [blockAttempts, setBlockAttempts] = useState<Record<string, number>>({}); // Track attempts for all question types
 
     // --- State: Results Tracking (for Timeline Colors & Persistence) ---
-    const [stepResults, setStepResults] = useState<Record<string, 'success' | 'failure' | 'viewed'>>({});
+    const [stepResults, setStepResults] = useState<Record<string, 'success' | 'failure' | 'partial' | 'viewed'>>({});
     const [hintsVisible, setHintsVisible] = useState<Record<string, number>>({});
 
 
@@ -373,7 +373,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 setFeedbackMsg(null);
             } else {
                 setStepStatus(prevResult as any); // Cast because stepStatus state is narrower than stepResults
-                setFeedbackMsg(prevResult === 'success' ? "מצוין! כבר השלמתם את השלב הזה." : "כבר ניסיתם את השלב הזה.");
+                setFeedbackMsg(
+                    prevResult === 'success' ? "מצוין! כבר השלמתם את השלב הזה." :
+                    prevResult === 'partial' ? "יפה! השלמתם את השלב הזה באופן חלקי." :
+                    "כבר עברתם על השלב הזה."
+                );
             }
         } else {
             setStepStatus('idle');
@@ -407,7 +411,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // 1. Selection (User Interact)
     const handleAnswerSelect = (val: any) => {
-        if (stepStatus === 'success' || stepStatus === 'failure') return; // Locked
+        if (stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') return; // Locked
         setUserAnswers(prev => ({ ...prev, [currentBlock.id]: val }));
 
         // If it's a simple Multiple Choice, deciding to select makes it "Ready"
@@ -469,13 +473,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             } else if (result.status === 'partial') {
                 // Check if max attempts reached
                 if (currentAttempts >= maxAttempts) {
-                    setStepStatus('failure');
-                    setStepResults(prev => ({ ...prev, [currentBlock.id]: 'failure' }));
-                    playSound('failure');
-                    if (hints.length > 0) {
-                        setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
-                    }
-                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה המלאה: ${modelAnswer}` : (result.feedback || 'נסה שאלה אחרת.')}`);
+                    // Partial answer after max attempts = partial success (not failure!)
+                    setStepStatus('partial');
+                    setStepResults(prev => ({ ...prev, [currentBlock.id]: 'partial' }));
+                    playSound('success'); // Positive sound for partial success
+
+                    // Give partial XP (50% of full)
+                    const xpGain = Math.max(50 - (currentAttempts - 1) * 10, 25);
+                    setGamificationProfile(prev => ({
+                        ...prev,
+                        xp: prev.xp + xpGain,
+                        gems: prev.gems + 1,
+                    }));
+                    setShowFloater({ id: Date.now(), amount: xpGain });
+
+                    setFeedbackMsg(result.feedback || 'תשובה חלקית - כל הכבוד על המאמץ!');
                 } else {
                     // Allow retry with guidance
                     setStepStatus('ready_to_check');
@@ -537,7 +549,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
 
         // If already checked, this button becomes "Continue"
-        if (stepStatus === 'success' || stepStatus === 'failure') {
+        if (stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') {
             handleNext();
             return;
         }
@@ -1102,7 +1114,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     // --- Render Helpers ---
 
     const renderFooterButton = () => {
-        const isChecked = stepStatus === 'success' || stepStatus === 'failure';
+        const isChecked = stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial';
         let label = "בדיקה";
         let colorClass = "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700"; // Default: Active Check (Manifesto Blue)
 
@@ -1124,10 +1136,12 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
 
         if (isChecked) {
-            label = stepStatus === 'success' ? "המשך" : "הבנתי, המשך";
+            label = "המשך";
             colorClass = stepStatus === 'success'
                 ? "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700" // Continue Success (Blue)
-                : "bg-red-500 text-white border-red-700 hover:bg-red-400"; // Continue Failure
+                : stepStatus === 'partial'
+                    ? "bg-amber-500 text-white border-amber-700 hover:bg-amber-400" // Continue Partial (Amber)
+                    : "bg-orange-500 text-white border-orange-700 hover:bg-orange-400"; // Continue - needs improvement (Orange, not red)
         } else if (stepStatus === 'idle' && currentBlock.type === 'multiple-choice' && !userAnswers[currentBlock.id]) {
             // Disabled state for MC if nothing selected
             colorClass = "bg-slate-700 text-slate-500 border-slate-700 cursor-not-allowed transform-none";
@@ -1203,7 +1217,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             {currentBlock.content.options?.map((opt: any, idx: number) => {
                                 const text = typeof opt === 'string' ? opt : opt.value || opt.answer;
                                 const isSelected = userAnswers[currentBlock.id] === text;
-                                const isResultState = stepStatus === 'success' || stepStatus === 'failure';
+                                const isResultState = stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial';
                                 const isCorrectOpt = text === currentBlock.content.correctAnswer;
                                 const isUserWrong = isResultState && isSelected && !isCorrectOpt;
 
@@ -1212,7 +1226,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
                                 if (isResultState) {
                                     if (isCorrectOpt) optionStyle = "border-green-500 bg-green-100 text-green-800";
-                                    else if (isUserWrong) optionStyle = "border-red-500 bg-red-100 text-red-800";
+                                    else if (isUserWrong) optionStyle = "border-orange-400 bg-orange-50 text-orange-800"; // Softer orange instead of red
                                     else optionStyle = "opacity-50 grayscale";
                                 }
 
@@ -1227,7 +1241,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                             <span>{text}</span>
                                             {/* Indicators */}
                                             {isResultState && isCorrectOpt && <IconCheck className="w-6 h-6 text-green-600" />}
-                                            {isResultState && isUserWrong && <IconX className="w-6 h-6 text-red-500" />}
+                                            {isResultState && isUserWrong && <IconInfo className="w-6 h-6 text-orange-500" />}
                                         </div>
                                     </button>
                                 );
@@ -1765,7 +1779,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             </div>
 
             {/* 2. Main Card Area with Optional Source Panel */}
-            <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure') ? 'pb-48' : 'pb-32'}`}>
+            <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? 'pb-48' : 'pb-32'}`}>
 
                 {/* Source Document Panel (Left side when open) */}
                 {showSourcePanel && shouldShowSource && (
@@ -1902,8 +1916,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
             {/* 3. Bottom Action Bar (Sticky) */}
             <div className={`fixed bottom-0 left-0 right-0 p-4 transition-transform duration-300 z-20 ${stepStatus === 'success' ? 'bg-[#d7ffb8] translate-y-0' :
-                stepStatus === 'failure' ? 'bg-[#ffdfe0] translate-y-0' :
-                    'bg-[#3565e3] border-t border-white/10 backdrop-blur-lg translate-y-0'
+                stepStatus === 'partial' ? 'bg-amber-100 translate-y-0' :
+                    stepStatus === 'failure' ? 'bg-orange-100 translate-y-0' :
+                        'bg-[#3565e3] border-t border-white/10 backdrop-blur-lg translate-y-0'
                 }`}>
                 <div className="max-w-4xl mx-auto flex flex-row items-end justify-between gap-4">
 
@@ -1922,17 +1937,33 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     {/* Feedback OR Action Button */}
                     <div className="flex-1 w-full flex items-center justify-center gap-4 order-2">
                         {/* Feedback Text (Only shown on Result) */}
-                        {(stepStatus === 'success' || stepStatus === 'failure') ? (
+                        {(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? (
                             <div className="flex-1 animate-in slide-in-from-bottom-5 fade-in">
                                 <div className="flex items-center gap-3 mb-1">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stepStatus === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-                                        {stepStatus === 'success' ? <IconCheck className="w-6 h-6 text-white" /> : <IconX className="w-6 h-6 text-white" />}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                        stepStatus === 'success' ? 'bg-green-500' :
+                                        stepStatus === 'partial' ? 'bg-amber-500' :
+                                        'bg-orange-500'
+                                    }`}>
+                                        {stepStatus === 'success' ? <IconCheck className="w-6 h-6 text-white" /> :
+                                         stepStatus === 'partial' ? <IconSparkles className="w-6 h-6 text-white" /> :
+                                         <IconInfo className="w-6 h-6 text-white" />}
                                     </div>
-                                    <h3 className={`text-3xl font-black ${stepStatus === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                                        {stepStatus === 'success' ? 'נכון!' : 'שגוי'}
+                                    <h3 className={`text-3xl font-black ${
+                                        stepStatus === 'success' ? 'text-green-800' :
+                                        stepStatus === 'partial' ? 'text-amber-800' :
+                                        'text-orange-800'
+                                    }`}>
+                                        {stepStatus === 'success' ? 'נכון!' :
+                                         stepStatus === 'partial' ? 'כמעט!' :
+                                         'בואו נלמד'}
                                     </h3>
                                 </div>
-                                {feedbackMsg && <p className={`text-lg font-medium ${stepStatus === 'success' ? 'text-green-700' : 'text-red-700'}`}>{feedbackMsg}</p>}
+                                {feedbackMsg && <p className={`text-lg font-medium whitespace-pre-line break-words max-w-prose ${
+                                    stepStatus === 'success' ? 'text-green-700' :
+                                    stepStatus === 'partial' ? 'text-amber-700' :
+                                    'text-orange-700'
+                                }`}>{feedbackMsg}</p>}
                                 <div className="mt-2 text-right">
                                     <FeedbackWidget
                                         courseId={course.id}
