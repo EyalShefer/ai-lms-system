@@ -2,7 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { RawAiItem, MappedLearningBlock } from '../types/gemini.types';
 import type { ActivityBlockType, RichOption } from '../types/courseTypes';
-import { calculateQuestionWeight } from '../../utils/scoring';
+import { calculateQuestionPoints } from '../../ai/examPrompts';
 
 /**
  * Cleans a JSON string returned by an LLM, removing markdown code blocks.
@@ -96,7 +96,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
     let questionText: string | undefined;
     if (typeof questionObj === 'object' && questionObj !== null) {
         // If it's an object, try to get text from various properties
-        questionText = questionObj.text || questionObj.question || questionObj.instruction;
+        const qObj = questionObj as { text?: string; question?: string; instruction?: string };
+        questionText = qObj.text || qObj.question || qObj.instruction;
     } else if (typeof questionObj === 'string') {
         questionText = questionObj;
     }
@@ -201,7 +202,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: calculateQuestionWeight(typeString, commonMetadata.bloomLevel),
+                score: calculateQuestionPoints(commonMetadata.bloomLevel, typeString),
                 progressiveHints: rawData.progressive_hints || [],
                 richOptions: options.some(o => typeof o === 'object') ? options : undefined
             }
@@ -225,7 +226,8 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             if (modelAnswer) modelAnswer = '- ' + modelAnswer; // Add leading bullet
         } else if (typeof rawAnswer === 'object' && rawAnswer !== null) {
             // Handle object - extract text fields
-            modelAnswer = rawAnswer.text || rawAnswer.answer || rawAnswer.content || JSON.stringify(rawAnswer);
+            const ansObj = rawAnswer as { text?: string; answer?: string; content?: string };
+            modelAnswer = ansObj.text || ansObj.answer || ansObj.content || JSON.stringify(rawAnswer);
         } else if (typeof rawAnswer === 'string') {
             modelAnswer = rawAnswer;
         } else {
@@ -239,7 +241,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             metadata: {
                 ...commonMetadata,
                 modelAnswer: modelAnswer,
-                score: calculateQuestionWeight('open_question', commonMetadata.bloomLevel)
+                score: calculateQuestionPoints(commonMetadata.bloomLevel, 'open_question')
             }
         };
     }
@@ -285,7 +287,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 instruction: questionText !== "שאלה ללא טקסט" ? questionText : "סדרו את הצעדים הבאים:",
                 correct_order: items
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('ordering', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'ordering') }
         };
     }
 
@@ -307,7 +309,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 correctMatches: correctMatches,
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('matching', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matching') }
         };
     }
 
@@ -406,7 +408,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 categories: categories,
                 items: items
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('categorization', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'categorization') }
         };
     }
 
@@ -424,7 +426,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel),
+                score: calculateQuestionPoints(commonMetadata.bloomLevel, 'fill_in_blanks'),
                 wordBank: bank // Optional word bank
             }
         };
@@ -442,7 +444,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             },
             metadata: {
                 ...commonMetadata,
-                score: calculateQuestionWeight('audio_response', commonMetadata.bloomLevel)
+                score: calculateQuestionPoints(commonMetadata.bloomLevel, 'audio_response')
             }
         };
     }
@@ -482,7 +484,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 pairs: normalizedPairs,
                 question: questionText || "מצאו את הזוגות המתאימים:"
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('memory_game', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'memory_game') }
         };
     }
 
@@ -503,7 +505,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 correctMatches: correctMatches,
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('matching', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matching') }
         };
     }
 
@@ -520,7 +522,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 highlightType: rawData.highlightType || rawData.highlight_type || 'background',
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('highlight', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'highlight') }
         };
     }
 
@@ -539,7 +541,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 correctSentence: correctSentence,
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('sentence_builder', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'sentence_builder') }
         };
     }
 
@@ -557,7 +559,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 hints: rawData.hints || rawData.progressive_hints || [],
                 imageDescription: rawData.imageDescription || rawData.image_description || ''
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('image_labeling', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'image_labeling') }
         };
     }
 
@@ -573,7 +575,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 rows: rawData.rows || [],
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('table_completion', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'table_completion') }
         };
     }
 
@@ -592,7 +594,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 maxSelections: rawData.maxSelections || rawData.max_selections,
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('text_selection', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'text_selection') }
         };
     }
 
@@ -611,7 +613,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 correctAnswer: rawData.correct_answer,
                 showNumbers: rawData.showNumbers !== undefined ? rawData.showNumbers : true
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('rating_scale', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'rating_scale') }
         };
     }
 
@@ -627,7 +629,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 rows: rawData.rows || [],
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('matrix', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'matrix') }
         };
     }
 
@@ -660,7 +662,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 },
                 metadata: {
                     ...commonMetadata,
-                    score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel),
+                    score: calculateQuestionPoints(commonMetadata.bloomLevel, 'fill_in_blanks'),
                     wordBank: bank // Backup for ClozeQuestion's fallback logic
                 }
             };
@@ -681,7 +683,7 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
                 wordBank: bank,
                 hints: rawData.hints || rawData.progressive_hints || []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: calculateQuestionPoints(commonMetadata.bloomLevel, 'fill_in_blanks') }
         };
     }
 
