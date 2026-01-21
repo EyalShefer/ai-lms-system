@@ -126,6 +126,10 @@ export default {
         'glass': '0 8px 32px 0 rgba(43, 89, 195, 0.1)',
         'glow': '0 0 15px rgba(0, 194, 255, 0.4)',
         'glow-violet': '0 0 15px rgba(139, 92, 246, 0.4)',
+        // Liquid Glass shadows
+        'liquid': '0 8px 32px rgba(0, 0, 0, 0.3)',
+        'liquid-glow': '0 0 30px rgba(0, 194, 255, 0.2)',
+        'liquid-hover': '0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(0, 194, 255, 0.15)',
         // 3D shadows for action buttons (violet)
         '3d': '0 6px 0 0 #5B21B6',
         '3d-hover': '0 4px 0 0 #5B21B6',
@@ -138,6 +142,12 @@ export default {
         'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(245,249,255,0.8) 100%)',
         // Gradient for action buttons
         'action-gradient': 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+        // Liquid Glass gradients
+        'liquid-bg': 'linear-gradient(135deg, #252547 0%, #3d2a5c 50%, #252547 100%)',
+        'liquid-glow-magenta': 'radial-gradient(ellipse at 20% 20%, rgba(255, 0, 128, 0.3) 0%, transparent 50%)',
+        'liquid-glow-cyan': 'radial-gradient(ellipse at 80% 80%, rgba(0, 200, 255, 0.3) 0%, transparent 50%)',
+        'liquid-glow-purple': 'radial-gradient(ellipse at 50% 50%, rgba(128, 0, 255, 0.25) 0%, transparent 60%)',
+        'liquid-btn': 'linear-gradient(135deg, rgba(255, 128, 191, 0.3), rgba(128, 223, 255, 0.3))',
       },
 
       keyframes: {
@@ -148,6 +158,23 @@ export default {
         slideDown: {
           '0%': { opacity: '0', transform: 'translateY(-20px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        // Liquid Glass animations
+        liquidBgMove: {
+          '0%, 100%': { transform: 'scale(1) rotate(0deg)' },
+          '25%': { transform: 'scale(1.03) rotate(0.5deg)' },
+          '50%': { transform: 'scale(1.02) rotate(-0.3deg)' },
+          '75%': { transform: 'scale(1.04) rotate(0.3deg)' },
+        },
+        liquidOrbFloat: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+          '25%': { transform: 'translate(10px, -15px) scale(1.02)' },
+          '50%': { transform: 'translate(-8px, 12px) scale(0.98)' },
+          '75%': { transform: 'translate(12px, 8px) scale(1.01)' },
+        },
+        liquidShine: {
+          '0%, 100%': { left: '-100%' },
+          '50%': { left: '100%' },
         },
         fadeIn: {
           '0%': { opacity: '0' },
@@ -215,6 +242,10 @@ export default {
         'orbit': 'orbit 2s linear infinite',
         'sparkle': 'sparkle 1.5s ease-in-out infinite',
         'twinkle': 'twinkle 2s ease-in-out infinite',
+        // Liquid Glass animations
+        'liquid-bg': 'liquidBgMove 60s ease-in-out infinite',
+        'liquid-orb': 'liquidOrbFloat 45s ease-in-out infinite',
+        'liquid-shine': 'liquidShine 20s ease-in-out infinite',
       },
 
       // Min heights for touch targets

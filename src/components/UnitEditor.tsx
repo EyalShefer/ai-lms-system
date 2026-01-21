@@ -2356,11 +2356,25 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             <div className="space-y-2">
                                                 <div>
                                                     <label className="text-xs text-gray-500 mb-1 block">שאלה / הנחיה</label>
-                                                    <input type="text" className="w-full p-2 border border-gray-200 rounded-lg bg-white text-sm" value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} placeholder="למשל: הסבירו במילים שלכם..." />
+                                                    <RichTextEditor
+                                                        value={(block.content && block.content.question) || ''}
+                                                        onChange={(html) => updateBlock(block.id, { ...block.content, question: html })}
+                                                        placeholder="למשל: הסבירו במילים שלכם..."
+                                                        minHeight="40px"
+                                                        maxHeight="150px"
+                                                        collapsible={true}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label className="text-xs text-gray-500 mb-1 block">תיאור נוסף (אופציונלי)</label>
-                                                    <input type="text" className="w-full p-2 border border-gray-200 rounded-lg bg-white text-sm" value={(block.content && block.content.description) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, description: e.target.value })} placeholder="הנחיות נוספות..." />
+                                                    <RichTextEditor
+                                                        value={(block.content && block.content.description) || ''}
+                                                        onChange={(html) => updateBlock(block.id, { ...block.content, description: html })}
+                                                        placeholder="הנחיות נוספות..."
+                                                        minHeight="40px"
+                                                        maxHeight="100px"
+                                                        collapsible={true}
+                                                    />
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex-1">
@@ -2512,7 +2526,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <button onClick={() => handleAutoGenerateOrdering(block.id)} disabled={loadingBlockId === block.id} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
                                                     </div>
                                                 )}
-                                                <input type="text" className="w-full p-2 mb-3 border border-gray-200 rounded-lg bg-white text-sm" placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)" value={(block.content && block.content.instruction) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="שאלה / הנחיה (למשל: סדר את האירועים...)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
                                                 <div className="space-y-1.5">
                                                     {(block.content?.correct_order || []).map((item: string, idx: number) => (
                                                         <div key={idx} className="flex gap-2 items-center">
@@ -2534,7 +2555,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <button onClick={() => handleAutoGenerateCategorization(block.id)} disabled={loadingBlockId === block.id} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
                                                     </div>
                                                 )}
-                                                <input type="text" className="w-full p-2 mb-3 border border-gray-200 rounded-lg bg-white text-sm" placeholder="הנחיה..." value={(block.content && block.content.question) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, question: e.target.value })} />
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.question) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, question: html })}
+                                                    placeholder="הנחיה..."
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <div>
                                                         <h4 className="text-xs font-medium text-gray-500 mb-2">קטגוריות</h4>
@@ -2576,7 +2604,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <button onClick={() => handleAutoGenerateMemoryGame(block.id)} disabled={loadingBlockId === block.id} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1"><IconSparkles className="w-3 h-3" /> {loadingBlockId === block.id ? 'יוצר...' : 'צור ב-AI'}</button>
                                                     </div>
                                                 )}
-                                                <p className="text-xs text-gray-500 mb-2">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="הנחיה (למשל: מצאו את הזוגות התואמים...)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
+                                                <p className="text-xs text-gray-500 mb-2 mt-3">צרו זוגות תואמים. התלמיד יצטרך למצוא את ההתאמות.</p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {(block.content?.pairs || []).map((pair: any, idx: number) => (
                                                         <div key={idx} className="p-2 rounded-lg border border-gray-200 relative group/pair">
@@ -2602,7 +2638,15 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         {/* TRUE/FALSE SPEED */}
                                         {block.type === 'true_false_speed' && (
                                             <div>
-                                                <p className="text-xs text-gray-500 mb-2">משחק מהירות: התלמיד צריך להחליט במהירות אם המשפט נכון או לא.</p>
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="הנחיה (למשל: קבעו אם המשפטים הבאים נכונים או לא...)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
+                                                <p className="text-xs text-gray-500 mb-2 mt-3">משחק מהירות: התלמיד צריך להחליט במהירות אם המשפט נכון או לא.</p>
                                                 <div className="space-y-1.5">
                                                     {(block.content?.statements || []).map((item: any, idx: number) => (
                                                         <div key={idx} className="flex items-center gap-2">
@@ -2803,7 +2847,14 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     <div className="flex items-center gap-2"><IconLink className="w-5 h-5" /> התאמה</div>
                                                 </div>
 
-                                                <input type="text" className="w-full p-3 mb-4 border border-violet-200 rounded-lg bg-white text-base" placeholder="הנחיה (למשל: התאימו בין המושגים להגדרות)" value={(block.content && block.content.instruction) || ''} onChange={(e) => updateBlock(block.id, { ...block.content, instruction: e.target.value })} />
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="הנחיה (למשל: התאימו בין המושגים להגדרות)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     {/* Left Items Column */}

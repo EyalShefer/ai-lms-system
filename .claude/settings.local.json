@@ -83,7 +83,19 @@
       "Bash(C:/Python311/python.exe --version)",
       "Bash(C:/Python310/python.exe:*)",
       "Bash(tasklist /FI \"IMAGENAME eq node.exe\")",
-      "Read(//c/**)"
+      "Read(//c/**)",
+      "Bash(npx eslint:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh search:*)",
+      "Bash(uipro init:*)",
+      "Bash(cd:*)",
+      "Bash(uipro --help:*)",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\education-design-showcase.html\")",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\lms-design-demo.html\")",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\homepage-redesign-demo.html\")",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\premium-styles-demo.html\")",
+      "Bash(start \"\" \"c:\\\\Users\\\\eyal.BONUS\\\\Desktop\\\\ai-lms-system\\\\homepage-liquid-glass-demo.html\")",
+      "Bash(start \"\" \"http://localhost:5173\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\eyal\\Desktop\\ai-lms-system\\ai-lms-system"
