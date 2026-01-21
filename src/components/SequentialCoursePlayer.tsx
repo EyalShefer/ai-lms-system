@@ -37,12 +37,13 @@ import OrderingQuestion from './OrderingQuestion';
 import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
 import TrueFalseQuestion from './TrueFalseQuestion';
+import MatchingQuestion from './questions/MatchingQuestion';
 import { PodcastPlayer } from './PodcastPlayer';
 import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { InfographicViewer } from './InfographicViewer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { sanitizeHtml } from '../utils/sanitize';
+import { sanitizeHtml, formatTeacherContent, stripAsterisks } from '../utils/sanitize';
 
 
 interface SequentialPlayerProps {
@@ -512,7 +513,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (hints.length > 0) {
                         setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
                     }
-                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה הנכונה: ${modelAnswer}` : (result.feedback || 'נסה שאלה אחרת.')}`);
+                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה הנכונה: ${stripAsterisks(modelAnswer)}` : (result.feedback || 'נסה שאלה אחרת.')}`);
                 } else {
                     // Still have attempts - show progressive hint
                     setStepStatus('ready_to_check');
@@ -1211,7 +1212,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         <h2
                             className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center"
                             dir="auto"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content.question || '') }}
+                            dangerouslySetInnerHTML={{ __html: formatTeacherContent(currentBlock.content.question || '') }}
                         />
                         <div className="grid gap-4">
                             {currentBlock.content.options?.map((opt: any, idx: number) => {
@@ -1257,7 +1258,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         <h2
                             className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center"
                             dir="auto"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content.question || '') }}
+                            dangerouslySetInnerHTML={{ __html: formatTeacherContent(currentBlock.content.question || '') }}
                         />
                         <textarea
                             className={`w-full p-4 rounded-2xl border-2 focus:ring-4 min-h-[200px] text-lg resize-none transition-all ${stepStatus === 'success'
@@ -1318,6 +1319,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             case 'true_false_speed':
                 // @ts-ignore
                 return <TrueFalseQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
+            case 'matching':
+                return <MatchingQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
 
             // --- Passive Content Renderers ---
             case 'text':
@@ -1325,7 +1328,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     <div className="space-y-8 text-right w-full max-w-4xl mx-auto" dir="rtl">
                         <div
                             className="text-slate-800 prose prose-lg md:prose-2xl max-w-none prose-headings:text-indigo-600 prose-headings:font-black prose-p:text-slate-700 prose-p:font-bold prose-p:leading-relaxed prose-strong:text-indigo-700"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBlock.content) }}
+                            dangerouslySetInnerHTML={{ __html: formatTeacherContent(currentBlock.content) }}
                         />
                     </div>
                 );
@@ -1797,16 +1800,24 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             </button>
                         </div>
                         <div className="flex-1 overflow-auto min-h-0">
+                            {/* Priority: Show pdfSource if available, fallback to fullBookContent */}
                             {course?.pdfSource ? (
-                                <iframe
-                                    src={course.pdfSource}
-                                    className="w-full h-full border-none"
-                                    title="מסמך מקור"
-                                />
-                            ) : course?.fullBookContent ? (
-                                <div className="p-6 prose max-w-none text-sm leading-relaxed" dir="rtl">
-                                    <div className="font-serif text-gray-800 leading-relaxed whitespace-pre-wrap">
-                                        {course.fullBookContent}
+                                <div className="h-full flex flex-col">
+                                    <iframe
+                                        src={course.pdfSource}
+                                        className="w-full flex-1 border-none"
+                                        title="מסמך מקור"
+                                    />
+                                    {/* Fallback link if iframe fails to load */}
+                                    <div className="p-3 bg-white border-t text-center">
+                                        <a
+                                            href={course.pdfSource}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600 hover:underline"
+                                        >
+                                            פתח את המסמך בחלון חדש ↗
+                                        </a>
                                     </div>
                                 </div>
                             ) : null}
@@ -1844,7 +1855,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                             ) : (
                                                 <div
                                                     className="prose prose-lg lg:prose-xl prose-indigo max-w-none text-slate-800 dir-rtl"
-                                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(prevBlock.content) }}
+                                                    dangerouslySetInnerHTML={{ __html: formatTeacherContent(prevBlock.content) }}
                                                 />
                                             )}
                                         </div>

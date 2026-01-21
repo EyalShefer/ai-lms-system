@@ -48,6 +48,7 @@ const USE_STREAMING_GENERATION = true;
 // Looking at the JSX (not fully visible but inferred placement near header actions)
 
 import { ElevenLabsService } from '../services/elevenLabs'; // Added
+import { stripAsterisks } from '../utils/sanitize'; // Clean AI-generated asterisks
 import {
     IconEdit, IconTrash, IconPlus, IconImage, IconVideo, IconText,
     IconChat, IconList, IconSparkles, IconUpload, IconArrowUp,
@@ -1060,10 +1061,19 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     // --- Three Levels Helper Functions ---
     const getBlockContentForLevel = (block: any, level: 'הבנה' | 'יישום' | 'העמקה'): any => {
-        if (level === 'יישום') return block.content;
-        const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
-        const variant = block.metadata?.[variantKey];
-        return variant?.content || block.content;
+        let content;
+        if (level === 'יישום') {
+            content = block.content;
+        } else {
+            const variantKey = level === 'הבנה' ? 'scaffolding_variant' : 'enrichment_variant';
+            const variant = block.metadata?.[variantKey];
+            content = variant?.content || block.content;
+        }
+        // Clean asterisks from text content for display
+        if (typeof content === 'string') {
+            return stripAsterisks(content);
+        }
+        return content;
     };
 
     const updateBlockForLevel = (blockId: string, content: any, level: 'הבנה' | 'יישום' | 'העמקה') => {
@@ -1526,22 +1536,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : url;
     };
 
-    // Learning Level Selector Component - For question blocks
-    const renderLearningLevelSelector = (block: any) => (
-        <div className="mt-3 pt-3 border-t border-gray-200/50 flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-bold">רמת למידה:</span>
-            <select
-                value={block.metadata?.learningLevel || 'יישום'}
-                onChange={(e) => updateBlock(block.id, block.content, { learningLevel: e.target.value })}
-                className="text-xs font-bold px-2 py-1 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors"
-            >
-                <option value="הבנה">הבנה</option>
-                <option value="יישום">יישום</option>
-                <option value="העמקה">העמקה</option>
-            </select>
-        </div>
-    );
-
     // --- New: Unified Media Toolbar for Questions (Upload / AI / Link) ---
     const renderMediaToolbar = (blockId: string) => {
         const mode = mediaInputMode[blockId]; // 'image_select', 'video_select', 'image_ai', 'video_link'
@@ -1940,10 +1934,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         <span className="text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">
                                             {BLOCK_TYPE_MAPPING[block.type] || block.type}
                                         </span>
-                                        {/* Learning Level - badge only */}
-                                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">
-                                            {block.metadata?.learningLevel || 'יישום'}
-                                        </span>
+                                        {/* Learning Level - badge for interactive/question blocks (default: יישום) */}
+                                        {!['text', 'image', 'video', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image', 'infographic', 'loading-placeholder'].includes(block.type) && (
+                                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">
+                                                {block.metadata?.learningLevel || 'יישום'}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Block Content */}
@@ -2435,7 +2431,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div className="flex-1">
                                                         <RichTextEditor
-                                                            value={(block.content && block.content.question) || ''}
+                                                            value={stripAsterisks((block.content && block.content.question) || '')}
                                                             onChange={(html) => updateBlock(block.id, { ...block.content, question: html })}
                                                             placeholder={block.type === 'multiple-choice' ? "כתבו שאלה אמריקאית..." : "כתבו שאלה פתוחה..."}
                                                             minHeight="40px"
@@ -2475,7 +2471,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         {!(block.content && block.content.question) && (<div className="flex justify-end mb-2"><button onClick={() => handleAutoGenerateOpenQuestion(block.id)} disabled={loadingBlockId === block.id} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1"><IconSparkles className="w-3 h-3" /> צרו שאלה</button></div>)}
                                                         <label className="text-xs text-gray-500 mb-1 block">תשובה מצופה:</label>
                                                         <RichTextEditor
-                                                            value={block.metadata?.modelAnswer || ''}
+                                                            value={stripAsterisks(block.metadata?.modelAnswer || '')}
                                                             onChange={(html) => updateBlock(block.id, block.content, { modelAnswer: html })}
                                                             placeholder="כתבו כאן את התשובה המצופה..."
                                                             minHeight="80px"
@@ -2498,7 +2494,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 )}
                                                 <p className="text-xs text-gray-500 mb-2">הקיפו מילים להסתרה ב-[סוגריים מרובעים]. למשל: "בירת ישראל היא [ירושלים]".</p>
                                                 <RichTextEditor
-                                                    value={typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || '')}
+                                                    value={stripAsterisks(typeof block.content === 'object' ? (block.content.sentence || block.content.text || '') : (block.content || ''))}
                                                     onChange={(html) => updateBlock(block.id, html)}
                                                     placeholder="כתבו את הטקסט המלא עם [מילים להסתרה]..."
                                                     minHeight="120px"
@@ -2878,8 +2874,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                         <button onClick={() => updateBlock(block.id, { ...block.content, correctMatches: [...(block.content?.correctMatches || []), { left: "", right: "" }] })} className="text-xs font-bold text-violet-600 bg-violet-200 hover:bg-violet-300 px-3 py-1 rounded-full">+ הוסף התאמה</button>
                                                     </div>
                                                 </div>
-
-                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
 
@@ -2893,7 +2887,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <pre className="bg-white p-3 rounded-lg border text-xs overflow-auto max-h-40 text-left" dir="ltr">
                                                     {JSON.stringify(block.content, null, 2)}
                                                 </pre>
-                                                {renderLearningLevelSelector(block)}
                                             </div>
                                         )}
                                     </div>

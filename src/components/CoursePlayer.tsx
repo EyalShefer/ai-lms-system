@@ -17,6 +17,7 @@ import ClozeQuestion from './ClozeQuestion';
 import OrderingQuestion from './OrderingQuestion';
 import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
+import MatchingQuestion from './questions/MatchingQuestion';
 import { SCORING_CONFIG, calculateQuestionScore, type AnswerAttempt, OPEN_QUESTION_SCORES } from '../utils/scoring';
 import { CitationService } from '../services/citationService'; // GROUNDED QA
 // import { SourceViewer } from './SourceViewer'; // NOTEBOOKLM GUIDE (Removed unused import)
@@ -1511,10 +1512,10 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 </span>
                             </div>
                         )}
-                        <h4 className="font-bold mb-3 text-lg flex items-center gap-2">
-                            <span className="bg-purple-100 text-purple-800 text-xs font-black px-2 py-1 rounded-full">סידור לפי קטגוריות</span>
-                            <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question || '') }} />
-                        </h4>
+                        {block.content.question && (
+                            <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold"
+                               dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content.question) }} />
+                        )}
                         {catMedia && (
                             <div className="mb-4 rounded-xl overflow-hidden max-w-2xl mx-auto">
                                 {block.metadata?.mediaType === 'video' ?
@@ -1553,6 +1554,12 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                             </div>
                         )}
                         <MemoryGameQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
+                    </div>
+                );
+            case 'matching':
+                return (
+                    <div key={block.id} className="mb-8">
+                        <MatchingQuestion block={block} onComplete={(score, tel) => handleGameComplete(block.id, score, tel)} />
                     </div>
                 );
             case 'audio-response':
@@ -1766,34 +1773,34 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                                 <button onClick={() => setShowSplitView(false)} className="text-gray-400 hover:text-gray-600 p-2"><IconX className="w-5 h-5" /></button>
                             </div>
                             <div className="flex-1 overflow-y-auto bg-gray-50 relative min-h-0">
+                                {/* Priority: Show pdfSource if available, fallback to fullBookContent */}
                                 {course?.pdfSource ? (
-                                    <iframe
-                                        src={course.pdfSource}
-                                        className="w-full h-full absolute inset-0 border-none"
-                                        title="מסמך מקור"
-                                    />
+                                    <div className="h-full flex flex-col">
+                                        <iframe
+                                            src={course.pdfSource}
+                                            className="w-full flex-1 border-none"
+                                            title="מסמך מקור"
+                                            onError={() => console.log('PDF iframe load error')}
+                                        />
+                                        {/* Fallback link if iframe fails to load */}
+                                        <div className="p-3 bg-white border-t text-center">
+                                            <a
+                                                href={course.pdfSource}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm text-blue-600 hover:underline"
+                                            >
+                                                פתח את המסמך בחלון חדש ↗
+                                            </a>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="p-6 prose max-w-none text-sm leading-relaxed">
-                                        {course?.fullBookContent ? (
-                                            <div className="font-serif text-gray-800 leading-relaxed">
-                                                {CitationService.chunkText(course.fullBookContent).map((chunk) => (
-                                                    <span
-                                                        key={chunk.id}
-                                                        id={`chunk-${chunk.id}`}
-                                                        className="relative py-1 px-1 rounded transition-colors duration-1000 block md:inline hover:bg-yellow-50/50"
-                                                    >
-                                                        <sup className="text-gray-400 text-xs select-none pr-1">[{chunk.id}]</sup>
-                                                        {chunk.text + " "}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center text-gray-500 mt-10">
-                                                <p className="font-bold">לא נמצא טקסט מקור.</p>
-                                                <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
-                                                <p className="text-xs text-gray-400 mt-2">ID: {course?.id}</p>
-                                            </div>
-                                        )}
+                                        <div className="text-center text-gray-500 mt-10">
+                                            <p className="font-bold">לא נמצא טקסט מקור.</p>
+                                            <p className="text-sm">ייתכן שהמסמך לא עובד כראוי או שלא הועלה תוכן.</p>
+                                            <p className="text-xs text-gray-400 mt-2">ID: {course?.id}</p>
+                                        </div>
                                     </div>
                                 )}
                             </div>

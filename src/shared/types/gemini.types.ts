@@ -11,6 +11,7 @@ export interface RawAiItem {
     selected_interaction?: string;
     suggested_interaction_type?: string; // New AI format uses this at top level
     bloom_level?: string;
+    learning_level?: 'הבנה' | 'יישום' | 'העמקה' | string; // רמת למידה
 
     // Nesting wrappers
     data?: RawAiItem | any; // Sometimes nested as { data: { ... } }

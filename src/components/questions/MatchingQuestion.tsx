@@ -139,8 +139,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
     return (
         <div className="w-full mx-auto" ref={containerRef}>
-            <h3 className="text-3xl font-black mb-4 text-white text-center drop-shadow-sm">התאמה</h3>
-            <p className="text-lg text-white/90 mb-8 text-center font-medium">{instruction}</p>
+            <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold">{instruction}</p>
 
             <div className="flex justify-between gap-8 mb-8">
                 {/* Left Column */}

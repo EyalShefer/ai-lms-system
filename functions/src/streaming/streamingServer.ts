@@ -556,6 +556,14 @@ function buildDifferentiatedPrompt(
 השתמש בשפה אקדמית, צור שאלות פתוחות ומאתגרות שדורשות חשיבה מעמיקה.`
   };
 
+  // Map level key to Hebrew learning level name
+  const learningLevelMap: Record<string, string> = {
+    support: 'הבנה',
+    core: 'יישום',
+    enrichment: 'העמקה'
+  };
+  const learningLevel = learningLevelMap[level] || 'יישום';
+
   const questionTypes = questionPreferences?.allowedTypes?.join(', ') ||
     'multiple_choice, true_false, matching, ordering';
 
@@ -566,9 +574,12 @@ function buildDifferentiatedPrompt(
 מקצוע: ${subject}
 סוג מוצר: ${productType}
 אורך פעילות: ${activityLength || 'medium'}
+רמת למידה: ${learningLevel}
 ${sourceText ? `\nחומר מקור:\n${sourceText}` : ''}
 
 צור מערך של 3-5 פריטים (שאלות/אינטראקציות) מסוגים: ${questionTypes}
+
+**חשוב:** כל פריט חייב לכלול שדה "learning_level" עם הערך "${learningLevel}".
 
 החזר JSON בפורמט הבא:
 [
@@ -578,7 +589,8 @@ ${sourceText ? `\nחומר מקור:\n${sourceText}` : ''}
     "options": ["א", "ב", "ג", "ד"],
     "correctAnswer": "א",
     "hint": "רמז (רק לרמה תומכת)",
-    "explanation": "הסבר לתשובה"
+    "explanation": "הסבר לתשובה",
+    "learning_level": "${learningLevel}"
   }
 ]
 

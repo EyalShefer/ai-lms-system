@@ -227,6 +227,17 @@ export const getStepContentPrompt = (
       * CORRECT: "ט״ו בשבט הוא אחד מהחגים החשובים ביותר..."
     - **Proofread for Flow:** Read each sentence aloud (mentally). If it sounds awkward, rewrite it.
 
+    **TEXT FORMATTING RULES (CRITICAL - NO MARKDOWN):**
+    - **FORBIDDEN:** Do NOT use asterisks (*) for any formatting purpose.
+    - **FORBIDDEN:** Do NOT use markdown syntax like **bold**, *italic*, or bullet points with *.
+    - **For lists:** Use numbered lists (1. 2. 3.) or write as flowing prose.
+    - **For emphasis:** Write naturally without special characters. The UI will handle formatting.
+    - **For model_answer:** Write clear sentences or numbered points, NOT bullet points with asterisks.
+      * WRONG: "* נקודה ראשונה * נקודה שנייה * נקודה שלישית"
+      * CORRECT: "1. נקודה ראשונה 2. נקודה שנייה 3. נקודה שלישית"
+      * ALSO CORRECT: "התשובה צריכה לכלול: נקודה ראשונה, נקודה שנייה, ונקודה שלישית."
+    - **Output plain text only** - no HTML tags, no markdown, just clean Hebrew text.
+
   6. ** Logic & Interaction Rules:**
        - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
        - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
@@ -308,10 +319,17 @@ export const getStepContentPrompt = (
        **If no media is needed:**
        \`"suggested_media": { "needed": false }\`
 
+    10. **LEARNING LEVEL (רמת למידה):**
+       Based on the Bloom Level, assign the appropriate learning level:
+       - Bloom "Remember" or "Understand" (זכירה/הבנה) → learning_level: "הבנה"
+       - Bloom "Apply" or "Analyze" (יישום/ניתוח) → learning_level: "יישום"
+       - Bloom "Evaluate" or "Create" (הערכה/יצירה) → learning_level: "העמקה"
+
     Output FORMAT (JSON ONLY):
     {
        "step_number": ${stepInfo.step_number},
        "bloom_level": "${stepInfo.bloom_level}",
+       "learning_level": "הבנה" | "יישום" | "העמקה",
        "teach_content": ${(mode === 'exam' || productType === 'exam' || productType === 'activity') ? "null" : `"Full explanation text (Simplified for ${gradeLevel})..."`},
        "selected_interaction": "${stepInfo.suggested_interaction_type}",
        ${productType === 'exam' || mode === 'exam'
@@ -330,6 +348,7 @@ export const getStepContentPrompt = (
        },`
   }
        "data": {
+          "learning_level": "הבנה" | "יישום" | "העמקה",
           ${(mode === 'exam' || productType === 'exam') ? '"progressive_hints": [],' : '"progressive_hints": ["Hint 1", "Hint 2"],'}
           "source_reference_hint": "See section '...'",
           // DYNAMIC STRUCTURE BASED ON INTERACTION TYPE:

@@ -212,8 +212,7 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     };
 
     return (
-        <div className="w-full mx-auto" role="region" aria-labelledby="categorization-title">
-            <h3 id="categorization-title" className="text-3xl font-black mb-8 text-white dark:text-white text-center drop-shadow-sm">סידור לפי קטגוריות</h3>
+        <div className="w-full mx-auto" role="region" aria-label="שאלת סידור לפי קטגוריות">
             <p className="sr-only">גרור פריטים מהמחסן לקטגוריות המתאימות</p>
 
             {/* Item Bank */}

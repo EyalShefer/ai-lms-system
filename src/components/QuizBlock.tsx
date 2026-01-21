@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { sanitizeHtml, formatTeacherContent, stripAsterisks } from '../utils/sanitize';
 
 export interface QuizData {
     question: string;
@@ -77,10 +78,24 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
         }
     };
 
-    // Helper for rendering clickable citations
-    const renderMarkdownWithCitations = (text: string) => {
+    // Helper for rendering question text - handles both HTML and Markdown
+    const renderQuestionText = (text: string) => {
+        // First, strip asterisks from the text to clean up AI-generated formatting
+        const cleanedText = stripAsterisks(text);
+
+        // Check if text contains HTML tags (like <p>, <div>, <span>, etc.)
+        const containsHtmlTags = /<(p|div|span|br|strong|em|b|i|u|h[1-6]|ul|ol|li)[^>]*>/i.test(cleanedText);
+
+        if (containsHtmlTags) {
+            // Use formatTeacherContent for content with HTML tags (also cleans asterisks)
+            return (
+                <div dangerouslySetInnerHTML={{ __html: formatTeacherContent(text) }} />
+            );
+        }
+
+        // For Markdown content, use ReactMarkdown with citation support
         // Pre-process text to turn [1] into link syntax
-        const processedText = text.replace(/\[(\d+)\]/g, '[$1](#cit-$1)');
+        const processedText = cleanedText.replace(/\[(\d+)\]/g, '[$1](#cit-$1)');
 
         return (
             <ReactMarkdown
@@ -127,7 +142,7 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
             {/* Question Text */}
             {question && (
                 <div className={`font-bold text-gray-800 mb-4 text-lg has-text-content ${!isExamMode ? 'animate-slide-up' : ''}`}>
-                    {renderMarkdownWithCitations(question)}
+                    {renderQuestionText(question)}
                 </div>
             )}
 
@@ -215,7 +230,7 @@ const QuizBlock: React.FC<QuizBlockProps> = ({
                                 <span className="font-bold bg-amber-200 text-amber-800 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
                                     {idx + 1}
                                 </span>
-                                <span className="flex-1">{renderMarkdownWithCitations(hint)}</span>
+                                <span className="flex-1">{renderQuestionText(hint)}</span>
                             </div>
                         ))}
                     </div>

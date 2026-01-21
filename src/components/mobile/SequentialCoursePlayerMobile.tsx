@@ -28,7 +28,8 @@ import OrderingQuestion from '../OrderingQuestion';
 import CategorizationQuestion from '../CategorizationQuestion';
 import MemoryGameQuestion from '../MemoryGameQuestion';
 import TrueFalseQuestion from '../TrueFalseQuestion';
-import { sanitizeHtml } from '../../utils/sanitize';
+import MatchingQuestion from '../questions/MatchingQuestion';
+import { sanitizeHtml, formatTeacherContent, stripAsterisks } from '../../utils/sanitize';
 import { PodcastPlayer } from '../PodcastPlayer';
 import { InfographicViewer } from '../InfographicViewer';
 import ReactMarkdown from 'react-markdown';
@@ -268,7 +269,7 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                 return (
                     <div
                         className="prose prose-lg max-w-none text-slate-800 dark:text-slate-200"
-                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(typeof blockContent === 'string' ? blockContent : '') }}
+                        dangerouslySetInnerHTML={{ __html: formatTeacherContent(typeof blockContent === 'string' ? blockContent : '') }}
                     />
                 );
 
@@ -306,7 +307,7 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                     <div className="space-y-4">
                         <h3
                             className="text-xl font-bold text-slate-800 dark:text-white mb-6"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(mcContent.question || '') }}
+                            dangerouslySetInnerHTML={{ __html: formatTeacherContent(mcContent.question || '') }}
                         />
                         <div className="space-y-3" role="radiogroup" aria-label="אפשרויות תשובה">
                             {mcContent.options.map((option, idx) => {
@@ -359,7 +360,7 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                     <div className="space-y-4">
                         <h3
                             className="text-xl font-bold text-slate-800 dark:text-white mb-4"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(oqContent.question || '') }}
+                            dangerouslySetInnerHTML={{ __html: formatTeacherContent(oqContent.question || '') }}
                         />
                         <textarea
                             value={userAnswers[currentBlock.id] || ''}
@@ -390,6 +391,9 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
             case 'true_false_speed':
                 return <TrueFalseQuestion block={currentBlock} onComplete={(score) => processResult(score >= 50)} />;
 
+            case 'matching':
+                return <MatchingQuestion block={currentBlock} onComplete={(score) => processResult(score >= 50)} />;
+
             case 'podcast':
                 return <PodcastPlayer block={currentBlock} />;
 
@@ -406,23 +410,37 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
     };
 
     // --- Source Content Renderer ---
+    // Priority: Show fullBookContent if available, fallback to pdfSource
     const renderSourceContent = () => {
-        if (course?.pdfSource) {
-            return (
-                <iframe
-                    src={course.pdfSource}
-                    className="w-full h-full min-h-[60vh] border-none rounded-lg"
-                    title="מסמך מקור"
-                    loading="lazy"
-                />
-            );
-        }
-
         if (course?.fullBookContent) {
             return (
                 <div className="p-4 prose max-w-none text-base leading-relaxed" dir="rtl">
                     <div className="font-serif text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
                         {course.fullBookContent}
+                    </div>
+                </div>
+            );
+        }
+
+        if (course?.pdfSource) {
+            return (
+                <div className="h-full flex flex-col min-h-[60vh]">
+                    <iframe
+                        src={course.pdfSource}
+                        className="w-full flex-1 border-none rounded-lg"
+                        title="מסמך מקור"
+                        loading="lazy"
+                    />
+                    {/* Fallback link if iframe fails to load */}
+                    <div className="p-3 bg-white dark:bg-slate-800 border-t text-center">
+                        <a
+                            href={course.pdfSource}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:underline"
+                        >
+                            פתח את המסמך בחלון חדש ↗
+                        </a>
                     </div>
                 </div>
             );

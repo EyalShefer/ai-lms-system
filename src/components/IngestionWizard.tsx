@@ -316,25 +316,27 @@ const THEMES: Record<string, any> = {
     }
 };
 
-const SourceCard = ({ label, icon: Icon, color, isActive, onClick, innerRef, children, ...props }: any) => {
+const SourceCard = ({ label, icon: Icon, color, isActive, onClick, innerRef, children, disabled, ...props }: any) => {
     const theme = THEMES[color] || THEMES['blue'];
     return (
         <div
             ref={innerRef}
             {...props}
-            onClick={onClick}
+            onClick={disabled ? undefined : onClick}
             className={`
-                group relative p-6 rounded-2xl border transition-all duration-200 cursor-pointer overflow-hidden
+                group relative p-6 rounded-2xl border transition-all duration-200 overflow-hidden
                 flex flex-col items-center text-center gap-4 h-full
-                ${isActive
-                    ? `${theme.active} shadow-md ring-1`
-                    : `border-slate-200 bg-white ${theme.hover} hover:shadow-lg hover:-translate-y-1`
+                ${disabled
+                    ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-60'
+                    : isActive
+                        ? `${theme.active} shadow-md ring-1 cursor-pointer`
+                        : `border-slate-200 bg-white ${theme.hover} hover:shadow-lg hover:-translate-y-1 cursor-pointer`
                 }
             `}
         >
             <div className={`
-                w-16 h-16 rounded-full flex items-center justify-center transition-transform group-hover:scale-110
-                ${isActive ? theme.iconActive : `bg-slate-50 text-slate-500 ${theme.iconHover}`}
+                w-16 h-16 rounded-full flex items-center justify-center transition-transform ${disabled ? '' : 'group-hover:scale-110'}
+                ${isActive ? theme.iconActive : `bg-slate-50 text-slate-500 ${disabled ? '' : theme.iconHover}`}
             `}>
                 <Icon className="w-8 h-8" />
             </div>
@@ -343,6 +345,11 @@ const SourceCard = ({ label, icon: Icon, color, isActive, onClick, innerRef, chi
                 <div className="text-sm text-slate-500">{children}</div>
             </div>
             {isActive && <div className={`absolute top-3 right-3 ${theme.check}`}><IconCheck className="w-5 h-5" /></div>}
+            {disabled && (
+                <div className="absolute top-4 left-4 bg-slate-400 text-white px-2 py-1 rounded-full text-xs font-bold">
+                    בקרוב
+                </div>
+            )}
         </div>
     );
 };
@@ -845,17 +852,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             </SourceCard>
 
                             <SourceCard
-                                id="multimodal"
-                                label="יוטיוב / וידאו"
-                                icon={IconVideo}
-                                color="red"
-                                isActive={mode === 'multimodal'}
-                                onClick={() => setMode('multimodal')}
-                            >
-                                סרטון יוטיוב או קובץ וידאו
-                            </SourceCard>
-
-                            <SourceCard
                                 id="topic"
                                 label="לפי נושא"
                                 icon={IconBrain}
@@ -867,12 +863,24 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                             </SourceCard>
 
                             <SourceCard
+                                id="multimodal"
+                                label="יוטיוב / וידאו"
+                                icon={IconVideo}
+                                color="red"
+                                isActive={mode === 'multimodal'}
+                                onClick={() => setMode('multimodal')}
+                            >
+                                סרטון יוטיוב או קובץ וידאו
+                            </SourceCard>
+
+                            <SourceCard
                                 id="textbook"
                                 label="מספר הלימוד"
                                 icon={IconLibrary}
                                 color="indigo"
                                 isActive={mode === 'textbook'}
                                 onClick={() => setMode('textbook')}
+                                disabled={true}
                             >
                                 {textbookSelection
                                     ? <span className="text-indigo-600 font-bold">{textbookSelection.selectedTocEntries.length} פרקים נבחרו</span>

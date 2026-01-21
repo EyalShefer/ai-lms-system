@@ -163,15 +163,13 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     };
 
     return (
-        <div className="w-full mx-auto" role="region" aria-labelledby="ordering-title">
-            <h3 id="ordering-title" className="text-3xl font-black mb-4 text-indigo-800 dark:text-white text-center">סידור לפי סדר</h3>
-            <p className="text-lg text-gray-600 dark:text-white/90 mb-8 text-center font-medium" id="ordering-instruction">{instruction}</p>
+        <div className="w-full mx-auto" role="region" aria-label="שאלת סידור">
+            <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold">{instruction}</p>
 
             <div
                 className="space-y-3 mb-8"
                 role="list"
                 aria-label="פריטים לסידור - גרור כדי לשנות סדר"
-                aria-describedby="ordering-instruction"
             >
                 {items.map((item, index) => {
                     const isCorrectPosition = items[index] === correct_order[index];

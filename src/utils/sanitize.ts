@@ -360,6 +360,34 @@ export function formatTeacherContentStyled(text: string | undefined | null): str
   return `<div dir="rtl" style="text-align: right; line-height: 1.8;">${content}</div>`;
 }
 
+/**
+ * Strip asterisks from text content (for plain text display)
+ *
+ * Removes markdown-style asterisks without converting to HTML.
+ * Use this for content displayed as plain text (not innerHTML).
+ *
+ * @param text - Raw text that may contain asterisks
+ * @returns Clean text without asterisks
+ */
+export function stripAsterisks(text: string | undefined | null): string {
+  if (!text) return '';
+
+  let cleaned = text;
+
+  // 1. Remove asterisks used as bullet points (* at start of line or after newline)
+  cleaned = cleaned.replace(/(?:^|\n)\s*\*\s*/g, '\n');
+
+  // 2. Remove asterisks used for bold (**text** or *text*)
+  cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+  cleaned = cleaned.replace(/\*([^*]+)\*/g, '$1');
+
+  // 3. Clean up extra whitespace
+  cleaned = cleaned.replace(/^\s+|\s+$/g, ''); // Trim
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n'); // Max 2 newlines
+
+  return cleaned;
+}
+
 export default {
   sanitizeHtml,
   sanitizeStrictHtml,
@@ -371,4 +399,5 @@ export default {
   formatTeacherContentStyled,
   markdownToHtml,
   sanitizeWithMarkdown,
+  stripAsterisks,
 };

@@ -113,11 +113,17 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         questionText = "שאלה ללא טקסט";
     }
 
+    // Extract learning level from various possible locations
+    const validLearningLevels = ['הבנה', 'יישום', 'העמקה'];
+    const rawLearningLevel = item.learning_level || rawData.learning_level || (item.data as any)?.learning_level;
+    const learningLevel = validLearningLevels.includes(rawLearningLevel) ? rawLearningLevel : undefined;
+
     const commonMetadata = {
         bloomLevel: item.bloom_level || "ידע ומיומנויות יסוד",
         feedbackCorrect: rawData.feedback_correct || rawData.feedback || "כל הכבוד! התשובה תואמת את הטקסט.",
         feedbackIncorrect: rawData.feedback_incorrect || "לא מדויק. כדאי לנסות שוב או להיעזר ברמז המודגש.",
-        sourceReference: rawData.source_reference || rawData.source_reference_hint || null
+        sourceReference: rawData.source_reference || rawData.source_reference_hint || null,
+        ...(learningLevel && { learningLevel }) // Only add if defined
     };
 
     // === CASE A: MULTIPLE CHOICE / TRUE-FALSE ===

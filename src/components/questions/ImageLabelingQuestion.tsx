@@ -160,8 +160,7 @@ const ImageLabelingQuestion: React.FC<ImageLabelingQuestionProps> = ({
 
     return (
         <div className="w-full mx-auto">
-            <h3 className="text-3xl font-black mb-4 text-white text-center drop-shadow-sm">תיוג תמונה</h3>
-            <p className="text-lg text-white/90 mb-8 text-center font-medium">{instruction}</p>
+            <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold">{instruction}</p>
 
             {/* Image with Drop Zones */}
             <div

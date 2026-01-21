@@ -18,9 +18,8 @@ import { auth } from '../firebase';
 // CONFIGURATION
 // ============================================================
 
-const STREAMING_BASE_URL = import.meta.env.PROD
-  ? 'https://us-central1-ai-lms-pro.cloudfunctions.net/streamingServer'
-  : 'http://localhost:5001/ai-lms-pro/us-central1/streamingServer';
+// Always use production URL (local emulator not typically used for streaming)
+const STREAMING_BASE_URL = 'https://us-central1-ai-lms-pro.cloudfunctions.net/streamingServer';
 
 // ============================================================
 // TYPES

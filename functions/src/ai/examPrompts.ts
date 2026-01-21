@@ -587,6 +587,15 @@ ${getExamLinguisticConstraints(gradeLevel)}
    - NO "Did you know?" or educational asides.
    - NO feedback that reveals the answer (feedback only after submission by teacher).
 
+9. **TEXT FORMATTING RULES (CRITICAL - NO MARKDOWN):**
+   - **FORBIDDEN:** Do NOT use asterisks (*) for any formatting purpose.
+   - **FORBIDDEN:** Do NOT use markdown syntax like **bold**, *italic*, or bullet points with *.
+   - **For lists:** Use numbered lists (1. 2. 3.) or write as flowing prose.
+   - **For model_answer:** Write clear sentences or numbered points, NOT bullet points with asterisks.
+     * WRONG: "* נקודה ראשונה * נקודה שנייה"
+     * CORRECT: "1. נקודה ראשונה 2. נקודה שנייה"
+   - **Output plain text only** - no HTML tags, no markdown, just clean Hebrew text.
+
 Output FORMAT (JSON ONLY):
 {
    "step_number": ${stepInfo.step_number},
