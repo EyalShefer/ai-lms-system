@@ -220,12 +220,29 @@ git commit -m "..."
 - חוסם commit אם יש שגיאות
 - אי אפשר לעשות commit של קוד שבור (אלא אם משתמשים ב-`--no-verify`)
 
-#### 🟡 שכבה 3: GitHub Actions (CI/CD)
-- בדיקה אוטומטית בכל Pull Request
-- Coverage Report
-- חסימת Merge אם יש כשלונות
+#### 🟡 שכבה 3: GitHub Actions (CI/CD) - ✅ **מוגדר!**
+```yaml
+# Push/PR → GitHub Actions רץ אוטומטית:
+  ✓ Type Check (TypeScript)
+  ✓ Lint (ESLint)
+  ✓ Frontend Tests + Coverage
+  ✓ Functions Tests + Coverage
+  ✓ Critical Tests (חובה!)
+  ✓ Build Check
+     ↓
+  ✅ כל הבדיקות עברו → Merge מותר
+  ❌ בדיקה נכשלה → Merge חסום
+```
+**סטטוס:** ✅ **מוגדר ופעיל!** (הותקן היום)
 
-**סטטוס:** ⏳ *ייווצר בהמשך - שבוע 3*
+**מה זה בודק:**
+- רץ **אוטומטית** בכל Push/PR ל-main
+- 6 jobs במקביל (Type, Lint, Tests, Build)
+- זמן ריצה: 5-7 דקות
+- מעלה coverage reports
+- **חוסם merge** אם יש שגיאות (עם Branch Protection)
+
+**קובץ:** [.github/workflows/ci.yml](../.github/workflows/ci.yml)
 
 ---
 

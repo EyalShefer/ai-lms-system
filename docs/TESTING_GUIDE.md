@@ -626,10 +626,11 @@ git commit -m "update" --no-verify
 
 ---
 
-### שכבה 2️⃣ - GitHub (Pull Request)
+### שכבה 2️⃣ - GitHub Actions (Pull Request)
 
-**איפה:** GitHub.com
-**מתי:** כל PR ל-main
+**איפה:** GitHub.com (ענן)
+**מתי:** כל PR/Push ל-main
+**כלים:** GitHub Actions ✅ **מוגדר!**
 
 ```
 ┌────────────────────────────────────┐
@@ -638,15 +639,19 @@ git commit -m "update" --no-verify
 │  פותח PR ב-GitHub                  │
 │         ↓                          │
 │  🤖 GitHub Actions (אוטומטי!)     │
-│     - type-check ✓ (2m 15s)        │
-│     - lint ✓ (1m 42s)              │
-│     - test-unit ✓ (3m 08s)         │
-│     - test-critical ✓ (4m 21s)     │
-│     - build ✓ (2m 55s)             │
+│     6 Jobs במקביל:                 │
+│     - type-check ✓ (2m)            │
+│     - lint ✓ (1m)                  │
+│     - test-frontend ✓ (3m)         │
+│     - test-functions ✓ (4m)        │
+│     - test-critical ✓ (2m)         │
+│     - build ✓ (3m)                 │
 │         ↓                          │
 │  כפתור Merge מופיע/חסום            │
 └────────────────────────────────────┘
 ```
+
+**קובץ:** [.github/workflows/ci.yml](../.github/workflows/ci.yml)
 
 **איך לדעת שעבד:**
 
@@ -654,28 +659,36 @@ git commit -m "update" --no-verify
 
 **מוצלח:**
 ```
-✓ All checks have passed
+Checks — 7 total
 
-  ✓ type-check (2m 15s)
-  ✓ lint (1m 42s)
-  ✓ test-unit (3m 08s)
-  ✓ test-critical (4m 21s)
-  ✓ build (2m 55s)
+All checks have passed
 
-[Merge pull request] כפתור ירוק זמין
+  ✓ type-check / TypeScript Type Check (2m 15s)
+  ✓ lint / ESLint Code Quality (1m 42s)
+  ✓ test-frontend / Frontend Tests (3m 08s)
+  ✓ test-functions / Firebase Functions Tests (4m 21s)
+  ✓ test-critical / Critical Code Tests (2m 05s)
+  ✓ build / Build Check (2m 55s)
+  ✓ all-checks-passed / All Checks Passed ✓ (5s)
+
+[Merge pull request] 🟢 כפתור ירוק זמין
 ```
 
 **נכשל:**
 ```
-✗ Some checks failed
+Checks — 7 total
 
-  ✓ type-check (2m 15s)
-  ✗ test-critical (4m 21s) - Details
-  ✓ lint (1m 42s)
-  ✓ test-unit (3m 08s)
-  ✓ build (2m 55s)
+Some checks were not successful
 
-[Merge pull request] כפתור אפור - לא זמין
+  ✓ type-check / TypeScript Type Check (2m 15s)
+  ✓ lint / ESLint Code Quality (1m 42s)
+  ✗ test-frontend / Frontend Tests (3m 08s) — Details
+  ✓ test-functions / Firebase Functions Tests (4m 21s)
+  ✓ test-critical / Critical Code Tests (2m 05s)
+  ✓ build / Build Check (2m 55s)
+  ✗ all-checks-passed / All Checks Passed ✓ (5s)
+
+[Merge pull request] 🔴 כפתור חסום
 ```
 
 לחץ על "Details" ליד ה-✗ לראות מה נכשל.
