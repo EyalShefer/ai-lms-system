@@ -37,6 +37,75 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     // Presentation/View mode state
     const [viewingUnit, setViewingUnit] = useState<LearningUnit | null>(null);
 
+    // State for differentiated unit tabs - tracks which level is selected for each group
+    const [selectedDiffLevel, setSelectedDiffLevel] = useState<Record<string, 'הבנה' | 'יישום' | 'העמקה'>>({});
+
+    // --- Differentiated Units Helpers ---
+    const isDifferentiatedUnit = (unit: LearningUnit): boolean => {
+        const title = unit.title || '';
+        return title.includes('(הבנה)') || title.includes('(יישום)') || title.includes('(העמקה)');
+    };
+
+    const getUnitLevel = (unit: LearningUnit): 'הבנה' | 'יישום' | 'העמקה' | null => {
+        const title = unit.title || '';
+        if (title.includes('(הבנה)')) return 'הבנה';
+        if (title.includes('(יישום)')) return 'יישום';
+        if (title.includes('(העמקה)')) return 'העמקה';
+        return null;
+    };
+
+    const getBaseTitle = (unit: LearningUnit): string => {
+        return (unit.title || '').replace(/\s*\((הבנה|יישום|העמקה)\)\s*$/, '').trim();
+    };
+
+    // Group consecutive differentiated units with the same base title
+    const groupDifferentiatedUnits = (units: LearningUnit[]): (LearningUnit | { type: 'diff-group'; baseTitle: string; units: LearningUnit[] })[] => {
+        // DEBUG: Log all units to see if they have differentiated titles
+        console.log('[groupDifferentiatedUnits] Input units:', units.map(u => ({ id: u.id, title: u.title, isDiff: isDifferentiatedUnit(u) })));
+
+        const result: (LearningUnit | { type: 'diff-group'; baseTitle: string; units: LearningUnit[] })[] = [];
+        let i = 0;
+
+        while (i < units.length) {
+            const unit = units[i];
+            if (isDifferentiatedUnit(unit)) {
+                const baseTitle = getBaseTitle(unit);
+                const group: LearningUnit[] = [unit];
+
+                // Look ahead for consecutive units with same base title
+                while (i + 1 < units.length) {
+                    const nextUnit = units[i + 1];
+                    if (isDifferentiatedUnit(nextUnit) && getBaseTitle(nextUnit) === baseTitle) {
+                        group.push(nextUnit);
+                        i++;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (group.length > 1) {
+                    // Sort by level order: הבנה, יישום, העמקה
+                    const levelOrder = { 'הבנה': 0, 'יישום': 1, 'העמקה': 2 };
+                    group.sort((a, b) => {
+                        const levelA = getUnitLevel(a) || 'יישום';
+                        const levelB = getUnitLevel(b) || 'יישום';
+                        return levelOrder[levelA] - levelOrder[levelB];
+                    });
+                    console.log('[groupDifferentiatedUnits] Created diff-group:', { baseTitle, unitsCount: group.length });
+                    result.push({ type: 'diff-group', baseTitle, units: group });
+                } else {
+                    console.log('[groupDifferentiatedUnits] Single diff unit, not grouping:', unit.title);
+                    result.push(unit);
+                }
+            } else {
+                result.push(unit);
+            }
+            i++;
+        }
+
+        return result;
+    };
+
     const toggleUnitExpansion = (unitId: string) => {
         const newSet = new Set(expandedUnits);
         if (newSet.has(unitId)) {
@@ -341,7 +410,110 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                                         </button>
                                     </div>
                                 ) : (
-                                    module.learningUnits.map((unit, uIndex) => {
+                                    groupDifferentiatedUnits(module.learningUnits).map((item, itemIndex) => {
+                                        // Handle differentiated group (3 levels with tabs)
+                                        if ('type' in item && item.type === 'diff-group') {
+                                            const groupKey = item.units[0].id;
+                                            const currentLevel = selectedDiffLevel[groupKey] || 'יישום';
+                                            const activeUnit = item.units.find(u => getUnitLevel(u) === currentLevel) || item.units[0];
+                                            const isExpanded = expandedUnits.has(activeUnit.id);
+
+                                            const levelConfig = {
+                                                'הבנה': { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+                                                'יישום': { bg: 'bg-blue-600', bgLight: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+                                                'העמקה': { bg: 'bg-purple-600', bgLight: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' }
+                                            };
+
+                                            return (
+                                                <div
+                                                    key={groupKey}
+                                                    className={`flex flex-col rounded-xl border transition-all group/unit overflow-hidden
+                                                        ${isExpanded ? `card-glass ${levelConfig[currentLevel].border} shadow-lg ring-2 ring-opacity-50` : 'bg-white/60 border-white/60 backdrop-blur-sm hover:bg-white/80 shadow-sm'}
+                                                    `}
+                                                >
+                                                    {/* Differentiated Level Tabs */}
+                                                    <div className={`flex items-center justify-between px-4 py-2 ${levelConfig[currentLevel].bgLight} border-b ${levelConfig[currentLevel].border}`}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-medium text-gray-500">הוראה מותאמת:</span>
+                                                            <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded-lg shadow-sm">
+                                                                {(['הבנה', 'יישום', 'העמקה'] as const).map(level => {
+                                                                    const hasLevel = item.units.some(u => getUnitLevel(u) === level);
+                                                                    if (!hasLevel) return null;
+                                                                    return (
+                                                                        <button
+                                                                            key={level}
+                                                                            onClick={() => setSelectedDiffLevel(prev => ({ ...prev, [groupKey]: level }))}
+                                                                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all
+                                                                                ${currentLevel === level
+                                                                                    ? `${levelConfig[level].bg} text-white shadow-sm`
+                                                                                    : 'text-gray-500 hover:bg-gray-100'}`}
+                                                                        >
+                                                                            {level}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <span className={`text-xs font-medium ${levelConfig[currentLevel].text}`}>
+                                                            {activeUnit.activityBlocks?.length || 0} רכיבים
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Unit Header (Click to Expand) */}
+                                                    <div
+                                                        className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 cursor-pointer"
+                                                        onClick={() => toggleUnitExpansion(activeUnit.id)}
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${isExpanded ? levelConfig[currentLevel].bg + ' text-white' : levelConfig[currentLevel].bgLight + ' ' + levelConfig[currentLevel].text}`}>
+                                                                <IconPlayerPlay className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className={`font-semibold ${isExpanded ? 'text-gray-900' : 'text-gray-800'}`}>{item.baseTitle}</h3>
+                                                                <p className="text-xs text-gray-500 flex items-center gap-2">
+                                                                    <span>פעילות דיפרנציאלית</span>
+                                                                    <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                                    <span>{item.units.length} רמות</span>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end print:hidden">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handlePreview(activeUnit); }}
+                                                                className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors bg-white/50 border border-white/60 shadow-sm"
+                                                                title="תצוגת הקרנה"
+                                                            >
+                                                                <IconEye className="w-[18px] h-[18px]" />
+                                                            </button>
+
+                                                            <div className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                                <IconArrowDown className="w-5 h-5 text-gray-400" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Inline Editor (Accordion Body) */}
+                                                    {isExpanded && (
+                                                        <div className={`border-t ${levelConfig[currentLevel].border}`} onClick={(e) => e.stopPropagation()}>
+                                                            <TeacherCockpit
+                                                                unit={activeUnit}
+                                                                courseId={course.id}
+                                                                embedded={true}
+                                                                onExit={() => toggleUnitExpansion(activeUnit.id)}
+                                                                onUnitUpdate={onUnitUpdate}
+                                                                onUpdateBlock={(blockId, content) => handleBlockUpdateInUnit(activeUnit, blockId, content)}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
+                                        // Regular unit (not differentiated)
+                                        const unit = item as LearningUnit;
+                                        const uIndex = module.learningUnits.findIndex(u => u.id === unit.id);
+
                                         // DEBUG LOG
                                         console.log(`[LPO Render] Unit: ${unit.title} (${unit.id}) | Status: ${unit.metadata?.status} | Blocks: ${unit.activityBlocks?.length}`);
 

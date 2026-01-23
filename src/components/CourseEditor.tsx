@@ -1292,9 +1292,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             // יצירת סילבוס (מבנה בלבד עבור מערך שיעור, מלא עבור אחרים)
             let syllabus: Module[] = [];
 
-            if (data.settings?.productType === 'lesson') {
-                // progressive loading strategy
-                activityTimer.startStep('AI: Generate lesson syllabus');
+            if (data.settings?.productType === 'lesson' ||
+                data.settings?.productType === 'activity' ||
+                data.settings?.productType === 'exam') {
+                // Fast path: structure only (GPT-4o), content generated later via streaming (Gemini 3 Pro)
+                activityTimer.startStep('AI: Generate syllabus structure');
                 syllabus = await generateCourseSyllabus(
                     topicToUse,
                     extractedGrade,
@@ -1306,16 +1308,19 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                 activityTimer.endStep();
 
 
-                // --- PROGRESSIVE QUEUE TRIGGER ---
-                processLessonPlanQueue(
-                    syllabus,
-                    processedSourceText || topicToUse,
-                    extractedGrade,
-                    data.settings?.activityLength || 'medium',
-                    'lesson',
-                    null,
-                    data.settings?.productType
-                ).catch(e => console.error("Queue Error:", e));
+                // --- PROGRESSIVE QUEUE TRIGGER (lesson only) ---
+                // For activity/exam: content is generated later via streaming in UnitEditor/CourseEditor
+                if (data.settings?.productType === 'lesson') {
+                    processLessonPlanQueue(
+                        syllabus,
+                        processedSourceText || topicToUse,
+                        extractedGrade,
+                        data.settings?.activityLength || 'medium',
+                        'lesson',
+                        null,
+                        data.settings?.productType
+                    ).catch(e => console.error("Queue Error:", e));
+                }
 
             } else {
                 // legacy / cloud function strategy (games, exams)
@@ -1463,7 +1468,19 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         setCourse({ ...courseWithSyllabus, syllabus: syllabusWithSkeleton });
                         setSelectedUnitId(unitCoreId); // Select Core by default
 
-                        // Start streaming (Gemini 3 Pro)
+                        // Map level names to unit IDs for real-time updates
+                        const levelToUnitId: Record<string, string> = {
+                            support: unitSupportId,
+                            core: unitCoreId,
+                            enrichment: unitEnrichmentId
+                        };
+                        const levelToHebrew: Record<string, string> = {
+                            support: 'הבנה',
+                            core: 'יישום',
+                            enrichment: 'העמקה'
+                        };
+
+                        // Start streaming (Gemini 3 Pro) with real-time UI updates
                         diffContent = await startDifferentiatedStreaming({
                             topic: topicToUse,
                             gradeLevel: extractedGrade,
@@ -1472,6 +1489,30 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                             productType: data.settings?.productType || 'activity',
                             activityLength: data.settings?.activityLength || 'medium',
                             questionPreferences: data.settings?.questionPreferences
+                        }, (level, items) => {
+                            // Real-time update: Update the unit as soon as its level completes
+                            const unitId = levelToUnitId[level];
+                            const hebrewName = levelToHebrew[level];
+                            const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
+
+                            console.log(`🌊 Level ${level} completed with ${blocks.length} blocks, updating unit ${unitId}`);
+
+                            setCourse(prevCourse => {
+                                const updatedSyllabus = prevCourse.syllabus.map((mod: any) => ({
+                                    ...mod,
+                                    learningUnits: mod.learningUnits.map((u: any) => {
+                                        if (u.id === unitId) {
+                                            return {
+                                                ...u,
+                                                title: `${firstUnit.title} (${hebrewName})`,
+                                                activityBlocks: blocks
+                                            };
+                                        }
+                                        return u;
+                                    })
+                                }));
+                                return { ...prevCourse, syllabus: updatedSyllabus };
+                            });
                         });
                         console.log("🌊 Streaming completed:", diffContent);
 
@@ -1730,9 +1771,22 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     // Fallback: If no unit is selected but units exist, default to the first one immediately ONLY IF NOT LESSON MODE.
     const defaultUnit = course.syllabus?.[0]?.learningUnits?.[0];
     const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
+
+    // --- Differentiated Activity Detection ---
+    const isDifferentiatedActivity = course.wizardData?.settings?.isDifferentiated === true;
+    const allUnits = course.syllabus?.flatMap((m: any) => m.learningUnits) || [];
+    const differentiatedUnits = allUnits.filter((u: any) =>
+        u.title?.includes('(הבנה)') || u.title?.includes('(יישום)') || u.title?.includes('(העמקה)')
+    );
+    const hasDifferentiatedUnits = differentiatedUnits.length >= 2;
+
     // FIX: Lesson Mode should ALWAYS show the unit (Single Unit). Legacy modes might vary.
+    // For Activity Mode with Differentiated content: also show the unit immediately
     // For now, we restrict the "Always Open" behavior to Lesson Mode to avoid trapping Game Mode users.
-    const unitToRender = activeUnit || (isLessonMode ? defaultUnit : null);
+    // IMPORTANT: If isDifferentiatedActivity but no differentiated units yet (during generation), show null to prevent UnitEditor from running
+    const unitToRender = isDifferentiatedActivity && !hasDifferentiatedUnits
+        ? null  // Wait for differentiated units to be created
+        : activeUnit || (isLessonMode ? defaultUnit : null) || (hasDifferentiatedUnits ? differentiatedUnits[0] : null);
 
     // console.log("DEBUG: Editor Render. active:", !!activeUnit, "default:", !!defaultUnit, "isLesson:", isLessonMode, "RENDER:", unitToRender ? "UnitEditor" : "Overview");
 
@@ -1810,17 +1864,58 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         }}
                     />
                 ) : (
-                    <UnitEditor
-                        unit={unitToRender}
-                        gradeLevel={displayGrade}
-                        subject={course.subject}
-                        onSave={handleSaveUnit}
-                        onCancel={() => {
-                            navigate('/'); // חזרה לדף הבית
-                        }}
-                        onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
-                        cancelLabel="הגדרות"
-                    />
+                    <>
+                        {/* Differentiated Activity Level Tabs */}
+                        {hasDifferentiatedUnits && (
+                            <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-3 shadow-sm">
+                                <div className="max-w-4xl mx-auto flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        </svg>
+                                        <span className="font-medium">רמת הפעילות:</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                                        {[
+                                            { key: 'הבנה', bg: 'bg-emerald-600' },
+                                            { key: 'יישום', bg: 'bg-blue-600' },
+                                            { key: 'העמקה', bg: 'bg-purple-600' }
+                                        ].map(level => {
+                                            const levelUnit = differentiatedUnits.find((u: any) => u.title?.includes(`(${level.key})`));
+                                            if (!levelUnit) return null;
+                                            const isActive = unitToRender?.id === levelUnit.id;
+                                            return (
+                                                <button
+                                                    key={level.key}
+                                                    onClick={() => setSelectedUnitId(levelUnit.id)}
+                                                    className={`px-5 py-2 rounded-lg text-sm font-bold transition-all
+                                                        ${isActive
+                                                            ? `${level.bg} text-white shadow-md`
+                                                            : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}
+                                                >
+                                                    {level.key}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <span className="text-xs text-gray-500">
+                                        {differentiatedUnits.length} רמות
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        <UnitEditor
+                            unit={unitToRender}
+                            gradeLevel={displayGrade}
+                            subject={course.subject}
+                            onSave={handleSaveUnit}
+                            onCancel={() => {
+                                navigate('/'); // חזרה לדף הבית
+                            }}
+                            onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
+                            cancelLabel="הגדרות"
+                        />
+                    </>
                 )
             ) : (
                 // Empty State OR Lesson Plan Overview

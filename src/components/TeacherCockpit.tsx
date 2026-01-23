@@ -888,63 +888,267 @@ const TeacherCockpit: React.FC<TeacherCockpitProps> = ({ unit, courseId, course,
     };
 
 
+    // Element categories for InsertMenu
+    const ELEMENT_CATEGORIES = {
+        content: {
+            label: 'תוכן',
+            icon: IconText,
+            items: [
+                { type: 'text', icon: IconText, color: 'text-[#2B59C3]', tooltip: 'הוסף טקסט, כותרת או הסבר' },
+                { type: 'image', icon: IconImage, color: 'text-green-600', tooltip: 'הוסף תמונה מהמחשב או מקישור' },
+                { type: 'video', icon: IconVideo, color: 'text-red-500', tooltip: 'הטמע סרטון מיוטיוב או העלה קובץ' },
+            ]
+        },
+        questions: {
+            label: 'שאלות',
+            icon: IconEdit,
+            items: [
+                { type: 'multiple-choice', icon: IconList, color: 'text-[#8B5CF6]', tooltip: 'שאלה עם תשובות לבחירה' },
+                { type: 'open-question', icon: IconEdit, color: 'text-orange-500', tooltip: 'שאלה פתוחה לתשובה חופשית' },
+                { type: 'true_false_speed', icon: IconSparkles, color: 'text-amber-500', tooltip: 'שאלות אמת או שקר מהירות' },
+                { type: 'text_selection', icon: IconCheck, color: 'text-[#00C2FF]', tooltip: 'בחר את התשובה הנכונה מתוך הטקסט' },
+            ]
+        },
+        activities: {
+            label: 'פעילויות',
+            icon: IconBrain,
+            items: [
+                { type: 'matching', icon: IconLink, color: 'text-pink-500', tooltip: 'חבר בין פריטים תואמים' },
+                { type: 'ordering', icon: IconList, color: 'text-[#00C2FF]', tooltip: 'סדר פריטים בסדר הנכון' },
+                { type: 'categorization', icon: IconLayer, color: 'text-[#8B5CF6]', tooltip: 'מיין פריטים לקטגוריות' },
+                { type: 'memory_game', icon: IconBrain, color: 'text-amber-500', tooltip: 'משחק זיכרון עם זוגות' },
+                { type: 'fill_in_blanks', icon: IconEdit, color: 'text-emerald-500', tooltip: 'השלם מילים חסרות במשפטים' },
+                { type: 'sentence_builder', icon: IconText, color: 'text-[#2B59C3]', tooltip: 'בנה משפט מילים בסדר הנכון' },
+                { type: 'highlight', icon: IconEdit, color: 'text-lime-500', tooltip: 'סמן חלקים בטקסט' },
+                { type: 'image_labeling', icon: IconImage, color: 'text-rose-500', tooltip: 'הוסף תוויות לתמונה' },
+                { type: 'table_completion', icon: IconList, color: 'text-slate-500', tooltip: 'השלם תאים בטבלה' },
+            ]
+        },
+        ai: {
+            label: 'AI מתקדם',
+            icon: IconBrain,
+            items: [
+                { type: 'interactive-chat', icon: IconChat, color: 'text-[#8B5CF6]', tooltip: 'שיחה אינטראקטיבית עם AI', isNew: true },
+                { type: 'podcast', icon: IconHeadphones, color: 'text-[#8B5CF6]', tooltip: 'צור פודקאסט אוטומטי מהתוכן', isNew: true },
+                { type: 'infographic', icon: IconInfographic, color: 'text-[#8B5CF6]', tooltip: 'צור אינפוגרפיקה ויזואלית', isNew: true },
+                { type: 'mindmap', icon: IconBrain, color: 'text-[#8B5CF6]', tooltip: 'צור מפת חשיבה אוטומטית', isNew: true },
+            ]
+        },
+        feedback: {
+            label: 'משוב',
+            icon: IconBalance,
+            items: [
+                { type: 'rating_scale', icon: IconBalance, color: 'text-amber-500', tooltip: 'סקאלת דירוג 1-5 או 1-10' },
+                { type: 'matrix', icon: IconLayer, color: 'text-[#8B5CF6]', tooltip: 'טבלת מטריקס לשאלות מרובות' },
+                { type: 'audio-response', icon: IconMicrophone, color: 'text-red-500', tooltip: 'הקלטת תשובה קולית' },
+            ]
+        }
+    };
+
+    const POPULAR_ELEMENTS = ['text', 'image', 'multiple-choice', 'open-question'];
+
     // --- Sub-Components ---
-    const InsertMenu = ({ index }: { index: number }) => (
-        <div className="flex justify-center my-8 print:hidden group relative z-10 w-full">
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-full border-t border-dashed border-slate-300"></div>
-            </div>
-            <div className="relative bg-[#f0f4f8] px-4">
-                {generatingBlockIndex === index ? (
-                    <div className="glass border border-indigo-200 shadow-xl rounded-2xl p-6 flex flex-col items-center gap-3 backdrop-blur-xl bg-indigo-50/95 ring-4 ring-indigo-100/50">
-                        <TypewriterLoader contentType="activity" isVisible={true} showSpinner={true} />
-                    </div>
-                ) : activeInsertIndex === index ? (
-                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 animate-scale-in backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-3xl mx-auto" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('video', index); }} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('multiple-choice', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('open-question', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('interactive-chat', index); }} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
+    const InsertMenu = ({ index }: { index: number }) => {
+        const [activeCategory, setActiveCategory] = React.useState<string>('content');
+        const [searchQuery, setSearchQuery] = React.useState('');
 
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('fill_in_blanks', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('ordering', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('categorization', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('memory_game', index); }} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconClock className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matching', index); }} className="insert-btn"><IconLink className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matching']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('highlight', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['highlight']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('sentence_builder', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['sentence_builder']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image_labeling', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image_labeling']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('table_completion', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['table_completion']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text_selection', index); }} className="insert-btn"><IconCheck className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text_selection']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('rating_scale', index); }} className="insert-btn"><IconBalance className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['rating_scale']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matrix', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matrix']}</span></button>
+        // Get all elements flattened for search
+        const allElements = Object.entries(ELEMENT_CATEGORIES).flatMap(([cat, data]) =>
+            data.items.map(item => ({ ...item, category: cat }))
+        );
 
-                        <div className="w-px bg-slate-200 mx-2"></div>
-                        <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><IconX className="w-5 h-5" /></button>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => setActiveInsertIndex(index)}
-                        className="bg-white text-slate-500 border border-slate-300 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600"
-                    >
-                        <IconPlus className="w-4 h-4" />
-                        <span className="text-xs font-bold">הוסף רכיב</span>
-                    </button>
-                )}
+        // Filter elements based on search
+        const filteredElements = searchQuery
+            ? allElements.filter(el =>
+                BLOCK_TYPE_MAPPING[el.type]?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                el.tooltip?.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            : null;
+
+        const renderElementButton = (item: any, showTooltip = true) => {
+            const Icon = item.icon;
+            const isAiFeature = item.isNew;
+            return (
+                <button
+                    key={item.type}
+                    onClick={(e) => { e.stopPropagation(); addBlockAtIndex(item.type, index); }}
+                    className={`insert-btn-new group relative ${isAiFeature ? 'insert-btn-ai' : ''}`}
+                    title={item.tooltip}
+                >
+                    {item.isNew && <span className="insert-badge-new">חדש!</span>}
+                    {showTooltip && <span className="insert-tooltip">{item.tooltip}</span>}
+                    <Icon className={`w-7 h-7 ${item.color}`} />
+                    <span className={isAiFeature ? 'text-[#8B5CF6]' : ''}>{BLOCK_TYPE_MAPPING[item.type]}</span>
+                </button>
+            );
+        };
+
+        return (
+            <div className="flex justify-center my-8 print:hidden group relative z-10 w-full">
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-full border-t border-dashed border-slate-300"></div>
+                </div>
+                <div className="relative bg-[#f0f4f8] px-4">
+                    {generatingBlockIndex === index ? (
+                        <div className="glass border border-indigo-200 shadow-xl rounded-2xl p-6 flex flex-col items-center gap-3 backdrop-blur-xl bg-indigo-50/95 ring-4 ring-indigo-100/50">
+                            <TypewriterLoader contentType="activity" isVisible={true} showSpinner={true} />
+                        </div>
+                    ) : activeInsertIndex === index ? (
+                        <div className="card-glass shadow-xl rounded-3xl animate-scale-in max-w-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                            {/* Search */}
+                            <div className="p-3 border-b border-slate-100">
+                                <div className="relative">
+                                    <IconEdit className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="חפש רכיב..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full pr-10 pl-4 py-2 border-2 border-[#E0F2FE] rounded-xl text-sm focus:border-[#00C2FF] focus:ring-2 focus:ring-[#00C2FF]/20 outline-none transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Show search results OR categories */}
+                            {searchQuery ? (
+                                <div className="p-4">
+                                    <div className="flex flex-wrap gap-2">
+                                        {filteredElements && filteredElements.length > 0 ? (
+                                            filteredElements.map(item => renderElementButton(item))
+                                        ) : (
+                                            <p className="text-sm text-slate-500 w-full text-center py-4">לא נמצאו תוצאות</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Favorites */}
+                                    <div className="p-3 border-b border-slate-100">
+                                        <div className="insert-favorites">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <IconSparkles className="w-4 h-4 text-[#2B59C3]" />
+                                                <span className="font-bold text-sm text-[#2B59C3]">נפוצים</span>
+                                            </div>
+                                            <div className="flex gap-2 flex-wrap">
+                                                {POPULAR_ELEMENTS.map(type => {
+                                                    const item = allElements.find(el => el.type === type);
+                                                    if (!item) return null;
+                                                    const Icon = item.icon;
+                                                    return (
+                                                        <button
+                                                            key={type}
+                                                            onClick={(e) => { e.stopPropagation(); addBlockAtIndex(type, index); }}
+                                                            className="insert-btn-favorite"
+                                                        >
+                                                            <Icon className={`w-5 h-5 ${item.color}`} />
+                                                            <span>{BLOCK_TYPE_MAPPING[type]}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Tabs */}
+                                    <div className="flex border-b border-slate-200 px-2 bg-[#F5F9FF]/50 overflow-x-auto">
+                                        {Object.entries(ELEMENT_CATEGORIES).map(([key, cat]) => {
+                                            const Icon = cat.icon;
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    onClick={(e) => { e.stopPropagation(); setActiveCategory(key); }}
+                                                    className={`insert-tab ${activeCategory === key ? 'insert-tab-active' : ''}`}
+                                                >
+                                                    <Icon className="w-4 h-4" />
+                                                    <span>{cat.label}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Category Content */}
+                                    <div className="p-4">
+                                        <div className="flex flex-wrap gap-2">
+                                            {ELEMENT_CATEGORIES[activeCategory as keyof typeof ELEMENT_CATEGORIES].items.map(item =>
+                                                renderElementButton(item)
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Close button */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); setSearchQuery(''); }}
+                                className="absolute top-3 left-3 text-slate-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-full transition-colors"
+                            >
+                                <IconX className="w-5 h-5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setActiveInsertIndex(index)}
+                            className="bg-white text-[#2B59C3] border-2 border-[#E0F2FE] rounded-full px-4 py-2 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:border-[#00C2FF] hover:bg-[#F5F9FF]"
+                        >
+                            <IconPlus className="w-4 h-4" />
+                            <span className="text-xs font-bold">הוסף רכיב</span>
+                        </button>
+                    )}
+                </div>
+                <style>{`
+                    .insert-btn { @apply w-20 h-20 p-2 bg-white/50 border border-white/60 rounded-xl text-[10px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm text-center leading-tight; }
+                    .insert-btn svg { @apply w-6 h-6 flex-shrink-0; }
+
+                    /* New InsertMenu Styles */
+                    .insert-btn-new {
+                        @apply w-24 min-h-[90px] p-3 bg-white border-2 border-[#E0F2FE] rounded-2xl text-[11px] font-semibold text-[#2B59C3]
+                        hover:border-[#00C2FF] hover:bg-[#F5F9FF] hover:-translate-y-0.5 hover:shadow-lg
+                        transition-all flex flex-col items-center justify-center gap-2 relative;
+                    }
+                    .insert-btn-new svg { @apply flex-shrink-0; }
+                    .insert-btn-ai {
+                        background: linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%);
+                        border-color: #C4B5FD;
+                    }
+                    .insert-btn-ai:hover {
+                        border-color: #8B5CF6;
+                        background: linear-gradient(135deg, #DDD6FE 0%, #C4B5FD 100%);
+                    }
+                    .insert-badge-new {
+                        @apply absolute -top-2 -left-2 text-[9px] font-bold px-2 py-0.5 rounded-lg bg-[#8B5CF6] text-white;
+                    }
+                    .insert-tooltip {
+                        @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#2B59C3] text-white text-[10px] rounded-xl whitespace-nowrap
+                        opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-lg;
+                    }
+                    .insert-tooltip::after {
+                        content: '';
+                        @apply absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-[#2B59C3];
+                    }
+                    .insert-favorites {
+                        background: linear-gradient(135deg, #FEF9C3 0%, #FEF08A 100%);
+                        border: 2px solid #FFD500;
+                        @apply rounded-2xl p-3;
+                    }
+                    .insert-btn-favorite {
+                        @apply flex items-center gap-2 px-3 py-2 bg-white border-2 border-[#E0F2FE] rounded-xl text-xs font-semibold text-[#2B59C3]
+                        hover:border-[#00C2FF] hover:bg-[#F5F9FF] transition-all;
+                    }
+                    .insert-tab {
+                        @apply flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent
+                        hover:text-[#2B59C3] hover:bg-white/60 transition-all whitespace-nowrap;
+                    }
+                    .insert-tab-active {
+                        @apply text-[#2B59C3] bg-white border-b-[#2B59C3];
+                    }
+
+                    .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-origin: bottom center; }
+                    @keyframes scaleIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+                `}</style>
             </div>
-            <style>{`
-                .insert-btn { @apply w-20 h-20 p-2 bg-white/50 border border-white/60 rounded-xl text-[10px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm text-center leading-tight; }
-                .insert-btn svg { @apply w-6 h-6 flex-shrink-0; }
-            `}</style>
-        </div>
-    );
+        );
+    };
 
     /**
      * Generate a smart default prompt suggestion based on block type and content

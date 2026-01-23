@@ -216,6 +216,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null);
     const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
     const [activeInsertIndex, setActiveInsertIndex] = useState<number | null>(null);
+    const [insertMenuCategory, setInsertMenuCategory] = useState<'content' | 'questions' | 'games' | 'media' | 'ai'>('content');
     const [isAutoGenerating, setIsAutoGenerating] = useState(false);
     // const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false); // Podcast Loading State
     const [showSource, setShowSource] = useState(false); // New: Source Split View State
@@ -383,10 +384,19 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 return;
             }
 
+            const settings = (course as any)?.wizardData?.settings || {};
+
+            // 🛡️ RACE CONDITION FIX: In differentiated mode, CourseEditor handles streaming.
+            // UnitEditor should NOT start its own generation - just wait for content to arrive.
+            if (settings.isDifferentiated === true) {
+                console.log("🛡️ UnitEditor: Differentiated mode detected. Skipping auto-generation (CourseEditor handles it).");
+                setEditedUnit(unit);
+                return;
+            }
+
             hasInitialized.current = true;
             setIsAutoGenerating(true); // START LOADING STATE
 
-            const settings = (course as any)?.wizardData?.settings || {};
             const productType = settings.productType || 'lesson'; // Get Product Type
 
             // ⏱️ Initialize timing tracker
@@ -886,6 +896,25 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         };
         initContent();
     }, [unit.id]);
+
+    // 🔄 SYNC: Keep editedUnit in sync with unit prop when content arrives from external source (CourseEditor streaming)
+    const lastSyncedUnitRef = useRef<{ unitId: string; blockCount: number }>({ unitId: '', blockCount: 0 });
+    useEffect(() => {
+        // Only sync when content arrives externally (differentiated mode streaming from CourseEditor)
+        const settings = (course as any)?.wizardData?.settings || {};
+        const currentBlockCount = unit.activityBlocks?.length || 0;
+
+        // Check if this is a different unit OR if block count changed for the same unit
+        const isNewUnit = unit.id !== lastSyncedUnitRef.current.unitId;
+        const blockCountChanged = currentBlockCount !== lastSyncedUnitRef.current.blockCount;
+
+        // Sync if: differentiated mode + has blocks + (new unit OR block count changed)
+        if (settings.isDifferentiated === true && currentBlockCount > 0 && (isNewUnit || blockCountChanged)) {
+            console.log("🔄 UnitEditor: Syncing with streamed content from CourseEditor", currentBlockCount, "blocks", isNewUnit ? "(new unit)" : "(updated)");
+            lastSyncedUnitRef.current = { unitId: unit.id, blockCount: currentBlockCount };
+            setEditedUnit(unit);
+        }
+    }, [unit.id, unit.activityBlocks?.length]);
 
     // --- Podcast Auto-Trigger ---
     useEffect(() => {
@@ -1681,50 +1710,126 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         return null;
     };
 
-    const InsertMenu = ({ index }: { index: number }) => (
-        <div className="relative py-4 flex justify-center z-20">
-            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-blue-100/50 -z-10"></div>
-            <div>
-                {activeInsertIndex === index ? (
-                    <div className="glass border border-white/60 shadow-xl rounded-2xl p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 animate-scale-in backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-3xl">
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('video', index); }} className="insert-btn"><IconVideo className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['video']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('multiple-choice', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['multiple-choice']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('open-question', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['open-question']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('interactive-chat', index); }} className="insert-btn"><IconChat className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['interactive-chat']}</span></button>
+    const ELEMENT_CATEGORIES = {
+        content: {
+            label: 'תוכן',
+            icon: IconText,
+            items: [
+                { type: 'text', icon: IconText },
+                { type: 'interactive-chat', icon: IconChat },
+            ]
+        },
+        questions: {
+            label: 'שאלות',
+            icon: IconEdit,
+            items: [
+                { type: 'multiple-choice', icon: IconList },
+                { type: 'open-question', icon: IconEdit },
+                { type: 'fill_in_blanks', icon: IconEdit },
+                { type: 'true_false_speed', icon: IconSparkles },
+                { type: 'rating_scale', icon: IconBalance },
+                { type: 'matrix', icon: IconLayer },
+            ]
+        },
+        games: {
+            label: 'משחקים',
+            icon: IconBrain,
+            items: [
+                { type: 'ordering', icon: IconList },
+                { type: 'categorization', icon: IconLayer },
+                { type: 'memory_game', icon: IconBrain },
+                { type: 'matching', icon: IconLink },
+                { type: 'highlight', icon: IconEdit },
+                { type: 'sentence_builder', icon: IconText },
+                { type: 'image_labeling', icon: IconImage },
+                { type: 'table_completion', icon: IconList },
+                { type: 'text_selection', icon: IconCheck },
+            ]
+        },
+        media: {
+            label: 'מדיה',
+            icon: IconImage,
+            items: [
+                { type: 'image', icon: IconImage },
+                { type: 'video', icon: IconVideo },
+                { type: 'audio-response', icon: IconMicrophone },
+            ]
+        },
+        ai: {
+            label: 'AI',
+            icon: IconSparkles,
+            items: [
+                { type: 'podcast', icon: IconHeadphones, label: 'פודקאסט AI' },
+                { type: 'infographic', icon: IconInfographic, label: 'אינפוגרפיקה' },
+                { type: 'mindmap', icon: IconBrain },
+            ]
+        }
+    };
 
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('fill_in_blanks', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['fill_in_blanks']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('ordering', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['ordering']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('categorization', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['categorization']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('memory_game', index); }} className="insert-btn"><IconBrain className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['memory_game']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('true_false_speed', index); }} className="insert-btn"><IconSparkles className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['true_false_speed']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matching', index); }} className="insert-btn"><IconLink className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matching']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('highlight', index); }} className="insert-btn"><IconEdit className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['highlight']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('sentence_builder', index); }} className="insert-btn"><IconText className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['sentence_builder']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('image_labeling', index); }} className="insert-btn"><IconImage className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['image_labeling']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('table_completion', index); }} className="insert-btn"><IconList className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['table_completion']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('text_selection', index); }} className="insert-btn"><IconCheck className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['text_selection']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('rating_scale', index); }} className="insert-btn"><IconBalance className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['rating_scale']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('matrix', index); }} className="insert-btn"><IconLayer className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['matrix']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('audio-response', index); }} className="insert-btn"><IconMicrophone className="w-4 h-4" /><span>{BLOCK_TYPE_MAPPING['audio-response']}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('podcast', index); }} className="insert-btn"><IconHeadphones className="w-4 h-4" /><span>פודקאסט AI</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('infographic', index); }} className="insert-btn"><IconInfographic className="w-4 h-4" /><span>אינפוגרפיקה</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); addBlockAtIndex('mindmap', index); }} className="insert-btn bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-300"><IconBrain className="w-4 h-4 text-purple-600" /><span className="text-purple-700">{BLOCK_TYPE_MAPPING['mindmap']}</span></button>
+    const InsertMenu = ({ index }: { index: number }) => {
+        const categories = Object.entries(ELEMENT_CATEGORIES) as [keyof typeof ELEMENT_CATEGORIES, typeof ELEMENT_CATEGORIES[keyof typeof ELEMENT_CATEGORIES]][];
+        const currentCategory = ELEMENT_CATEGORIES[insertMenuCategory];
 
-                        <button onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors ml-2"><IconX className="w-5 h-5" /></button>
-                    </div>
-                ) : (
-                    <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-50 hover:border-blue-300">
-                        <IconPlus className="w-4 h-4" /><span className="text-xs font-bold">הוסיפו רכיב</span>
-                    </button>
-                )}
+        return (
+            <div className="relative py-4 flex justify-center z-20">
+                <div className="absolute inset-x-0 top-1/2 h-0.5 bg-blue-100/50 -z-10"></div>
+                <div>
+                    {activeInsertIndex === index ? (
+                        <div className="glass border border-white/60 shadow-xl rounded-2xl animate-scale-in backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl overflow-hidden">
+                            {/* Category Tabs */}
+                            <div className="flex border-b border-gray-100 bg-gray-50/50">
+                                {categories.map(([key, category]) => {
+                                    const Icon = category.icon;
+                                    return (
+                                        <button
+                                            key={key}
+                                            onClick={(e) => { e.stopPropagation(); setInsertMenuCategory(key); }}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all ${
+                                                insertMenuCategory === key
+                                                    ? 'text-blue-600 bg-white border-b-2 border-blue-500'
+                                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                                            }`}
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            <span>{category.label}</span>
+                                        </button>
+                                    );
+                                })}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }}
+                                    className="px-3 py-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                    <IconX className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Elements Grid */}
+                            <div className="p-4 grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {currentCategory.items.map((item) => {
+                                    const Icon = item.icon;
+                                    const label = (item as any).label || BLOCK_TYPE_MAPPING[item.type] || item.type;
+                                    return (
+                                        <button
+                                            key={item.type}
+                                            onClick={(e) => { e.stopPropagation(); addBlockAtIndex(item.type, index); }}
+                                            className="insert-btn"
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            <span>{label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-50 hover:border-blue-300">
+                            <IconPlus className="w-4 h-4" /><span className="text-xs font-bold">הוסיפו רכיב</span>
+                        </button>
+                    )}
+                </div>
             </div>
-        </div>
-
-
-
-    );
+        );
+    };
 
     const renderEmbeddedMedia = (blockId: string, metadata: any) => {
         if (!metadata?.media) return null;

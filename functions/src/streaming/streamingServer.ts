@@ -884,21 +884,47 @@ app.post('/stream/activity', async (req, res) => {
     // Parse skeleton
     let skeleton: any = null;
     try {
+      logger.info(`📝 Skeleton content length: ${skeletonContent.length} chars`);
+      logger.info(`📝 Skeleton content preview: ${skeletonContent.substring(0, 300)}`);
+
       let jsonText = skeletonContent
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
         .trim();
       const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        skeleton = JSON.parse(jsonMatch[0]);
+        let jsonStr = jsonMatch[0];
+        try {
+          skeleton = JSON.parse(jsonStr);
+        } catch (firstError: any) {
+          // Try to fix common JSON issues from LLM output
+          logger.warn(`First parse failed: ${firstError.message}. Attempting auto-fix...`);
+          jsonStr = jsonStr
+            // Fix unescaped newlines inside strings
+            .replace(/(?<!\\)\\n/g, '\\n')
+            // Fix unescaped quotes inside strings (common LLM mistake)
+            .replace(/:\s*"([^"]*?)(?<!\\)"([^"]*?)"/g, ': "$1\\"$2"')
+            // Remove trailing commas
+            .replace(/,(\s*[}\]])/g, '$1')
+            // Fix missing commas between properties
+            .replace(/"\s*\n\s*"/g, '",\n"')
+            .replace(/}\s*\n\s*{/g, '},\n{');
+
+          skeleton = JSON.parse(jsonStr);
+          logger.info('✅ JSON auto-fix successful');
+        }
+      } else {
+        logger.error('No JSON match found in skeleton. Full content:', skeletonContent);
       }
-    } catch (e) {
-      logger.error('Failed to parse skeleton:', e);
-      throw new Error('Failed to parse activity skeleton');
+    } catch (e: any) {
+      logger.error('Failed to parse skeleton. Error:', e.message);
+      logger.error('Skeleton content was:', skeletonContent.substring(0, 1000));
+      throw new Error(`Failed to parse activity skeleton: ${e.message}`);
     }
 
     if (!skeleton || !skeleton.steps || !Array.isArray(skeleton.steps)) {
-      throw new Error('Invalid skeleton format');
+      logger.error('Invalid skeleton structure. Got:', JSON.stringify(skeleton).substring(0, 500));
+      throw new Error('Invalid skeleton format - missing steps array');
     }
 
     const skeletonTime = Date.now() - startTime;

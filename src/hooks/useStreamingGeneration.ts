@@ -46,7 +46,8 @@ export interface UseStreamingGenerationResult {
   ) => Promise<string | any>;
 
   startDifferentiatedStreaming: (
-    options: StreamContentOptions
+    options: StreamContentOptions,
+    onLevelComplete?: (level: 'support' | 'core' | 'enrichment', items: any[]) => void
   ) => Promise<DifferentiatedResult>;
 
   startLessonStreaming: (
@@ -189,7 +190,8 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
    * Start differentiated content streaming (3 levels)
    */
   const startDifferentiatedStreaming = useCallback(async (
-    options: StreamContentOptions
+    options: StreamContentOptions,
+    onLevelComplete?: (level: 'support' | 'core' | 'enrichment', items: any[]) => void
   ): Promise<DifferentiatedResult> => {
     resetState();
 
@@ -230,7 +232,7 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
               streamedText: '' // Reset for new level
             }));
           },
-          onLevelComplete: (level) => {
+          onLevelComplete: (level, items) => {
             const levelNames: Record<string, string> = {
               support: 'הבנה',
               core: 'יישום',
@@ -240,6 +242,8 @@ export function useStreamingGeneration(): UseStreamingGenerationResult {
               ...prev,
               progress: `✓ ${levelNames[level] || level} הושלמה`
             }));
+            // Call external callback if provided
+            onLevelComplete?.(level as 'support' | 'core' | 'enrichment', items);
           },
           onComplete: () => {
             setState(prev => ({
