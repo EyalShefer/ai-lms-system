@@ -1683,7 +1683,13 @@ Do NOT include any text in the image - visuals only.`;
   };
 
   // 1. HOOK IMAGE - Always generate a curiosity-provoking image
-  const hookAsset = updatedPlan.hook.media_asset;
+  // Safely access hook.media_asset
+  if (!updatedPlan.hook) {
+    console.log("⚠️ No hook in lesson plan, skipping visual generation");
+    return updatedPlan;
+  }
+
+  const hookAsset = updatedPlan.hook?.media_asset;
   console.log("🖼️ Generating hook 'curiosity' illustration...");
 
   // Use AI-provided prompt if available, otherwise create a curiosity-focused prompt
@@ -1693,8 +1699,8 @@ Do NOT include any text in the image - visuals only.`;
     hookPrompt = hookAsset.content;
   } else {
     // Generate a curiosity-focused prompt based on lesson topic
-    const topic = updatedPlan.lesson_metadata.title;
-    const subject = updatedPlan.lesson_metadata.subject || 'education';
+    const topic = updatedPlan.lesson_metadata?.title || 'the lesson topic';
+    const subject = updatedPlan.lesson_metadata?.subject || 'education';
     hookPrompt = `Create a thought-provoking, emotionally engaging image that raises curiosity about "${topic}". Show a PROBLEM or CONFLICT related to the topic, not the solution. The image should make viewers ask "Why?" or "How?". Style: photorealistic, dramatic lighting, educational context for ${subject}.`;
   }
 
@@ -1713,10 +1719,14 @@ Do NOT include any text in the image - visuals only.`;
   }
 
   // 2. SUMMARY INFOGRAPHIC - Always generate
-  const summaryText = updatedPlan.summary.takeaway_sentence || updatedPlan.lesson_metadata.title;
+  // Safely access summary
+  if (!updatedPlan.summary) {
+    updatedPlan.summary = { takeaway_sentence: '', visual_summary: null };
+  }
+  const summaryText = updatedPlan.summary?.takeaway_sentence || updatedPlan.lesson_metadata?.title || 'Lesson Summary';
 
   // Ensure visual_summary exists with infographic type
-  if (!updatedPlan.summary.visual_summary || updatedPlan.summary.visual_summary.type !== 'infographic') {
+  if (!updatedPlan.summary?.visual_summary || updatedPlan.summary.visual_summary.type !== 'infographic') {
     console.log("ℹ️ visual_summary not properly set by AI, creating default infographic structure...");
     updatedPlan.summary.visual_summary = {
       type: 'infographic',

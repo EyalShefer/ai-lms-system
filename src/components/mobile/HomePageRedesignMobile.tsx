@@ -56,6 +56,7 @@ interface HomePageRedesignMobileProps {
     onNavigateToAgents?: () => void;
     onNavigateToUsage?: () => void;
     onNavigateToSpeedAnalytics?: () => void;
+    onNavigateToAgentDashboard?: () => void;
 }
 
 const HomePageRedesignMobile = ({
@@ -68,7 +69,8 @@ const HomePageRedesignMobile = ({
     onNavigateToKnowledgeBase,
     onNavigateToAgents,
     onNavigateToUsage,
-    onNavigateToSpeedAnalytics
+    onNavigateToSpeedAnalytics,
+    onNavigateToAgentDashboard
 }: HomePageRedesignMobileProps) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -396,9 +398,9 @@ const HomePageRedesignMobile = ({
                 </section>
 
                 {/* Admin Links (if available) */}
-                {(onNavigateToQA || onNavigateToKnowledgeBase) && (
+                {(onNavigateToQA || onNavigateToKnowledgeBase || onNavigateToAgentDashboard) && (
                     <section aria-label="ניהול מערכת" className="pt-4 border-t border-slate-200 dark:border-slate-700">
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 flex-wrap">
                             {onNavigateToQA && (
                                 <button
                                     onClick={onNavigateToQA}
@@ -413,6 +415,14 @@ const HomePageRedesignMobile = ({
                                     className="flex-1 text-center py-3 text-sm text-slate-500 dark:text-slate-400 hover:text-wizdi-royal"
                                 >
                                     בסיס ידע
+                                </button>
+                            )}
+                            {onNavigateToAgentDashboard && (
+                                <button
+                                    onClick={onNavigateToAgentDashboard}
+                                    className="flex-1 text-center py-3 text-sm text-slate-500 dark:text-slate-400 hover:text-wizdi-royal"
+                                >
+                                    סוכן AI
                                 </button>
                             )}
                         </div>

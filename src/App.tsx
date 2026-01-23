@@ -38,6 +38,7 @@ const ExtractionReviewPage = React.lazy(() => import('./components/ExtractionRev
 const TeachingAgentsLibrary = React.lazy(() => import('./components/TeachingAgentsLibrary'));
 const UsageDashboard = React.lazy(() => import('./components/admin/UsageDashboard'));
 const GenerationSpeedAnalytics = React.lazy(() => import('./components/admin/GenerationSpeedAnalytics'));
+const AgentDashboard = React.lazy(() => import('./components/admin/AgentDashboard'));
 const ThreeLevelsTest = React.lazy(() => import('./components/dev/ThreeLevelsTest'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
@@ -361,61 +362,13 @@ const AuthenticatedApp = () => {
             const pdfResult = await extractTextAndImagesFromPDF(file);
             aiSourceText = pdfResult.text;
 
-            // If PDF has pages rendered as images (scanned/image-heavy), analyze them
+            // Vision API disabled by default for faster processing
+            // User can request re-analysis with Vision from the editor if needed
+            // Flag stored for potential re-analysis later
             if (pdfResult.hasImages && pdfResult.pageImages.length > 0) {
-              console.log(`🖼️ PDF has ${pdfResult.pageImages.length} image pages - sending to Vision API...`);
-
-              try {
-                const analyzeImageFn = httpsCallable(functions, 'analyzeImageWithVision');
-
-                // Analyze each page image (limit to 3 to avoid timeout)
-                const imagesToAnalyze = pdfResult.pageImages.slice(0, 3);
-                const visionResults = await Promise.all(
-                  imagesToAnalyze.map(async (pageImg) => {
-                    try {
-                      const result = await analyzeImageFn({
-                        imageBase64: pageImg.base64,
-                        mimeType: pageImg.mimeType,
-                        context: `PDF Page ${pageImg.pageNum} - ${wizardData.topic || wizardData.title || fileName}`
-                      });
-                      return { pageNum: pageImg.pageNum, data: result.data as any };
-                    } catch (e) {
-                      console.warn(`Vision failed for page ${pageImg.pageNum}:`, e);
-                      return null;
-                    }
-                  })
-                );
-
-                // Combine Vision results with extracted text
-                const validResults = visionResults.filter(r => r && r.data?.success);
-                if (validResults.length > 0) {
-                  let visionText = "\n\n--- תוכן מתמונות (Vision AI) ---\n";
-                  const allAnalysis: any[] = [];
-
-                  validResults.forEach((result) => {
-                    if (result && result.data) {
-                      visionText += `\n[עמוד ${result.pageNum}]\n`;
-                      visionText += result.data.sourceText || result.data.analysis?.educational_summary || "";
-                      visionText += "\n";
-
-                      if (result.data.analysis) {
-                        allAnalysis.push({
-                          page: result.pageNum,
-                          ...result.data.analysis
-                        });
-                      }
-                    }
-                  });
-
-                  // Append Vision text to PDF text
-                  aiSourceText += visionText;
-                  (wizardData as any).pdfImageAnalysis = allAnalysis;
-
-                  console.log(`✅ Vision analysis added from ${validResults.length} pages. Total text: ${aiSourceText.length} chars`);
-                }
-              } catch (visionError) {
-                console.warn("⚠️ PDF Vision analysis failed, using text only:", visionError);
-              }
+              console.log(`📄 PDF has ${pdfResult.pageImages.length} image pages - skipping Vision API (can be enabled later)`);
+              (wizardData as any).hasImagePages = true;
+              (wizardData as any).imagePageCount = pdfResult.pageImages.length;
             }
           } else if (file.type.startsWith('image/')) {
             // NEW: Analyze image with Vision API
@@ -660,7 +613,7 @@ const AuthenticatedApp = () => {
               </div>
             ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onCreateWithWizardData={handleWizardComplete} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onCreateWithWizardData={handleWizardComplete} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} onNavigateToAgentDashboard={isAdmin ? () => setMode('agent-dashboard') : undefined} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && (() => {
                   console.log("📱 App: Rendering SequentialCoursePlayer in STUDENT mode");
@@ -710,6 +663,7 @@ const AuthenticatedApp = () => {
                 {mode === 'extraction-review' && <ExtractionReviewPage />}
                 {mode === 'usage-admin' && <UsageDashboard />}
                 {mode === 'speed-analytics' && <GenerationSpeedAnalytics />}
+                {mode === 'agent-dashboard' && <AgentDashboard />}
               </>
             )}
           </Suspense>

@@ -357,7 +357,6 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     // 🌊 STREAMING: Hook for real-time content generation
     const {
         state: streamingState,
-        startDifferentiatedStreaming,
         startLessonStreaming,
         startPodcastStreaming,
         startActivityStreaming,  // V5: Parallel activity generation
@@ -386,9 +385,6 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         // Detect Lesson Mode
         const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
 
-        // Detect Differentiated Mode (3 levels)
-        const isDifferentiatedMode = course.wizardData?.settings?.isDifferentiated === true;
-
         // 🚀 AUTO-GENERATION TRIGGER FOR FRESH SHELLS
         // If we have a shell syllabus (from App.tsx) but it's empty, AND we have wizard data -> GENERATE!
         const firstUnit = course.syllabus?.[0]?.learningUnits?.[0];
@@ -400,19 +396,10 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             return;
         }
 
-        // 🧬 AUTO-GENERATION TRIGGER FOR DIFFERENTIATED MODE
-        // If we have wizard data with isDifferentiated and a fresh shell -> GENERATE 3 UNITS!
-        if (isFreshShell && course.wizardData && isDifferentiatedMode) {
-            console.log("🧬 Detected Fresh Shell with Differentiated Mode. Triggering 3-Level Generation...");
-            handleWizardComplete(course.wizardData);
-            return;
-        }
-
         if (hasSyllabus && !hasAutoSelected.current) {
             if (firstUnit && !selectedUnitId) {
-                // CRITICAL: Prevent auto-select for Lesson Plans AND Differentiated Mode
-                // In differentiated mode, CourseEditor needs to create 3 units first before UnitEditor loads
-                if (!isLessonMode && !isDifferentiatedMode) {
+                // CRITICAL: Prevent auto-select for Lesson Plans
+                if (!isLessonMode) {
                     setSelectedUnitId(firstUnit.id);
                     hasAutoSelected.current = true;
                 }
@@ -691,16 +678,19 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         return { ...currentCourse, syllabus: updatedSyllabus };
                     });
 
-                    // 🚀 PERFORMANCE OPTIMIZATION: Generate content with PARALLEL API calls
-                    // Part 1 (Hook + Direct Instruction) and Part 2 (Practice + Summary) run simultaneously
-                    // This reduces total generation time from 8-15s to ~5-7s
-                    // Falls back to sequential generation if parallel fails
+                    // 🌊 STREAMING: Use SSE streaming for lesson generation
+                    // This replaces the Cloud Function calls with direct streaming
+                    // Benefits: No 504 timeouts, real-time UI updates, better error handling
 
                     let lessonPlan = null;
-                    let useParallel = true; // Can be toggled for debugging
 
                     // Helper to build Part 1 blocks (Hook + Direct Instruction)
                     const buildPart1Blocks = (part1: any): ActivityBlock[] => {
+                        if (!part1?.hook || !part1?.direct_instruction?.slides) {
+                            console.warn("Part1 missing required data:", part1);
+                            return [];
+                        }
+
                         const hookBlock: ActivityBlock = {
                             id: crypto.randomUUID(),
                             type: 'text',
@@ -713,7 +703,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                             <ul>${part1.lesson_metadata.learning_objectives.map((obj: string) => `<li>${obj}</li>`).join('')}</ul>
                                         </div>
                                     ` : ''}
-                                    <p class="teacher-script">${part1.hook.script_for_teacher}</p>
+                                    <p class="teacher-script">${part1.hook.script_for_teacher || ''}</p>
                                     ${part1.hook.classroom_management_tip ? `<div class="management-tip">💡 ${part1.hook.classroom_management_tip}</div>` : ''}
                                     <div class="visual-placeholder">🎨 יוצר תמונה...</div>
                                 </div>
@@ -721,17 +711,17 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                             metadata: { time: '5 min', bloomLevel: 'remember' }
                         };
 
-                        const slideBlocks: ActivityBlock[] = part1.direct_instruction.slides.map((slide: any) => ({
+                        const slideBlocks: ActivityBlock[] = (part1.direct_instruction.slides || []).map((slide: any) => ({
                             id: crypto.randomUUID(),
                             type: 'text' as const,
                             content: `
                                 <div class="lesson-section instruction">
-                                    <h3>🎓 הוראה פרונטלית: ${slide.slide_title}</h3>
+                                    <h3>🎓 הוראה פרונטלית: ${slide.slide_title || ''}</h3>
                                     <div class="board-points">
                                         <strong>📝 על הלוח:</strong>
-                                        <ul>${slide.bullet_points_for_board.map((p: string) => `<li>${p}</li>`).join('')}</ul>
+                                        <ul>${(slide.bullet_points_for_board || []).map((p: string) => `<li>${p}</li>`).join('')}</ul>
                                     </div>
-                                    <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
+                                    <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say || ''}</p>
                                     ${slide.differentiation_note ? `<div class="diff-note">💡 ${slide.differentiation_note}</div>` : ''}
                                 </div>
                             `,
@@ -741,77 +731,30 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         return [hookBlock, ...slideBlocks];
                     };
 
-                    // Try parallel generation first, fallback to sequential if it fails
-                    if (useParallel) {
-                        try {
-                            console.log("🚀 Trying parallel generation...");
-                            lessonPlan = await generateTeacherLessonParallel(
-                                unit.title,
-                                sourceText,
-                                grade,
-                                sourceType,
-                                // 🔥 This callback fires when Part1 is ready (~3-4 seconds)
-                                (part1) => {
-                                    if (!part1) return;
-                                    console.log("⚡ Part1 ready! Updating UI immediately...");
+                    try {
+                        console.log("🌊 Using streaming lesson generation...");
 
-                                    const part1Blocks = buildPart1Blocks(part1);
+                        // Use the streaming hook
+                        lessonPlan = await startLessonStreaming({
+                            topic: unit.title,
+                            gradeLevel: grade,
+                            subject: course?.subject || course?.wizardData?.settings?.subject,
+                            sourceText: sourceText,
+                            sourceType: sourceType
+                        });
 
-                                    // Update UI with Part1 content immediately
-                                    // Keep skeleton placeholders for Part2 sections
-                                    setCourse((currentCourse: any) => {
-                                        if (!currentCourse) return currentCourse;
-                                        const updatedSyllabus = currentCourse.syllabus.map((m: Module) => ({
-                                            ...m,
-                                            learningUnits: m.learningUnits.map((u: LearningUnit) =>
-                                                u.id === unit.id ? {
-                                                    ...u,
-                                                    activityBlocks: [
-                                                        ...part1Blocks,
-                                                        // Keep skeleton placeholders for Part2 sections
-                                                        {
-                                                            id: crypto.randomUUID(),
-                                                            type: 'text',
-                                                            content: `<div class="lesson-section practice"><h3>🧑‍🏫 תרגול מודרך (Guided Practice)</h3><div class="building-badge"><div class="spinner"></div>בבנייה...</div></div>`,
-                                                            metadata: { time: '10 min', bloomLevel: 'apply', isLoading: true }
-                                                        },
-                                                        {
-                                                            id: crypto.randomUUID(),
-                                                            type: 'text',
-                                                            content: `<div class="lesson-section independent-practice"><h3>💻 תרגול עצמאי</h3><div class="building-badge"><div class="spinner"></div>בבנייה...</div></div>`,
-                                                            metadata: { time: '10 min', bloomLevel: 'apply', isLoading: true }
-                                                        },
-                                                        {
-                                                            id: crypto.randomUUID(),
-                                                            type: 'text',
-                                                            content: `<div class="lesson-section summary"><h3>📝 סיכום</h3><div class="building-badge"><div class="spinner"></div>בבנייה...</div></div>`,
-                                                            metadata: { time: '5 min', bloomLevel: 'remember', isLoading: true }
-                                                        }
-                                                    ],
-                                                    metadata: { ...u.metadata, status: 'loading-part2' }
-                                                } : u
-                                            )
-                                        }));
-                                        return { ...currentCourse, syllabus: updatedSyllabus };
-                                    });
-                                }
-                            );
-                        } catch (parallelError) {
-                            console.warn("⚠️ Parallel generation failed, falling back to sequential:", parallelError);
-                            lessonPlan = null;
-                        }
-                    }
+                        // Handle Part1 ready callback for progressive UI updates
+                        // Note: The streaming hook handles Part1 callback internally via onPart1Ready
+                        // We can also listen for progress updates via streamingState
 
-                    // Fallback to sequential generation if parallel failed or disabled
-                    if (!lessonPlan) {
-                        console.log("🔄 Using sequential generation (fallback)...");
-                        lessonPlan = await generateTeacherStepContent(
-                            unit.title,
-                            sourceText,
-                            grade,
-                            sourceType,
-                            wizardData?.fileData
-                        );
+                        // NOTE: Progressive Part1 update is now skipped because we wait for the full lesson plan
+                        // The streaming returns the complete lesson plan (Part1 + Part2), so we don't need
+                        // intermediate UI updates that can cause race conditions with the final update.
+                        // The skeleton blocks created earlier (line ~656) provide the loading state.
+
+                    } catch (streamingError) {
+                        console.error("🌊 Streaming lesson generation failed:", streamingError);
+                        lessonPlan = null;
                     }
 
                     if (lessonPlan) {
@@ -868,7 +811,10 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                         })
                                     };
                                 });
-                                return { ...currentCourse, syllabus: updatedSyllabus };
+                                const updatedCourse = { ...currentCourse, syllabus: updatedSyllabus };
+                                // Save visuals update to Firestore
+                                saveCourseToFirestore(updatedCourse).catch(e => console.error("Visual save error:", e));
+                                return updatedCourse;
                             });
                         }).catch(e => console.error("Background visual generation error:", e));
 
@@ -889,9 +835,38 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 })
                                 .filter((block: any) => block !== null && block !== undefined);
                             console.log(`✅ Processed ${independentPracticeBlocks.length} independent practice blocks`);
+                            // Debug: Log the actual content of each block
+                            independentPracticeBlocks.forEach((block, idx) => {
+                                console.log(`🔎 Block ${idx + 1}:`, {
+                                    id: block?.id?.substring(0, 8),
+                                    type: block?.type,
+                                    hasContent: !!block?.content,
+                                    contentKeys: block?.content ? Object.keys(block.content) : [],
+                                    contentPreview: JSON.stringify(block?.content || {}).substring(0, 200)
+                                });
+                            });
                         }
 
                         // 3. Map to Blocks (Visual Guide)
+                        // Debug: Log Part2 data before rendering
+                        console.log('🔍 Part2 data for rendering:', {
+                            guided_practice: !!lessonPlan.guided_practice,
+                            guided_practice_script: lessonPlan.guided_practice?.teacher_facilitation_script?.substring(0, 50),
+                            guided_practice_questions: lessonPlan.guided_practice?.example_questions?.length || 0,
+                            discussion: !!lessonPlan.discussion,
+                            discussion_questions: lessonPlan.discussion?.questions?.length || 0,
+                            discussion_questions_preview: lessonPlan.discussion?.questions?.[0],
+                            summary: !!lessonPlan.summary,
+                            summary_takeaway: lessonPlan.summary?.takeaway_sentence?.substring(0, 50)
+                        });
+
+                        // Safely access nested properties with fallbacks
+                        const learningObjectives = lessonPlan.lesson_metadata?.learning_objectives || [];
+                        const hookScript = lessonPlan.hook?.script_for_teacher || `היום נלמד על ${unit.title}`;
+                        const hookTip = lessonPlan.hook?.classroom_management_tip || '';
+                        const hookMediaUrl = lessonPlan.hook?.media_asset?.url;
+                        const hasHookMedia = lessonPlan.hook?.media_asset;
+
                         const newBlocks = [
                             {
                                 id: crypto.randomUUID(),
@@ -899,41 +874,41 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 content: `
                                     <div class="lesson-section hook">
                                         <h3>🪝 פתיחה (The Hook)</h3>
-                                        ${lessonPlan.lesson_metadata.learning_objectives ? `
+                                        ${learningObjectives.length > 0 ? `
                                             <div class="learning-objectives">
                                                 <strong>🎯 מטרות הלמידה:</strong>
-                                                <ul>${lessonPlan.lesson_metadata.learning_objectives.map(obj => `<li>${obj}</li>`).join('')}</ul>
+                                                <ul>${learningObjectives.map(obj => `<li>${obj}</li>`).join('')}</ul>
                                             </div>
                                         ` : ''}
-                                        <p class="teacher-script">${lessonPlan.hook.script_for_teacher}</p>
-                                        ${lessonPlan.hook.classroom_management_tip ? `<div class="management-tip">💡 ${lessonPlan.hook.classroom_management_tip}</div>` : ''}
-                                        ${lessonPlan.hook.media_asset?.url ? `
+                                        <p class="teacher-script">${hookScript}</p>
+                                        ${hookTip ? `<div class="management-tip">💡 ${hookTip}</div>` : ''}
+                                        ${hookMediaUrl ? `
                                             <div class="generated-visual">
-                                                <img src="${lessonPlan.hook.media_asset.url}" alt="Hook Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
+                                                <img src="${hookMediaUrl}" alt="Hook Visual" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
                                             </div>
-                                        ` : lessonPlan.hook.media_asset ? `<div class="visual-placeholder">🎨 יוצר תמונה...</div>` : ''}
+                                        ` : hasHookMedia ? `<div class="visual-placeholder">🎨 יוצר תמונה...</div>` : ''}
                                     </div>
                                 `,
                                 metadata: { time: '5 min', bloomLevel: 'remember' }
                             },
                             // DIRECT INSTRUCTION - Each slide as separate block
-                            ...lessonPlan.direct_instruction.slides.map((slide, idx) => ({
+                            ...(lessonPlan.direct_instruction?.slides || []).map((slide, idx) => ({
                                 id: crypto.randomUUID(),
                                 type: 'text' as const,
                                 content: `
                                     <div class="lesson-section instruction">
-                                        <h3>🎓 הוראה פרונטלית: ${slide.slide_title}</h3>
+                                        <h3>🎓 הוראה פרונטלית: ${slide.slide_title || `שקף ${idx + 1}`}</h3>
                                         <div class="board-points">
                                             <strong>📝 על הלוח:</strong>
-                                            <ul>${slide.bullet_points_for_board.map(p => `<li>${p}</li>`).join('')}</ul>
+                                            <ul>${(slide.bullet_points_for_board || []).map(p => `<li>${p}</li>`).join('')}</ul>
                                         </div>
-                                        <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say}</p>
+                                        <p class="teacher-script"><strong>🗣️ למורה:</strong> ${slide.script_to_say || ''}</p>
                                         ${slide.differentiation_note ? `<div class="diff-note">💡 ${slide.differentiation_note}</div>` : ''}
                                         ${slide.media_asset?.url ? `
                                             <div class="generated-visual">
-                                                <img src="${slide.media_asset.url}" alt="${slide.slide_title}" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
+                                                <img src="${slide.media_asset.url}" alt="${slide.slide_title || 'Visual'}" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;" />
                                             </div>
-                                        ` : slide.media_asset ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
+                                        ` : slide.media_asset?.content ? `<div class="media-badge">📺 ${slide.media_asset.content}</div>` : ''}
                                     </div>
                                 `,
                                 metadata: { time: slide.timing_estimate || '5 min', bloomLevel: 'understand' }
@@ -944,15 +919,15 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 content: `
                                     <div class="lesson-section practice">
                                         <h3>🧑‍🏫 תרגול מודרך (Guided Practice - In-Class)</h3>
-                                        <p><strong>🎯 הנחיה להנחיית התרגול:</strong> ${lessonPlan.guided_practice.teacher_facilitation_script}</p>
+                                        <p><strong>🎯 הנחיה להנחיית התרגול:</strong> ${lessonPlan.guided_practice?.teacher_facilitation_script || 'תרגלו יחד עם התלמידים'}</p>
 
-                                        ${lessonPlan.guided_practice.example_questions && lessonPlan.guided_practice.example_questions.length > 0 ? `
+                                        ${lessonPlan.guided_practice?.example_questions && lessonPlan.guided_practice.example_questions.length > 0 ? `
                                             <div class="example-questions" style="margin: 15px 0; background: #EFF6FF; padding: 15px; border-radius: 8px; border-right: 4px solid #2B59C3;">
                                                 <strong style="color: #2B59C3; font-size: 16px;">❓ שאלות להקראה בכיתה:</strong>
                                                 ${lessonPlan.guided_practice.example_questions.map((q: any, i: number) => `
                                                     <div style="margin: 12px 0; padding: 12px; background: white; border-radius: 5px;">
-                                                        <p style="margin: 0; font-weight: bold; color: #1E40AF;">שאלה ${i + 1}: ${q.question_text}</p>
-                                                        <p style="margin: 8px 0 5px 0; color: #166534;">✓ <strong>תשובה צפויה:</strong> ${q.expected_answer}</p>
+                                                        <p style="margin: 0; font-weight: bold; color: #1E40AF;">שאלה ${i + 1}: ${q.question_text || ''}</p>
+                                                        <p style="margin: 8px 0 5px 0; color: #166534;">✓ <strong>תשובה צפויה:</strong> ${q.expected_answer || ''}</p>
                                                         ${q.common_mistakes && q.common_mistakes.length > 0 ? `<p style="margin: 5px 0; color: #DC2626;">⚠️ <strong>טעויות נפוצות:</strong> ${q.common_mistakes.join(' | ')}</p>` : ''}
                                                         ${q.follow_up_prompt ? `<p style="margin: 5px 0; color: #7C3AED;">🔄 <strong>שאלת המשך:</strong> ${q.follow_up_prompt}</p>` : ''}
                                                     </div>
@@ -960,13 +935,13 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                             </div>
                                         ` : ''}
 
-                                        ${lessonPlan.guided_practice.worked_example ? `
+                                        ${lessonPlan.guided_practice?.worked_example ? `
                                             <div class="worked-example" style="margin: 15px 0; background: #FEF3C7; padding: 15px; border-radius: 8px; border: 2px solid #F59E0B;">
                                                 <strong style="color: #B45309; font-size: 16px;">📝 דוגמה מעשית (לפתרון על הלוח):</strong>
-                                                <p style="margin: 10px 0; font-weight: bold;">${lessonPlan.guided_practice.worked_example.problem}</p>
+                                                <p style="margin: 10px 0; font-weight: bold;">${lessonPlan.guided_practice.worked_example.problem || ''}</p>
                                                 <div style="background: white; padding: 12px; border-radius: 5px; margin: 10px 0;">
                                                     <strong>שלבי הפתרון:</strong>
-                                                    <ol style="margin: 8px 0;">${lessonPlan.guided_practice.worked_example.solution_steps.map((step: string) => `<li style="margin: 5px 0;">${step}</li>`).join('')}</ol>
+                                                    <ol style="margin: 8px 0;">${(lessonPlan.guided_practice.worked_example.solution_steps || []).map((step: string) => `<li style="margin: 5px 0;">${step}</li>`).join('')}</ol>
                                                 </div>
                                                 ${lessonPlan.guided_practice.worked_example.key_points && lessonPlan.guided_practice.worked_example.key_points.length > 0 ? `
                                                     <div style="margin-top: 10px;">
@@ -977,14 +952,14 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                             </div>
                                         ` : ''}
 
-                                        ${lessonPlan.guided_practice.differentiation_strategies ? `
+                                        ${lessonPlan.guided_practice?.differentiation_strategies ? `
                                             <div class="differentiation">
                                                 <strong>🎯 דיפרנציאציה:</strong>
-                                                <p>👥 <strong>תלמידים מתקשים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_struggling_students}</p>
-                                                <p>🚀 <strong>תלמידים מתקדמים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_advanced_students}</p>
+                                                <p>👥 <strong>תלמידים מתקשים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_struggling_students || ''}</p>
+                                                <p>🚀 <strong>תלמידים מתקדמים:</strong> ${lessonPlan.guided_practice.differentiation_strategies.for_advanced_students || ''}</p>
                                             </div>
                                         ` : ''}
-                                        ${lessonPlan.guided_practice.assessment_tips && lessonPlan.guided_practice.assessment_tips.length > 0 ? `
+                                        ${lessonPlan.guided_practice?.assessment_tips && lessonPlan.guided_practice.assessment_tips.length > 0 ? `
                                             <div class="assessment-tips">
                                                 <strong>📊 על מה לשים לב במהלך התרגול:</strong>
                                                 <ul>${lessonPlan.guided_practice.assessment_tips.map(tip => `<li>${tip}</li>`).join('')}</ul>
@@ -1016,7 +991,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                     <div class="lesson-section discussion">
                                         <h3>💬 דיון כיתתי (Discussion)</h3>
                                         <div class="discussion-questions">
-                                            <ul>${lessonPlan.discussion.questions.map(q => {
+                                            <ul>${(lessonPlan.discussion?.questions || []).map(q => {
                                                 // Handle both string and object formats
                                                 if (typeof q === 'string') return `<li>❓ ${q}</li>`;
                                                 if (typeof q === 'object' && q !== null) {
@@ -1026,7 +1001,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                                 return '';
                                             }).join('')}</ul>
                                         </div>
-                                        ${lessonPlan.discussion.facilitation_tips ? `
+                                        ${lessonPlan.discussion?.facilitation_tips ? `
                                             <div class="facilitation-tips">
                                                 <strong>🎯 טיפים להנחיה:</strong>
                                                 <ul>${lessonPlan.discussion.facilitation_tips.map(tip => `<li>${typeof tip === 'string' ? tip : (tip?.text || tip?.tip || '')}</li>`).join('')}</ul>
@@ -1042,9 +1017,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                                 content: `
                                     <div class="lesson-section summary">
                                         <h3>📝 סיכום (Summary)</h3>
-                                        <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> "${lessonPlan.summary.takeaway_sentence}"</p>
+                                        <p class="takeaway"><strong>💡 משפט סיכום למחברת:</strong> "${lessonPlan.summary?.takeaway_sentence || `היום למדנו על ${unit.title}`}"</p>
                                         <div class="visual-placeholder">🎨 יוצר אינפוגרפיקה...</div>
-                                        ${lessonPlan.summary.homework_suggestion ? `
+                                        ${lessonPlan.summary?.homework_suggestion ? `
                                             <div class="homework">
                                                 <strong>📚 הצעה לשיעורי בית:</strong> ${lessonPlan.summary.homework_suggestion}
                                             </div>
@@ -1056,6 +1031,12 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         ];
 
                         // 4. Save
+                        // Debug: Log the blocks being saved
+                        console.log('💾 Saving newBlocks to course:', {
+                            totalBlocks: newBlocks.length,
+                            blockTypes: newBlocks.map((b: any) => b?.type),
+                            interactiveBlocks: newBlocks.filter((b: any) => ['multiple-choice', 'ordering', 'categorization'].includes(b?.type)).length
+                        });
                         setCourse((prev: any) => {
                             if (!prev) return prev;
                             const newSyllabus = prev.syllabus.map((m: Module) => ({
@@ -1310,17 +1291,10 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
 
                 // --- PROGRESSIVE QUEUE TRIGGER (lesson only) ---
                 // For activity/exam: content is generated later via streaming in UnitEditor/CourseEditor
-                if (data.settings?.productType === 'lesson') {
-                    processLessonPlanQueue(
-                        syllabus,
-                        processedSourceText || topicToUse,
-                        extractedGrade,
-                        data.settings?.activityLength || 'medium',
-                        'lesson',
-                        null,
-                        data.settings?.productType
-                    ).catch(e => console.error("Queue Error:", e));
-                }
+                // NOTE: This early trigger is REMOVED to prevent double execution.
+                // The lesson plan queue is now triggered ONLY in the STANDARD UNIT HANDLER section below.
+                // This prevents race conditions where the queue runs twice and the second run
+                // overwrites the blocks from the first run.
 
             } else {
                 // legacy / cloud function strategy (games, exams)
@@ -1422,136 +1396,6 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                     } else {
                         activityTimer.endStep();
                         alert("שגיאה ביצירת הפודקאסט. נסה שוב.");
-                    }
-                    activityTimer.endSession();
-                }
-                // --- DIFFERENTIATED INSTRUCTION HANDLER ---
-                else if (data.settings?.isDifferentiated) {
-                    activityTimer.startStep('AI: Generate differentiated content');
-
-                    let diffContent: { support: any[]; core: any[]; enrichment: any[] } | null = null;
-
-                    // Helper to create a unit from raw items
-                    const isExam = data.settings?.productType === 'exam';
-                    const createDiffUnit = (levelName: string, items: any[]) => {
-                        const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
-                        return {
-                            id: crypto.randomUUID(),
-                            title: `${firstUnit.title} (${levelName})`,
-                            baseContent: processedSourceText || "",
-                            activityBlocks: blocks,
-                            type: isExam ? 'test' : 'practice'
-                        } as LearningUnit;
-                    };
-
-                    // Unit IDs for progressive updates
-                    const unitSupportId = crypto.randomUUID();
-                    const unitCoreId = crypto.randomUUID();
-                    const unitEnrichmentId = crypto.randomUUID();
-
-                    // 🌊 STREAMING with Gemini 3 Pro (only path - no GPT fallback)
-                    try {
-                        // Create skeleton units immediately
-                        const skeletonUnits = [
-                            { id: unitSupportId, title: `${firstUnit.title} (הבנה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
-                            { id: unitCoreId, title: `${firstUnit.title} (יישום)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit,
-                            { id: unitEnrichmentId, title: `${firstUnit.title} (העמקה)`, baseContent: processedSourceText || "", activityBlocks: [], type: isExam ? 'test' : 'practice' } as LearningUnit
-                        ];
-
-                        // Show skeleton immediately
-                        const syllabusWithSkeleton = syllabus.map((mod: any) => ({
-                            ...mod,
-                            learningUnits: mod.learningUnits.map((u: any) =>
-                                u.id === firstUnit.id ? skeletonUnits : u
-                            ).flat()
-                        }));
-                        setCourse({ ...courseWithSyllabus, syllabus: syllabusWithSkeleton });
-                        setSelectedUnitId(unitCoreId); // Select Core by default
-
-                        // Map level names to unit IDs for real-time updates
-                        const levelToUnitId: Record<string, string> = {
-                            support: unitSupportId,
-                            core: unitCoreId,
-                            enrichment: unitEnrichmentId
-                        };
-                        const levelToHebrew: Record<string, string> = {
-                            support: 'הבנה',
-                            core: 'יישום',
-                            enrichment: 'העמקה'
-                        };
-
-                        // Start streaming (Gemini 3 Pro) with real-time UI updates
-                        diffContent = await startDifferentiatedStreaming({
-                            topic: topicToUse,
-                            gradeLevel: extractedGrade,
-                            subject: userSubject,
-                            sourceText: processedSourceText || course.title,
-                            productType: data.settings?.productType || 'activity',
-                            activityLength: data.settings?.activityLength || 'medium',
-                            questionPreferences: data.settings?.questionPreferences
-                        }, (level, items) => {
-                            // Real-time update: Update the unit as soon as its level completes
-                            const unitId = levelToUnitId[level];
-                            const hebrewName = levelToHebrew[level];
-                            const blocks = items.map(item => mapSystemItemToBlock({ data: item } as any)).filter(b => b !== null);
-
-                            console.log(`🌊 Level ${level} completed with ${blocks.length} blocks, updating unit ${unitId}`);
-
-                            setCourse(prevCourse => {
-                                const updatedSyllabus = prevCourse.syllabus.map((mod: any) => ({
-                                    ...mod,
-                                    learningUnits: mod.learningUnits.map((u: any) => {
-                                        if (u.id === unitId) {
-                                            return {
-                                                ...u,
-                                                title: `${firstUnit.title} (${hebrewName})`,
-                                                activityBlocks: blocks
-                                            };
-                                        }
-                                        return u;
-                                    })
-                                }));
-                                return { ...prevCourse, syllabus: updatedSyllabus };
-                            });
-                        });
-                        console.log("🌊 Streaming completed:", diffContent);
-
-                    } catch (streamError) {
-                        console.error("🧬 Differentiated generation failed:", streamError);
-                        alert("שגיאה ביצירת תוכן דיפרנציאלי. נסה שוב.");
-                        setIsGenerating(false);
-                        return;
-                    }
-
-                    if (diffContent) {
-                        const unitSupport = createDiffUnit("הבנה", diffContent.support);
-                        unitSupport.id = unitSupportId; // Keep consistent ID
-                        const unitCore = createDiffUnit("יישום", diffContent.core);
-                        unitCore.id = unitCoreId;
-                        const unitEnrichment = createDiffUnit("העמקה", diffContent.enrichment);
-                        unitEnrichment.id = unitEnrichmentId;
-
-                        // Replace the single placeholder unit with our 3 new units
-                        const syllabusWithDiff = syllabus.map((mod: any) => ({
-                            ...mod,
-                            learningUnits: mod.learningUnits.map((u: any) =>
-                                u.id === firstUnit.id ? [unitSupport, unitCore, unitEnrichment] : u
-                            ).flat()
-                        }));
-
-                        const finalCourse = { ...courseWithSyllabus, syllabus: syllabusWithDiff };
-                        setCourse(finalCourse);
-                        await saveCourseToFirestoreImmediate(finalCourse);
-
-                        setSelectedUnitId(unitCore.id);
-
-                        if (data.settings?.productType === 'lesson') {
-                            setPreviewUnit(unitCore);
-                        }
-                        activityTimer.endStep();
-                    } else {
-                        activityTimer.endStep();
-                        alert("שגיאה ביצירת תוכן דיפרנציאלי.");
                     }
                     activityTimer.endSession();
                 }
@@ -1763,6 +1607,16 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         catch (e) { console.error("Save error:", e); }
     };
 
+    // Re-analyze PDF with Vision API (for documents with images that weren't analyzed initially)
+    const handleReanalyzeWithVision = async () => {
+        if (!course.wizardData?.hasImagePages) return;
+
+        alert('ניתוח מחדש עם Vision API יהיה זמין בקרוב. כרגע ניתן לערוך את התוכן ידנית.');
+        // TODO: Implement Vision re-analysis
+        // 1. Get original file from storage
+        // 2. Send to Vision API
+        // 3. Regenerate content with enhanced text
+    };
 
 
     const activeUnit = course.syllabus?.flatMap((m: any) => m.learningUnits).find((u: any) => u.id === selectedUnitId);
@@ -1772,21 +1626,9 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     const defaultUnit = course.syllabus?.[0]?.learningUnits?.[0];
     const isLessonMode = course.wizardData?.settings?.productType === 'lesson' || course.mode === 'lesson';
 
-    // --- Differentiated Activity Detection ---
-    const isDifferentiatedActivity = course.wizardData?.settings?.isDifferentiated === true;
-    const allUnits = course.syllabus?.flatMap((m: any) => m.learningUnits) || [];
-    const differentiatedUnits = allUnits.filter((u: any) =>
-        u.title?.includes('(הבנה)') || u.title?.includes('(יישום)') || u.title?.includes('(העמקה)')
-    );
-    const hasDifferentiatedUnits = differentiatedUnits.length >= 2;
-
     // FIX: Lesson Mode should ALWAYS show the unit (Single Unit). Legacy modes might vary.
-    // For Activity Mode with Differentiated content: also show the unit immediately
     // For now, we restrict the "Always Open" behavior to Lesson Mode to avoid trapping Game Mode users.
-    // IMPORTANT: If isDifferentiatedActivity but no differentiated units yet (during generation), show null to prevent UnitEditor from running
-    const unitToRender = isDifferentiatedActivity && !hasDifferentiatedUnits
-        ? null  // Wait for differentiated units to be created
-        : activeUnit || (isLessonMode ? defaultUnit : null) || (hasDifferentiatedUnits ? differentiatedUnits[0] : null);
+    const unitToRender = activeUnit || (isLessonMode ? defaultUnit : null);
 
     // console.log("DEBUG: Editor Render. active:", !!activeUnit, "default:", !!defaultUnit, "isLesson:", isLessonMode, "RENDER:", unitToRender ? "UnitEditor" : "Overview");
 
@@ -1864,58 +1706,17 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         }}
                     />
                 ) : (
-                    <>
-                        {/* Differentiated Activity Level Tabs */}
-                        {hasDifferentiatedUnits && (
-                            <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-3 shadow-sm">
-                                <div className="max-w-4xl mx-auto flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                        </svg>
-                                        <span className="font-medium">רמת הפעילות:</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-                                        {[
-                                            { key: 'הבנה', bg: 'bg-emerald-600' },
-                                            { key: 'יישום', bg: 'bg-blue-600' },
-                                            { key: 'העמקה', bg: 'bg-purple-600' }
-                                        ].map(level => {
-                                            const levelUnit = differentiatedUnits.find((u: any) => u.title?.includes(`(${level.key})`));
-                                            if (!levelUnit) return null;
-                                            const isActive = unitToRender?.id === levelUnit.id;
-                                            return (
-                                                <button
-                                                    key={level.key}
-                                                    onClick={() => setSelectedUnitId(levelUnit.id)}
-                                                    className={`px-5 py-2 rounded-lg text-sm font-bold transition-all
-                                                        ${isActive
-                                                            ? `${level.bg} text-white shadow-md`
-                                                            : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}
-                                                >
-                                                    {level.key}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <span className="text-xs text-gray-500">
-                                        {differentiatedUnits.length} רמות
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                        <UnitEditor
-                            unit={unitToRender}
-                            gradeLevel={displayGrade}
-                            subject={course.subject}
-                            onSave={handleSaveUnit}
-                            onCancel={() => {
-                                navigate('/'); // חזרה לדף הבית
-                            }}
-                            onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
-                            cancelLabel="הגדרות"
-                        />
-                    </>
+                    <UnitEditor
+                        unit={unitToRender}
+                        gradeLevel={displayGrade}
+                        subject={course.subject}
+                        onSave={handleSaveUnit}
+                        onCancel={() => {
+                            navigate('/'); // חזרה לדף הבית
+                        }}
+                        onPreview={(unitData) => setPreviewUnit(unitData || unitToRender)}
+                        cancelLabel="הגדרות"
+                    />
                 )
             ) : (
                 // Empty State OR Lesson Plan Overview
@@ -1929,6 +1730,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
                         onSelectUnit={(id) => setSelectedUnitId(id)}
                         onUnitUpdate={(unit) => handleSaveUnit(unit)}
                         onGenerateWithAI={handleGenerateWithAI}
+                        onReanalyzeWithVision={course.wizardData?.hasImagePages ? handleReanalyzeWithVision : undefined}
                         onBack={onBack}
                     />
                 ) : (

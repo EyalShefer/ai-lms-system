@@ -110,6 +110,11 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fullBookContentRef.current = fullBookContent;
     pdfSourceRef.current = pdfSource;
 
+    // Flag to prevent onSnapshot from overwriting local state during active editing
+    // This prevents race conditions where Firestore returns stale data before the save completes
+    const isLocalUpdateRef = useRef(false);
+    const localUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     // Load Gamification Profile
     useEffect(() => {
         if (!currentUser) {
@@ -192,7 +197,31 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
                 if (docSnap.id === currentCourseId) {
                     const newCourse = sanitizeCourseData(data, docSnap.id);
+
+                    // Debug: Log block counts from Firestore
+                    const totalBlocks = newCourse.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => u.activityBlocks || []) || [])?.length || 0;
+                    const interactiveBlocks = newCourse.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => (u.activityBlocks || []).filter(b => ['multiple-choice', 'ordering', 'categorization'].includes(b?.type))) || [])?.length || 0;
+                    console.log(`📦 Firestore snapshot: ${totalBlocks} total blocks, ${interactiveBlocks} interactive`);
+
                     setCourseState(prev => {
+                        // 🛡️ RACE CONDITION FIX: Don't overwrite local state if we just updated it
+                        // This prevents Firestore from returning stale data before the save completes
+                        if (isLocalUpdateRef.current) {
+                            // Compare interactive block counts - local interactive blocks should be preserved
+                            const prevInteractive = prev.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => (u.activityBlocks || []).filter(b => ['multiple-choice', 'ordering', 'categorization', 'matching', 'fill-blanks'].includes(b?.type))) || [])?.length || 0;
+                            const newInteractive = newCourse.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => (u.activityBlocks || []).filter(b => ['multiple-choice', 'ordering', 'categorization', 'matching', 'fill-blanks'].includes(b?.type))) || [])?.length || 0;
+
+                            // Also compare total blocks
+                            const prevBlocks = prev.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => u.activityBlocks || []) || [])?.length || 0;
+                            const newBlocks = newCourse.syllabus?.flatMap(m => m.learningUnits?.flatMap(u => u.activityBlocks || []) || [])?.length || 0;
+
+                            // Preserve local state if it has more blocks OR more interactive blocks
+                            if (prevBlocks > newBlocks || prevInteractive > newInteractive) {
+                                console.log(`🛡️ Preserving local state: ${prevBlocks} blocks (${prevInteractive} interactive) vs Firestore ${newBlocks} blocks (${newInteractive} interactive)`);
+                                return prev;
+                            }
+                        }
+
                         // Deep comparison to prevent unnecessary re-renders
                         if (JSON.stringify(prev) === JSON.stringify(newCourse)) {
                             // console.log("CourseContext: Data unchanged, skipping update");
@@ -266,27 +295,45 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }, SAVE_DEBOUNCE_MS);
     }, [currentCourseId]);
 
-    // Cleanup timeout on unmount
+    // Cleanup timeouts on unmount
     useEffect(() => {
         return () => {
             if (saveTimeoutRef.current) {
                 clearTimeout(saveTimeoutRef.current);
             }
+            if (localUpdateTimeoutRef.current) {
+                clearTimeout(localUpdateTimeoutRef.current);
+            }
         };
     }, []);
 
     const setCourse = React.useCallback((newCourse: Course | ((prev: Course) => Course)) => {
+        // 🛡️ Set flag to prevent onSnapshot from overwriting our local update
+        isLocalUpdateRef.current = true;
+
+        // Clear any existing timeout and set a new one
+        if (localUpdateTimeoutRef.current) {
+            clearTimeout(localUpdateTimeoutRef.current);
+        }
+
+        // Keep the flag active for 5 seconds to allow Firestore batch to complete
+        localUpdateTimeoutRef.current = setTimeout(() => {
+            isLocalUpdateRef.current = false;
+            console.log("🔓 Local update protection expired");
+        }, 5000);
+
         setCourseState((prevCourse) => {
             const resolvedCourse = typeof newCourse === 'function'
                 ? (newCourse as (prev: Course) => Course)(prevCourse)
                 : newCourse;
 
-            // Side effect: Save to Cloud with the RESOLVED object using refs
-            saveToCloud(resolvedCourse, fullBookContentRef.current, pdfSourceRef.current);
+            // NOTE: Auto-save removed to avoid conflict with saveCourseToFirestore (sub-collection save)
+            // The caller should call saveCourseToFirestore() explicitly after setCourse()
+            // This prevents race conditions where saveToCloud (full doc) and saveCourseToFirestore (sub-collections) fight
 
             return resolvedCourse;
         });
-    }, [saveToCloud]);
+    }, []);
 
     // Use refs to create stable callbacks that don't change on every render
     const setFullBookContent = React.useCallback((text: string) => {

@@ -520,6 +520,61 @@ service cloud.firestore {
     }
 
     // ============================================
+    // ACTIVITY BANK (Autonomous Agent)
+    // ============================================
+
+    // Activity Bank - public read for authenticated users, write only via Cloud Functions
+    match /activity_bank/{activityId} {
+      // All authenticated users can browse the activity bank
+      allow read: if isAuthenticated();
+
+      // Only Cloud Functions can create activities (via Admin SDK)
+      allow create: if false;
+
+      // Users can update usage stats (usageCount, ratings)
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['usageCount', 'averageRating', 'ratingCount', 'copiedToCoursesCount']);
+
+      // Only Cloud Functions can delete
+      allow delete: if false;
+    }
+
+    // Curriculum Standards - read only for users, admin write via Cloud Functions
+    match /curriculum_standards/{standardId} {
+      // All authenticated users can read curriculum standards
+      allow read: if isAuthenticated();
+
+      // Only Cloud Functions/Admin can write
+      allow write: if false;
+    }
+
+    // Activity Generation Queue - similar to exam/course queue
+    match /activity_generation_queue/{requestId} {
+      // Teachers can create generation requests
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // All authenticated users can read (for stats/monitoring)
+      // The data is not sensitive - just generation request metadata
+      allow read: if isAuthenticated();
+
+      // Cloud Functions process and update these
+      allow update, delete: if false;
+    }
+
+    // Activity Ratings - users can rate activities
+    match /activity_ratings/{ratingId} {
+      // All authenticated users can read ratings
+      allow read: if isAuthenticated();
+
+      // Users can create their own ratings
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Users can update/delete their own ratings
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ============================================
     // DEFAULT DENY
     // ============================================
 

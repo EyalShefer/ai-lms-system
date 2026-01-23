@@ -177,19 +177,53 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
         if (!normalizedOptions.includes(correctAnswer)) {
             console.warn(`correctAnswer "${correctAnswer}" not found in options. Attempting fuzzy match...`);
 
-            // Try case-insensitive match
+            // Try multiple matching strategies
             const lowerCorrect = correctAnswer.toLowerCase().trim();
-            const matchedOption = normalizedOptions.find(opt =>
-                opt.toLowerCase().trim() === lowerCorrect ||
-                opt.toLowerCase().includes(lowerCorrect) ||
-                lowerCorrect.includes(opt.toLowerCase())
+
+            // Strategy 1: Case-insensitive exact match
+            let matchedOption = normalizedOptions.find(opt =>
+                opt.toLowerCase().trim() === lowerCorrect
             );
 
+            // Strategy 2: Substring match (for cases where answer is short and option is long)
+            if (!matchedOption) {
+                matchedOption = normalizedOptions.find(opt =>
+                    opt.toLowerCase().includes(lowerCorrect) ||
+                    lowerCorrect.includes(opt.toLowerCase())
+                );
+            }
+
+            // Strategy 3: true/false mapping for Hebrew
+            if (!matchedOption && (lowerCorrect === 'true' || lowerCorrect === 'false')) {
+                const trueOptions = ['נכון', 'כן', 'true', 'yes', 'אמת'];
+                const falseOptions = ['לא נכון', 'לא', 'false', 'no', 'שקר'];
+
+                if (lowerCorrect === 'true') {
+                    matchedOption = normalizedOptions.find(opt =>
+                        trueOptions.some(trueOpt => opt.toLowerCase().includes(trueOpt.toLowerCase()))
+                    );
+                } else if (lowerCorrect === 'false') {
+                    matchedOption = normalizedOptions.find(opt =>
+                        falseOptions.some(falseOpt => opt.toLowerCase().includes(falseOpt.toLowerCase()))
+                    );
+                }
+            }
+
+            // Strategy 4: Look for the correct answer in the raw data.options (might be different from interaction.choices)
+            if (!matchedOption && rawData.correct_answer) {
+                const dataCorrect = String(rawData.correct_answer).trim();
+                matchedOption = normalizedOptions.find(opt =>
+                    opt.toLowerCase().trim() === dataCorrect.toLowerCase().trim()
+                );
+            }
+
             if (matchedOption) {
+                console.log(`✅ Fuzzy match found: "${correctAnswer}" → "${matchedOption}"`);
                 correctAnswer = matchedOption;
             } else {
-                // Last resort: use first option
-                console.warn(`No match found. Defaulting to first option: "${normalizedOptions[0]}"`);
+                // Last resort: use first option and log error
+                console.error(`❌ CRITICAL: No valid match for correctAnswer "${correctAnswer}" in options:`, normalizedOptions);
+                console.error(`This will result in WRONG ANSWERS for students! Please review the AI output.`);
                 correctAnswer = normalizedOptions[0];
             }
         }
@@ -643,19 +677,24 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
 
         // Handle multiple AI response formats:
         // Format 1: { sentences: [{text, answer}, ...], bank: [...] }
-        // Format 2: { text: "sentence with [blanks]" } - ClozeQuestion component parses brackets
-        // Format 3: questionText contains the cloze sentence directly
+        // Format 2: { text: "sentence with [blanks]" } - ClozeQuestion component parses brackets (PREFERRED)
+        // Format 3: { sentences: ["text with ___"], answers: ["answer1", "answer2"] } - separate arrays
+        // Format 4: questionText contains the cloze sentence directly
 
         const sentences = rawData.sentences || [];
+        const answers = rawData.answers || [];
         const bank = rawData.bank || rawData.word_bank || [];
 
-        // If AI returned a single text field (Format 2), use ClozeQuestion's built-in parsing
-        // ClozeQuestion can handle text with [brackets] for blanks, e.g., "The [Sun] is a [star]"
+        // PRIORITY 1: If AI returned text with [brackets], use ClozeQuestion's built-in parsing
+        // This is the preferred format because it's unambiguous and handles inline blanks
         const directText = rawData.text || rawData.sentence || rawData.content;
 
-        if (directText && sentences.length === 0) {
-            // AI returned a single text string - let ClozeQuestion handle bracket parsing
-            console.log("🎮 FILL IN BLANKS: Using direct text format:", directText.substring(0, 50) + "...");
+        // Check if directText has brackets (indicating it's properly formatted for ClozeQuestion)
+        const hasBrackets = directText && (directText.includes('[') || directText.includes(']'));
+
+        if (hasBrackets) {
+            // AI returned properly formatted text with [brackets] - this is the best format
+            console.log("🎮 FILL IN BLANKS: Using direct text format with [brackets]:", directText.substring(0, 50) + "...");
             return {
                 id: uuidv4(),
                 type: 'fill_in_blanks' as ActivityBlockType,
@@ -672,22 +711,68 @@ export const mapSystemItemToBlock = (item: RawAiItem | null): MappedLearningBloc
             };
         }
 
-        // Build the fill-in-blank content from sentences array (Format 1)
-        const blanks: { sentence: string; answer: string }[] = sentences.map((s: any) => ({
-            sentence: s.text || s.sentence || "",
-            answer: s.answer || s.correct || ""
-        }));
+        // PRIORITY 2: Handle Format 3 - sentences as strings + separate answers array
+        if (sentences.length > 0 && typeof sentences[0] === 'string' && answers.length > 0) {
+            console.log("🎮 FILL IN BLANKS: Converting sentences/answers arrays to blanks format");
+            const blanks: { sentence: string; answer: string }[] = (sentences as string[]).map((s: string, i: number) => ({
+                sentence: s,
+                answer: String(answers[i] || "")
+            }));
 
+            return {
+                id: uuidv4(),
+                type: 'fill_in_blanks' as ActivityBlockType,
+                content: {
+                    instruction: rawData.instruction || questionText || "השלימו את המשפטים הבאים:",
+                    blanks: blanks,
+                    wordBank: bank,
+                    hints: rawData.hints || rawData.progressive_hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel) }
+            };
+        }
+
+        // PRIORITY 3: Handle Format 1 - sentences as objects with text/answer
+        if (sentences.length > 0 && typeof sentences[0] === 'object') {
+            console.log("🎮 FILL IN BLANKS: Using object-based sentences format");
+            const blanks: { sentence: string; answer: string }[] = sentences.map((s: any) => ({
+                sentence: s.text || s.sentence || "",
+                answer: s.answer || s.correct || ""
+            }));
+
+            return {
+                id: uuidv4(),
+                type: 'fill_in_blanks' as ActivityBlockType,
+                content: {
+                    instruction: questionText || "השלימו את המשפטים הבאים:",
+                    blanks: blanks,
+                    wordBank: bank,
+                    hints: rawData.hints || rawData.progressive_hints || []
+                },
+                metadata: { ...commonMetadata, score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel) }
+            };
+        }
+
+        // FALLBACK: No proper data found - log error and return minimal structure
+        console.error("❌ FILL IN BLANKS: No valid data format found. Data:", {
+            hasDirectText: !!directText,
+            hasBrackets,
+            sentencesLength: sentences.length,
+            sentencesType: sentences[0] ? typeof sentences[0] : 'none',
+            answersLength: answers.length
+        });
+
+        // Return empty structure with warning in content
         return {
             id: uuidv4(),
-            type: 'fill_in_blanks' as ActivityBlockType,  // Note: plural to match ActivityBlockType
+            type: 'fill_in_blanks' as ActivityBlockType,
             content: {
-                instruction: questionText || "השלימו את המשפטים הבאים:",
-                blanks: blanks,
-                wordBank: bank,
-                hints: rawData.hints || rawData.progressive_hints || []
+                instruction: "⚠️ שגיאה: לא נמצא תוכן מתאים לשאלה",
+                blanks: [],
+                wordBank: [],
+                hints: []
             },
-            metadata: { ...commonMetadata, score: calculateQuestionWeight('fill_in_blanks', commonMetadata.bloomLevel) }
+            metadata: { ...commonMetadata, score: 0, hasError: true }
         };
     }
 

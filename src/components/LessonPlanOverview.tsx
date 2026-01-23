@@ -6,7 +6,7 @@ import {
     IconPlus, IconEdit, IconTrash, IconArrowUp, IconArrowDown,
     IconRobot, IconEye, IconShare, IconPlayerPlay, IconBook,
     IconClock, IconChat, IconJoystick, IconFlag, IconSparkles,
-    IconArrowRight
+    IconArrowRight, IconImage
 } from '../icons';
 // import { useCourseStore } from '../context/CourseContext'; // Remove unused import if not needed
 import { ShareModal } from './ShareModal';
@@ -18,6 +18,7 @@ interface LessonPlanOverviewProps {
     onSelectUnit: (unitId: string) => void;
     onUnitUpdate?: (unit: LearningUnit) => void;
     onGenerateWithAI?: (type: 'unit' | 'module', id: string, instruction?: string) => void;
+    onReanalyzeWithVision?: () => Promise<void>;
     onBack?: () => void;
 }
 
@@ -27,6 +28,7 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
     onSelectUnit,
     onUnitUpdate,
     onGenerateWithAI,
+    onReanalyzeWithVision,
     onBack
 }) => {
     const navigate = useNavigate();
@@ -336,6 +338,16 @@ export const LessonPlanOverview: React.FC<LessonPlanOverviewProps> = ({
                         <div className="h-6 w-px bg-gray-200 mx-2" />
 
                         {/* Course Level AI Actions */}
+                        {course.wizardData?.hasImagePages && onReanalyzeWithVision && (
+                            <button
+                                onClick={onReanalyzeWithVision}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-100 to-orange-100 text-orange-700 rounded-xl hover:from-amber-200 hover:to-orange-200 border border-orange-200 shadow-sm transition-colors"
+                                title={`המסמך מכיל ${course.wizardData?.imagePageCount || ''} עמודים עם תמונות - ניתוח מחדש עם AI מתקדם`}
+                            >
+                                <IconImage className="w-5 h-5" />
+                                <span>נתח תמונות</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => onGenerateWithAI?.('module', 'course', 'Expand entire syllabus')}
                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-100 to-purple-100 text-purple-700 rounded-xl hover:from-violet-200 hover:to-purple-200 border border-purple-200 shadow-sm transition-colors"

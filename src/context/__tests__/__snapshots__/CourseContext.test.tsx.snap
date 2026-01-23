@@ -1,0 +1,41 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CourseContext - sanitizeCourseData Structure Snapshots complete course structure should remain stable 1`] = `
+{
+  "createdAt": null,
+  "fullBookContent": "",
+  "gradeLevel": "כיתה ה",
+  "id": "course-123",
+  "mode": "learning",
+  "pdfSource": null,
+  "showSourceToStudent": true,
+  "subject": "מתמטיקה",
+  "syllabus": [
+    {
+      "id": "mod-1",
+      "learningUnits": [
+        {
+          "activityBlocks": [
+            {
+              "content": "תוכן",
+              "id": "block-1",
+              "type": "text",
+            },
+          ],
+          "id": "unit-1",
+          "title": "יחידה 1",
+        },
+      ],
+      "title": "מודול 1",
+    },
+  ],
+  "targetAudience": "כיתה ה",
+  "teacherId": "teacher-1",
+  "title": "קורס מלא",
+  "wizardData": {
+    "settings": {
+      "courseMode": "learning",
+    },
+  },
+}
+`;

@@ -83,6 +83,7 @@ interface HomePageProps {
     onNavigateToAgents?: () => void;
     onNavigateToUsage?: () => void;
     onNavigateToSpeedAnalytics?: () => void;
+    onNavigateToAgentDashboard?: () => void;
 }
 
 export const ResponsiveHomePage: React.FC<HomePageProps> = (props) => {

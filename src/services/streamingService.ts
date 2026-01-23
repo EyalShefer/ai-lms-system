@@ -301,7 +301,17 @@ export async function streamDifferentiatedContent(
                   if (level && levels[level] !== undefined) {
                     try {
                       const parsed = JSON.parse(chunk.content);
-                      levels[level] = Array.isArray(parsed) ? parsed : [parsed];
+                      // Handle new format (with steps array) or old format (direct array)
+                      if (parsed.steps && Array.isArray(parsed.steps)) {
+                        // New format: extract steps array from the full result object
+                        levels[level] = parsed.steps;
+                      } else if (Array.isArray(parsed)) {
+                        // Old format: direct array of items
+                        levels[level] = parsed;
+                      } else {
+                        // Fallback: wrap single object in array
+                        levels[level] = [parsed];
+                      }
                     } catch (e) {
                       levels[level] = [];
                     }
@@ -368,9 +378,17 @@ export async function streamDifferentiatedContent(
  * @param callbacks - Callbacks for streaming events
  * @returns AbortController and a promise that resolves with the full lesson
  */
+/**
+ * Extended callbacks for lesson streaming
+ */
+export interface LessonStreamCallbacks extends StreamCallbacks {
+  onPart1Ready?: (part1: any) => void;
+  onPart2Ready?: (part2: any) => void;
+}
+
 export async function streamLessonContent(
-  options: StreamContentOptions & { lessonParts?: string[] },
-  callbacks: StreamCallbacks
+  options: StreamContentOptions & { lessonParts?: string[]; sourceType?: string },
+  callbacks: LessonStreamCallbacks
 ): Promise<{ controller: AbortController; result: Promise<Record<string, any>> }> {
   const token = await getAuthToken();
   const controller = new AbortController();
@@ -388,7 +406,7 @@ export async function streamLessonContent(
           gradeLevel: options.gradeLevel,
           subject: options.subject,
           sourceText: options.sourceText,
-          lessonParts: options.lessonParts || ['hook', 'instruction', 'practice', 'summary']
+          sourceType: options.sourceType
         }),
         signal: controller.signal
       });
@@ -408,7 +426,9 @@ export async function streamLessonContent(
 
       const decoder = new TextDecoder();
       let buffer = '';
-      const lessonParts: Record<string, any> = {};
+      let part1Data: any = null;
+      let part2Data: any = null;
+      let fullLessonPlan: any = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -419,31 +439,65 @@ export async function streamLessonContent(
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        for (const line of lines) {
+        // Process lines using index-based loop for correct event/data pairing
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
           if (line.startsWith('event: ')) {
             const eventType = line.slice(7).trim();
-            const dataLineIndex = lines.indexOf(line) + 1;
+            console.log(`🔔 SSE Event received: ${eventType}`);
+            const nextLine = lines[i + 1];
 
-            if (dataLineIndex < lines.length) {
-              const dataLine = lines[dataLineIndex];
-              const chunk = parseSSEData(dataLine);
-              if (!chunk) continue;
+            // SSE format: event line followed by data line
+            if (nextLine?.startsWith('data: ')) {
+              const chunk = parseSSEData(nextLine);
+              if (!chunk) {
+                i++; // Skip the data line since we processed it
+                continue;
+              }
 
               switch (eventType) {
+                case 'progress':
+                  callbacks.onProgress?.(chunk.content, chunk.metadata);
+                  break;
+
                 case 'part_start':
                   callbacks.onPartStart?.(chunk.metadata?.itemType || '');
                   callbacks.onProgress?.(chunk.content, chunk.metadata);
                   break;
 
-                case 'part_complete':
-                  const part = chunk.metadata?.itemType;
-                  if (part) {
-                    try {
-                      lessonParts[part] = JSON.parse(chunk.content);
-                    } catch (e) {
-                      lessonParts[part] = chunk.content;
-                    }
-                    callbacks.onPartComplete?.(part, lessonParts[part]);
+                case 'part1_complete':
+                  // Part 1 ready: lesson_metadata, hook, direct_instruction
+                  try {
+                    part1Data = JSON.parse(chunk.content);
+                    console.log('📥 Part1 received via streaming:', {
+                      lesson_metadata: !!part1Data.lesson_metadata,
+                      hook: !!part1Data.hook,
+                      direct_instruction: !!part1Data.direct_instruction
+                    });
+                    callbacks.onPart1Ready?.(part1Data);
+                    callbacks.onPartComplete?.('part1', part1Data);
+                  } catch (e) {
+                    console.warn('Failed to parse part1:', e);
+                  }
+                  break;
+
+                case 'part2_complete':
+                  // Part 2 ready: guided_practice, independent_practice, discussion, summary
+                  try {
+                    part2Data = JSON.parse(chunk.content);
+                    console.log('📥 Part2 received via streaming:', {
+                      guided_practice: !!part2Data.guided_practice,
+                      independent_practice: !!part2Data.independent_practice,
+                      independent_practice_blocks: part2Data.independent_practice?.interactive_blocks?.length || 0,
+                      discussion: !!part2Data.discussion,
+                      summary: !!part2Data.summary,
+                      discussion_questions: part2Data.discussion?.questions?.length || 0
+                    });
+                    callbacks.onPart2Ready?.(part2Data);
+                    callbacks.onPartComplete?.('part2', part2Data);
+                  } catch (e) {
+                    console.warn('Failed to parse part2:', e);
                   }
                   break;
 
@@ -452,8 +506,31 @@ export async function streamLessonContent(
                   break;
 
                 case 'done':
-                  callbacks.onComplete?.(lessonParts);
-                  resolve(lessonParts);
+                  // Full lesson plan is in the done event
+                  try {
+                    fullLessonPlan = JSON.parse(chunk.content);
+                    console.log('📥 Full lesson plan received:', {
+                      lesson_metadata: !!fullLessonPlan.lesson_metadata,
+                      hook: !!fullLessonPlan.hook,
+                      direct_instruction: !!fullLessonPlan.direct_instruction,
+                      guided_practice: !!fullLessonPlan.guided_practice,
+                      independent_practice: !!fullLessonPlan.independent_practice,
+                      independent_practice_blocks: fullLessonPlan.independent_practice?.interactive_blocks?.length || 0,
+                      discussion: !!fullLessonPlan.discussion,
+                      summary: !!fullLessonPlan.summary,
+                      discussion_questions: fullLessonPlan.discussion?.questions?.length || 0,
+                      guided_practice_script: !!fullLessonPlan.guided_practice?.teacher_facilitation_script
+                    });
+                  } catch (e) {
+                    console.warn('Failed to parse done event, using fallback merge');
+                    // Fallback: combine part1 and part2
+                    fullLessonPlan = {
+                      ...(part1Data || {}),
+                      ...(part2Data || {})
+                    };
+                  }
+                  callbacks.onComplete?.(fullLessonPlan);
+                  resolve(fullLessonPlan);
                   return;
 
                 case 'error':
@@ -461,16 +538,24 @@ export async function streamLessonContent(
                   reject(new Error(chunk.content));
                   return;
               }
+              i++; // Skip the data line since we processed it
             }
             continue;
           }
 
+          // Handle standalone data lines (fallback for non-event-prefixed data)
           const chunk = parseSSEData(line);
           if (!chunk) continue;
 
-          if (chunk.type === 'done') {
-            callbacks.onComplete?.(lessonParts);
-            resolve(lessonParts);
+          if (chunk.type === 'done' || chunk.type === 'json_complete') {
+            try {
+              fullLessonPlan = JSON.parse(chunk.content);
+              console.log('📥 Full lesson plan (standalone):', Object.keys(fullLessonPlan));
+            } catch (e) {
+              fullLessonPlan = { ...(part1Data || {}), ...(part2Data || {}) };
+            }
+            callbacks.onComplete?.(fullLessonPlan);
+            resolve(fullLessonPlan);
             return;
           } else if (chunk.type === 'error') {
             callbacks.onError?.(chunk.content);
@@ -480,7 +565,9 @@ export async function streamLessonContent(
         }
       }
 
-      resolve(lessonParts);
+      // If we got here without done event, return what we have
+      const finalResult = fullLessonPlan || { ...(part1Data || {}), ...(part2Data || {}) };
+      resolve(finalResult);
 
     } catch (error: any) {
       if (error.name !== 'AbortError') {

@@ -41,8 +41,38 @@ export const getSkeletonPrompt = (
   productType: string,
   stepCount: number,
   bloomSteps: string[],
-  structureGuide: string
-) => `
+  structureGuide: string,
+  learningLevel?: string // Optional: 'הבנה' | 'יישום' | 'העמקה' for differentiated content
+) => {
+  // Learning level constraints for differentiated content
+  const learningLevelConstraint = learningLevel ? `
+    **DIFFERENTIATED LEARNING LEVEL: ${learningLevel}**
+    ${learningLevel === 'הבנה' ? `
+    - Target: SUPPORT level (struggling students)
+    - Bloom Levels: Focus on Remember and Understand ONLY
+    - Language: Use SIMPLE vocabulary, shorter sentences
+    - Scaffolding: Include MORE hints, built-in support
+    - Complexity: Avoid distractors that are too similar, make distinctions clear
+    - Questions: Basic recall and comprehension only
+    ` : learningLevel === 'יישום' ? `
+    - Target: CORE level (average students)
+    - Bloom Levels: Focus on Apply and Analyze
+    - Language: Grade-appropriate vocabulary
+    - Scaffolding: Standard hints (2-3 per question)
+    - Complexity: Moderate challenge, fair distractors
+    - Questions: Application and analysis required
+    ` : `
+    - Target: ENRICHMENT level (advanced students)
+    - Bloom Levels: Focus on Evaluate and Create
+    - Language: Can use more academic/complex vocabulary
+    - Scaffolding: Minimal hints (encourage independent thinking)
+    - Complexity: Challenging questions, require deep thinking
+    - Questions: Open-ended, require justification and synthesis
+    `}
+    **CRITICAL:** ALL steps must include "learning_level": "${learningLevel}" in their output.
+  ` : '';
+
+  return `
     Task: Create a "Skeleton" for a learning unit.
     ${contextPart}
     Target Audience: ${gradeLevel}.
@@ -50,7 +80,8 @@ export const getSkeletonPrompt = (
     Mode: ${mode === 'exam' || productType === 'exam' ? 'STRICT EXAMINATION / TEST MODE' : (productType === 'game' ? 'GAMIFICATION / PLAY MODE' : 'Learning/Tutorial Mode')}
     Count: Exactly ${stepCount} steps.
     Language: Hebrew.
-    
+    ${learningLevelConstraint}
+
     BLOOM TAXONOMY REQUIREMENTS:
     ${JSON.stringify(bloomSteps)}
 
@@ -152,6 +183,7 @@ export const getSkeletonPrompt = (
 
     **IMPORTANT:** The example above shows DIFFERENT interaction types for each step. Follow this pattern!
   `;
+};
 
 /**
  * Generate step content prompt based on product type
@@ -170,7 +202,8 @@ export const getStepContentPrompt = (
   linguisticConstraints: string,
   gradeLevel: string,
   productType: string = 'lesson', // activity | lesson | exam
-  contentTone: string = 'friendly' // friendly | professional | playful | neutral
+  contentTone: string = 'friendly', // friendly | professional | playful | neutral
+  learningLevel?: string // Optional: 'הבנה' | 'יישום' | 'העמקה' for differentiated content
 ) => {
   // Build tone instruction based on contentTone
   const toneInstructions: Record<string, string> = {
@@ -181,9 +214,31 @@ export const getStepContentPrompt = (
   };
   const toneInstruction = toneInstructions[contentTone] || toneInstructions.friendly;
 
+  // Learning level constraint for differentiated content
+  const learningLevelConstraint = learningLevel ? `
+    **DIFFERENTIATED LEARNING LEVEL: ${learningLevel}**
+    - You MUST set "learning_level": "${learningLevel}" in the output JSON.
+    ${learningLevel === 'הבנה' ? `
+    - Use SIMPLE language and vocabulary
+    - Include extra scaffolding and hints
+    - Questions should focus on basic recall and understanding
+    - Avoid complex distractors
+    ` : learningLevel === 'יישום' ? `
+    - Use grade-appropriate language
+    - Standard scaffolding (2-3 hints)
+    - Questions require application and analysis
+    ` : `
+    - Can use more academic vocabulary
+    - Minimal scaffolding (encourage independent thinking)
+    - Questions should require synthesis, evaluation, and justification
+    - Include open-ended components where appropriate
+    `}
+  ` : '';
+
   return `
     ${contextText}
     ${examEnforcer}
+    ${learningLevelConstraint}
 
     **TARGET AUDIENCE: ${gradeLevel}**
 

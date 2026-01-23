@@ -66,6 +66,109 @@ import MindMapGeneratorModal from './MindMapGeneratorModal';
 import type { MindMapContent } from '../shared/types/courseTypes';
 import { RichTextEditor } from './RichTextEditor';
 
+// 🎨 Activity Skeleton Component - Shows while content is being generated
+const ActivitySkeletonDisplay: React.FC<{ stepCount: number; activityTitle: string }> = ({ stepCount, activityTitle }) => {
+    const magicIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>`;
+
+    return (
+        <div style={{
+            background: 'linear-gradient(135deg, #f0f4ff 0%, #e8edff 100%)',
+            border: '2px solid #c7d2fe',
+            borderRadius: '16px',
+            padding: '20px',
+            margin: '12px 0',
+            position: 'relative',
+            overflow: 'hidden'
+        }}>
+            {/* Animated progress bar */}
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'linear-gradient(90deg, #818cf8, #6366f1, #4f46e5, #6366f1, #818cf8)',
+                backgroundSize: '200% 100%',
+                animation: 'progress-flow 2s linear infinite'
+            }} />
+
+            {/* Header */}
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', marginBottom: '20px' }}>
+                <div style={{
+                    width: '48px',
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                    animation: 'pulse-glow 2s ease-in-out infinite'
+                }} dangerouslySetInnerHTML={{ __html: magicIcon }} />
+
+                <div style={{ flex: 1 }}>
+                    <h3 style={{
+                        fontSize: '1.25rem',
+                        fontWeight: '700',
+                        color: '#4f46e5',
+                        margin: '0 0 8px 0'
+                    }}>✨ בונה את הפעילות שלך</h3>
+                    <p style={{
+                        fontSize: '0.875rem',
+                        color: '#6366f1',
+                        margin: 0
+                    }}>יוצר {stepCount} צעדים אינטראקטיביים מותאמים</p>
+                </div>
+            </div>
+
+            {/* Step previews */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Array.from({ length: stepCount }, (_, i) => (
+                    <div key={i} style={{
+                        background: 'rgba(255, 255, 255, 0.7)',
+                        border: '1px solid #e0e7ff',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                    }}>
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            color: '#818cf8',
+                            minWidth: '60px'
+                        }}>צעד {i + 1}</span>
+                        <div style={{
+                            flex: 1,
+                            height: '14px',
+                            background: 'linear-gradient(90deg, #e5e7eb 25%, #d1d5db 50%, #e5e7eb 75%)',
+                            backgroundSize: '200% 100%',
+                            animation: 'shimmer 1.5s ease-in-out infinite',
+                            borderRadius: '8px'
+                        }} />
+                    </div>
+                ))}
+            </div>
+
+            <style>{`
+                @keyframes shimmer {
+                    0% { background-position: -200% 0; }
+                    100% { background-position: 200% 0; }
+                }
+                @keyframes pulse-glow {
+                    0%, 100% { box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+                    50% { box-shadow: 0 4px 20px rgba(99, 102, 241, 0.6); }
+                }
+                @keyframes progress-flow {
+                    0% { background-position: 0% 50%; }
+                    100% { background-position: 200% 50%; }
+                }
+            `}</style>
+        </div>
+    );
+};
+
 const BLOCK_TYPE_MAPPING: Record<string, string> = {
     'text': 'טקסט / הסבר',
     'image': 'תמונה',
@@ -202,6 +305,131 @@ const getAiActions = (gradeLevel: string) => [
     { label: "פשט שפה", prompt: `פשט את השפה והמושגים לרמה של תלמידי ${gradeLevel}, הסבר מילים קשות` },
     { label: "העמק תוכן", prompt: `הוסף עומק, דוגמאות והקשר רחב יותר` },
 ];
+
+/**
+ * Creates skeleton blocks to show while activity is being generated
+ * Returns a marker block that will trigger the ActivitySkeletonDisplay component
+ */
+function createActivitySkeletonBlocks(activityTitle: string, stepCount: number = 5): ActivityBlock[] {
+    return [
+        {
+            id: 'activity-skeleton',
+            type: 'activity-skeleton',
+            content: { activityTitle, stepCount },
+            metadata: { isSkeleton: true, isActivitySkeleton: true }
+        } as ActivityBlock
+    ];
+}
+
+/**
+ * Validates that an activity block has meaningful content
+ * Returns false if block is empty or has validation errors
+ */
+function validateBlockHasContent(block: ActivityBlock): boolean {
+    // Check for explicit error flag
+    if (block.metadata?.hasError) {
+        return false;
+    }
+
+    const content = block.content;
+    if (!content || typeof content !== 'object') {
+        return false;
+    }
+
+    // Type-specific validation
+    switch (block.type) {
+        case 'fill_in_blanks':
+            // Check if blanks array exists and has valid items
+            if (Array.isArray(content.blanks)) {
+                // Empty blanks array is invalid
+                if (content.blanks.length === 0) return false;
+                // All blanks must have content
+                const hasValidBlanks = content.blanks.every((blank: any) =>
+                    (blank.sentence && blank.sentence.trim()) ||
+                    (blank.answer && blank.answer.trim())
+                );
+                if (!hasValidBlanks) return false;
+            }
+            // Or check if text format exists with brackets
+            if (content.text) {
+                const hasBrackets = content.text.includes('[') && content.text.includes(']');
+                if (!hasBrackets) return false;
+            }
+            // Must have either blanks or text
+            if (!content.blanks?.length && !content.text) return false;
+            break;
+
+        case 'multiple-choice':
+        case 'multiple_choice':
+            // Must have question and options
+            if (!content.question || !content.options || !Array.isArray(content.options)) {
+                return false;
+            }
+            if (content.options.length < 2) return false;
+            break;
+
+        case 'categorization':
+            // Must have categories and items
+            if (!Array.isArray(content.categories) || content.categories.length < 2) {
+                return false;
+            }
+            if (!Array.isArray(content.items) || content.items.length < 1) {
+                return false;
+            }
+            break;
+
+        case 'ordering':
+            // Must have items to order
+            if (!content.correct_order && !content.items) return false;
+            const orderArray = content.correct_order || content.items;
+            if (!Array.isArray(orderArray) || orderArray.length < 2) {
+                return false;
+            }
+            break;
+
+        case 'memory_game':
+            // Must have pairs
+            if (!Array.isArray(content.pairs) || content.pairs.length < 2) {
+                return false;
+            }
+            break;
+
+        case 'open-question':
+        case 'open_question':
+            // Must have a question
+            if (!content.question || !content.question.trim()) {
+                return false;
+            }
+            break;
+
+        case 'teach':
+        case 'text':
+            // Must have content
+            if (typeof content === 'string') {
+                if (!content.trim()) return false;
+            } else if (!content.text || !content.text.trim()) {
+                return false;
+            }
+            break;
+
+        case 'image':
+        case 'activity-intro':
+            // Images should have a URL
+            if (!content.url && !content.src && !content.imageUrl) {
+                return false;
+            }
+            break;
+
+        default:
+            // For unknown types, just check that content is not empty
+            const hasAnyContent = Object.values(content).some(val =>
+                val !== null && val !== undefined && val !== ''
+            );
+            if (!hasAnyContent) return false;
+    }
+
+    return true;
+}
 
 const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", subject, onSave, onCancel, onPreview }) => {
     const { course } = useCourseStore();
@@ -386,14 +614,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
             const settings = (course as any)?.wizardData?.settings || {};
 
-            // 🛡️ RACE CONDITION FIX: In differentiated mode, CourseEditor handles streaming.
-            // UnitEditor should NOT start its own generation - just wait for content to arrive.
-            if (settings.isDifferentiated === true) {
-                console.log("🛡️ UnitEditor: Differentiated mode detected. Skipping auto-generation (CourseEditor handles it).");
-                setEditedUnit(unit);
-                return;
-            }
-
             hasInitialized.current = true;
             setIsAutoGenerating(true); // START LOADING STATE
 
@@ -481,19 +701,55 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             },
                             {
                                 onProgress: (message, metadata) => {
-                                    console.log(`⏳ [Streaming] ${message}`, metadata);
-                                    // Update placeholder with progress
-                                    setEditedUnit((prev: any) => ({
-                                        ...prev,
-                                        activityBlocks: [
-                                            { id: 'streaming-progress', type: 'text', content: message, metadata: { isSkeleton: true } }
-                                        ]
-                                    }));
+                                    console.log(`⏳ [Streaming] Progress: ${message}`, metadata);
+                                    // Don't update UI here - skeleton will be shown in onSkeletonComplete
+                                    // This prevents the "analyzing" message from interfering with the skeleton
                                 },
                                 onSkeletonComplete: (skeleton) => {
                                     console.log("📋 [Streaming] Skeleton ready:", skeleton.steps?.length, "steps");
                                     timer.mark('skeleton_complete');
                                     timer.setStepCount(skeleton.steps?.length || 5);
+
+                                    // Create skeleton blocks for each step - they will be replaced as content arrives
+                                    const stepCount = skeleton.steps?.length || 5;
+                                    const skeletonBlocks: ActivityBlock[] = [];
+
+                                    // Add main skeleton header
+                                    skeletonBlocks.push({
+                                        id: 'skeleton-header',
+                                        type: 'activity-skeleton',
+                                        content: { activityTitle: unit.title, stepCount },
+                                        metadata: { isSkeleton: true, isSkeletonHeader: true }
+                                    } as ActivityBlock);
+
+                                    // Add individual step skeletons
+                                    for (let i = 0; i < stepCount; i++) {
+                                        skeletonBlocks.push({
+                                            id: `skeleton-step-${i + 1}`,
+                                            type: 'text',
+                                            content: '',
+                                            metadata: {
+                                                isSkeleton: true,
+                                                stepNumber: i + 1,
+                                                isLoadingStep: true
+                                            }
+                                        });
+                                    }
+
+                                    console.log("🎨 [Streaming] Created skeleton:", {
+                                        totalBlocks: skeletonBlocks.length,
+                                        headerBlock: skeletonBlocks[0],
+                                        stepBlocks: skeletonBlocks.slice(1).map(b => ({ id: b.id, metadata: b.metadata }))
+                                    });
+
+                                    setEditedUnit((prev: any) => ({
+                                        ...prev,
+                                        activityBlocks: skeletonBlocks
+                                    }));
+
+                                    // Turn off isAutoGenerating to show the skeleton in normal view
+                                    setIsAutoGenerating(false);
+                                    console.log("🎬 [Streaming] ✅ Skeleton is now visible! isAutoGenerating=false")
 
                                     // Start context image generation in parallel
                                     if (skeleton.context_image_prompt) {
@@ -505,11 +761,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                     console.log("🖼️ [Streaming] Context image ready!");
                                                     // Store in closure variable so it's preserved across step updates
                                                     contextImageBlock = imgBlock;
-                                                    // Also update UI immediately
-                                                    setEditedUnit((prev: any) => ({
-                                                        ...prev,
-                                                        activityBlocks: [imgBlock, ...prev.activityBlocks.filter((b: any) => b.id !== 'streaming-progress' && b.type !== 'activity-intro')]
-                                                    }));
+                                                    // The image will be prepended in onStepComplete automatically
                                                 }
                                             })
                                             .catch(err => console.warn("⚠️ Context image failed:", err));
@@ -519,8 +771,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     console.log(`✅ [Streaming] Step ${stepNumber}/${totalSteps} complete`);
 
                                     // Parse step into blocks
+                                    const newStepBlocks: ActivityBlock[] = [];
+
                                     // STUDENT ACTIVITY: Only add teach block if it has actual content
-                                    // (teach_content is optional for student activities, required for lessons)
                                     if (step.teach_content && step.teach_content.trim().length > 0) {
                                         const teachBlock: ActivityBlock = {
                                             id: uuidv4(),
@@ -531,7 +784,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 bloomLevel: step.bloom_level
                                             }
                                         };
-                                        streamedBlocks.push(teachBlock);
+                                        newStepBlocks.push(teachBlock);
                                     }
 
                                     const interactionBlock = mapSystemItemToBlock(step) as ActivityBlock | null;
@@ -540,21 +793,63 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     console.log("📦 [DEBUG] Parsed block:", JSON.stringify(interactionBlock, null, 2));
 
                                     if (interactionBlock) {
-                                        streamedBlocks.push(interactionBlock);
+                                        // Validate block has content
+                                        const hasContent = validateBlockHasContent(interactionBlock);
+
+                                        if (!hasContent) {
+                                            console.error("⚠️ [VALIDATION] Empty block detected:", {
+                                                stepNumber,
+                                                type: interactionBlock.type,
+                                                blockId: interactionBlock.id,
+                                                content: interactionBlock.content,
+                                                hasErrorFlag: interactionBlock.metadata?.hasError
+                                            });
+
+                                            if (!interactionBlock.metadata) {
+                                                interactionBlock.metadata = {};
+                                            }
+                                            interactionBlock.metadata.isEmpty = true;
+                                        }
+
+                                        newStepBlocks.push(interactionBlock);
                                     } else {
                                         console.error("❌ [DEBUG] Parser returned null for step:", stepNumber);
                                     }
 
-                                    // Update UI with new blocks, PRESERVING context image if it exists
+                                    // Store in closure
+                                    streamedBlocks.push(...newStepBlocks);
+
+                                    // Replace the skeleton block for this step with actual content
                                     setEditedUnit((prev: any) => {
-                                        const contentBlocks = streamedBlocks.filter(b => b.id !== 'streaming-progress');
-                                        // Prepend context image if available
-                                        const allBlocks = contextImageBlock
-                                            ? [contextImageBlock, ...contentBlocks]
-                                            : contentBlocks;
+                                        const blocks = [...prev.activityBlocks];
+                                        const skeletonId = `skeleton-step-${stepNumber}`;
+                                        const skeletonIndex = blocks.findIndex((b: any) => b.id === skeletonId);
+
+                                        console.log(`🔍 [Streaming] Looking for skeleton: ${skeletonId}`, {
+                                            found: skeletonIndex !== -1,
+                                            index: skeletonIndex,
+                                            totalBlocks: blocks.length,
+                                            blockIds: blocks.map((b: any) => b.id)
+                                        });
+
+                                        if (skeletonIndex !== -1) {
+                                            // Replace skeleton with actual blocks
+                                            blocks.splice(skeletonIndex, 1, ...newStepBlocks);
+                                            console.log(`🔄 [Streaming] ✅ Replaced skeleton step ${stepNumber} with ${newStepBlocks.length} block(s)`, newStepBlocks.map(b => b.type));
+                                        } else {
+                                            // Skeleton not found - just append (fallback)
+                                            blocks.push(...newStepBlocks);
+                                            console.log(`➕ [Streaming] ⚠️ Skeleton not found for step ${stepNumber}, appending instead`);
+                                        }
+
+                                        // Prepend context image if it exists and not already there
+                                        if (contextImageBlock && !blocks.find((b: any) => b.id === contextImageBlock.id)) {
+                                            blocks.unshift(contextImageBlock);
+                                        }
+
                                         return {
                                             ...prev,
-                                            activityBlocks: allBlocks
+                                            activityBlocks: blocks
                                         };
                                     });
                                 },
@@ -562,6 +857,18 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     const streamDuration = performance.now() - streamStartTime;
                                     console.log(`🏁 [Streaming] Complete in ${(streamDuration / 1000).toFixed(1)}s`);
                                     timer.mark('content_complete');
+
+                                    // Remove any remaining skeleton blocks (header, unfilled steps)
+                                    setEditedUnit((prev: any) => {
+                                        const blocks = prev.activityBlocks.filter((b: any) =>
+                                            !b.metadata?.isSkeleton && !b.metadata?.isLoadingStep
+                                        );
+                                        console.log(`🧹 [Streaming] Cleaned up skeleton blocks, ${blocks.length} blocks remaining`);
+                                        return {
+                                            ...prev,
+                                            activityBlocks: blocks
+                                        };
+                                    });
                                 },
                                 onError: (error) => {
                                     console.error("❌ [Streaming] Error:", error);
@@ -592,6 +899,19 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                 const interactionBlock = mapSystemItemToBlock(step) as ActivityBlock | null;
                                 if (interactionBlock) {
+                                    // Validate block has content
+                                    const hasContent = validateBlockHasContent(interactionBlock);
+                                    if (!hasContent) {
+                                        console.error("⚠️ [VALIDATION - Fallback] Empty block detected:", {
+                                            type: interactionBlock.type,
+                                            blockId: interactionBlock.id,
+                                            hasErrorFlag: interactionBlock.metadata?.hasError
+                                        });
+                                        if (!interactionBlock.metadata) {
+                                            interactionBlock.metadata = {};
+                                        }
+                                        interactionBlock.metadata.isEmpty = true;
+                                    }
                                     streamedBlocks.push(interactionBlock);
                                 }
                             }
@@ -896,25 +1216,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         };
         initContent();
     }, [unit.id]);
-
-    // 🔄 SYNC: Keep editedUnit in sync with unit prop when content arrives from external source (CourseEditor streaming)
-    const lastSyncedUnitRef = useRef<{ unitId: string; blockCount: number }>({ unitId: '', blockCount: 0 });
-    useEffect(() => {
-        // Only sync when content arrives externally (differentiated mode streaming from CourseEditor)
-        const settings = (course as any)?.wizardData?.settings || {};
-        const currentBlockCount = unit.activityBlocks?.length || 0;
-
-        // Check if this is a different unit OR if block count changed for the same unit
-        const isNewUnit = unit.id !== lastSyncedUnitRef.current.unitId;
-        const blockCountChanged = currentBlockCount !== lastSyncedUnitRef.current.blockCount;
-
-        // Sync if: differentiated mode + has blocks + (new unit OR block count changed)
-        if (settings.isDifferentiated === true && currentBlockCount > 0 && (isNewUnit || blockCountChanged)) {
-            console.log("🔄 UnitEditor: Syncing with streamed content from CourseEditor", currentBlockCount, "blocks", isNewUnit ? "(new unit)" : "(updated)");
-            lastSyncedUnitRef.current = { unitId: unit.id, blockCount: currentBlockCount };
-            setEditedUnit(unit);
-        }
-    }, [unit.id, unit.activityBlocks?.length]);
 
     // --- Podcast Auto-Trigger ---
     useEffect(() => {
@@ -1875,6 +2176,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     }[sourceMode as string] || '';
 
     if (isAutoGenerating) {
+        // Show simple loader
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
                 <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
@@ -2049,6 +2351,17 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
                                     {/* Block Content */}
                                     <div>
+                                        {/* ACTIVITY SKELETON BLOCK - Shows while content is being generated */}
+                                        {block.type === 'activity-skeleton' && block.content && (() => {
+                                            console.log("🎨 [Render] ActivitySkeletonDisplay:", { stepCount: block.content.stepCount, title: block.content.activityTitle });
+                                            return (
+                                                <ActivitySkeletonDisplay
+                                                    stepCount={block.content.stepCount || 5}
+                                                    activityTitle={block.content.activityTitle || ''}
+                                                />
+                                            );
+                                        })()}
+
                                         {/* TEXT BLOCK */}
                                         {block.type === 'text' && (
                                             <div>
@@ -2067,7 +2380,23 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                 <div className="flex flex-col lg:flex-row-reverse gap-3">
                                                     {/* Main Editor Area */}
                                                     <div className="flex-1 min-w-0">
-                                                        {block.metadata?.isLoading || block.metadata?.isSkeleton ? (
+                                                        {block.metadata?.isLoadingStep ? (() => {
+                                                            console.log("🎨 [Render] Step skeleton:", { stepNumber: block.metadata.stepNumber, id: block.id });
+                                                            return (
+                                                                // Step skeleton - shows while this specific step is loading
+                                                                <div className="p-6 border border-indigo-100 bg-gradient-to-br from-indigo-50/30 to-blue-50/30 rounded-2xl">
+                                                                    <div className="flex items-center gap-3 mb-4">
+                                                                        <span className="text-sm font-semibold text-indigo-600">צעד {block.metadata.stepNumber}</span>
+                                                                        <span className="text-xs text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">טוען תוכן...</span>
+                                                                    </div>
+                                                                    <div className="space-y-3">
+                                                                        <div className="h-4 bg-gradient-to-r from-indigo-100 via-indigo-200 to-indigo-100 rounded animate-pulse" style={{ width: '80%' }}></div>
+                                                                        <div className="h-4 bg-gradient-to-r from-indigo-100 via-indigo-200 to-indigo-100 rounded animate-pulse" style={{ width: '95%' }}></div>
+                                                                        <div className="h-4 bg-gradient-to-r from-indigo-100 via-indigo-200 to-indigo-100 rounded animate-pulse" style={{ width: '70%' }}></div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })() : block.metadata?.isLoading || block.metadata?.isSkeleton ? (
                                                             <div className="w-full p-8 border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-2xl flex flex-col items-center justify-center text-center gap-4 min-h-[180px]">
                                                                 <TypewriterLoader contentType={typewriterContentType} isVisible={true} />
                                                             </div>

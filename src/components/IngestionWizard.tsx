@@ -429,8 +429,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     const [courseMode, setCourseMode] = useState<'learning' | 'exam'>(initialMode);
     // const [showSourceToStudent, setShowSourceToStudent] = useState(true);
 
-    const [isDifferentiated, setIsDifferentiated] = useState(false);
-
     // בחירת טון/סגנון כתיבה
     const [contentTone, setContentTone] = useState<'friendly' | 'professional' | 'playful' | 'neutral'>('friendly');
 
@@ -553,10 +551,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         console.log("DEBUG: IngestionWizard MOUNTED");
         return () => { };
     }, []);
-
-    useEffect(() => {
-        console.log("DEBUG: isDifferentiated changed to:", isDifferentiated);
-    }, [isDifferentiated]);
 
     const config = (selectedProduct && PRODUCT_CONFIG[selectedProduct]) || DEFAULT_CONFIG;
 
@@ -739,7 +733,6 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                     courseMode,
                     // showSourceToStudent,
                     productType: selectedProduct, // Pass the product type!
-                    isDifferentiated, // Pass new flag
                     contentTone, // טון/סגנון הכתיבה
                     // הגדרות מתקדמות לסוגי שאלות
                     questionPreferences: {
@@ -762,7 +755,13 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     };
 
     const handleBack = () => {
-        if (step > 1) setStep(step - 1);
+        if (step > 1) {
+            // If going back to step 2 and current product is disabled, reset selection
+            if (step === 3 && selectedProduct === 'lesson') {
+                setSelectedProduct(null);
+            }
+            setStep(step - 1);
+        }
         else onCancel();
     };
 
@@ -1294,71 +1293,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                             התאמה פדגוגית
                                         </h3>
 
-                                        {selectedProduct === 'activity' && (
-                                            <>
-                                                {/* NEURAL TOGGLE: DIFFERENTIATED INSTRUCTION */}
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        console.log("DEBUG: Toggle clicked!");
-                                                        setIsDifferentiated(!isDifferentiated);
-                                                    }}
-                                                    className={`
-                                                        mb-6 p-4 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden group
-                                                        ${isDifferentiated
-                                                            ? 'border-wizdi-royal bg-blue-50/50 shadow-md'
-                                                            : 'border-slate-100 bg-slate-50 hover:border-blue-200'}
-                                                    `}
-                                                >
-                                                    <div className="flex justify-between items-start relative z-10">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`
-                                                                p-2 rounded-xl transition-colors
-                                                                ${isDifferentiated ? 'bg-wizdi-royal text-white' : 'bg-slate-200 text-slate-500'}
-                                                            `}>
-                                                                <IconWand className="w-6 h-6" />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className={`font-bold text-lg ${isDifferentiated ? 'text-wizdi-royal' : 'text-slate-700'}`}>
-                                                                    הוראה דיפרנציאלית (3 רמות)
-                                                                </h4>
-                                                                <p className="text-sm text-slate-500 max-w-[250px] leading-tight mt-1">
-                                                                    יצירת 3 גרסאות פעילות הדרגתיות (הבנה, יישום, העמקה) באופן אוטומטי מהמקור.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* iOS Toggle Switch */}
-                                                        <div className={`
-                                                            w-12 h-7 rounded-full transition-colors flex items-center px-1 shrink-0
-                                                            ${isDifferentiated ? 'bg-wizdi-royal justify-start' : 'bg-slate-300 justify-end'}
-                                                        `}>
-                                                            <div className="w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300" />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* 3 VISUAL BADGES (Only visible when active) */}
-                                                    <div className={`
-                                                        flex flex-wrap justify-center gap-2 mt-4 transition-all duration-500 origin-top
-                                                        ${isDifferentiated ? 'opacity-100 scale-100 max-h-[200px]' : 'opacity-0 scale-95 max-h-0 hidden'}
-                                                    `}>
-                                                        <div className="bg-green-50 border border-green-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-green-600">רמה 1: הבנה</span>
-                                                        </div>
-                                                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-blue-600">רמה 2: יישום</span>
-                                                        </div>
-                                                        <div className="bg-purple-50 border border-purple-100 px-3 py-2 rounded-full text-center whitespace-nowrap">
-                                                            <span className="text-xs font-bold text-purple-600">רמה 3: העמקה</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {/* SLIDERS (Hidden if Differentiated is ON) */}
-                                        <div className={`transition-all duration-300 ${isDifferentiated ? 'opacity-30 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
+                                        {/* SLIDERS */}
+                                        <div>
                                             {(() => {
                                                 // Calculate total questions based on activity length
                                                 const totalQuestions = activityLength === 'short' ? 3 : (activityLength === 'long' ? 7 : 5);
@@ -1416,9 +1352,8 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                                                                     <input
                                                                         type="range"
                                                                         value={(taxonomy as any)[t.k]}
-                                                                        onChange={(e) => !isDifferentiated && handleTaxonomyChange(t.k, parseInt(e.target.value))}
+                                                                        onChange={(e) => handleTaxonomyChange(t.k, parseInt(e.target.value))}
                                                                         className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-wizdi-royal"
-                                                                        disabled={isDifferentiated}
                                                                     />
                                                                 </div>
                                                             );

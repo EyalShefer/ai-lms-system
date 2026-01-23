@@ -209,6 +209,8 @@ export { searchYouTubeEducational, getYouTubeVideoDetails } from "./youtubeSearc
 // --- CONTROLLERS ---
 import { createAiController } from "./controllers/aiController";
 import { createExamController } from "./controllers/examController";
+import { createCurriculumAgent } from "./agent/curriculumAgent";
+import type { ActivityGenerationRequest } from "./services/activityBank/types";
 
 const { generateTeacherLessonPlan, generateStepContent, generatePodcastScript, generateMindMapFromContent } = createAiController(openAiApiKey);
 export { generateTeacherLessonPlan, generateStepContent, generatePodcastScript, generateMindMapFromContent };
@@ -1449,6 +1451,97 @@ export const generateExam = onDocumentCreated(
             await event.data.ref.update({
                 status: "error",
                 error: error.message || "Unknown error occurred",
+            });
+        }
+    }
+);
+
+// --- CURRICULUM AGENT (Autonomous Activity Generation) ---
+/**
+ * generateCurriculumActivity - Autonomous Activity Generation
+ *
+ * Listens to: activity_generation_queue/{docId}
+ * Pipeline: Gemini Agent orchestrating Architect → Generator → Guardian
+ * Output: High-quality activities saved to activity_bank collection
+ *
+ * The agent does NOT create content directly - it orchestrates the existing
+ * pipeline with all its rules and constraints (linguistic, bias checks, etc.)
+ *
+ * Model: gemini-3-pro-preview (same as rest of system)
+ */
+export const generateCurriculumActivity = onDocumentCreated(
+    {
+        document: "activity_generation_queue/{docId}",
+        secrets: [geminiApiKey, openAiApiKey],
+        timeoutSeconds: 540,    // 9 minutes
+        memory: "1GiB",         // Increased for agent operations
+    },
+    async (event) => {
+        if (!event.data) return;
+
+        const docId = event.params.docId;
+        const data = event.data.data() as ActivityGenerationRequest;
+
+        if (!data || data.status !== "pending") return;
+
+        try {
+            logger.info(`🤖 Starting Curriculum Agent for document ${docId}`, {
+                subject: data.subject,
+                gradeLevel: data.gradeLevel,
+                activityCount: data.activityCount,
+                model: 'gemini-3-pro-preview'
+            });
+
+            await event.data.ref.update({
+                status: "processing",
+                startedAt: new Date()
+            });
+
+            // Create and run the Curriculum Agent (uses Gemini from environment)
+            const agent = createCurriculumAgent(
+                openAiApiKey.value(),  // For embeddings only
+                {
+                    maxIterations: 50,      // Allow up to 50 tool calls
+                    timeoutMs: 480000,      // 8 minutes (buffer for cleanup)
+                    activityCountPerRun: data.activityCount || 5
+                }
+            );
+
+            const result = await agent.generateActivities(data);
+
+            // Build result object without undefined values (Firestore doesn't allow undefined)
+            const updateResult: Record<string, any> = {
+                activitiesCreated: result.activitiesCreated,
+                activityIds: result.activityIds,
+                qualityScores: result.qualityScores,
+                totalTimeMs: result.totalTimeMs
+            };
+
+            // Only add errors if there are any
+            if (result.errors && result.errors.length > 0) {
+                updateResult.errors = result.errors;
+            }
+
+            await event.data.ref.update({
+                status: "completed",
+                completedAt: new Date(),
+                result: updateResult
+            });
+
+            logger.info(`🎉 Curriculum Agent completed: ${result.activitiesCreated} activities created`, {
+                docId,
+                activityIds: result.activityIds,
+                avgQuality: result.qualityScores.length > 0
+                    ? Math.round(result.qualityScores.reduce((a, b) => a + b, 0) / result.qualityScores.length)
+                    : 0
+            });
+
+        } catch (error: any) {
+            logger.error("❌ Curriculum Agent failed:", error);
+            await event.data.ref.update({
+                status: "failed",
+                error: error.message || "Unknown error occurred",
+                completedAt: new Date()
             });
         }
     }
