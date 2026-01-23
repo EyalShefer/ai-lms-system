@@ -4,109 +4,86 @@
 
 ---
 
-## 📖 מסמכים זמינים
+## 🗺️ מפת ניווט
 
-### 1. [TESTING_GUIDE.md](TESTING_GUIDE.md) - **המדריך המלא** 📘
+**לא יודע איזה מסמך לקרוא?** ← **[INDEX.md](INDEX.md)** - מפת ניווט מלאה! ⭐
 
-**לקריאה מלאה ומעמיקה** (30 דקות)
+המסמך INDEX מכיל:
+- ✅ טבלת "אני רוצה..." → איזה מסמך
+- ✅ מפת נושאים מפורטת
+- ✅ מסלול קריאה מומלץ
+- ✅ מטריצת החלטות
 
-מכיל:
-- ✅ הסבר מפורט על כל כלי Testing
-- ✅ דוגמאות פלט מלאות
-- ✅ תהליך עבודה יומי
-- ✅ פתרון בעיות
-- ✅ 3 שכבות ההגנה
-- ✅ שאלות נפוצות
-
-**מתי לקרוא:**
-- בפעם הראשונה שמתחילים לעבוד עם Testing
-- כשיש שאלה או בעיה
-- כהדרכה למפתחים חדשים בצוות
+**💡 המלצה:** התחל ב-[INDEX.md](INDEX.md) כדי להבין איפה למצוא כל דבר!
 
 ---
 
-### 2. [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) - **דף עזר מהיר** ⚡
+## 📖 מסמכים לפי סוג
 
-**לשימוש יומי** (2 דקות)
+### 🎓 למידה והתחלה
 
-מכיל:
-- ✅ טבלת פקודות מהירה
-- ✅ תהליך עבודה קצר
-- ✅ פתרון בעיות מהיר
-- ✅ הכלל הזהב
+#### [GETTING_STARTED.md](GETTING_STARTED.md) - מדריך התחלה (5 דק')
+**למי:** מפתח חדש במערכת
+**מה בפנים:** 5 צעדים ראשונים, Checklist, טיפים
 
-**מתי להשתמש:**
-- כל יום לפני commit
-- כשצריך לזכור פקודה
-- כדף רמאות ליד המחשב (תדפיס!)
+#### [SETUP_COMPLETE.md](SETUP_COMPLETE.md) - סיכום התקנה (5 דק')
+**למי:** כולם - לראות מה הותקן
+**מה בפנים:** תשתית, Pre-commit, GitHub Actions, 3 שכבות
 
 ---
 
-### 3. [CRITICAL_CODE.md](CRITICAL_CODE.md) - **רשימת קוד מוגן** 🔒
+### 🛠️ שימוש יומי
 
-**לפני שמשנים קוד קריטי**
-
-מכיל:
-- ✅ רשימת כל הקבצים הקריטיים
-- ✅ למה כל קובץ מוגן
-- ✅ Checklist לפני שינוי
-- ✅ קישורים לטסטים הרלוונטיים
-- ✅ היסטוריית שינויים
-
-**מתי לקרוא:**
-- לפני שמשנים משהו ב-`prompts.ts`
-- לפני שמשנים משהו ב-`streamingServer.ts`
-- לפני שמשנים משהו ב-`CourseContext.tsx`
+#### [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) - דף עזר (2 דק')
+**למי:** כולם - כל יום
+**מה בפנים:** טבלת פקודות, תהליך עבודה, פתרון בעיות
+**💡 הדפס ושמור ליד המחשב!**
 
 ---
 
-### 4. [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md) - **Husky Hooks** 🪝
+### 📖 מדריכים מקיפים
 
-**הגנה אוטומטית לפני commit**
+#### [TESTING_GUIDE.md](TESTING_GUIDE.md) - המדריך המלא (30 דק')
+**למי:** למידה מעמיקה, פתרון בעיות
+**מה בפנים:** הסבר מפורט, דוגמאות פלט, 3 שכבות הגנה, שאלות נפוצות
+**חלק חשוב:** חלק 7 - 3 שכבות ההגנה
 
-מכיל:
-- ✅ מה זה pre-commit hook
-- ✅ איך זה עובד (דוגמאות)
-- ✅ מה נבדק אוטומטית
-- ✅ פתרון בעיות
-- ✅ הגדרות מתקדמות
+#### [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md) - Husky ספציפי (10 דק')
+**למי:** כדי להבין Pre-commit Hook
+**מה בפנים:** מה זה Hook, איך עובד, דוגמאות מוצלח/כושל, הגדרות
+**קרא אם:** Commit נחסם ולא ברור למה
 
-**מתי לקרוא:**
-- כשרוצים להבין איך הhook עובד
-- כשהcommit נחסם ולא ברור למה
-- כדי לראות דוגמאות פלט
+#### [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) - CI/CD ספציפי (10 דק')
+**למי:** כדי להבין GitHub Actions
+**מה בפנים:** מה זה Actions, 6 Jobs במפורט, Branch Protection, פתרון בעיות
+**קרא אם:** PR נחסם ולא ברור למה
 
----
-
-### 5. [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) - **CI/CD בענן** 🤖
-
-**בדיקות אוטומטיות בכל Pull Request**
-
-מכיל:
-- ✅ מה זה GitHub Actions
-- ✅ איך זה עובד (צעד אחר צעד)
-- ✅ 6 Jobs שרצים במקביל
-- ✅ איך לקרוא תוצאות
-- ✅ Branch Protection Rules
-- ✅ פתרון בעיות נפוצות
-
-**מתי לקרוא:**
-- לפני יצירת Pull Request ראשון
-- כשהPR נחסם ולא ברור למה
-- כדי להבין מה GitHub Actions בודק
+#### [CRITICAL_CODE.md](CRITICAL_CODE.md) - קוד מוגן (5 דק')
+**למי:** לפני שינוי בקבצים קריטיים
+**מה בפנים:** 3 קבצים קריטיים, Checklist חובה, דוגמאות בטוחות/מסוכנות
+**קרא לפני:** שינוי ב-`prompts.ts`, `streamingServer.ts`, `CourseContext.tsx`
 
 ---
 
 ## 🎯 איפה להתחיל?
 
+### ⭐ התחלה מהירה (מומלץ)
+1. **[INDEX.md](INDEX.md)** - מפת ניווט (2 דק') ← **התחל כאן!**
+2. **[GETTING_STARTED.md](GETTING_STARTED.md)** - 5 צעדים ראשונים (5 דק')
+3. **[TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md)** - הדפס ושמור (2 דק')
+
 ### אם אתה חדש במערכת:
-1. קרא [TESTING_GUIDE.md](TESTING_GUIDE.md) - המדריך המלא
-2. שמור [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) פתוח
-3. נסה להריץ `npm test` בפעם הראשונה
+**מסלול מלא (50 דקות):**
+1. [INDEX.md](INDEX.md) - 2 דק'
+2. [GETTING_STARTED.md](GETTING_STARTED.md) - 5 דק'
+3. [SETUP_COMPLETE.md](SETUP_COMPLETE.md) - 5 דק'
+4. [TESTING_GUIDE.md](TESTING_GUIDE.md) חלקים 1-7 - 30 דק'
+5. [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md) - 10 דק' (אופציונלי)
 
 ### אם אתה מפתח ותיק:
-- השתמש ב-[TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) יום-יום
-- חזור ל-[TESTING_GUIDE.md](TESTING_GUIDE.md) כשיש שאלות
+- **יומי:** [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md)
+- **שאלות:** [INDEX.md](INDEX.md) → חפש בטבלה
+- **בעיות:** [TESTING_GUIDE.md](TESTING_GUIDE.md) - פתרון בעיות
 
 ---
 
@@ -115,16 +92,54 @@
 ```
 docs/
 ├── README.md                       ← אתה נמצא כאן!
-├── GETTING_STARTED.md             ← ✅ מדריך התחלה מהיר (5 דק')
-├── SETUP_COMPLETE.md              ← ✅ סיכום התקנה
-├── TESTING_GUIDE.md               ← ✅ המדריך המלא (30 דק' קריאה)
-├── TESTING_QUICK_REFERENCE.md     ← ✅ דף עזר (2 דק')
-├── CRITICAL_CODE.md               ← ✅ קוד מוגן
-├── PRE_COMMIT_HOOKS.md            ← ✅ Husky Hooks
-├── GITHUB_ACTIONS.md              ← ✅ CI/CD (חדש!)
-├── STREAMING_ARCHITECTURE.md      ← ארכיטקטורת Streaming
-└── CURRICULUM_AGENT.md            ← תיעוד Curriculum Agent
+├── INDEX.md                        ← ⭐ מפת ניווט מלאה (התחל כאן!)
+│
+├── GETTING_STARTED.md             ← 🎓 מדריך התחלה (5 דק')
+├── SETUP_COMPLETE.md              ← 🎓 סיכום התקנה (5 דק')
+│
+├── TESTING_QUICK_REFERENCE.md     ← 🛠️ דף עזר יומי (2 דק') [הדפס!]
+│
+├── TESTING_GUIDE.md               ← 📖 המדריך המלא (30 דק')
+├── PRE_COMMIT_HOOKS.md            ← 📖 Husky ספציפי (10 דק')
+├── GITHUB_ACTIONS.md              ← 📖 CI/CD ספציפי (10 דק')
+├── CRITICAL_CODE.md               ← 📖 קוד מוגן (5 דק')
+│
+├── STREAMING_ARCHITECTURE.md      ← 🏗️ ארכיטקטורה
+└── CURRICULUM_AGENT.md            ← 🏗️ Curriculum Agent
 ```
+
+**מקרא:**
+- ⭐ = **התחל כאן** - מפת ניווט
+- 🎓 = למידה והתחלה
+- 🛠️ = שימוש יומי
+- 📖 = מדריכים מקיפים
+- 🏗️ = ארכיטקטורה
+
+---
+
+## 🔍 חיפוש מהיר
+
+**"אני רוצה..."**
+
+| מה אני רוצה | איזה מסמך | זמן |
+|-------------|-----------|------|
+| **למצוא איזה מסמך לקרוא** | [INDEX.md](INDEX.md) ⭐ | 2 דק' |
+| **להתחיל מאפס** | [GETTING_STARTED.md](GETTING_STARTED.md) | 5 דק' |
+| **לראות מה הותקן** | [SETUP_COMPLETE.md](SETUP_COMPLETE.md) | 5 דק' |
+| **פקודות מהירות** | [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) | 2 דק' |
+| **להבין Testing** | [TESTING_GUIDE.md](TESTING_GUIDE.md) | 30 דק' |
+| **להבין Pre-commit Hook** | [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md) | 10 דק' |
+| **להבין GitHub Actions** | [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) | 10 דק' |
+| **לשנות קוד קריטי** | [CRITICAL_CODE.md](CRITICAL_CODE.md) | 5 דק' |
+
+**"יש לי בעיה..."**
+
+| בעיה | איזה מסמך | חלק |
+|------|-----------|-----|
+| **טסט נכשל** | [TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md) | "מה לעשות כש..." |
+| **Commit נחסם** | [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md) | דוגמה כושלת |
+| **PR נחסם** | [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) | תרחישים נפוצים |
+| **לא יודע איפה למצוא** | [INDEX.md](INDEX.md) ⭐ | מפת נושאים |
 
 ---
 
@@ -152,10 +167,12 @@ docs/
 
 ## 📞 צריך עזרה?
 
-אם משהו לא ברור או חסר במסמכים:
-1. בדוק קודם ב-[TESTING_GUIDE.md](TESTING_GUIDE.md) - סביר שהתשובה שם
-2. חפש בקובץ (Ctrl+F)
-3. שאל את הצוות
+### מצא תשובה במהירות:
+1. **[INDEX.md](INDEX.md)** ⭐ - חפש בטבלת "אני רוצה..." או במפת נושאים
+2. **[TESTING_QUICK_REFERENCE.md](TESTING_QUICK_REFERENCE.md)** - בעיות נפוצות
+3. **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - פתרון בעיות + שאלות נפוצות
+4. **חפש בקובץ** (Ctrl+F) - לפי מילת מפתח
+5. **שאל את הצוות** - אם לא מצאת תשובה
 
 ---
 
