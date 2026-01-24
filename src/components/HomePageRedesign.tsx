@@ -1,133 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
 import {
     IconSparkles,
-    IconChart,
-    IconList,
-    IconMagicWand
+    IconChart
 } from '../icons';
-import { IconUpload, IconShare, IconVideo, IconFileText, IconPencil, IconFlask, IconChevronLeft, IconMicrophone, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconMath, IconLanguage, IconBook, IconWriting, IconMessage, IconSchool, IconDeviceGamepad2, IconHistory, IconSend, IconArrowUp } from '@tabler/icons-react';
+import { IconChevronLeft, IconMoodSmile, IconClipboardCheck, IconLayoutList, IconBulb, IconRobot, IconSchool, IconX, IconArrowsMaximize } from '@tabler/icons-react';
 import AIBlogWidget from './AIBlogWidget';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
 import SmartCreationChat from './SmartCreationChat';
+import AdminPromptSeeder from './AdminPromptSeeder';
 
-interface RecentActivity {
-    id: string;
-    title: string;
-    type: 'test' | 'activity' | 'lesson';
-    mode?: string;
-    createdAt: any;
-    submissionCount?: number;
-}
-
-const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDashboard, onEditCourse, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents, onNavigateToUsage, onNavigateToSpeedAnalytics, onNavigateToAgentDashboard }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onCreateWithWizardData?: (wizardData: any) => void, onNavigateToDashboard: () => void, onEditCourse?: (courseId: string) => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void, onNavigateToUsage?: () => void, onNavigateToSpeedAnalytics?: () => void, onNavigateToAgentDashboard?: () => void }) => {
+const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDashboard, onNavigateToPrompts, onNavigateToQA, onNavigateToKnowledgeBase, onNavigateToAgents, onNavigateToUsage, onNavigateToSpeedAnalytics, onNavigateToAgentDashboard, onNavigateToBagrut }: { onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void, onCreateWithWizardData?: (wizardData: any) => void, onNavigateToDashboard: () => void, onNavigateToPrompts?: () => void, onNavigateToQA?: () => void, onNavigateToKnowledgeBase?: () => void, onNavigateToAgents?: () => void, onNavigateToUsage?: () => void, onNavigateToSpeedAnalytics?: () => void, onNavigateToAgentDashboard?: () => void, onNavigateToBagrut?: () => void }) => {
     const { currentUser, isAdmin } = useAuth();
-    const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-    const [loadingActivities, setLoadingActivities] = useState(true);
+    const [isChatExpanded, setIsChatExpanded] = useState(false);
     const firstName = currentUser?.email?.split('@')[0] || "מורה";
 
-    // Fetch recent activities
+    // Close expanded chat on Escape key
     useEffect(() => {
-        const fetchRecentActivities = async () => {
-            if (!currentUser) {
-                setLoadingActivities(false);
-                return;
-            }
-
-            try {
-                let coursesSnapshot;
-
-                try {
-                    // Try with orderBy first (requires composite index)
-                    const coursesQuery = query(
-                        collection(db, "courses"),
-                        where("teacherId", "==", currentUser.uid),
-                        orderBy("createdAt", "desc"),
-                        limit(10)
-                    );
-                    coursesSnapshot = await getDocs(coursesQuery);
-                } catch (indexError: any) {
-                    // Fallback: fetch without orderBy and sort client-side
-                    console.warn("📝 Missing Firestore index, using client-side sort. Create index for better performance:", indexError?.message);
-                    const fallbackQuery = query(
-                        collection(db, "courses"),
-                        where("teacherId", "==", currentUser.uid)
-                    );
-                    coursesSnapshot = await getDocs(fallbackQuery);
-                }
-
-                const activities: RecentActivity[] = [];
-                const courseIds: string[] = [];
-
-                coursesSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    courseIds.push(doc.id);
-
-                    // Determine type based on mode or syllabus
-                    let type: 'test' | 'activity' | 'lesson' = 'activity';
-                    if (data.mode === 'exam') type = 'test';
-                    else if (data.mode === 'lesson') type = 'lesson';
-                    else if (data.syllabus && data.syllabus.some((s: any) => s.questions?.length > 0)) type = 'test';
-
-                    activities.push({
-                        id: doc.id,
-                        title: data.title || "ללא שם",
-                        type,
-                        mode: data.mode,
-                        createdAt: data.createdAt,
-                        submissionCount: 0
-                    });
-                });
-
-                // Sort by createdAt descending (client-side, works for both paths)
-                // Filter out activities with invalid timestamps first, then sort
-                const validActivities = activities.filter(a => {
-                    const hasValidTimestamp = a.createdAt?.seconds || a.createdAt?.toMillis;
-                    return hasValidTimestamp;
-                });
-
-                validActivities.sort((a, b) => {
-                    const aTime = a.createdAt?.toMillis?.() || (a.createdAt?.seconds * 1000) || 0;
-                    const bTime = b.createdAt?.toMillis?.() || (b.createdAt?.seconds * 1000) || 0;
-                    return bTime - aTime;
-                });
-
-                // Fetch submission counts for recent courses
-                const recentCourseIds = validActivities.slice(0, 5).map(a => a.id);
-                if (recentCourseIds.length > 0) {
-                    const submissionsQuery = query(
-                        collection(db, "submissions"),
-                        where("teacherId", "==", currentUser.uid),
-                        where("courseId", "in", recentCourseIds)
-                    );
-                    const submissionsSnapshot = await getDocs(submissionsQuery);
-
-                    const submissionCounts: Record<string, number> = {};
-                    submissionsSnapshot.forEach(doc => {
-                        const courseId = doc.data().courseId;
-                        submissionCounts[courseId] = (submissionCounts[courseId] || 0) + 1;
-                    });
-
-                    // Update activities with submission counts
-                    validActivities.forEach(activity => {
-                        activity.submissionCount = submissionCounts[activity.id] || 0;
-                    });
-                }
-
-                setRecentActivities(validActivities.slice(0, 3));
-            } catch (error: any) {
-                console.error("❌ Error fetching recent activities:", error);
-                console.error("Error code:", error?.code);
-                console.error("Error message:", error?.message);
-            } finally {
-                setLoadingActivities(false);
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isChatExpanded) {
+                setIsChatExpanded(false);
             }
         };
-
-        fetchRecentActivities();
-    }, [currentUser]);
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isChatExpanded]);
 
     const getTimeBasedGreeting = () => {
         const hour = new Date().getHours();
@@ -143,610 +39,290 @@ const HomePageRedesign = ({ onCreateNew, onCreateWithWizardData, onNavigateToDas
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-6 py-8 font-sans">
-            {/* Hero Section */}
-            <section className="relative mb-12" aria-labelledby="hero-title">
-                {/* Background Blobs - reduced motion support */}
-                <div className="absolute -top-20 -right-20 w-72 h-72 bg-wizdi-cyan/20 rounded-full blur-3xl animate-blob pointer-events-none motion-reduce:animate-none"></div>
-                <div className="absolute -bottom-10 -left-20 w-64 h-64 bg-wizdi-action/20 rounded-full blur-3xl animate-blob animation-delay-2000 pointer-events-none motion-reduce:animate-none"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 font-sans">
+            {/* AI Particles Background */}
+            <div className="ai-particles fixed inset-0 pointer-events-none z-0" aria-hidden="true">
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+            </div>
 
-                <div className="relative z-10 flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
-                    {/* Text Content */}
-                    <div className="flex-1 text-center lg:text-right animate-slideUp motion-reduce:animate-none">
-                        <p className="text-base text-slate-500 dark:text-slate-400 mb-3">
-                            {getTimeBasedGreeting()}, {firstName}
-                        </p>
-                        <h1 id="hero-title" className="text-4xl lg:text-6xl font-black bg-gradient-to-l from-wizdi-royal via-violet-600 to-wizdi-cyan bg-clip-text text-transparent mb-4 leading-tight">
-                            <IconMagicWand className="w-8 h-8 lg:w-12 lg:h-12 text-wizdi-royal inline-block align-middle ml-2" />
-                            סטודיו יצירה חכם
-                        </h1>
-                        <p className="text-xl lg:text-2xl text-slate-600 dark:text-slate-300 font-medium max-w-lg mx-auto lg:mx-0">
-                            צרו תכנים לימודיים מדהימים בעזרת AI - שיעורים, מבחנים ופעילויות אינטראקטיביות
-                        </p>
+            {/* BENTO GRID LAYOUT */}
+            <div className="bento-grid relative z-10">
+
+                {/* === BLOCK 1: AI CHAT - Smart Creation === */}
+                <section className="bento-lg bento-card bento-featured ai-glow" aria-label="יצירת תוכן חכמה">
+                    <div className="ai-particles" aria-hidden="true">
+                        <div className="ai-particle"></div>
+                        <div className="ai-particle"></div>
+                        <div className="ai-particle"></div>
                     </div>
 
-                    {/* Illustration */}
-                    <div className="flex-1 max-w-2xl hidden lg:block" aria-hidden="true">
-                        <div className="relative">
-                            {/* Magic Sparkle Stars */}
-                            <svg className="absolute -top-2 -right-6 w-6 h-6 text-wizdi-cyan animate-pulse motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                            </svg>
-                            <svg className="absolute top-1/4 -right-8 w-4 h-4 text-wizdi-lime animate-pulse animation-delay-2000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                            </svg>
-                            <svg className="absolute -bottom-2 -left-4 w-5 h-5 text-wizdi-action animate-pulse animation-delay-4000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                            </svg>
-                            <svg className="absolute top-1/2 -left-8 w-3 h-3 text-wizdi-royal animate-pulse motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                            </svg>
-                            <svg className="absolute bottom-1/4 -right-4 w-4 h-4 text-amber-400 animate-pulse animation-delay-2000 motion-reduce:animate-none" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                            </svg>
+                    <div className="relative z-10 h-full flex flex-col">
+                        {/* Brand Header with Site Name */}
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h1 className="text-2xl font-black ai-gradient-text mb-0.5">Wizdi</h1>
+                                <p className="text-sm text-slate-600 dark:text-slate-300">
+                                    {getTimeBasedGreeting()}, <span className="font-semibold">{firstName}</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="ai-pill text-xs">
+                                    <IconSparkles className="w-3 h-3" />
+                                    AI Studio
+                                </span>
+                                <button
+                                    onClick={() => setIsChatExpanded(true)}
+                                    className="p-2 text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-all"
+                                    title="הרחב צ'אט"
+                                >
+                                    <IconArrowsMaximize className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
 
-                            <img
-                                src="/images/hero-illustration.png"
-                                alt="AI Education Illustration"
-                                className="relative z-10 w-full max-w-2xl h-auto object-contain drop-shadow-xl"
+                        {/* Smart Creation Chat - takes the lead */}
+                        <div className="flex-1">
+                            <SmartCreationChat
+                                onCreateContent={(wizardData) => {
+                                    setIsChatExpanded(false);
+                                    if (onCreateWithWizardData) {
+                                        onCreateWithWizardData(wizardData);
+                                    } else {
+                                        onCreateNew('learning', wizardData.settings?.productType || 'activity');
+                                    }
+                                }}
                             />
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            {/* Quick Actions Pills - Decorative only */}
-            <section className="mb-12" aria-label="סוגי תוכן זמינים">
-                <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
-                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
-                        <IconVideo className="w-5 h-5 text-wizdi-cyan" aria-hidden="true" />
-                        מסרטון
+                {/* === BLOCK 2: QUICK ACTIONS === */}
+                <section className="bento-lg bento-card" aria-label="יצירה מהירה">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-800 dark:text-white">יצירה מהירה</h2>
                     </div>
-                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
-                        <IconFileText className="w-5 h-5 text-wizdi-royal" aria-hidden="true" />
-                        מקובץ
-                    </div>
-                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
-                        <IconPencil className="w-5 h-5 text-wizdi-action" aria-hidden="true" />
-                        מטקסט
-                    </div>
-                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
-                        <IconFlask className="w-5 h-5 text-amber-500" aria-hidden="true" />
-                        מנושא
-                    </div>
-                    <div className="flex items-center gap-2 px-6 py-3.5 rounded-full font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base">
-                        <IconBook className="w-5 h-5 text-emerald-500" aria-hidden="true" />
-                        מספר לימוד
-                    </div>
-                </div>
-            </section>
 
-            {/* Main Section - Content Creation Studio */}
-            <section className="mb-8" aria-label="סטודיו יצירת תוכן">
-                    <div className="card-glass rounded-3xl p-8 border border-slate-200/80 dark:border-slate-700 dark:bg-slate-800/80 bg-gradient-to-br from-white to-slate-50/30">
-                        <div className="flex flex-col h-full">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-14 h-14 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg" aria-hidden="true">
-                                        <IconSparkles className="w-7 h-7 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-black text-wizdi-royal dark:text-wizdi-cyan">יצירת תוכן לימודי</h2>
-                                        <p className="text-slate-600 dark:text-slate-300 text-base font-medium">בחרו את סוג התוכן שתרצו ליצור</p>
-                                    </div>
-                                </div>
-                                <span className="bg-wizdi-action-light text-wizdi-action-dark text-xs px-3 py-1.5 rounded-full font-bold">פופולרי</span>
+                    <div className="grid grid-cols-2 gap-3 h-[calc(100%-3rem)]">
+                        {/* מערך שיעור */}
+                        <button
+                            onClick={() => handleCardClick("Lesson Plan", () => onCreateNew('learning', 'lesson'))}
+                            className="group flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border border-violet-100 dark:border-violet-800/30 hover:border-violet-300 dark:hover:border-violet-500/50 transition-all hover:shadow-lg hover:-translate-y-1"
+                        >
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-violet-500/20">
+                                <IconLayoutList className="w-7 h-7 text-white" />
                             </div>
-
-                            {/* Smart Creation Chat */}
-                            <div className="mb-6">
-                                <SmartCreationChat
-                                    onCreateContent={(wizardData) => {
-                                        if (onCreateWithWizardData) {
-                                            onCreateWithWizardData(wizardData);
-                                        } else {
-                                            // Fallback to old method
-                                            onCreateNew('learning', wizardData.settings?.productType || 'activity');
-                                        }
-                                    }}
-                                />
-                                <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-3">
-                                    או בחרו מהאפשרויות המוכנות למטה
-                                </p>
+                            <div className="text-center">
+                                <p className="font-bold text-slate-800 dark:text-white text-sm">מערך שיעור</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">יחידת לימוד שלמה</p>
                             </div>
+                        </button>
 
-                            {/* 4 Sub-buttons Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4" role="group" aria-label="סוגי תוכן ליצירה">
-                                {/* מערך שיעור */}
-                                <button
-                                    onClick={() => handleCardClick("Lesson Plan", () => onCreateNew('learning', 'lesson'))}
-                                    className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
-                                    aria-label="יצירת מערך שיעור - בניית יחידת לימוד שלמה"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <div className="icon-container w-12 h-12 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors" aria-hidden="true">
-                                            <IconLayoutList className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">מערך שיעור</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">יחידת לימוד שלמה הכוללת פתיחה, הקניה, תרגול וסיכום</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">
-                                        התחל
-                                        <IconChevronLeft className="w-4 h-4" />
-                                    </div>
-                                </button>
+                        {/* פעילות */}
+                        <button
+                            onClick={() => handleCardClick("Activity", () => onCreateNew('learning', 'activity'))}
+                            className="group flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 border border-cyan-100 dark:border-cyan-800/30 hover:border-cyan-300 dark:hover:border-cyan-500/50 transition-all hover:shadow-lg hover:-translate-y-1"
+                        >
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-cyan-500/20">
+                                <IconMoodSmile className="w-7 h-7 text-white" />
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold text-slate-800 dark:text-white text-sm">פעילות</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">תרגול אינטראקטיבי</p>
+                            </div>
+                        </button>
 
-                                {/* סוכן הוראה - Coming Soon */}
-                                <div
-                                    className="sub-btn bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl p-4 text-right opacity-60 cursor-not-allowed"
-                                    aria-label="סוכן הוראה - בקרוב"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <div className="icon-container w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                                            <IconRobot className="w-6 h-6 text-slate-400" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-bold text-slate-500 dark:text-slate-400">סוכן הוראה</h3>
-                                                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full">
-                                                    בקרוב
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">חונך אישי מנהל דיאלוג לימודי המקנה ידע ומתרגל אותו, תוך התאמה אישית לרמת הלומד</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-slate-400 text-sm font-medium mt-3" aria-hidden="true">
-                                        בקרוב...
-                                    </div>
-                                </div>
+                        {/* מבחן */}
+                        <button
+                            onClick={() => handleCardClick("Exam", () => onCreateNew('learning', 'exam'))}
+                            className="group flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-100 dark:border-amber-800/30 hover:border-amber-300 dark:hover:border-amber-500/50 transition-all hover:shadow-lg hover:-translate-y-1"
+                        >
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
+                                <IconClipboardCheck className="w-7 h-7 text-white" />
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold text-slate-800 dark:text-white text-sm">מבחן</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">הערכה וציונים</p>
+                            </div>
+                        </button>
 
-                                {/* פעילות לתלמיד */}
-                                <button
-                                    onClick={() => handleCardClick("Activity", () => onCreateNew('learning', 'activity'))}
-                                    className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
-                                    aria-label="יצירת פעילות לתלמיד - פעילות אינטראקטיבית"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <div className="icon-container w-12 h-12 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors" aria-hidden="true">
-                                            <IconMoodSmile className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">פעילות לתלמיד</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">פעילות אינטראקטיבית לתרגול וחזרה בצורה חווייתית</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">
-                                        התחל
-                                        <IconChevronLeft className="w-4 h-4" />
-                                    </div>
-                                </button>
-
-                                {/* מבחן / בוחן */}
-                                <button
-                                    onClick={() => handleCardClick("Exam", () => onCreateNew('learning', 'exam'))}
-                                    className="sub-btn group/btn bg-white dark:bg-slate-700 hover:bg-wizdi-cloud dark:hover:bg-slate-600 border-2 border-slate-100 dark:border-slate-600 hover:border-wizdi-royal rounded-2xl p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:shadow-lg min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2 motion-reduce:hover:transform-none"
-                                    aria-label="יצירת מבחן או בוחן - שאלון הערכה עם ציונים"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <div className="icon-container w-12 h-12 bg-wizdi-royal/10 dark:bg-wizdi-royal/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/btn:bg-wizdi-royal transition-colors" aria-hidden="true">
-                                            <IconClipboardCheck className="w-6 h-6 text-wizdi-royal group-hover/btn:text-white" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 dark:text-white mb-1">מבחן / בוחן</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">שאלון הערכה מסכם לבדיקת ידע, עם ציונים ומשוב</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-wizdi-royal text-sm font-medium mt-3 group-hover/btn:translate-x-[-4px] transition-transform motion-reduce:group-hover/btn:transform-none" aria-hidden="true">
-                                        התחל
-                                        <IconChevronLeft className="w-4 h-4" />
-                                    </div>
-                                </button>
+                        {/* סוכן AI - Coming Soon */}
+                        <div className="group flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-700/30 opacity-50 cursor-not-allowed">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-300 dark:bg-slate-700 flex items-center justify-center">
+                                <IconRobot className="w-7 h-7 text-slate-400" />
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold text-slate-400 text-sm">סוכן AI</p>
+                                <p className="text-[10px] text-slate-400">בקרוב...</p>
                             </div>
                         </div>
                     </div>
-            </section>
+                </section>
 
-            {/* How It Works - Compact */}
-            <section className="mb-8" aria-labelledby="how-it-works-title">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-6">
-                        <h2 id="how-it-works-title" className="text-xl font-bold text-slate-800 dark:text-white mb-1">איך זה עובד?</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">ארבעה שלבים פשוטים ליצירת תוכן מדהים</p>
-                    </div>
-
-                    <ol className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="שלבי תהליך היצירה">
-                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
-                                <IconUpload className="w-6 h-6 text-wizdi-royal" />
-                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">1</span>
-                            </div>
-                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">העלאה</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">בחרו קובץ, סרטון או נושא</p>
-                        </li>
-
-                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
-                                <IconSparkles className="w-6 h-6 text-wizdi-royal" />
-                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">2</span>
-                            </div>
-                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">יצירה</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">ה-AI בונה את התוכן</p>
-                        </li>
-
-                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
-                                <IconShare className="w-6 h-6 text-wizdi-royal" />
-                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">3</span>
-                            </div>
-                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">שיתוף</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">שלחו לתלמידים</p>
-                        </li>
-
-                        <li className="text-center p-4 bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-700/50 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 dark:border-slate-700">
-                            <div className="w-12 h-12 bg-wizdi-royal/8 dark:bg-wizdi-royal/15 rounded-xl flex items-center justify-center mx-auto mb-3 relative" aria-hidden="true">
-                                <IconChart className="w-6 h-6 text-wizdi-royal" />
-                                <span className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-wizdi-royal text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">4</span>
-                            </div>
-                            <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-0.5">מעקב</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">קבלו דוחות ותובנות</p>
-                        </li>
-                    </ol>
-                </div>
-            </section>
-
-            {/* Teaching Agents & Prompts - Equal Priority Grid */}
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" aria-label="כלי הוראה מוכנים">
-                {/* Teaching Agents Card - Disabled, Coming Soon */}
-                <div
-                    className="group w-full text-right rounded-3xl opacity-60 cursor-not-allowed"
-                    aria-label="מאגר סוכני הוראה - בקרוב"
-                >
-                    <div className="card-glass rounded-3xl p-6 border border-slate-200 dark:border-slate-700 h-full relative overflow-hidden">
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-slate-400 to-slate-500 rounded-2xl flex items-center justify-center shadow-lg" aria-hidden="true">
-                                    <IconRobot className="w-7 h-7 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-full">
-                                            בקרוב
-                                        </span>
-                                    </div>
-                                    <h2 className="text-xl font-black text-slate-500 dark:text-slate-400">
-                                        מאגר סוכני הוראה
-                                    </h2>
-                                    <p className="text-slate-400 dark:text-slate-500 text-base">עוזרי AI לתלמידים</p>
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            <p className="text-slate-400 dark:text-slate-500 text-sm mb-4">
-                                עוזרי AI מותאמים לנושאים ספציפיים. התלמידים מתרגלים, הסוכן עוזר צעד אחר צעד.
-                            </p>
-
-                            {/* Preview Agents */}
-                            <div className="flex-grow">
-                                <div className="grid grid-cols-2 gap-2 mb-4">
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
-                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMath className="w-4 h-4 text-slate-400" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">עוזר שברים</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
-                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconLanguage className="w-4 h-4 text-slate-400" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">English Buddy</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
-                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMath className="w-4 h-4 text-slate-400" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">מורה לאלגברה</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700/50 rounded-xl">
-                                        <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconBook className="w-4 h-4 text-slate-400" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">חברותא לתנ"ך</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* CTA - Disabled */}
-                            <div className="flex items-center gap-2 font-bold text-slate-400 dark:text-slate-500 text-sm">
-                                בקרוב...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Prompts Library Card */}
+                {/* === PROMPTS LIBRARY === */}
                 <button
                     onClick={() => handleCardClick("Prompts Library", () => onNavigateToPrompts?.())}
-                    className="group cursor-pointer w-full text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 rounded-3xl"
-                    aria-label="כניסה למאגר פרומפטים AI"
+                    className="bento-card ai-glow group cursor-pointer text-right col-span-6 max-lg:col-span-3 max-sm:col-span-1"
+                    aria-label="מאגר פרומפטים"
                 >
-                    <div className="card-glass rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200/80 dark:border-slate-700 motion-reduce:hover:transform-none h-full bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-800 dark:to-slate-700/30">
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                    <IconBulb className="w-7 h-7 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h2 className="text-xl font-black text-violet-600 dark:text-violet-400">
-                                        מאגר פרומפטים
-                                    </h2>
-                                    <p className="text-slate-500 dark:text-slate-400 text-base">מגוון פרומפטים מוכנים לצורכי ההוראה</p>
-                                </div>
-                            </div>
-
-                            {/* Preview Categories */}
-                            <div className="flex-grow">
-                                <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">לדוגמה:</p>
-                                <div className="grid grid-cols-2 gap-2 mb-4">
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-royal/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconSchool className="w-4 h-4 text-wizdi-royal" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">ניהול כיתה</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-pink-500/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconMessage className="w-4 h-4 text-pink-500" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">היבטים רגשיים</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-cyan/20 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconClipboardCheck className="w-4 h-4 text-wizdi-cyan" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">הערכת לומדים</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                                        <div className="w-6 h-6 bg-wizdi-lime/30 rounded-lg flex items-center justify-center" aria-hidden="true">
-                                            <IconDeviceGamepad2 className="w-4 h-4 text-wizdi-lime" />
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">משחקים</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* CTA */}
-                            <div className="flex items-center gap-2 font-bold text-violet-600 dark:text-violet-400 text-sm group-hover:translate-x-[-4px] transition-transform motion-reduce:group-hover:transform-none">
-                                כניסה למאגר
-                                <IconChevronLeft className="w-4 h-4" />
-                            </div>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <IconBulb className="w-6 h-6 text-white" />
                         </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 dark:text-white">פרומפטים</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">מוכנים לשימוש</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        <span className="px-2 py-1 bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 text-[10px] rounded-full">ניהול כיתה</span>
+                        <span className="px-2 py-1 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-[10px] rounded-full">הערכה</span>
+                        <span className="px-2 py-1 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 text-[10px] rounded-full">משחקים</span>
                     </div>
                 </button>
-            </section>
 
-            {/* Secondary Section - Recent Activities + Dashboard */}
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8" aria-label="פעילויות ולוח בקרה">
-                {/* Recent Activity */}
-                <div className="card-glass rounded-2xl p-5 dark:bg-slate-800/80 bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 dark:border-slate-700">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg" aria-hidden="true">
-                                <IconHistory className="w-7 h-7 text-white" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 dark:text-white">פעילויות אחרונות</h3>
-                        </div>
-                        <button
-                            onClick={onNavigateToDashboard}
-                            className="text-wizdi-royal dark:text-wizdi-cyan text-xs font-medium hover:underline min-h-[44px] px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded"
-                            aria-label="צפייה בכל הפעילויות"
-                        >
-                            הכל
-                        </button>
-                    </div>
-
-                    <div className="space-y-2" role="list" aria-label="רשימת פעילויות אחרונות">
-                        {loadingActivities ? (
-                            <div className="flex items-center justify-center py-4" role="status" aria-label="טוען פעילויות">
-                                <AIStarsSpinner size="md" color="primary" label="טוען פעילויות..." />
-                            </div>
-                        ) : recentActivities.length === 0 ? (
-                            <div className="text-center py-4 text-slate-400 dark:text-slate-500">
-                                <IconSparkles className="w-8 h-8 mx-auto mb-2 opacity-50" aria-hidden="true" />
-                                <p className="text-sm">אין פעילויות עדיין</p>
-                            </div>
-                        ) : (
-                            recentActivities.slice(0, 3).map((activity) => {
-                                const getActivityIcon = () => {
-                                    if (activity.type === 'test') return <IconList className="w-4 h-4 text-wizdi-cyan" />;
-                                    if (activity.type === 'lesson') return <IconVideo className="w-4 h-4 text-wizdi-action" />;
-                                    return <IconSparkles className="w-4 h-4 text-wizdi-royal" />;
-                                };
-
-                                const getActivityBgColor = () => {
-                                    if (activity.type === 'test') return 'bg-wizdi-cyan/10 dark:bg-wizdi-cyan/20';
-                                    if (activity.type === 'lesson') return 'bg-wizdi-action-light dark:bg-wizdi-action/20';
-                                    return 'bg-wizdi-royal/10 dark:bg-wizdi-royal/20';
-                                };
-
-                                const getActivityTypeLabel = () => {
-                                    if (activity.type === 'test') return 'מבחן';
-                                    if (activity.type === 'lesson') return 'שיעור';
-                                    return 'פעילות';
-                                };
-
-                                return (
-                                    <button
-                                        key={activity.id}
-                                        onClick={() => onEditCourse?.(activity.id)}
-                                        className="flex items-center gap-3 p-2 min-h-[44px] w-full bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal focus-visible:ring-offset-2"
-                                        role="listitem"
-                                        aria-label={`${getActivityTypeLabel()}: ${activity.title}${activity.submissionCount && activity.submissionCount > 0 ? `, ${activity.submissionCount} הגשות` : ''}`}
-                                    >
-                                        <div className={`w-8 h-8 ${getActivityBgColor()} rounded-lg flex items-center justify-center flex-shrink-0`} aria-hidden="true">
-                                            {getActivityIcon()}
-                                        </div>
-                                        <div className="flex-grow min-w-0">
-                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{activity.title}</p>
-                                        </div>
-                                        {activity.submissionCount && activity.submissionCount > 0 && (
-                                            <span className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full font-medium" aria-hidden="true">
-                                                {activity.submissionCount}
-                                            </span>
-                                        )}
-                                        <IconChevronLeft className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-wizdi-royal dark:group-hover:text-wizdi-cyan transition-colors" aria-hidden="true" />
-                                    </button>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
-
-                {/* Dashboard */}
+                {/* === DASHBOARD === */}
                 <button
                     onClick={() => handleCardClick("Dashboard", onNavigateToDashboard)}
-                    className="group cursor-pointer text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 rounded-2xl"
-                    aria-label="כניסה ללוח בקרה"
+                    className="bento-card ai-glow group cursor-pointer text-right col-span-6 max-lg:col-span-3 max-sm:col-span-1"
+                    aria-label="לוח בקרה"
                 >
-                    <div className="card-glass rounded-2xl p-5 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden h-full border border-slate-200 dark:border-slate-700 motion-reduce:hover:transform-none">
-                        {/* Chart decoration */}
-                        <div className="absolute bottom-0 left-0 right-0 h-12 opacity-30" aria-hidden="true">
-                            <svg viewBox="0 0 200 50" preserveAspectRatio="none" className="w-full h-full">
-                                <defs>
-                                    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                        <stop offset="0%" style={{ stopColor: '#2B59C3', stopOpacity: 1 }} />
-                                        <stop offset="100%" style={{ stopColor: '#2B59C3', stopOpacity: 0 }} />
-                                    </linearGradient>
-                                </defs>
-                                <path d="M0,50 L20,35 L40,42 L60,28 L80,38 L100,22 L120,30 L140,18 L160,25 L180,12 L200,20 L200,50 Z" fill="url(#chartGradient)"/>
-                            </svg>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <IconChart className="w-6 h-6 text-white" />
                         </div>
-
-                        <div className="relative z-10 flex items-center gap-4">
-                            <div className="w-14 h-14 min-w-[56px] min-h-[56px] bg-gradient-to-br from-slate-600 to-slate-800 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                <IconChart className="w-7 h-7 text-white" />
-                            </div>
-                            <div className="flex-grow">
-                                <h2 className="text-lg font-black text-slate-800 dark:text-white">לוח בקרה</h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm">צפייה בנתונים ומעקב התקדמות</p>
-                            </div>
-                            <div className="flex items-center gap-2 font-bold text-slate-600 dark:text-slate-400 text-sm group-hover:translate-x-[-8px] transition-transform motion-reduce:group-hover:transform-none" aria-hidden="true">
-                                כניסה
-                                <IconChevronLeft className="w-4 h-4" />
-                            </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 dark:text-white">לוח בקרה</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">נתונים ומעקב</p>
                         </div>
                     </div>
+                    {/* Mini Chart */}
+                    <div className="h-8 flex items-end gap-1">
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-t h-3"></div>
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-t h-5"></div>
+                        <div className="flex-1 bg-violet-400 rounded-t h-7"></div>
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-t h-4"></div>
+                        <div className="flex-1 bg-cyan-400 rounded-t h-8"></div>
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-t h-6"></div>
+                    </div>
                 </button>
-            </section>
 
-            {/* AI Blog - Compact News Section */}
-            <section className="mb-8">
-                <AIBlogWidget compact={true} showFeatured={true} maxItems={1} />
-            </section>
+                {/* === BAGRUT PREPARATION === */}
+                {onNavigateToBagrut && (
+                    <button
+                        onClick={onNavigateToBagrut}
+                        className="bento-card ai-glow ai-pulse-glow group cursor-pointer text-right col-span-12 max-lg:col-span-6 max-sm:col-span-1"
+                        aria-label="הכנה לבגרות"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-violet-500/20">
+                                    <IconSchool className="w-7 h-7 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 dark:text-white mb-1">הכנה לבגרות</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">אזרחות • ספרות • תנ"ך • עברית • אנגלית • היסטוריה</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 group-hover:translate-x-[-8px] transition-transform">
+                                <span className="text-sm font-bold hidden sm:block">התחל תרגול</span>
+                                <IconChevronLeft className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </button>
+                )}
 
+                {/* === AI BLOG WIDGET === */}
+                <section className="bento-card col-span-12 max-lg:col-span-6 max-sm:col-span-1" aria-label="חדשות AI">
+                    <AIBlogWidget compact={true} showFeatured={true} maxItems={1} />
+                </section>
 
-            {/* Floating Button for Mobile */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 lg:hidden z-fixed" aria-label="יצירה מהירה">
+            </div>
+
+            {/* Admin Links - Minimal */}
+            <nav className="relative z-10 text-center py-6 flex justify-center gap-3 flex-wrap" aria-label="ניהול">
+                {onNavigateToQA && (
+                    <button onClick={() => onNavigateToQA()} className="text-slate-400 text-xs hover:text-violet-600 transition-colors px-2 py-1">QA</button>
+                )}
+                {onNavigateToKnowledgeBase && (
+                    <button onClick={() => onNavigateToKnowledgeBase()} className="text-slate-400 text-xs hover:text-violet-600 transition-colors px-2 py-1">בסיס ידע</button>
+                )}
+                {onNavigateToUsage && (
+                    <button onClick={() => onNavigateToUsage()} className="text-slate-400 text-xs hover:text-violet-600 transition-colors px-2 py-1">שימוש AI</button>
+                )}
+                {onNavigateToSpeedAnalytics && (
+                    <button onClick={() => onNavigateToSpeedAnalytics()} className="text-slate-400 text-xs hover:text-violet-600 transition-colors px-2 py-1">מהירות</button>
+                )}
+                {onNavigateToAgentDashboard && (
+                    <button onClick={() => onNavigateToAgentDashboard()} className="text-slate-400 text-xs hover:text-violet-600 transition-colors px-2 py-1">סוכן AI</button>
+                )}
+                <AdminPromptSeeder isAdmin={isAdmin} />
+            </nav>
+
+            {/* Mobile FAB */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 lg:hidden z-50">
                 <button
                     onClick={() => onCreateNew('learning')}
-                    className="btn-lip-action px-8 py-4 min-h-[44px] shadow-xl flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-wizdi-action"
-                    aria-label="יצירת תוכן לימודי חדש"
+                    className="ai-action-btn shadow-xl"
                 >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                     יצירה חדשה
                 </button>
             </div>
 
-            {/* Admin Buttons */}
-            <nav className="text-center py-4 flex justify-center gap-4" aria-label="ניהול מערכת">
-                {onNavigateToQA && (
-                    <button
-                        onClick={() => onNavigateToQA()}
-                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
-                        aria-label="כניסה לממשק QA Admin"
-                    >
-                        QA Admin
-                    </button>
-                )}
-                {onNavigateToKnowledgeBase && (
-                    <button
-                        onClick={() => onNavigateToKnowledgeBase()}
-                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
-                        aria-label="כניסה לניהול בסיס ידע"
-                    >
-                        בסיס ידע
-                    </button>
-                )}
-                {onNavigateToUsage && (
-                    <button
-                        onClick={() => onNavigateToUsage()}
-                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
-                        aria-label="דשבורד שימוש"
-                    >
-                        שימוש AI
-                    </button>
-                )}
-                {onNavigateToSpeedAnalytics && (
-                    <button
-                        onClick={() => onNavigateToSpeedAnalytics()}
-                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
-                        aria-label="מהירות יצירה"
-                    >
-                        מהירות יצירה
-                    </button>
-                )}
-                {onNavigateToAgentDashboard && (
-                    <button
-                        onClick={() => onNavigateToAgentDashboard()}
-                        className="text-slate-400 dark:text-slate-500 text-xs hover:text-wizdi-royal dark:hover:text-wizdi-cyan transition-colors px-3 py-2 min-h-[44px] rounded hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal"
-                        aria-label="סוכן תוכניות לימודים"
-                    >
-                        סוכן AI
-                    </button>
-                )}
-            </nav>
+            {/* Full Screen Chat Overlay */}
+            {isChatExpanded && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        onClick={() => setIsChatExpanded(false)}
+                    />
 
-            <style>{`
-                @keyframes blob {
-                    0% { transform: translate(0px, 0px) scale(1); }
-                    33% { transform: translate(30px, -50px) scale(1.1); }
-                    66% { transform: translate(-20px, 20px) scale(0.9); }
-                    100% { transform: translate(0px, 0px) scale(1); }
-                }
-                .animate-blob { animation: blob 7s infinite; }
-                .animation-delay-2000 { animation-delay: 2s; }
+                    {/* Chat Modal */}
+                    <div className="relative w-full max-w-4xl h-[90vh] mx-4 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-l from-violet-500/5 to-cyan-500/5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                                    <IconSparkles className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-black ai-gradient-text">Wizdi AI Studio</h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">יצירת תוכן חכמה</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsChatExpanded(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                                title="סגור"
+                            >
+                                <IconX className="w-5 h-5" />
+                            </button>
+                        </div>
 
-                /* Respect reduced motion preference */
-                @media (prefers-reduced-motion: reduce) {
-                    .animate-blob,
-                    .animate-float,
-                    .animate-pulse {
-                        animation: none;
-                    }
-                }
+                        {/* Chat Content - Full Height */}
+                        <div className="h-[calc(90vh-80px)]">
+                            <SmartCreationChat
+                                isExpanded={true}
+                                onCreateContent={(wizardData) => {
+                                    setIsChatExpanded(false);
+                                    if (onCreateWithWizardData) {
+                                        onCreateWithWizardData(wizardData);
+                                    } else {
+                                        onCreateNew('learning', wizardData.settings?.productType || 'activity');
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                /* Gradient border for main card - now with violet */
-                .gradient-border {
-                    position: relative;
-                }
-                .gradient-border::before {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    border-radius: inherit;
-                    padding: 3px;
-                    background: linear-gradient(135deg, #00C2FF, #8B5CF6, #FFD500);
-                    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-                    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-                    -webkit-mask-composite: xor;
-                    mask-composite: exclude;
-                    pointer-events: none;
-                }
-
-            `}</style>
+{/* Styles moved to index.css */}
         </div>
     );
 };

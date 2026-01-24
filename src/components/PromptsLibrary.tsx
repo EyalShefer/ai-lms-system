@@ -24,8 +24,6 @@ import {
 } from '@tabler/icons-react';
 import PromptCard from './PromptCard';
 import SubmitPromptModal from './SubmitPromptModal';
-import AdminPromptSeeder from './AdminPromptSeeder';
-import { useAuth } from '../context/AuthContext';
 import type { Prompt } from '../services/promptsService';
 import {
   PROMPT_CATEGORIES,
@@ -83,7 +81,6 @@ const getCategoryColor = (categoryId: string, isSelected: boolean) => {
 };
 
 export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
-  const { isAdmin } = useAuth();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [popularPrompts, setPopularPrompts] = useState<Prompt[]>([]);
   const [featuredPrompt, setFeaturedPrompt] = useState<Prompt | null>(null);
@@ -171,7 +168,12 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
         break;
       case 'newest':
       default:
-        // Already sorted by createdAt desc from Firestore
+        // Sort by createdAt descending (newest first)
+        result.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB.getTime() - dateA.getTime();
+        });
         break;
     }
 
@@ -215,66 +217,90 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20" dir="rtl">
-      {/* Header with Search & Filters */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          {/* Top row - Title and actions */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-all"
-              >
-                <IconArrowRight className="w-6 h-6 text-slate-600" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                  <IconSparkles className="w-7 h-7 text-wizdi-gold" />
-                  מאגר פרומפטים AI
-                </h1>
-                <p className="text-sm text-slate-500">מגוון פרומפטים מוכנים לצורכי ההוראה</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-cyan-50/20" dir="rtl">
+      {/* AI Particles Background */}
+      <div className="ai-particles opacity-20 fixed inset-0 pointer-events-none" aria-hidden="true">
+        <div className="ai-particle"></div>
+        <div className="ai-particle"></div>
+        <div className="ai-particle"></div>
+      </div>
+
+      {/* Header Section - Consistent with Bento Design */}
+      <div className="sticky top-0 z-40 bg-gradient-to-br from-slate-50 via-violet-50/30 to-cyan-50/20">
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          {/* Hero Banner Card */}
+          <div className="relative overflow-hidden rounded-3xl mb-4 p-6 bg-gradient-to-br from-violet-600 via-violet-500 to-cyan-500 shadow-xl shadow-violet-500/20">
+            {/* Decorative elements */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none">
+              <div className="absolute top-0 left-1/4 w-48 h-48 bg-white/30 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-cyan-300/40 rounded-full blur-2xl"></div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={refreshData}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-600"
-                title="רענן"
-              >
-                <IconRefresh className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={() => setShowSubmitModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-wizdi-royal text-white rounded-xl hover:bg-wizdi-royal/90 transition-all font-medium"
-              >
-                <IconPlus className="w-5 h-5" />
-                <span>הצע פרומפט</span>
-              </button>
+            <div className="relative flex items-center justify-between">
+              {/* Right side - Back button and title */}
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={onBack}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/20"
+                >
+                  <IconArrowRight className="w-6 h-6 text-white" />
+                </button>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg flex-shrink-0">
+                    <IconSparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black text-white">מאגר פרומפטים AI</h1>
+                    <p className="text-sm text-white/80 mt-0.5">מגוון פרומפטים מוכנים לצורכי ההוראה</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Left side - Actions */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={refreshData}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all text-white border border-white/20"
+                  title="רענן"
+                >
+                  <IconRefresh className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setShowSubmitModal(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-violet-600 rounded-xl hover:shadow-lg hover:shadow-white/25 transition-all font-bold"
+                >
+                  <IconPlus className="w-5 h-5" />
+                  <span>הציעו פרומפט</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Search Bar - Prominent */}
-          <div className="relative mb-4">
-            <IconSearch className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          {/* Search & Filters Card - Bento Style */}
+          <div className="bento-card bento-static bg-white/95 backdrop-blur-xl rounded-2xl shadow-lg shadow-slate-200/20 p-4">
+
+          {/* Search Bar - AI-Native Style */}
+          <div className="relative mb-5">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-cyan-100 flex items-center justify-center">
+              <IconSearch className="w-5 h-5 text-violet-500" />
+            </div>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="חפש פרומפט לפי שם, תיאור או קטגוריה..."
-              className="w-full pr-12 pl-4 py-3.5 bg-gradient-to-r from-slate-50 to-blue-50/50 border-2 border-slate-200 rounded-2xl focus:border-wizdi-royal focus:ring-4 focus:ring-wizdi-royal/10 outline-none transition-all text-lg placeholder:text-slate-400"
+              placeholder="חפשו פרומפט לפי שם, תיאור או קטגוריה..."
+              className="w-full pr-16 pl-4 py-4 bg-white border-2 border-slate-200/80 rounded-2xl focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 outline-none transition-all text-lg placeholder:text-slate-400 shadow-sm hover:shadow-md hover:border-slate-300"
             />
           </div>
 
-          {/* Category Quick Filters - Prominent placement */}
-          <div className="flex flex-wrap gap-2 mb-3">
+          {/* Category Quick Filters - AI-Native Pills */}
+          <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => handleCategoryChange(null)}
-              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+              className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-all ${
                 !selectedCategory
-                  ? 'bg-gradient-to-r from-wizdi-royal to-blue-600 text-white shadow-md'
-                  : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal hover:bg-blue-50/50'
+                  ? 'bg-gradient-to-r from-violet-500 to-cyan-500 text-white shadow-lg shadow-violet-500/25'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/50 hover:shadow-md'
               }`}
             >
               הכל
@@ -283,10 +309,10 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
               <button
                 key={cat.id}
                 onClick={() => handleCategoryChange(cat.id)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm ${
+                className={`px-4 py-2.5 rounded-2xl text-sm font-medium transition-all flex items-center gap-2 ${
                   selectedCategory === cat.id
-                    ? 'bg-gradient-to-r from-wizdi-royal to-blue-600 text-white shadow-md'
-                    : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-wizdi-royal hover:text-wizdi-royal hover:bg-blue-50/50'
+                    ? 'bg-gradient-to-r from-violet-500 to-cyan-500 text-white shadow-lg shadow-violet-500/25'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/50 hover:shadow-md'
                 }`}
               >
                 <span className={getCategoryColor(cat.id, selectedCategory === cat.id)}>
@@ -297,114 +323,144 @@ export default function PromptsLibrary({ onBack }: PromptsLibraryProps) {
             ))}
           </div>
 
-          {/* Filter Controls Row */}
-          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100">
+          {/* Filter Controls Row - AI-Native Design */}
+          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-200/50">
             {/* Subcategory Filter (only if category selected and not a special category) */}
             {selectedCategoryData && selectedCategoryData.subcategories.length > 0 && (
-              <div className="relative">
+              <div className="relative group">
                 <select
                   value={selectedSubcategory || ''}
                   onChange={(e) => setSelectedSubcategory(e.target.value || null)}
-                  className="appearance-none px-4 py-2 pr-4 pl-9 bg-amber-50 border-2 border-amber-200 rounded-xl text-amber-800 font-medium focus:border-amber-400 focus:ring-2 focus:ring-amber-200 outline-none transition-all cursor-pointer text-sm"
+                  className="appearance-none px-4 py-2.5 pr-4 pl-10 bg-gradient-to-br from-violet-50 to-cyan-50 border-2 border-violet-200/60 rounded-xl text-violet-700 font-semibold focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 outline-none transition-all cursor-pointer text-sm hover:shadow-md hover:border-violet-300"
                 >
                   <option value="">כל תתי-הקטגוריות</option>
                   {selectedCategoryData.subcategories.map(sub => (
                     <option key={sub} value={sub}>{sub}</option>
                   ))}
                 </select>
-                <IconFilter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 pointer-events-none" />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-gradient-to-br from-violet-400 to-cyan-400 flex items-center justify-center pointer-events-none">
+                  <IconFilter className="w-3.5 h-3.5 text-white" />
+                </div>
               </div>
             )}
 
-            {/* Sort */}
-            <div className="relative">
+            {/* Sort - AI-Native Style */}
+            <div className="relative group">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="appearance-none px-4 py-2 pr-4 pl-9 bg-slate-100 border-2 border-slate-200 rounded-xl text-slate-700 font-medium focus:border-wizdi-royal focus:ring-2 focus:ring-wizdi-royal/20 outline-none transition-all cursor-pointer text-sm"
+                className="appearance-none px-4 py-2.5 pr-4 pl-10 bg-white border-2 border-slate-200/80 rounded-xl text-slate-700 font-semibold focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 outline-none transition-all cursor-pointer text-sm hover:shadow-md hover:border-slate-300"
               >
                 <option value="newest">החדשים</option>
                 <option value="rating">הכי מדורגים</option>
                 <option value="popular">הפופולריים</option>
               </select>
-              <IconSortDescending className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center pointer-events-none">
+                <IconSortDescending className="w-3.5 h-3.5 text-white" />
+              </div>
             </div>
 
-            {/* Clear Filters */}
+            {/* Clear Filters - AI-Native */}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-all border border-red-200"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-rose-600 bg-gradient-to-br from-rose-50 to-pink-50 hover:from-rose-100 hover:to-pink-100 rounded-xl transition-all border-2 border-rose-200/60 hover:border-rose-300 hover:shadow-md"
               >
                 <IconX className="w-4 h-4" />
                 <span>נקה הכל</span>
               </button>
             )}
 
-            {/* Results count - inline */}
-            <div className="mr-auto text-sm text-slate-500 font-medium">
-              {loading ? 'טוען...' : `${filteredPrompts.length} פרומפטים`}
+            {/* Results count - AI styled */}
+            <div className="mr-auto flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200/60">
+              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 animate-pulse"></div>
+              <span className="text-sm text-slate-600 font-semibold">
+                {loading ? 'טוען...' : `${filteredPrompts.length} פרומפטים`}
+              </span>
             </div>
+          </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Admin Seeder - only shown to admins */}
-        <AdminPromptSeeder isAdmin={isAdmin} />
-
-        {/* Popular Section Header - when popular category is selected */}
+        {/* Popular Section Header - AI-Native Bento Style */}
         {isPopularCategory && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-2xl">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-orange-100 rounded-xl">
-                <IconTrophy className="w-7 h-7 text-orange-500" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-orange-800 flex items-center gap-2">
-                  <IconFlame className="w-5 h-5" />
-                  העשירייה הפופולרית
-                </h2>
-                <p className="text-sm text-orange-600">
-                  הפרומפטים הכי פופולריים במאגר
-                </p>
+          <div className="mb-6 relative overflow-hidden">
+            <div className="bento-card bento-static p-5 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 border-2 border-orange-200/60 rounded-2xl">
+              {/* Decorative gradient line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 via-amber-400 to-yellow-400"></div>
+
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 via-amber-400 to-yellow-400 flex items-center justify-center shadow-lg shadow-orange-400/30">
+                    <IconTrophy className="w-7 h-7 text-white" />
+                  </div>
+                  {/* Glow effect */}
+                  <div className="absolute inset-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-400 blur-xl opacity-40 -z-10"></div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-black flex items-center gap-2">
+                    <span className="bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-600 bg-clip-text text-transparent">העשירייה הפופולרית</span>
+                    <IconFlame className="w-5 h-5 text-orange-500 animate-pulse" />
+                  </h2>
+                  <p className="text-sm text-orange-600/80 font-medium">
+                    הפרומפטים הכי מועתקים ומשומשים במאגר
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Featured Prompt - hide when any category is selected */}
+        {/* Featured Prompt - AI-Native Bento Style */}
         {featuredPrompt && !selectedCategory && (
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <IconSparkles className="w-5 h-5 text-wizdi-gold" />
-              <h2 className="text-lg font-bold text-slate-800">פרומפט השבוע</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-400 to-orange-400 flex items-center justify-center shadow-lg shadow-amber-400/30">
+                <IconSparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black bg-gradient-to-r from-amber-600 via-yellow-600 to-orange-600 bg-clip-text text-transparent">פרומפט השבוע</h2>
+                <p className="text-xs text-slate-500 font-medium">נבחר במיוחד עבורכם</p>
+              </div>
             </div>
             <PromptCard prompt={featuredPrompt} featured onRatingChange={refreshData} />
           </div>
         )}
 
-        {/* Prompts Grid */}
+        {/* Prompts Grid - AI-Native Loading & Empty States */}
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-6 animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
-                <div className="h-6 bg-slate-200 rounded w-2/3 mb-2"></div>
-                <div className="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
-                <div className="h-20 bg-slate-100 rounded mb-4"></div>
-                <div className="h-32 bg-slate-800 rounded"></div>
+              <div key={i} className="bento-card bento-static bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 overflow-hidden">
+                {/* Shimmer gradient line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-300 via-cyan-300 to-violet-300 animate-pulse"></div>
+
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-6 w-6 bg-gradient-to-br from-violet-200 to-cyan-200 rounded-lg animate-pulse"></div>
+                  <div className="h-4 bg-gradient-to-r from-slate-200 to-slate-100 rounded-lg w-24 animate-pulse"></div>
+                </div>
+                <div className="h-6 bg-gradient-to-r from-slate-200 to-slate-100 rounded-lg w-3/4 mb-3 animate-pulse"></div>
+                <div className="h-4 bg-gradient-to-r from-slate-100 to-slate-50 rounded-lg w-1/2 mb-4 animate-pulse"></div>
+                <div className="h-20 bg-gradient-to-br from-slate-100 to-slate-50 rounded-xl mb-4 animate-pulse"></div>
+                <div className="h-28 bg-gradient-to-br from-slate-800 to-slate-700 rounded-xl animate-pulse"></div>
               </div>
             ))}
           </div>
         ) : filteredPrompts.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
-            <IconSearch className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-600 mb-2">לא נמצאו פרומפטים</h3>
-            <p className="text-slate-500 mb-6">נסה לשנות את הסינון או החיפוש</p>
+          <div className="bento-card bento-static text-center py-16 bg-white/80 backdrop-blur-sm rounded-3xl border border-slate-200/60 relative overflow-hidden">
+            {/* Decorative gradient */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-400 via-cyan-400 to-violet-400 opacity-60"></div>
+
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mx-auto mb-5">
+              <IconSearch className="w-10 h-10 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-black text-slate-700 mb-2">לא נמצאו פרומפטים</h3>
+            <p className="text-slate-500 mb-6 font-medium">נסו לשנות את הסינון או החיפוש</p>
             <button
               onClick={clearFilters}
-              className="px-6 py-2 bg-wizdi-royal text-white rounded-xl hover:bg-wizdi-royal/90 transition-all"
+              className="px-6 py-3 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-violet-500/25 transition-all border border-white/20"
             >
               נקה סינון
             </button>

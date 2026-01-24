@@ -17,11 +17,16 @@
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
     "type-check": "tsc --noEmit",
     "validate": "npm run type-check && npm run lint && npm run test:ci",
-    "prepare": "husky"
+    "prepare": "husky",
+    "remotion:preview": "remotion preview src/remotion/index.ts",
+    "remotion:studio": "remotion studio src/remotion/index.ts",
+    "remotion:render": "remotion render src/remotion/index.ts"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
     "@google/generative-ai": "^0.24.1",
+    "@remotion/cli": "^4.0.409",
+    "@remotion/player": "^4.0.409",
     "@tabler/icons-react": "^3.36.0",
     "@tiptap/extension-link": "^3.14.0",
     "@tiptap/extension-placeholder": "^3.14.0",
@@ -52,11 +57,13 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "remotion": "^4.0.409",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@remotion/bundler": "^4.0.409",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/dompurify": "^3.0.5",

@@ -33,7 +33,9 @@ export type ActivityBlockType =
     | 'matrix'             // Matrix/grid with multiple rows and options
     // Activity-specific blocks
     | 'activity-intro'     // Context image for student activities (The Setting)
-    | 'scenario-image';    // Scenario image within questions (The Dilemma)
+    | 'scenario-image'     // Scenario image within questions (The Dilemma)
+    // Remotion video blocks
+    | 'remotion-video';    // AI-generated animated videos
 
 export interface MultipleChoiceContent {
     question: string;
@@ -215,6 +217,35 @@ export interface ScenarioImageContent {
     relatedBlockId?: string;    // The question block this image relates to
 }
 
+// --- Remotion Video Types ---
+export type RemotionCompositionType =
+    | 'explainer'           // Animated concept explanations
+    | 'math-visualization'  // Step-by-step math solutions
+    | 'timeline'            // Historical/process timelines
+    | 'lesson-summary'      // Lesson recap with achievements
+    | 'quiz-intro'          // Quiz introduction
+    // New composition types
+    | 'assignment-steps'    // Visual step-by-step task instructions
+    | 'objectives-intro'    // "What you'll learn today" animated opener
+    | 'vocabulary'          // Animated term definitions with visuals
+    | 'process-steps'       // Numbered steps animation (procedures, algorithms)
+    | 'comparison';         // Side-by-side visual comparison
+
+export type RemotionRenderStatus = 'pending' | 'rendering' | 'ready' | 'error';
+
+export interface RemotionVideoContent {
+    compositionId: string;                    // Unique ID for this video
+    compositionType: RemotionCompositionType; // Type of composition
+    props: Record<string, unknown>;           // Composition props
+    videoUrl?: string;                        // URL after rendering
+    thumbnailUrl?: string;                    // Preview thumbnail
+    duration: number;                         // Duration in seconds
+    status: RemotionRenderStatus;             // Current render status
+    renderProgress?: number;                  // 0-100 progress
+    jobId?: string;                           // Render job ID for tracking
+    error?: string;                           // Error message if failed
+}
+
 // Union of all strict content types
 export type StrictBlockContent =
     | MultipleChoiceContent
@@ -372,6 +403,11 @@ export interface ScenarioImageBlock extends ActivityBlockBase {
     content: ScenarioImageContent;
 }
 
+export interface RemotionVideoBlock extends ActivityBlockBase {
+    type: 'remotion-video';
+    content: RemotionVideoContent;
+}
+
 // New Question Type Blocks
 export interface MatchingBlock extends ActivityBlockBase {
     type: 'matching';
@@ -433,7 +469,8 @@ export type ActivityBlock =
     | TableCompletionBlock
     | TextSelectionBlock
     | RatingScaleBlock
-    | MatrixBlock;
+    | MatrixBlock
+    | RemotionVideoBlock;
 
 export interface LearningUnit {
     id: string;

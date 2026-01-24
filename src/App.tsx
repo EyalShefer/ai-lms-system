@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth, AuthProvider } from './context/AuthContext';
+import { StudentProvider } from './context/StudentContext';
 import Login from './components/Login';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
@@ -40,6 +41,7 @@ const UsageDashboard = React.lazy(() => import('./components/admin/UsageDashboar
 const GenerationSpeedAnalytics = React.lazy(() => import('./components/admin/GenerationSpeedAnalytics'));
 const AgentDashboard = React.lazy(() => import('./components/admin/AgentDashboard'));
 const ThreeLevelsTest = React.lazy(() => import('./components/dev/ThreeLevelsTest'));
+const BagrutPractice = React.lazy(() => import('./components/BagrutPractice'));
 import GeoGuard from './components/GeoGuard';
 import LazyLoadErrorBoundary from './components/LazyLoadErrorBoundary'; // Import Error Boundary
 import { IconSparkles } from './icons'; // Import IconSparkles
@@ -146,10 +148,10 @@ const extractTextAndImagesFromPDF = async (file: File): Promise<PDFExtractionRes
 };
 
 // --- Icons ---
-const IconBackSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>;
-const IconLogOutSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>;
-const IconEyeSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
-const IconEditSimple = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+const IconBackSimple = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>;
+const IconLogOutSimple = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>;
+const IconEyeSimple = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
+const IconEditSimple = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
 
 import { AIStarsSpinner } from './components/ui/Loading/AIStarsSpinner';
 
@@ -215,6 +217,7 @@ const AuthenticatedApp = () => {
   const [showLoader, setShowLoader] = useState(false); // New state for Loader visibility
   const [loaderContext, setLoaderContext] = useState<{ sourceMode?: string; productType?: string }>({});
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
+  const [bagrutAssignmentId, setBagrutAssignmentId] = useState<string | null>(null);
 
   const { loadCourse } = useCourseStore();
   const { currentUser, isAdmin } = useAuth();
@@ -222,6 +225,17 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     // console.log("DEBUG: App wizardMode changed to:", wizardMode);
   }, [wizardMode]);
+
+  // Check for bagrut assignment URL pattern
+  useEffect(() => {
+    const path = window.location.pathname;
+    const bagrutMatch = path.match(/^\/bagrut\/assignment\/([^/]+)/);
+    if (bagrutMatch) {
+      const assignId = bagrutMatch[1];
+      setBagrutAssignmentId(assignId);
+      setMode('bagrut');
+    }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -532,23 +546,23 @@ const AuthenticatedApp = () => {
   };
 
   const headerClass = mode === 'student' && !isStudentLink
-    ? "sticky top-0 z-50 bg-indigo-50/90 backdrop-blur-md border-b border-indigo-100 shadow-sm px-6 py-4 flex justify-between items-center transition-all"
-    : "sticky top-0 z-50 glass border-b border-white/40 shadow-sm px-6 py-4 flex justify-between items-center transition-all";
+    ? "sticky top-0 z-50 bg-gradient-to-l from-violet-50/95 via-white/95 to-cyan-50/95 backdrop-blur-xl border-b border-violet-200/30 shadow-sm shadow-violet-500/5 px-6 py-3 flex justify-between items-center transition-all"
+    : "sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200/60 shadow-sm px-6 py-3 flex justify-between items-center transition-all";
 
   return (
-    <div className="min-h-screen bg-gray-50 text-right font-sans" dir="rtl">
+    <div className="min-h-screen bg-transparent text-right font-sans" dir="rtl">
       <header className={headerClass}>
-        <div className="flex items-center gap-3 cursor-pointer" onClick={isStudentLink ? undefined : handleBackToList}>
-          <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-20 w-auto object-contain hover:opacity-90 transition-opacity" loading="lazy" decoding="async" />
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={isStudentLink ? undefined : handleBackToList}>
+          <img src="/WizdiLogo.png" alt="Wizdi AI" className="h-16 w-auto object-contain group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {mode !== 'list' && !isStudentLink && (
-            <button onClick={handleBackToList} className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm">
+            <button onClick={handleBackToList} className="bg-white/80 hover:bg-white text-violet-600 border border-violet-200/60 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md hover:border-violet-300 flex items-center gap-2 font-bold cursor-pointer text-sm backdrop-blur-sm">
               <IconBackSimple /> <span>חזרה</span>
             </button>
           )}
           {mode === 'student' && !isStudentLink && (
-            <button onClick={toggleViewMode} className="bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 font-bold cursor-pointer text-sm">
+            <button onClick={toggleViewMode} className="bg-white/80 hover:bg-white text-violet-600 border border-violet-200/60 px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md hover:border-violet-300 flex items-center gap-2 font-bold cursor-pointer text-sm backdrop-blur-sm">
               <IconEditSimple /> <span>חזור לעריכה</span>
             </button>
           )}
@@ -557,30 +571,20 @@ const AuthenticatedApp = () => {
           {mode === 'student' && isStudentLink && (
             <button
               onClick={() => setMode('student-dashboard')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-bold cursor-pointer text-sm animate-pulse-slow"
+              className="bg-gradient-to-r from-violet-500 to-cyan-500 hover:from-violet-600 hover:to-cyan-600 text-white px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg hover:shadow-violet-500/25 flex items-center gap-2 font-bold cursor-pointer text-sm"
             >
               <span>👨‍🎓</span> <span>אזור התלמיד</span>
             </button>
           )}
-          <div className="h-6 w-px bg-gray-300 mx-1"></div>
-
-          {/* Temporary Switch for Dev / Demo */}
-          {mode === 'list' && (
-            <button
-              onClick={() => setMode('student-dashboard')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-colors font-bold text-sm shadow-md"
-            >
-              תצוגת תלמיד 👨‍🎓
-            </button>
-          )}
+          {mode !== 'list' && <div className="h-5 w-px bg-slate-200 mx-1"></div>}
 
           {/* Toggle Guest Mode (Only for Teachers inside Student Mode) */}
           {mode === 'student' && !isStudentLink && (
             <button
               onClick={() => setIsGuestMode(!isGuestMode)}
-              className={`px-4 py-2 rounded-xl transition-colors font-bold text-sm border flex items-center gap-2 ${isGuestMode
-                ? 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'
-                : 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50'
+              className={`px-4 py-2 rounded-xl transition-all font-bold text-sm border flex items-center gap-2 ${isGuestMode
+                ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white border-transparent shadow-md hover:shadow-lg hover:shadow-violet-500/25'
+                : 'bg-white/80 text-violet-600 border-violet-200/60 hover:bg-white hover:border-violet-300 backdrop-blur-sm'
                 }`}
               title="הדמה כניסת תלמיד חדש (ללא שם אוטומטי)"
             >
@@ -591,13 +595,22 @@ const AuthenticatedApp = () => {
           {mode === 'student-dashboard' && !isStudentLink && (
             <button
               onClick={() => setMode('list')}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl transition-colors font-bold text-sm"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl transition-all font-bold text-sm border border-slate-200/60 hover:border-slate-300"
             >
               חזרה למורה 👨‍🏫
             </button>
           )}
 
-          <button onClick={() => auth.signOut()} className="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="התנתק">
+          {mode === 'bagrut' && (
+            <button
+              onClick={() => setMode('list')}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl transition-all font-bold text-sm border border-slate-200/60 hover:border-slate-300"
+            >
+              חזרה לדף הבית 🏠
+            </button>
+          )}
+
+          <button onClick={() => auth.signOut()} className="bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-600 px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold text-sm border border-rose-200/60 hover:border-rose-300" title="התנתק">
             <IconLogOutSimple />
             <span>התנתק</span>
           </button>
@@ -611,27 +624,52 @@ const AuthenticatedApp = () => {
               <div className="flex flex-col items-center justify-center min-h-[50vh]">
                 <LoadingSpinner />
               </div>
-            ) : isStudentLink ? <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} /> : (
+            ) : isStudentLink && mode !== 'student-dashboard' ? (
+              <StudentProvider
+                uid={currentUser?.uid || null}
+                initialCourseId={currentAssignment?.courseId || new URLSearchParams(window.location.search).get('studentCourseId') || null}
+                initialAssignmentId={currentAssignment?.assignmentId || new URLSearchParams(window.location.search).get('assignmentId') || null}
+              >
+                <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} />
+              </StudentProvider>
+            ) : isStudentLink && mode === 'student-dashboard' ? (
+              <StudentProvider uid={currentUser?.uid || null}>
+                <StudentHome
+                  onSelectAssignment={(courseId, unitId) => {
+                    // Navigate back to the course when selecting an assignment
+                    setMode('list'); // Reset mode so isStudentLink logic takes over
+                    window.location.href = `?studentCourseId=${courseId}${unitId ? `&unitId=${unitId}` : ''}`;
+                  }}
+                  highlightCourseId={currentAssignment?.courseId || new URLSearchParams(window.location.search).get('studentCourseId') || undefined}
+                />
+              </StudentProvider>
+            ) : (
               <>
-                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onCreateWithWizardData={handleWizardComplete} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} onNavigateToAgentDashboard={isAdmin ? () => setMode('agent-dashboard') : undefined} />}
+                {mode === 'list' && <HomePage onCreateNew={(m: any, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => { setWizardMode(m); setWizardProduct(product || null); }} onCreateWithWizardData={handleWizardComplete} onNavigateToDashboard={() => setMode('dashboard')} onEditCourse={handleCourseSelect} onNavigateToPrompts={() => setMode('prompts')} onNavigateToQA={isAdmin ? () => setMode('qa-admin') : undefined} onNavigateToKnowledgeBase={isAdmin ? () => setMode('knowledge-base') : undefined} onNavigateToAgents={() => setMode('agents')} onNavigateToUsage={isAdmin ? () => setMode('usage-admin') : undefined} onNavigateToSpeedAnalytics={isAdmin ? () => setMode('speed-analytics') : undefined} onNavigateToAgentDashboard={isAdmin ? () => setMode('agent-dashboard') : undefined} onNavigateToBagrut={() => setMode('bagrut')} />}
                 {mode === 'editor' && <CourseEditor onBack={handleBackToList} />}
                 {mode === 'student' && (() => {
                   console.log("📱 App: Rendering SequentialCoursePlayer in STUDENT mode");
                   return (
-                    <SequentialCoursePlayer
-                      assignment={currentAssignment || undefined}
-                      simulateGuest={isGuestMode}
-                      onExit={() => {
-                        console.log("🔙 App: onExit called from SequentialCoursePlayer");
-                        if (cameFromStudentDashboard) {
-                          setCameFromStudentDashboard(false);
-                          setMode('student-dashboard');
-                        } else {
-                          setMode('editor');
-                        }
-                      }}
-                      onEdit={() => setMode('editor')}
-                    />
+                    <StudentProvider
+                      uid={currentUser?.uid || null}
+                      initialCourseId={currentAssignment?.courseId || null}
+                      initialAssignmentId={currentAssignment?.assignmentId || null}
+                    >
+                      <SequentialCoursePlayer
+                        assignment={currentAssignment || undefined}
+                        simulateGuest={isGuestMode}
+                        onExit={() => {
+                          console.log("🔙 App: onExit called from SequentialCoursePlayer");
+                          if (cameFromStudentDashboard) {
+                            setCameFromStudentDashboard(false);
+                            setMode('student-dashboard');
+                          } else {
+                            setMode('editor');
+                          }
+                        }}
+                        onEdit={() => setMode('editor')}
+                      />
+                    </StudentProvider>
                   );
                 })()}
                 {mode === 'dashboard' && (
@@ -652,10 +690,14 @@ const AuthenticatedApp = () => {
                     onBack={() => setMode('list')}
                   />
                 )}
-                {mode === 'student-dashboard' && <StudentHome
-                  onSelectAssignment={handleStudentAssignmentSelect}
-                  highlightCourseId={currentAssignment?.courseId || (isStudentLink && !currentAssignment ? new URLSearchParams(window.location.search).get('studentCourseId') : undefined)}
-                />}
+                {mode === 'student-dashboard' && (
+                  <StudentProvider uid={currentUser?.uid || null}>
+                    <StudentHome
+                      onSelectAssignment={handleStudentAssignmentSelect}
+                      highlightCourseId={currentAssignment?.courseId || (isStudentLink && !currentAssignment ? new URLSearchParams(window.location.search).get('studentCourseId') : undefined)}
+                    />
+                  </StudentProvider>
+                )}
                 {mode === 'insights' && <PedagogicalInsights onBack={() => setMode('dashboard')} />}
                 {mode === 'analytics' && <AdaptiveDashboard />}
                 {mode === 'qa-admin' && <QADashboard onBack={() => setMode('list')} />}
@@ -664,6 +706,17 @@ const AuthenticatedApp = () => {
                 {mode === 'usage-admin' && <UsageDashboard />}
                 {mode === 'speed-analytics' && <GenerationSpeedAnalytics />}
                 {mode === 'agent-dashboard' && <AgentDashboard />}
+                {mode === 'bagrut' && (
+                  <BagrutPractice
+                    studentId={currentUser?.uid || 'guest'}
+                    assignmentId={bagrutAssignmentId || undefined}
+                    onExit={() => {
+                      setBagrutAssignmentId(null);
+                      setMode('list');
+                      window.history.pushState({}, '', '/');
+                    }}
+                  />
+                )}
               </>
             )}
           </Suspense>
@@ -708,7 +761,8 @@ const AppWrapper = () => {
 
   // Check if this is a student link (should bypass auth)
   const params = new URLSearchParams(window.location.search);
-  const isStudentLink = params.has('studentCourseId') || params.has('assignmentId');
+  const isBagrutAssignmentLink = window.location.pathname.startsWith('/bagrut/assignment/');
+  const isStudentLink = params.has('studentCourseId') || params.has('assignmentId') || isBagrutAssignmentLink;
 
   if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold bg-gray-50">טוען מערכת...</div>;
 

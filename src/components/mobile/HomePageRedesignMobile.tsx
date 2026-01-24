@@ -31,7 +31,8 @@ import {
     IconPlus,
     IconBook,
     IconHome,
-    IconWand
+    IconWand,
+    IconSchool
 } from '@tabler/icons-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -57,6 +58,7 @@ interface HomePageRedesignMobileProps {
     onNavigateToUsage?: () => void;
     onNavigateToSpeedAnalytics?: () => void;
     onNavigateToAgentDashboard?: () => void;
+    onNavigateToBagrut?: () => void;
 }
 
 const HomePageRedesignMobile = ({
@@ -70,7 +72,8 @@ const HomePageRedesignMobile = ({
     onNavigateToAgents,
     onNavigateToUsage,
     onNavigateToSpeedAnalytics,
-    onNavigateToAgentDashboard
+    onNavigateToAgentDashboard,
+    onNavigateToBagrut
 }: HomePageRedesignMobileProps) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -396,6 +399,32 @@ const HomePageRedesignMobile = ({
                         </button>
                     </div>
                 </section>
+
+                {/* Bagrut Preparation Section */}
+                {onNavigateToBagrut && (
+                    <section className="pt-4">
+                        <button
+                            onClick={onNavigateToBagrut}
+                            className="w-full card-glass relative overflow-hidden p-4 text-right transition-all active:scale-[0.98] border-r-4 border-r-[#8B5CF6]"
+                            aria-label="כניסה להכנה לבגרות"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#2B59C3] flex items-center justify-center shadow-md">
+                                    <IconSchool className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-bold text-[#2B59C3] dark:text-white">
+                                        הכנה לבגרות
+                                    </h3>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                        תרגול שאלות בסגנון בגרות
+                                    </p>
+                                </div>
+                                <IconChevronLeft className="w-5 h-5 text-[#8B5CF6]" />
+                            </div>
+                        </button>
+                    </section>
+                )}
 
                 {/* Admin Links (if available) */}
                 {(onNavigateToQA || onNavigateToKnowledgeBase || onNavigateToAgentDashboard) && (

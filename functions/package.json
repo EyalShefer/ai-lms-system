@@ -16,16 +16,29 @@
     "test:critical": "jest --testPathPattern='(prompts|streamingServer|agent)'",
     "test:ci": "jest --ci --coverage --maxWorkers=2",
     "type-check": "tsc --noEmit",
-    "validate": "npm run type-check && npm run lint && npm run test:ci"
+    "validate": "npm run type-check && npm run lint && npm run test:ci",
+    "seed:bagrut": "npx ts-node src/scripts/seedBagrutContent.ts",
+    "generate:bagrut": "npx ts-node src/scripts/generateBagrutQuestions.ts",
+    "seed:bagrut:full": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts",
+    "seed:bagrut:resume": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --resume",
+    "seed:bagrut:dry-run": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --dry-run",
+    "seed:bagrut:civics": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=civics",
+    "seed:bagrut:literature": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=literature",
+    "seed:bagrut:bible": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=bible",
+    "seed:bagrut:hebrew": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=hebrew",
+    "seed:bagrut:english": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=english",
+    "seed:bagrut:history": "npx ts-node src/scripts/comprehensiveBagrutSeeder.ts --subject=history",
+    "seed:bagrut:status": "npx ts-node src/scripts/checkBagrutProgress.ts"
   },
   "engines": {
     "node": "22"
   },
-  "main": "lib/index.js",
+  "main": "lib/functions/src/index.js",
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
     "@google/genai": "^1.35.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.0.2",

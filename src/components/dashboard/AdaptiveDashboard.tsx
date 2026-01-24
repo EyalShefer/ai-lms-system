@@ -2,18 +2,52 @@ import { useState, useEffect } from 'react';
 import { getSmartCourseAnalytics, type StudentAnalytics } from '../../services/analyticsService';
 import { IconAlertTriangle, IconCheck, IconX, IconActivity } from '@tabler/icons-react';
 import { IconChevronLeft, IconBrain } from '../../icons'; // Reusing existing
+import { useAuth } from '../../context/AuthContext';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 // --- Sub-Components ---
 
 // ... imports
 
 const JourneyTrace = ({ student }: { student: StudentAnalytics }) => {
+    // Calculate journey stats for clarity
+    const successCount = student.journey.filter(n => n.status === 'success').length;
+    const failureCount = student.journey.filter(n => n.status === 'failure').length;
+    const remediationCount = student.journey.filter(n => n.type === 'remediation').length;
+    const totalSteps = student.journey.length;
+
     return (
         <div className="bg-slate-50 rounded-3xl p-6 shadow-inner border border-slate-200 w-full overflow-hidden" dir="rtl">
-            <h3 className="text-slate-800 font-bold text-xl mb-6 flex items-center gap-2">
-                <IconActivity className="text-blue-600" />
-                מסלול למידה: {student.name}
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                <h3 className="text-slate-800 font-bold text-xl flex items-center gap-2">
+                    <IconActivity className="text-blue-600" />
+                    מסלול למידה: {student.name}
+                </h3>
+                {/* Journey stats summary - clarifies these are learning path steps, not individual questions */}
+                <div className="flex items-center gap-3 text-sm">
+                    <span className="bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full font-medium">
+                        {totalSteps} צעדים
+                    </span>
+                    <span className="bg-lime-100 text-lime-700 px-2.5 py-1 rounded-full font-medium">
+                        {successCount} הצלחות
+                    </span>
+                    {failureCount > 0 && (
+                        <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-medium">
+                            {failureCount} כשלונות
+                        </span>
+                    )}
+                    {remediationCount > 0 && (
+                        <span className="bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-medium">
+                            {remediationCount} חיזוקים
+                        </span>
+                    )}
+                </div>
+            </div>
+            {/* Note: Journey nodes represent learning path milestones (units/activities completed), not individual questions */}
+            <p className="text-xs text-slate-500 mb-4">
+                * כל צעד מייצג יחידת לימוד או פעילות במסלול (לא שאלות בודדות)
+            </p>
 
             {/* Scroll Container with LTR direction for time progression (Past -> Future) */}
             <div className="overflow-x-auto pb-4" dir="ltr">
@@ -102,14 +136,101 @@ const WizdiInsightsWidget = ({ onGenerate }: { onGenerate: () => void }) => {
     );
 };
 
-export const AdaptiveDashboard = () => {
+export const AdaptiveDashboard = ({ courseId: initialCourseId }: { courseId?: string } = {}) => {
+    const { currentUser } = useAuth();
     const [students, setStudents] = useState<StudentAnalytics[]>([]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+    const [courses, setCourses] = useState<Array<{ id: string; title: string }>>([]);
+    const [selectedCourseId, setSelectedCourseId] = useState<string>(initialCourseId || '');
+    const [loadingCourses, setLoadingCourses] = useState(true);
+    const [loadingStudents, setLoadingStudents] = useState(false);
 
+    // Load teacher's courses with enrollments
     useEffect(() => {
-        // Uses real Firestore data when available, falls back to mock for dev
-        getSmartCourseAnalytics('c1').then(setStudents);
-    }, []);
+        const loadCoursesWithStudents = async () => {
+            if (!currentUser?.uid) {
+                setLoadingCourses(false);
+                return;
+            }
+
+            try {
+                console.log('📚 Loading courses for teacher:', currentUser.uid);
+
+                // Get all courses where this teacher is the owner
+                const coursesQuery = query(
+                    collection(db, 'courses'),
+                    where('teacherId', '==', currentUser.uid),
+                    orderBy('createdAt', 'desc') // הקורס האחרון שנוצר יופיע ראשון
+                );
+                const coursesSnapshot = await getDocs(coursesQuery);
+
+                console.log('📊 Found', coursesSnapshot.size, 'courses');
+
+                // For each course, check if it has any enrollments
+                const coursesWithEnrollments: Array<{ id: string; title: string; enrollmentCount: number }> = [];
+
+                for (const courseDoc of coursesSnapshot.docs) {
+                    const courseData = courseDoc.data();
+
+                    // Check for enrollments in this course
+                    const enrollmentsQuery = query(
+                        collection(db, 'enrollments'),
+                        where('courseId', '==', courseDoc.id)
+                    );
+                    const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
+
+                    if (enrollmentsSnapshot.size > 0) {
+                        coursesWithEnrollments.push({
+                            id: courseDoc.id,
+                            title: courseData.title || 'ללא כותרת',
+                            enrollmentCount: enrollmentsSnapshot.size
+                        });
+                        console.log(`   ✓ Course "${courseData.title}" has ${enrollmentsSnapshot.size} students`);
+                    }
+                }
+
+                setCourses(coursesWithEnrollments);
+
+                // Auto-select course
+                if (coursesWithEnrollments.length > 0) {
+                    // Prefer initialCourseId if provided and exists
+                    const courseToSelect = initialCourseId && coursesWithEnrollments.some(c => c.id === initialCourseId)
+                        ? initialCourseId
+                        : coursesWithEnrollments[0].id;
+
+                    setSelectedCourseId(courseToSelect);
+                    console.log('🎯 Auto-selected course:', courseToSelect);
+                }
+
+            } catch (error) {
+                console.error('❌ Error loading courses:', error);
+            } finally {
+                setLoadingCourses(false);
+            }
+        };
+
+        loadCoursesWithStudents();
+    }, [currentUser?.uid, initialCourseId]);
+
+    // Load students when course changes
+    useEffect(() => {
+        if (!selectedCourseId) {
+            setStudents([]);
+            return;
+        }
+
+        setLoadingStudents(true);
+        console.log('📊 Loading analytics for course:', selectedCourseId);
+
+        getSmartCourseAnalytics(selectedCourseId).then(data => {
+            console.log('✅ Loaded students:', data);
+            setStudents(data);
+            setLoadingStudents(false);
+        }).catch(error => {
+            console.error('❌ Error loading students:', error);
+            setLoadingStudents(false);
+        });
+    }, [selectedCourseId]);
 
     const selectedStudent = students.find(s => s.id === selectedStudentId) || students[0];
 
@@ -150,7 +271,7 @@ export const AdaptiveDashboard = () => {
         <div className="min-h-screen bg-slate-50 text-slate-900 p-6 font-sans overflow-x-hidden" dir="rtl">
             {/* Header */}
             <div className="max-w-7xl mx-auto mb-8 border-b border-slate-200 pb-6 flex flex-col md:flex-row items-end justify-between gap-4">
-                <div>
+                <div className="flex-1">
                     <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-2 flex items-center gap-3">
                         <IconBrain className="w-10 h-10 text-indigo-600" />
                         לוח בקרה אדפטיבי
@@ -158,6 +279,34 @@ export const AdaptiveDashboard = () => {
                     <p className="text-slate-500 text-lg">
                         מבט על כיתתי בזמן אמת: ביצועים, מסלולי למידה וזיהוי פערים
                     </p>
+                </div>
+
+                {/* Course Selector */}
+                <div className="min-w-[280px]">
+                    <label className="block text-sm font-medium text-slate-600 mb-2">
+                        בחר קורס
+                    </label>
+                    {loadingCourses ? (
+                        <div className="p-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-500">
+                            טוען קורסים...
+                        </div>
+                    ) : courses.length === 0 ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                            אין קורסים עם תלמידים
+                        </div>
+                    ) : (
+                        <select
+                            value={selectedCourseId}
+                            onChange={(e) => setSelectedCourseId(e.target.value)}
+                            className="w-full p-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                        >
+                            {courses.map((course) => (
+                                <option key={course.id} value={course.id}>
+                                    {course.title} ({course.enrollmentCount} תלמידים)
+                                </option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 {/* KPI Cards */}
@@ -174,12 +323,41 @@ export const AdaptiveDashboard = () => {
                 </div>
             </div>
 
-            {/* Insights Widget */}
-            <div className="max-w-7xl mx-auto">
-                <WizdiInsightsWidget onGenerate={() => handleCreateUnit('Remediation Class')} />
-            </div>
+            {/* Loading State */}
+            {loadingStudents && (
+                <div className="max-w-7xl mx-auto text-center py-12">
+                    <div className="inline-flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                        <svg className="animate-spin h-5 w-5 text-indigo-600" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span className="text-slate-700 font-medium">טוען נתוני תלמידים...</span>
+                    </div>
+                </div>
+            )}
 
-            <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-8 items-start">
+            {/* No Students State */}
+            {!loadingStudents && students.length === 0 && selectedCourseId && (
+                <div className="max-w-7xl mx-auto text-center py-12">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 inline-block">
+                        <IconAlertTriangle className="w-12 h-12 text-amber-600 mx-auto mb-4" />
+                        <p className="text-amber-800 font-bold text-lg mb-2">אין תלמידים בקורס זה</p>
+                        <p className="text-amber-600 text-sm">
+                            הקורס הנבחר אינו מכיל תלמידים עם נתוני למידה.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Main Content - Only show when we have students */}
+            {!loadingStudents && students.length > 0 && (
+                <>
+                    {/* Insights Widget */}
+                    <div className="max-w-7xl mx-auto">
+                        <WizdiInsightsWidget onGenerate={() => handleCreateUnit('Remediation Class')} />
+                    </div>
+
+                    <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-8 items-start">
 
                 {/* Left: The Heatmap (Matrix) - In RTL this is on the Right physically */}
                 <div className="w-full xl:w-5/12 bg-white border border-slate-200 rounded-[32px] p-6 shadow-sm overflow-hidden">
@@ -214,7 +392,14 @@ export const AdaptiveDashboard = () => {
 
                                 {/* Name + Risk */}
                                 <div className="w-24 shrink-0">
-                                    <div className="font-bold text-slate-800 text-sm truncate">{s.name}</div>
+                                    <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-1">
+                                        {s.name}
+                                        {s.isSimulated && (
+                                            <span className="text-[8px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-bold uppercase" title="תלמיד מדומה">
+                                                SIM
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-1 mt-1">
                                         <span className={`text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold uppercase
                                             ${s.riskLevel === 'high' ? 'bg-red-50 text-red-600' :
@@ -263,11 +448,28 @@ export const AdaptiveDashboard = () => {
                                     <div className="flex items-center gap-6">
                                         <img src={selectedStudent.avatar} alt={selectedStudent.name} className="w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-white shadow-lg" loading="lazy" decoding="async" />
                                         <div>
-                                            <h2 className="text-2xl md:text-3xl font-black text-slate-800">{selectedStudent.name}</h2>
+                                            <h2 className="text-2xl md:text-3xl font-black text-slate-800 flex items-center gap-3">
+                                                {selectedStudent.name}
+                                                {selectedStudent.isSimulated && (
+                                                    <span className="text-xs px-3 py-1 rounded-lg bg-purple-100 text-purple-700 font-bold uppercase flex items-center gap-1.5 border border-purple-200" title={`תלמיד מדומה - פרופיל: ${selectedStudent.simulationProfile}`}>
+                                                        <span className="text-base">🤖</span>
+                                                        סימולציה
+                                                    </span>
+                                                )}
+                                            </h2>
                                             <div className="text-slate-500 flex flex-wrap items-center gap-3 mt-2 font-medium text-sm md:text-base">
                                                 <span>פעילות אחרונה: {new Date(selectedStudent.lastActive).toLocaleTimeString()}</span>
                                                 <span className="text-slate-300 hidden md:inline">|</span>
                                                 <span className="text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded-lg">ID: {selectedStudent.id}</span>
+                                                {selectedStudent.isSimulated && selectedStudent.simulationProfile && (
+                                                    <>
+                                                        <span className="text-slate-300 hidden md:inline">|</span>
+                                                        <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg text-xs font-bold">
+                                                            פרופיל: {selectedStudent.simulationProfile === 'struggling' ? 'מתקשה' :
+                                                                     selectedStudent.simulationProfile === 'average' ? 'ממוצע' : 'מצטיין'}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -276,9 +478,15 @@ export const AdaptiveDashboard = () => {
                                     <div className="flex flex-col gap-3 w-full md:w-auto">
                                         <div className="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                             <div className="text-3xl md:text-4xl font-black font-mono text-indigo-600">
-                                                {Math.round(Object.values(selectedStudent.mastery).reduce((a, b) => a + b, 0) / 4 * 100)}%
+                                                {Math.round((selectedStudent.courseMastery !== undefined
+                                                    ? selectedStudent.courseMastery
+                                                    : (Object.values(selectedStudent.mastery).length > 0
+                                                        ? Object.values(selectedStudent.mastery).reduce((a, b) => a + b, 0) / Object.values(selectedStudent.mastery).length
+                                                        : 0)) * 100)}%
                                             </div>
-                                            <div className="text-slate-400 uppercase font-bold text-xs tracking-wider">שליטה ממוצעת</div>
+                                            <div className="text-slate-400 uppercase font-bold text-xs tracking-wider">
+                                                {selectedStudent.courseMastery !== undefined ? 'שליטה בקורס' : 'שליטה ממוצעת'}
+                                            </div>
                                         </div>
 
                                         {/* Dynamic Action Button */}
@@ -375,6 +583,8 @@ export const AdaptiveDashboard = () => {
                 </div>
 
             </div>
+                </>
+            )}
         </div>
     );
 };

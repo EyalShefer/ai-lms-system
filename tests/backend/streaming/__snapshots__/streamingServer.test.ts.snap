@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`streamingServer Validation Functions Validation Structure Snapshots categorization fallback structure should remain stable 1`] = `
+{
+  "categories": [
+    "קטגוריה א",
+    "קטגוריה ב",
+  ],
+  "instruction": "מיינו את הפריטים לקטגוריות - מתמטיקה:",
+  "items": [
+    {
+      "category": "קטגוריה א",
+      "text": "פריט 1",
+    },
+    {
+      "category": "קטגוריה ב",
+      "text": "פריט 2",
+    },
+  ],
+}
+`;
+
+exports[`streamingServer Validation Functions Validation Structure Snapshots multiple choice fallback structure should remain stable 1`] = `
+{
+  "correct_answer": "תשובה נכונה בנושא מתמטיקה",
+  "feedback_correct": "כל הכבוד! תשובה נכונה.",
+  "feedback_incorrect": "לא נכון, נסה שוב.",
+  "options": [
+    "תשובה נכונה בנושא מתמטיקה",
+    "תשובה שגויה א",
+    "תשובה שגויה ב",
+    "תשובה שגויה ג",
+  ],
+  "question": "שאלה 1 בנושא מתמטיקה",
+}
+`;
+
+exports[`streamingServer Validation Functions Validation Structure Snapshots ordering fallback structure should remain stable 1`] = `
+{
+  "correct_order": [
+    "שלב ראשון",
+    "שלב שני",
+    "שלב שלישי",
+    "שלב רביעי",
+  ],
+  "feedback_correct": "מצוין! סידרת נכון.",
+  "feedback_incorrect": "לא בסדר הנכון, נסה שוב.",
+  "instruction": "סדרו את השלבים הבאים בסדר הנכון - מתמטיקה:",
+}
+`;

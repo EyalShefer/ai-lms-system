@@ -2,12 +2,12 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/tests/frontend', '<rootDir>/src'],
 
   // Where to find tests
   testMatch: [
-    '**/__tests__/**/*.test.ts',
-    '**/__tests__/**/*.test.tsx',
+    '**/tests/frontend/**/*.test.ts',
+    '**/tests/frontend/**/*.test.tsx',
   ],
 
   // Coverage settings - מגדיר כיסוי מינימלי נדרש

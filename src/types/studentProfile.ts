@@ -54,4 +54,14 @@ export interface SessionInteraction {
     timeSpentSec: number;
     hintsUsed: number;
     timestamp: number;
+
+    // Adaptive learning metadata
+    variantUsed?: 'הבנה' | 'יישום' | 'העמקה'; // Which difficulty variant was used
+    scaffoldingOffered?: boolean; // Was scaffolding offered for this question?
+    scaffoldingAccepted?: boolean; // Did student accept the offer?
+    currentMastery?: number; // Mastery level at the time of this interaction
+
+    // Error analysis
+    errorTags?: string[]; // e.g., ['calculation_error', 'sign_error']
+    wrongAnswer?: any; // The incorrect answer provided (if applicable)
 }

@@ -2,11 +2,14 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/../tests/backend', '<rootDir>/src'],
 
   testMatch: [
-    '**/__tests__/**/*.test.ts',
+    '**/tests/backend/**/*.test.ts',
   ],
+
+  // Module resolution - look in functions/node_modules
+  moduleDirectories: ['node_modules', '<rootDir>/node_modules'],
 
   collectCoverageFrom: [
     'src/**/*.ts',

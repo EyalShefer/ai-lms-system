@@ -456,9 +456,42 @@ export const onSessionComplete = async (
         saveSessionData(userId, sessionData)
     ]);
 
-    // Update error fingerprint if provided
-    if (errorTags && errorTags.length > 0) {
-        await updateErrorFingerprint(userId, errorTags);
+    // AUTO-COLLECT ERROR TAGS from interactions (if not provided manually)
+    let collectedErrorTags = errorTags || [];
+
+    if (!errorTags || errorTags.length === 0) {
+        // Extract error tags from incorrect interactions
+        const autoCollectedTags: string[] = [];
+
+        sessionData.interactions.forEach(interaction => {
+            if (!interaction.isCorrect && interaction.errorTags) {
+                autoCollectedTags.push(...interaction.errorTags);
+            }
+        });
+
+        if (autoCollectedTags.length > 0) {
+            console.log(`📊 Auto-collected ${autoCollectedTags.length} error tags from session`);
+            collectedErrorTags = autoCollectedTags;
+        }
+    }
+
+    // Update error fingerprint with collected tags
+    if (collectedErrorTags.length > 0) {
+        await updateErrorFingerprint(userId, collectedErrorTags);
+    }
+
+    // --- INTEGRATION LAYER: Update scaffolding patterns from adaptive events ---
+    // This bridges the gap between detailed adaptive events and aggregated profile
+    // Import is lazy to avoid circular dependencies
+    try {
+        const { updateProfileFromAdaptiveEvents } = await import('./adaptiveIntegrationService');
+        const sessionStartDate = new Date(sessionData.startTime);
+
+        await updateProfileFromAdaptiveEvents(userId, sessionStartDate);
+        console.log('✅ Scaffolding patterns updated from adaptive events');
+    } catch (error) {
+        console.error('Failed to update scaffolding patterns:', error);
+        // Don't throw - this is supplementary data
     }
 
     return { profile, sessionSaved };

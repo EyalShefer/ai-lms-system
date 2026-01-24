@@ -1,6 +1,7 @@
 /**
- * AI Blog Widget
- * Displays curated AI/EdTech articles with practical classroom tips
+ * EdTech News Widget - חידושים בטכנולוגיה חינוכית
+ * Displays curated AI/EdTech articles from Google, OpenAI, Anthropic
+ * and education technology sources with practical classroom tips
  */
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import {
     IconRefresh,
     IconLanguage
 } from '@tabler/icons-react';
-import { getBlogArticles, getFeaturedArticle, triggerBlogGeneration, BLOG_CATEGORIES, type AIBlogArticle } from '../services/aiBlogService';
+import { getBlogArticles, getFeaturedArticle, triggerNewsUpdate, BLOG_CATEGORIES, type AIBlogArticle } from '../services/aiBlogService';
 
 interface AIBlogWidgetProps {
     maxItems?: number;
@@ -36,9 +37,9 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
     const handleGenerateArticles = async () => {
         setGenerating(true);
         try {
-            // Force regenerate to get fresh articles with complete content
-            const result = await triggerBlogGeneration(true);
-            console.log('Blog generation result:', result);
+            // Force regenerate - deletes old news and fetches fresh ones
+            const result = await triggerNewsUpdate(true);
+            console.log('News update result:', result);
             // Refresh articles after generation
             const items = await getBlogArticles(maxItems);
             setArticles(items);
@@ -47,7 +48,7 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                 setFeaturedArticle(featured);
             }
         } catch (err) {
-            console.error('Error generating articles:', err);
+            console.error('Error updating news:', err);
         } finally {
             setGenerating(false);
         }
@@ -108,8 +109,8 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                         <IconBulb className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-800 dark:text-white">חדשות AI</h3>
-                        <p className="text-xs text-slate-400">מתעדכן שבועית</p>
+                        <h3 className="font-bold text-slate-800 dark:text-white">חידושים בטכנולוגיה חינוכית</h3>
+                        <p className="text-xs text-slate-400">AI וכלים לכיתה</p>
                     </div>
                 </div>
                 <div className="text-center py-8">
@@ -143,8 +144,8 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                         <IconBulb className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-800 dark:text-white">חדשות AI</h3>
-                        <p className="text-xs text-slate-400">מתעדכן שבועית</p>
+                        <h3 className="font-bold text-slate-800 dark:text-white">חידושים בטכנולוגיה חינוכית</h3>
+                        <p className="text-xs text-slate-400">AI וכלים לכיתה</p>
                     </div>
                 </div>
 
@@ -261,8 +262,8 @@ const AIBlogWidget: React.FC<AIBlogWidgetProps> = ({
                     <IconBulb className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                    <h2 className="font-bold text-slate-800 dark:text-white">חדשות AI</h2>
-                    <p className="text-xs text-slate-400">מתעדכן שבועית</p>
+                    <h2 className="font-bold text-slate-800 dark:text-white">חידושים בטכנולוגיה חינוכית</h2>
+                    <p className="text-xs text-slate-400">AI וכלים לכיתה</p>
                 </div>
             </div>
 

@@ -1,11 +1,11 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { CourseProvider, useCourseStore } from '../CourseContext';
-import type { Course, LearningUnit, Module } from '../../shared/types/courseTypes';
-import { db } from '../../firebase';
+import { CourseProvider, useCourseStore } from '../../../src/context/CourseContext';
+import type { Course, LearningUnit, Module } from '../../../src/shared/types/courseTypes';
+import { db } from '../../../src/firebase';
 import { onSnapshot, setDoc } from 'firebase/firestore';
 
 // Mock Firebase
-jest.mock('../../firebase', () => ({
+jest.mock('../../../src/firebase', () => ({
   db: {},
 }));
 
@@ -19,12 +19,12 @@ jest.mock('firebase/firestore', () => ({
 }));
 
 // Mock AuthContext
-jest.mock('../AuthContext', () => ({
+jest.mock('../../../src/context/AuthContext', () => ({
   useAuth: () => ({ currentUser: { uid: 'test-user-123' } }),
 }));
 
 // Mock gamificationService
-jest.mock('../../services/gamificationService', () => ({
+jest.mock('../../../src/services/gamificationService', () => ({
   getInitialProfile: jest.fn(() => ({
     level: 1,
     xp: 0,

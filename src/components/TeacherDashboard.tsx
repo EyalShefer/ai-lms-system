@@ -27,7 +27,9 @@ import { StudentLearningProfile } from './dashboard/StudentLearningProfile';
 import { ClassroomConnectButton } from './teacher/ClassroomConnectButton';
 import { ClassroomAssignmentModal } from './teacher/ClassroomAssignmentModal';
 import { ShareModal } from './ShareModal';
-import { IconBrandGoogle, IconShare, IconMail, IconMailOff, IconChartBar, IconBolt, IconPhoto, IconMicrophone, IconBroadcast } from '@tabler/icons-react';
+import { IconBrandGoogle, IconShare, IconMail, IconMailOff, IconChartBar, IconBolt, IconPhoto, IconMicrophone, IconBroadcast, IconSettings, IconSchool } from '@tabler/icons-react';
+import TeacherSettings from './layout/TeacherSettings';
+import { BagrutProgressSummary } from './dashboard/BagrutProgressSummary';
 
 // --- CONSTANTS ---
 const GRADE_ORDER = [
@@ -73,6 +75,7 @@ interface CourseAggregation {
     mode?: 'learning' | 'exam' | 'lesson'; // Added mode
     submittedCount: number; // New field for submitted count
     parentLesson?: { courseId: string; title: string }; // If extracted from lesson plan
+    hasSimulation?: boolean; // New field to track if activity has simulation data
 }
 
 interface TeacherDashboardProps {
@@ -276,6 +279,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     // Share Modal State
     const [shareModalCourse, setShareModalCourse] = useState<{ id: string; title: string } | null>(null);
+
+    // Settings State
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
 
     // Navigation
     const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -752,6 +758,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
     const handleCreateAssignment = async () => {
         if (!assignmentData.title || !assignmentData.dueDate) return alert("חסרים פרטים");
+        if (!currentUser) return alert("יש להתחבר למערכת");
 
         try {
             const combinedDate = new Date(`${assignmentData.dueDate}T${assignmentData.dueTime}`);
@@ -762,7 +769,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                 dueDate: combinedDate.toISOString(),
                 instructions: assignmentData.instructions,
                 createdAt: serverTimestamp(),
-                teacherId: "TODO_USER_ID" // Ideally from context
+                teacherId: currentUser.uid
             });
 
             const link = `${window.location.origin}/?assignmentId=${docRef.id}`;
@@ -837,21 +844,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
         <div className="min-h-screen bg-slate-50 p-6 font-sans pb-24 text-right" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
 
-                {/* 1. TOP BAR */}
-                {/* 1. TOP BAR */}
-                <header className="card-glass p-0 sticky top-4 z-40 overflow-hidden shadow-glass ring-1 ring-white/40">
-                    <div className="p-4 flex flex-col xl:flex-row justify-between items-center gap-4 bg-white/40">
+                {/* 1. TOP BAR - Bento Style */}
+                <header className="bento-card p-0 sticky top-4 z-40 overflow-hidden">
+                    <div className="p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
 
                         {/* RIGHT SIDE (RTL Start) - Title Area */}
                         <div className="flex items-center gap-3 w-full xl:w-auto">
                             {selectedCourseId ? (
                                 <div className="flex items-center gap-3 animate-slide-in-right">
-                                    <h2 className="text-3xl font-black text-wizdi-royal tracking-tight text-right line-clamp-1 max-w-[600px] drop-shadow-sm" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
+                                    <h2 className="text-3xl font-black ai-gradient-text tracking-tight text-right line-clamp-1 max-w-[600px]" title={aggregatedCourses.find(c => c.courseId === selectedCourseId)?.title}>
                                         {(() => {
                                             const course = aggregatedCourses.find(c => c.courseId === selectedCourseId);
                                             const display = getProductTypeDisplay(course?.productType, course?.mode);
                                             return (
-                                                <span className={`font-bold ml-2 text-lg uppercase tracking-wider px-2 py-1 rounded-lg border ${display.headerColor}`}>
+                                                <span className={`font-bold ml-2 text-lg uppercase tracking-wider px-2 py-1 rounded-xl border ${display.headerColor}`}>
                                                     {display.label}
                                                 </span>
                                             );
@@ -861,13 +867,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-gradient-to-br from-wizdi-royal to-wizdi-cyan p-3 rounded-2xl text-white shadow-lg shadow-wizdi-royal/20 transform hover:scale-110 transition-transform duration-300">
-                                        <IconLayer className="w-8 h-8" />
+                                    <div className="ai-icon-container">
+                                        <IconLayer className="w-7 h-7 text-white" />
                                     </div>
                                     <div>
-                                        <h1 className="text-3xl font-black text-wizdi-royal tracking-tight">ניהול למידה</h1>
-                                        <div className="flex items-center gap-2 text-sm font-medium text-slate-500/80">
-                                            <span className="w-2 h-2 rounded-full bg-wizdi-lime animate-pulse"></span>
+                                        <h1 className="text-3xl font-black ai-gradient-text tracking-tight">ניהול למידה</h1>
+                                        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                             מערכת בזמן אמת
                                         </div>
                                     </div>
@@ -908,7 +914,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </button>
                                 </div>
                             ) : (
-                                <div className="card-glass flex flex-wrap items-center gap-3 w-full xl:w-auto p-2 border border-white/50 shadow-sm backdrop-blur-md">
+                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto p-2 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
                                     {/* View Toggle */}
                                     <div className="flex bg-slate-100/80 rounded-xl p-1 gap-1">
                                         <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all duration-300 ${viewMode === 'grid' ? 'bg-white shadow-sm text-wizdi-royal scale-105 font-bold' : 'text-slate-400 hover:text-slate-600'}`} title="תצוגת כרטיסיות"><IconLayer className="w-5 h-5" /></button>
@@ -1034,6 +1040,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                         )}
                                     </button>
 
+                                    {/* Settings Button */}
+                                    <button
+                                        onClick={() => setShowSettingsModal(true)}
+                                        className="px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all transform hover:-translate-y-0.5 shadow-md bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                                        title="הגדרות"
+                                    >
+                                        <IconSettings className="w-4 h-4" />
+                                        <span className="hidden lg:inline">הגדרות</span>
+                                    </button>
+
                                     <div className="w-px h-8 bg-slate-200 mx-1"></div>
                                     <ClassroomConnectButton />
                                 </div>
@@ -1042,19 +1058,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     </div>
                 </header>
 
+                {/* Bagrut Progress Summary - temporarily disabled until teacher-student association system is built */}
+                {/* TODO: Re-enable when teacher-student permissions system is implemented */}
 
                 {!selectedCourseId && (
                     <div className="animate-fade-in relative z-10">
                         {aggregatedCourses.length === 0 ? (
-                            <div className="text-center py-24 card-glass rounded-[3rem] shadow-xl flex flex-col items-center justify-center gap-6 group">
-                                <div className="bg-wizdi-cloud p-6 rounded-full group-hover:scale-110 transition-transform duration-500">
-                                    <IconBook className="w-20 h-20 text-wizdi-royal/30 group-hover:text-wizdi-royal/50 transition-colors" />
+                            <div className="text-center py-24 bento-card bento-featured rounded-3xl flex flex-col items-center justify-center gap-6 group">
+                                <div className="ai-icon-container w-20 h-20 group-hover:scale-110 transition-transform duration-500">
+                                    <IconBook className="w-10 h-10 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black text-wizdi-royal/60 mb-2">טרם נוצרו כיתות</h3>
-                                    <p className="text-slate-500/80 text-lg font-medium">זה הזמן ליצור את הפעילות הראשונה שלך!</p>
+                                    <h3 className="text-2xl font-black ai-gradient-text mb-2">טרם נוצרו כיתות</h3>
+                                    <p className="text-slate-500 text-lg font-medium">זה הזמן ליצור את הפעילות הראשונה שלך!</p>
                                 </div>
-                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="btn-lip-primary px-6 py-2 text-sm">נקה סינונים</button>
+                                <button onClick={() => { setFilterSubject('all'); setFilterGrade('all'); setSearchTerm(''); }} className="ai-action-btn px-6 py-2 text-sm">נקה סינונים</button>
                             </div>
                         ) : (
                             <>
@@ -1064,7 +1082,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                             <div
                                                 key={c.courseId}
                                                 onClick={() => setViewingControlCenter(c.courseId)}
-                                                className="card-glass p-0 cursor-pointer group flex flex-col h-[280px] relative overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 ring-1 ring-white/60 border-0"
+                                                className="bento-card ai-glow p-0 cursor-pointer group flex flex-col h-[280px] relative overflow-hidden"
                                             >
                                                 {/* Header Color Splash */}
                                                 <div className={`h-32 p-6 relative overflow-hidden transition-colors duration-500
@@ -1143,7 +1161,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                                 </div>
 
                                                 {/* Body Content */}
-                                                < div className="p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-white to-blue-50/30" >
+                                                <div className="p-6 flex-1 flex flex-col justify-between">
                                                     <div className="space-y-3">
                                                         <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wide">
                                                             <span className="flex items-center gap-1"><IconBook className="w-3 h-3" /> {c.subject}</span>
@@ -1185,106 +1203,127 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     </div>
                                 ) : viewMode === 'list' ? (
                                     /* --- LIST VIEW --- */
-                                    <div className="card-glass rounded-3xl shadow-xl overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm text-right">
-                                                <thead className="bg-wizdi-cloud text-slate-500 font-medium border-b border-slate-100">
-                                                    <tr>
-                                                        <th onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 w-1/4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">שם המשימה {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'type', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">סוג {sortConfig.key === 'type' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'subject', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">תחום דעת {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'grade', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">כיתה/קבוצה {sortConfig.key === 'grade' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'nextDueDate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">מועד הגשה {sortConfig.key === 'nextDueDate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'submittedCount', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">תלמידים (הוגשו/סך הכל) {sortConfig.key === 'submittedCount' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'completionRate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">התקדמות {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                                                            <div className="flex items-center gap-1">ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}</div>
-                                                        </th>
-                                                        <th className="p-4 w-32">פעולות</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {aggregatedCourses.map(c => (
-                                                        <tr key={c.courseId} onClick={() => setViewingControlCenter(c.courseId)} className="hover:bg-wizdi-cloud/50 cursor-pointer transition-colors group">
-                                                            <td className="p-4">
-                                                                <div className="flex items-center gap-2">
-                                                                    {/* Red dot for alerts - show if atRiskCount > 0 OR demo on first item */}
-                                                                    {(c.atRiskCount > 0 || aggregatedCourses.indexOf(c) === 0) && (
-                                                                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0" title={`${c.atRiskCount || 1} תלמידים דורשים תשומת לב`}></div>
-                                                                    )}
-                                                                    <div className="font-bold text-slate-800 text-base group-hover:text-wizdi-royal transition-colors">{c.title}</div>
-                                                                </div>
-                                                                <div className="text-xs text-slate-400 mt-1">נוצר ב: {
-                                                                    c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') :
-                                                                    c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000).toLocaleDateString('he-IL') :
-                                                                    c.createdAt instanceof Date ? c.createdAt.toLocaleDateString('he-IL') :
-                                                                    typeof c.createdAt === 'string' ? new Date(c.createdAt).toLocaleDateString('he-IL') :
-                                                                    '-'
-                                                                }</div>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
-                                                                        {getProductTypeDisplay(c.productType, c.mode).label}
-                                                                    </span>
-                                                                    {c.parentLesson && (
-                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600" title={`ממערך: ${c.parentLesson.title}`}>
-                                                                            ממערך
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.subject}</span></td>
-                                                            <td className="p-4"><span className="bg-wizdi-cloud text-slate-600 px-2 py-1 rounded text-xs font-bold">{c.grade}</span></td>
-                                                            <td className="p-4">
-                                                                {c.nextDueDate ? (
-                                                                    <span className="font-bold bg-wizdi-gold/20 text-wizdi-gold px-2 py-1 rounded-md text-xs">
-                                                                        {new Date(c.nextDueDate).toLocaleDateString('he-IL')}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-slate-400 text-xs">-</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="p-4 font-bold text-slate-700">
-                                                                <div className="flex items-center gap-2">
-                                                                    <IconStudent className="w-4 h-4 text-slate-400" />
-                                                                    <span>{c.submittedCount} / <span className="text-slate-400">{c.studentCount}</span></span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan" style={{ width: `${c.completionRate}%` }}></div>
-                                                                    </div>
-                                                                    <span className="text-xs font-bold">{c.completionRate}%</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 font-black text-lg text-wizdi-royal">{c.avgScore}</td>
-                                                            <td className="p-4">
-                                                                <div className="flex items-center gap-2">
-                                                                    <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-royal rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="עריכה"><IconEdit className="w-4 h-4" /></button>
-                                                                    <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-lime rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
+                                    <div className="bento-card bento-static ai-glow rounded-3xl overflow-hidden" style={{ transform: 'none' }}>
+                                        {/* Header Row */}
+                                        <div className="grid grid-cols-12 gap-2 px-5 py-3 mx-4 mt-4 mb-1 bg-slate-100/50 text-xs font-bold text-slate-500 uppercase tracking-wider rounded-xl">
+                                            <div onClick={() => setSortConfig({ key: 'title', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-3 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                שם המשימה {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'type', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                סוג {sortConfig.key === 'type' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'subject', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                תחום דעת {sortConfig.key === 'subject' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'grade', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                כיתה {sortConfig.key === 'grade' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'nextDueDate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                הגשה {sortConfig.key === 'nextDueDate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'submittedCount', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                תלמידים {sortConfig.key === 'submittedCount' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'completionRate', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-2 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                התקדמות {sortConfig.key === 'completionRate' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div onClick={() => setSortConfig({ key: 'avgScore', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="col-span-1 cursor-pointer hover:text-wizdi-royal transition-colors flex items-center gap-1">
+                                                ממוצע {sortConfig.key === 'avgScore' && (sortConfig.direction === 'asc' ? <IconArrowUp className="w-3 h-3" /> : <IconArrowDown className="w-3 h-3" />)}
+                                            </div>
+                                            <div className="col-span-1 text-center">פעולות</div>
+                                        </div>
 
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                        {/* Task List - Card-based */}
+                                        <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+                                            {aggregatedCourses.map(c => (
+                                                <div
+                                                    key={c.courseId}
+                                                    onClick={() => setViewingControlCenter(c.courseId)}
+                                                    className="grid grid-cols-12 gap-2 px-5 py-4 items-center transition-all select-none rounded-2xl border cursor-pointer bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 hover:shadow-sm active:bg-slate-100 group"
+                                                >
+                                                    {/* Task Name */}
+                                                    <div className="col-span-3">
+                                                        <div className="flex items-center gap-2">
+                                                            {(c.atRiskCount > 0 || aggregatedCourses.indexOf(c) === 0) && (
+                                                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0 animate-pulse" title={`${c.atRiskCount || 1} תלמידים דורשים תשומת לב`}></div>
+                                                            )}
+                                                            <div className="font-bold text-slate-800 text-sm group-hover:text-wizdi-royal transition-colors truncate">{c.title}</div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 mt-0.5">נוצר ב: {
+                                                            c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('he-IL') :
+                                                            c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000).toLocaleDateString('he-IL') :
+                                                            c.createdAt instanceof Date ? c.createdAt.toLocaleDateString('he-IL') :
+                                                            typeof c.createdAt === 'string' ? new Date(c.createdAt).toLocaleDateString('he-IL') :
+                                                            '-'
+                                                        }</div>
+                                                    </div>
+
+                                                    {/* Type */}
+                                                    <div className="col-span-1">
+                                                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
+                                                            {getProductTypeDisplay(c.productType, c.mode).label}
+                                                        </span>
+                                                        {c.parentLesson && (
+                                                            <span className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600 w-fit" title={`ממערך: ${c.parentLesson.title}`}>
+                                                                ממערך
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Subject */}
+                                                    <div className="col-span-1">
+                                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-bold">{c.subject}</span>
+                                                    </div>
+
+                                                    {/* Grade */}
+                                                    <div className="col-span-1">
+                                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-bold">{c.grade}</span>
+                                                    </div>
+
+                                                    {/* Due Date */}
+                                                    <div className="col-span-1">
+                                                        {c.nextDueDate ? (
+                                                            <span className="font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-xs">
+                                                                {new Date(c.nextDueDate).toLocaleDateString('he-IL')}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs">-</span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Students */}
+                                                    <div className="col-span-1">
+                                                        <div className="flex items-center gap-1.5 text-sm">
+                                                            <IconStudent className="w-4 h-4 text-slate-400" />
+                                                            <span className="font-bold text-slate-700">{c.submittedCount}</span>
+                                                            <span className="text-slate-400">/ {c.studentCount}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Progress */}
+                                                    <div className="col-span-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan transition-all" style={{ width: `${c.completionRate}%` }}></div>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-600 min-w-[32px]">{c.completionRate}%</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Average */}
+                                                    <div className="col-span-1">
+                                                        <span className="font-black text-lg text-wizdi-royal">{c.avgScore}</span>
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    <div className="col-span-1">
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button onClick={(e) => handleEditClick(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-royal rounded-lg transition-colors border border-transparent hover:border-slate-200" title="עריכה"><IconEdit className="w-4 h-4" /></button>
+                                                            <button onClick={(e) => handleCopyLink(e, c.courseId)} className="p-2 hover:bg-white text-slate-400 hover:text-wizdi-lime rounded-lg transition-colors border border-transparent hover:border-slate-200" title="העתק קישור"><IconLink className="w-4 h-4" /></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 ) : viewMode === 'feedback' ? (
@@ -1974,6 +2013,31 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                                     <div className="h-3 bg-slate-200 rounded" />
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Settings Modal */}
+            {showSettingsModal && createPortal(
+                <div
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"
+                    dir="rtl"
+                    onClick={() => setShowSettingsModal(false)}
+                >
+                    <div
+                        className="w-full max-w-5xl max-h-[90vh] overflow-auto animate-scale-in"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowSettingsModal(false)}
+                                className="absolute top-4 left-4 z-10 p-2 bg-white/90 hover:bg-white rounded-full shadow-lg transition-colors"
+                            >
+                                <IconX className="w-5 h-5 text-slate-600" />
+                            </button>
+                            <TeacherSettings />
                         </div>
                     </div>
                 </div>,

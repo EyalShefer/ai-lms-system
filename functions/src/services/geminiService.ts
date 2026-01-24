@@ -1,12 +1,12 @@
 /**
- * Gemini 3 Pro Service
- * Unified service for all LLM text generation using Gemini 3 Pro
+ * Gemini Service
+ * Unified service for all LLM text generation using Gemini 2.0 Flash
  * Uses Google AI Studio (not Vertex AI)
  *
  * ============================================================
  * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
  * See AI_MODELS_POLICY.md for approved models.
- * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * Approved: gemini-2.0-flash (text), gemini-2.0-flash-exp-image-generation (images)
  * ============================================================
  */
 
@@ -16,7 +16,7 @@ import { GoogleGenAI } from '@google/genai';
 // Configuration
 // WARNING: Do not change without approval - see AI_MODELS_POLICY.md
 export const GEMINI_CONFIG = {
-    model: 'gemini-3-pro-preview'
+    model: 'gemini-2.0-flash'
 };
 
 // Singleton client with API key

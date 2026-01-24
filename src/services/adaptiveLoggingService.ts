@@ -15,7 +15,13 @@ export type AdaptiveEventType =
     | 'mastery_skip'         // When topic is mastered and skipped
     | 'הבנה_injected'        // When הבנה (remedial) block is generated and inserted
     | 'session_start'        // When student starts a lesson
-    | 'session_complete';    // When student completes a lesson
+    | 'session_complete'     // When student completes a lesson
+    | 'scaffolding_offered'  // When scaffolding variant is offered after 3 failures (struggling student)
+    | 'scaffolding_accepted' // When student accepts scaffolding variant
+    | 'scaffolding_declined' // When student declines scaffolding variant
+    | 'enrichment_offered'   // When enrichment variant is offered to high-performing student
+    | 'enrichment_accepted'  // When student accepts enrichment challenge
+    | 'enrichment_declined'; // When student declines enrichment challenge
 
 export interface AdaptiveEvent {
     type: AdaptiveEventType;
@@ -45,6 +51,10 @@ export interface AdaptiveEvent {
         // For הבנה_injected
         הבנהBlockId?: string;
         wrongAnswer?: any;
+
+        // For scaffolding events
+        scaffoldingVariantType?: 'הבנה' | 'העמקה';
+        attempts?: number;
 
         // General
         blockType?: string;
@@ -225,6 +235,146 @@ export const logRemediationInjected = (
         data: {
             remediationBlockId,
             wrongAnswer
+        }
+    });
+};
+
+/**
+ * Helper: Log scaffolding offer event
+ */
+export const logScaffoldingOffered = (
+    userId: string,
+    courseId: string,
+    blockId: string,
+    variantType: 'הבנה' | 'העמקה',
+    mastery: number,
+    attempts: number
+): void => {
+    logAdaptiveEvent({
+        type: 'scaffolding_offered',
+        userId,
+        courseId,
+        blockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            mastery,
+            attempts
+        }
+    });
+};
+
+/**
+ * Helper: Log scaffolding acceptance event
+ */
+export const logScaffoldingAccepted = (
+    userId: string,
+    courseId: string,
+    originalBlockId: string,
+    variantBlockId: string,
+    variantType: 'הבנה' | 'העמקה',
+    mastery: number
+): void => {
+    logAdaptiveEvent({
+        type: 'scaffolding_accepted',
+        userId,
+        courseId,
+        blockId: originalBlockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            הבנהBlockId: variantBlockId,
+            mastery
+        }
+    });
+};
+
+/**
+ * Helper: Log scaffolding decline event
+ */
+export const logScaffoldingDeclined = (
+    userId: string,
+    courseId: string,
+    blockId: string,
+    variantType: 'הבנה' | 'העמקה',
+    mastery: number
+): void => {
+    logAdaptiveEvent({
+        type: 'scaffolding_declined',
+        userId,
+        courseId,
+        blockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            mastery
+        }
+    });
+};
+
+/**
+ * Helper: Log enrichment offer event (for high-performing students)
+ */
+export const logEnrichmentOffered = (
+    userId: string,
+    courseId: string,
+    blockId: string,
+    variantType: 'העמקה',
+    mastery: number,
+    consecutiveSuccesses: number
+): void => {
+    logAdaptiveEvent({
+        type: 'enrichment_offered',
+        userId,
+        courseId,
+        blockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            mastery,
+            attempts: consecutiveSuccesses
+        }
+    });
+};
+
+/**
+ * Helper: Log enrichment acceptance event
+ */
+export const logEnrichmentAccepted = (
+    userId: string,
+    courseId: string,
+    originalBlockId: string,
+    variantBlockId: string,
+    variantType: 'העמקה',
+    mastery: number
+): void => {
+    logAdaptiveEvent({
+        type: 'enrichment_accepted',
+        userId,
+        courseId,
+        blockId: originalBlockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            הבנהBlockId: variantBlockId, // Reusing field for enrichment block ID
+            mastery
+        }
+    });
+};
+
+/**
+ * Helper: Log enrichment decline event
+ */
+export const logEnrichmentDeclined = (
+    userId: string,
+    courseId: string,
+    blockId: string,
+    variantType: 'העמקה',
+    mastery: number
+): void => {
+    logAdaptiveEvent({
+        type: 'enrichment_declined',
+        userId,
+        courseId,
+        blockId,
+        data: {
+            scaffoldingVariantType: variantType,
+            mastery
         }
     });
 };

@@ -1,0 +1,340 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`AI Prompts - Critical Logic Prompt Structure Snapshots skeleton prompt structure should remain stable 1`] = `
+"
+    Task: Create a "Skeleton" for a learning unit.
+    Source: Test topic
+    Target Audience: כיתה ה.
+    Friendly tone
+    Mode: Learning/Tutorial Mode
+    Count: Exactly 5 steps.
+    Language: Hebrew.
+    
+
+    BLOOM TAXONOMY REQUIREMENTS:
+    ["Remember","Understand","Apply","Analyze","Evaluate"]
+
+    MISSION:
+    1. **Holistic Analysis:** Read the ENTIRE source text first. Understand the "Big Picture".
+    2. **SEGMENTATION STRATEGY (CRITICAL):**
+       - **Scan First:** Identify ALL distinct case studies, periods, or sub-topics.
+       - **Anti-Bias Rule:** You MUST include ALL major distinct stories found.
+       - **Action:** Divorce the Source Text into 5 DISTINCT, NON-OVERLAPPING logical chunks.
+       - **Constraint:** Chunk A must end completely before Chunk B begins.
+
+    3. **ZERO-TEXT-WALL POLICY (V4 ANTI-BATCHING):**
+       - **CRITICAL:** You must ensure that the user interacts FREQUENTLY.
+             - **Rule:** If the narrative has more distinct chunks than the requested 5 steps, you MUST Insert 'multiple_choice' or 'true_false' steps in between to ensure coverge without merging topics.
+             - **Structure:** Text Chunk -> Question -> Text Chunk -> Question.
+
+    4. **Topic Policing:**
+       - For each step, define a strict **narrative_focus** (Allowed Content) and **forbidden_topics** (Banned Content).
+
+    5. **LOGIC SAFETY:**
+       - **Categorization:** Categories must be MUTUALLY EXCLUSIVE.
+       - **Ordering:** Must be based on objective criteria.
+
+    6. **Structure Guide:**
+    Standard structure
+
+    9. **INTERACTION DIVERSITY RULE (CRITICAL - NO REPETITION):**
+       - You MUST vary the interaction types across steps. NEVER use the same type twice in a row.
+       - **Available Types by Bloom Level:**
+         * Remember: memory_game, multiple_choice, true_false, fill_in_blank, matching, highlight
+         * Understand: multiple_choice, fill_in_blank, matching, sentence_builder, highlight, matrix
+         * Apply: categorization, ordering, fill_in_blank, sentence_builder, table_completion, image_labeling
+         * Analyze: categorization, ordering, open_question, text_selection, table_completion
+         * Evaluate/Create: open_question, rating_scale, text_selection
+       - **Diversity Algorithm:** If Step N uses "multiple_choice", Step N+1 MUST use a DIFFERENT type.
+       - **Distribution Target:** For 5 steps, aim for at least 3 different interaction types.
+
+    10. **CONTEXT IMAGE (ACTIVITY OPENING) - EXTRACT FROM SOURCE TEXT:**
+       Generate a "context_image_prompt" for an opening illustration.
+
+       **CRITICAL PROCESS:**
+       1. READ the source text carefully
+       2. IDENTIFY the main topic/subject matter (what is this text actually about?)
+       3. CREATE an image prompt that shows a REAL-WORLD SCENE directly related to THAT topic
+
+       **Guidelines:**
+       - The image must visually represent the ACTUAL content of the source text
+       - Show people engaged in activities related to the topic
+       - Include relevant objects, tools, or environment from the topic
+       - NO text in the image, NO Hebrew characters
+       - Style: Semi-realistic educational illustration, warm colors
+       - Age-appropriate for כיתה ה
+       - Write the prompt in English (2-3 sentences)
+
+       **DO NOT use generic "scientist with microscope" or "student reading" images!**
+       The image must be SPECIFIC to whatever the source text discusses.
+
+    Output JSON Structure:
+    {
+      "unit_title": "String",
+      "context_image_prompt": "English description for AI image generation (2-3 sentences, professional scenario related to the topic)",
+      "steps": [
+        {
+          "step_number": 1,
+          "title": "Unique Title for Chunk A",
+          "narrative_focus": "Discuss ONLY [Specific Concept A] . Do not mention [Concept B].",
+          "forbidden_topics": ["Concept B", "Concept C", "Future Events"],
+          "bloom_level": "Remember",
+          "suggested_interaction_type": "memory_game"
+        },
+        {
+          "step_number": 2,
+          "title": "Unique Title for Chunk B",
+          "narrative_focus": "...",
+          "forbidden_topics": ["..."],
+          "bloom_level": "Understand",
+          "suggested_interaction_type": "fill_in_blank"
+        },
+        {
+          "step_number": 3,
+          "title": "Unique Title for Chunk C",
+          "narrative_focus": "...",
+          "forbidden_topics": ["..."],
+          "bloom_level": "Apply",
+          "suggested_interaction_type": "categorization"
+        }
+      ]
+    }
+
+    **IMPORTANT:** The example above shows DIFFERENT interaction types for each step. Follow this pattern!
+  "
+`;
+
+exports[`AI Prompts - Critical Logic Prompt Structure Snapshots step content prompt structure should remain stable 1`] = `
+"
+    Test context text
+    
+    
+
+    **TARGET AUDIENCE: כיתה ו**
+
+    MANDATORY REQUIREMENTS:
+
+    1. **LANGUAGE ADAPTATION (CRITICAL - HARD CONSTRAINT):**
+    Grade appropriate language
+
+    2. **Pedagogy:** Strictly follow the Bloom Level (Apply) and Interaction Type (categorization).
+
+    3. **ZERO-TEXT-WALL RULE (V4 Anti-Batching):**
+       - **CRITICAL:** You must NEVER output two distinct text chunks consecutively without a question.
+       - **Focus:** Discuss ONLY: Focus area.
+       - **BAN:** Do NOT mention: ["Topic A","Topic B"].
+       - **STUDENT ACTIVITY MODE:** Do NOT output 'teach_content'. Set it to null or empty string. The activity should be 100% interactive - questions only, no explanatory text blocks.
+
+       - **Tone Override:** חם, ידידותי ומעודד. פנה ישירות לתלמיד בלשון יחיד. השתמש בשפה פשוטה ונגישה..
+
+  4. ** STRICT GROUNDING(Anti - Hallucination V3):**
+       - ** Rule:** Use ONLY the provided Source Text.If it's not in the PDF, it doesn't exist.
+
+    5. ** Micro - Learning Progression:**
+    - Treat this step as "Chapter 1". Do not repeat definitions from previous chapters.
+      
+
+    **HEBREW WRITING QUALITY RULES (CRITICAL):**
+    - **Word Order:** Follow natural Hebrew word order. Subject first, then verb, then object.
+      * WRONG: "נחשב ט״ו בשבט הוא יום מיוחד" (starts with predicate)
+      * CORRECT: "ט״ו בשבט נחשב ליום מיוחד" OR "ט״ו בשבט הוא יום מיוחד"
+    - **No Dangling Subjects:** The subject of the sentence must be clear from the start.
+      * WRONG: "נחשב הספר הזה לחשוב"
+      * CORRECT: "הספר הזה נחשב לחשוב"
+    - **Avoid Passive Ambiguity:** When using passive voice, ensure the sentence flows naturally.
+    - **Opening Sentences:** NEVER start an explanation with a predicate or adjective. Start with the topic itself.
+      * WRONG: "נחשב לאחד מהחגים החשובים ביותר..."
+      * CORRECT: "ט״ו בשבט הוא אחד מהחגים החשובים ביותר..."
+    - **Proofread for Flow:** Read each sentence aloud (mentally). If it sounds awkward, rewrite it.
+
+    **TEXT FORMATTING RULES (CRITICAL - NO MARKDOWN):**
+    - **FORBIDDEN:** Do NOT use asterisks (*) for any formatting purpose.
+    - **FORBIDDEN:** Do NOT use markdown syntax like **bold**, *italic*, or bullet points with *.
+    - **For lists:** Use numbered lists (1. 2. 3.) or write as flowing prose.
+    - **For emphasis:** Write naturally without special characters. The UI will handle formatting.
+    - **For model_answer:** Write clear sentences or numbered points, NOT bullet points with asterisks.
+      * WRONG: "* נקודה ראשונה * נקודה שנייה * נקודה שלישית"
+      * CORRECT: "1. נקודה ראשונה 2. נקודה שנייה 3. נקודה שלישית"
+      * ALSO CORRECT: "התשובה צריכה לכלול: נקודה ראשונה, נקודה שנייה, ונקודה שלישית."
+    - **Output plain text only** - no HTML tags, no markdown, just clean Hebrew text.
+
+  6. ** Logic & Interaction Rules:**
+       - ** Ordering:** The 'teach_content' MUST be a narrative story.Items must be paraphrased.
+       - ** Categorization:** Categories must be ** MUTUALLY EXCLUSIVE **.
+       - ** OPEN QUESTION RUBRIC:** Provide a detailed \`model_answer\` with 3-4 bullet points.
+       - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
+       - **Language:** OUTPUT VALUES MUST BE IN HEBREW.
+       
+    8. **PEDAGOGICAL SAFETY VALVE (BLOOM-PRESERVING FALLBACK):**
+       - **Rule:** If the Source Text lacks the data structure required for the requested Interaction Type (e.g., requested "Ordering" but text has no clear sequence), you MUST trigger a Fallback.
+       - **CRITICAL:** The Fallback must preserve the cognitive load (Bloom Level).
+       
+       **CASE A: REQUESTED "Ordering" (Apply/Analyze)**
+       - FAILURE CONDITION: Text lists items without a clear objective sequence.
+       - FALLBACK ACTION: Switch to "Categorization" (if items differ by type) OR "Fill-in-Blanks" (Cloze).
+       
+       **CASE B: REQUESTED "Categorization" (Apply/Analyze)**
+       - FAILURE CONDITION: All items belong to a single category or are ambiguous.
+       - FALLBACK ACTION: Switch to "Fill-in-Blanks" (Contextual inference).
+       
+       **CASE C: REQUESTED "Memory Game" (Remember)**
+       - FAILURE CONDITION: Cannot find 6 distinct pairs.
+       - FALLBACK ACTION: Switch to "Multiple Choice" (Fact recall) or "True/False" (Fact verification).
+       
+       **GENERAL RULE:**
+       - NEVER return empty or broken JSON logic (e.g., categories=["None"]).
+       - ALWAYS prefer a valid "Lower-Type" over an Invalid "Higher-Type".
+       - IF ALL ELSE FAILS: Fallback to "Multiple Choice".
+
+    7. **Scaffolding:**
+       - **Level 1 Hint:** Point to the specific text part.
+- **Level 2 Hint:** Rephrase content.
+       - **Feedback:** Explain WHY specific wrong choice is incorrect.
+
+    9. **MEDIA SUGGESTION GUIDELINES (IMAGE/INFOGRAPHIC DECISION):**
+       **STUDENT ACTIVITY MODE - SCENARIO IMAGES ONLY:**
+       - ONLY suggest "scenario_image" for questions that present real-world dilemmas/problems
+       - Do NOT suggest "infographic" - infographics are for lesson plans only!
+       - Add scenario_image when:
+         * Bloom Level is Application, Analysis, Evaluation, or Creation
+         * The question presents a decision-making situation
+         * Visualization would help students understand the problem BEFORE answering
+
+       **DO NOT add any image for:**
+       - "categorization" / "memory_game" / "ordering" / "fill_in_blanks" / "true_false"
+       - Simple fact recall questions
+
+       **If you suggest media (ONLY scenario_image for activities):**
+       \`"suggested_media": {
+          "needed": true,
+          "type": "scenario_image",
+          "prompt_hint": "Brief description of the scenario to visualize (in English, 2-3 sentences)"
+       }\`
+
+       **If no media is needed:**
+       \`"suggested_media": { "needed": false }\`
+
+    10. **LEARNING LEVEL (רמת למידה):**
+       Based on the Bloom Level, assign the appropriate learning level:
+       - Bloom "Remember" or "Understand" (זכירה/הבנה) → learning_level: "הבנה"
+       - Bloom "Apply" or "Analyze" (יישום/ניתוח) → learning_level: "יישום"
+       - Bloom "Evaluate" or "Create" (הערכה/יצירה) → learning_level: "העמקה"
+
+    Output FORMAT (JSON ONLY):
+    {
+       "step_number": 1,
+       "bloom_level": "Apply",
+       "learning_level": "הבנה" | "יישום" | "העמקה",
+       "teach_content": null,
+       "selected_interaction": "categorization",
+       "suggested_media": {
+          "needed": true | false,
+          "type": "scenario_image",
+          "prompt_hint": "English description of the scenario (if needed=true)"
+       },
+       "data": {
+          "learning_level": "הבנה" | "יישום" | "העמקה",
+          "progressive_hints": ["Hint 1", "Hint 2"],
+          "source_reference_hint": "See section '...'",
+          // DYNAMIC STRUCTURE BASED ON INTERACTION TYPE:
+          // 1. MULTIPLE CHOICE / TRUE_FALSE:
+          // { "question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "A" }
+
+          // 2. CATEGORIZATION:
+          // { "question": "Sort the items...", "categories": ["Cat1", "Cat2"], "items": [{ "text": "Item1", "category": "Cat1" }] }
+
+          // 3. ORDERING:
+          // { "instruction": "Order the events...", "correct_order": ["Event 1", "Event 2", "Event 3"] }
+
+          // 4. FILL IN BLANKS:
+          // { "text": "The [Sun] is hot." } (MUST use brackets [] for hidden words, do NOT use underscores)
+
+          // 5. MEMORY GAME:
+          // { "question": "Match the pairs...", "pairs": [{ "card_a": "Term", "card_b": "Def" }] }
+
+          // 6. OPEN QUESTION:
+          // {
+          //   "question": "...",
+          //   "model_answer": "...",
+          //   "points": 10
+          // }
+
+          // 7. AUDIO RESPONSE (Simulated Oral Exam):
+          // { "question": "Explain in your own words...", "max_duration": 60 }
+
+          // === 8 NEW QUESTION TYPES ===
+
+          // 8. MATCHING (מתיחת קו / התאמה):
+          // {
+          //   "instruction": "התאימו בין הפריטים...",
+          //   "leftItems": [{ "id": "1", "text": "פריט 1" }, { "id": "2", "text": "פריט 2" }],
+          //   "rightItems": [{ "id": "a", "text": "התאמה 1" }, { "id": "b", "text": "התאמה 2" }],
+          //   "correctMatches": [{ "left": "1", "right": "a" }, { "left": "2", "right": "b" }]
+          // }
+
+          // 9. HIGHLIGHT (הקפה / סימון בטקסט):
+          // {
+          //   "instruction": "סמנו את המילים הנכונות...",
+          //   "text": "הטקסט המלא עם המילים לסימון",
+          //   "correctHighlights": [{ "start": 0, "end": 5, "text": "מילה" }],
+          //   "highlightType": "background" | "circle" | "underline"
+          // }
+
+          // 10. SENTENCE_BUILDER (בניית משפט ממילים):
+          // {
+          //   "instruction": "סדרו את המילים למשפט תקין...",
+          //   "words": ["היום", "יפה", "מאוד", "השמש"],
+          //   "correctSentence": "השמש היום יפה מאוד"
+          // }
+
+          // 11. IMAGE_LABELING (תיוג תמונה):
+          // {
+          //   "instruction": "גררו את התוויות למקומות המתאימים...",
+          //   "imageUrl": "https://...",
+          //   "labels": [{ "id": "1", "text": "תווית 1" }],
+          //   "dropZones": [{ "id": "zone1", "x": 50, "y": 100, "correctLabelId": "1" }]
+          // }
+
+          // 12. TABLE_COMPLETION (השלמת טבלה):
+          // {
+          //   "instruction": "השלימו את הטבלה...",
+          //   "headers": ["עמודה 1", "עמודה 2"],
+          //   "rows": [
+          //     { "cells": [{ "value": "ערך", "editable": false }, { "value": "", "editable": true, "correctAnswer": "תשובה" }] }
+          //   ]
+          // }
+
+          // 13. TEXT_SELECTION (בחירה מטקסט):
+          // {
+          //   "instruction": "בחרו את המילים המתאימות...",
+          //   "text": "טקסט ארוך עם מילים לבחירה",
+          //   "selectableUnits": "word" | "sentence" | "paragraph",
+          //   "correctSelections": ["מילה1", "מילה2"],
+          //   "minSelections": 1,
+          //   "maxSelections": 3
+          // }
+
+          // 14. RATING_SCALE (סקאלת דירוג):
+          // {
+          //   "question": "דרגו את רמת ההסכמה שלכם...",
+          //   "minValue": 1,
+          //   "maxValue": 5,
+          //   "minLabel": "לא מסכים כלל",
+          //   "maxLabel": "מסכים מאוד",
+          //   "correctAnswer": 4,  // Optional - for questions with correct answer
+          //   "showNumbers": true
+          // }
+
+          // 15. MATRIX (מטריקס / טבלת שאלות):
+          // {
+          //   "instruction": "ענו על כל השאלות...",
+          //   "columns": ["נכון", "לא נכון", "לא ניתן לדעת"],
+          //   "rows": [
+          //     { "question": "שאלה 1", "correctAnswer": "נכון" },
+          //     { "question": "שאלה 2", "correctAnswer": "לא נכון" }
+          //   ]
+          // }
+       }
+    }
+"
+`;

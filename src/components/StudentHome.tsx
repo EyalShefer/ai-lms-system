@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useStudentContext } from '../context/StudentContext';
 import { useMyAssignments, type StudentAssignment } from '../hooks/useMyAssignments';
 import { formatDueDate } from '../services/taskAssignmentService';
 import { AIStarsSpinner } from './ui/Loading/AIStarsSpinner';
+import StudentBottomNav from './student/StudentBottomNav';
 import {
     IconFlame,
     IconDiamond,
@@ -10,13 +12,10 @@ import {
     IconCheck,
     IconStar,
     IconPlayerPlayFilled,
-    IconShoppingBag,
-    IconShieldLock,
     IconClock,
     IconAlertTriangle,
     IconSparkles,
     IconBell,
-    IconBook,
     IconClipboardCheck,
     IconTarget,
     IconChevronLeft,
@@ -24,31 +23,13 @@ import {
     IconX
 } from '@tabler/icons-react';
 
-// --- MOCK GAMIFICATION ENGINE (SIMULATION) ---
-const useGamification = () => {
-    return {
-        xp: 1450,
-        level: 12,
-        streak: {
-            current: 14,
-            isFrozen: false,
-            freezesAvailable: 2,
-            history: [true, true, false, true, true, true, true]
-        },
-        currency: {
-            gems: 450
-        },
-        league: {
-            name: 'Ruby League',
-            rank: 4,
-            isPromotionZone: true,
-            totalParticipants: 30
-        },
-        dailyGoal: {
-            targetXp: 50,
-            currentXp: 35
-        }
-    };
+// League tier display names
+const LEAGUE_NAMES: Record<string, string> = {
+    'BRONZE': 'ליגת ארד',
+    'SILVER': 'ליגת כסף',
+    'GOLD': 'ליגת זהב',
+    'PLATINUM': 'ליגת פלטינה',
+    'DIAMOND': 'ליגת יהלום'
 };
 
 interface StudentHomeProps {
@@ -257,10 +238,22 @@ const EmptyState: React.FC<{ type: 'no-tasks' | 'no-pending' | 'no-completed' }>
 const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlightCourseId }) => {
     const { currentUser } = useAuth();
     const { assignments, loading, error, newTasksCount } = useMyAssignments(currentUser?.uid);
-    const gameStats = useGamification();
+    const { gamificationProfile, isLoadingProfile } = useStudentContext();
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [selectedTask, setSelectedTask] = useState<StudentAssignment | null>(null);
     const [showStatsLegend, setShowStatsLegend] = useState(false);
+
+    // Derived gamification values with fallbacks
+    const streak = gamificationProfile?.currentStreak || 0;
+    const gems = gamificationProfile?.gems || 0;
+    const xp = gamificationProfile?.xp || 0;
+    const level = gamificationProfile?.level || 1;
+    const leagueTier = gamificationProfile?.leagueTier || 'BRONZE';
+    const leagueName = LEAGUE_NAMES[leagueTier] || 'ליגת ארד';
+    const leagueWeeklyXp = gamificationProfile?.leagueWeeklyXp || 0;
+    // Daily goal: 50 XP target, track today's progress via weeklyXp mod daily
+    const dailyTargetXp = 50;
+    const dailyCurrentXp = Math.min(leagueWeeklyXp % 100, dailyTargetXp); // Simple approximation
 
     // Combine all assignments based on filter
     const getFilteredTasks = () => {
@@ -303,7 +296,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
         <div className="min-h-screen pb-32 font-sans text-slate-900 overflow-x-hidden" dir="rtl">
 
             {/* --- TOP BAR (GAMIFICATION HUD) --- */}
-            <header className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-wizdi-cloud dark:border-slate-800 z-sticky" role="banner">
+            <header className="sticky top-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-wizdi-cloud dark:border-slate-800 z-sticky" role="banner">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     {/* Info Button */}
                     <button
@@ -317,36 +310,36 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                     {/* League */}
                     <button
                         className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-gold"
-                        aria-label={`ליגה: ${gameStats.league.name}, דירוג ${gameStats.league.rank} מתוך ${gameStats.league.totalParticipants}`}
+                        aria-label={`ליגה: ${leagueName}, ${leagueWeeklyXp} XP השבוע`}
                     >
                         <IconTrophy className="text-wizdi-gold fill-wizdi-gold w-6 h-6" aria-hidden="true" />
                         <div className="hidden sm:block text-right">
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">ליגה</div>
-                            <div className="text-sm font-bold text-wizdi-gold">{gameStats.league.name}</div>
+                            <div className="text-sm font-bold text-wizdi-gold">{leagueName}</div>
                         </div>
                     </button>
 
                     {/* Streak */}
                     <button
                         className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-                        aria-label={`רצף: ${gameStats.streak.current} ימים רצופים`}
+                        aria-label={`רצף: ${streak} ימים רצופים`}
                     >
                         <div className="relative">
-                            <IconFlame className="text-orange-500 fill-orange-500 w-6 h-6 animate-pulse motion-reduce:animate-none" aria-hidden="true" />
+                            <IconFlame className={`text-orange-500 fill-orange-500 w-6 h-6 ${streak > 0 ? 'animate-pulse motion-reduce:animate-none' : ''}`} aria-hidden="true" />
                             <div className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[9px] font-black px-1 rounded-full" aria-hidden="true">
-                                {gameStats.streak.current}
+                                {streak}
                             </div>
                         </div>
-                        <span className="hidden sm:block text-sm font-bold text-orange-600">{gameStats.streak.current} ימים</span>
+                        <span className="hidden sm:block text-sm font-bold text-orange-600">{streak} ימים</span>
                     </button>
 
                     {/* Gems */}
                     <button
                         className="flex items-center gap-2 hover:bg-wizdi-cloud dark:hover:bg-slate-800 p-2 min-h-[44px] rounded-xl cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan"
-                        aria-label={`${gameStats.currency.gems} יהלומים`}
+                        aria-label={`${gems} יהלומים`}
                     >
                         <IconDiamond className="text-wizdi-cyan fill-wizdi-cyan w-6 h-6" aria-hidden="true" />
-                        <span className="text-sm font-bold text-wizdi-cyan">{gameStats.currency.gems}</span>
+                        <span className="text-sm font-bold text-wizdi-cyan">{gems}</span>
                     </button>
 
                     {/* Notifications */}
@@ -484,16 +477,16 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                             <span className="font-bold text-wizdi-royal">מטרה יומית</span>
                         </div>
                         <span className="text-sm text-slate-500">
-                            {gameStats.dailyGoal.currentXp}/{gameStats.dailyGoal.targetXp} XP
+                            {dailyCurrentXp}/{dailyTargetXp} XP
                         </span>
                     </div>
                     <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-l from-wizdi-royal to-wizdi-cyan rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min((gameStats.dailyGoal.currentXp / gameStats.dailyGoal.targetXp) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((dailyCurrentXp / dailyTargetXp) * 100, 100)}%` }}
                         />
                     </div>
-                    {gameStats.dailyGoal.currentXp >= gameStats.dailyGoal.targetXp && (
+                    {dailyCurrentXp >= dailyTargetXp && (
                         <div className="mt-2 text-center text-wizdi-lime font-medium text-sm flex items-center justify-center gap-1">
                             <IconCheck size={16} /> השגת את המטרה היומית!
                         </div>
@@ -700,31 +693,8 @@ const StudentHome: React.FC<StudentHomeProps> = ({ onSelectAssignment, highlight
                 </div>
             )}
 
-            {/* --- BOTTOM NAV (Mobile) --- */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-wizdi-cloud dark:border-slate-800 p-4 pb-6 flex justify-around md:hidden z-fixed" role="navigation" aria-label="ניווט ראשי">
-                <button
-                    className="flex flex-col items-center gap-1 text-wizdi-royal min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
-                    aria-current="page"
-                    aria-label="משימות - עמוד נוכחי"
-                >
-                    <IconBook className="w-6 h-6" aria-hidden="true" />
-                    <span className="text-[10px] font-bold">משימות</span>
-                </button>
-                <button
-                    className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-wizdi-royal dark:hover:text-wizdi-cyan min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
-                    aria-label="חנות"
-                >
-                    <IconShoppingBag className="w-6 h-6" aria-hidden="true" />
-                    <span className="text-[10px] font-bold">חנות</span>
-                </button>
-                <button
-                    className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-wizdi-royal dark:hover:text-wizdi-cyan min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-royal rounded-lg p-1"
-                    aria-label="פרופיל"
-                >
-                    <IconShieldLock className="w-6 h-6" aria-hidden="true" />
-                    <span className="text-[10px] font-bold">פרופיל</span>
-                </button>
-            </nav>
+            {/* --- BOTTOM NAV (Duolingo-style) --- */}
+            <StudentBottomNav variant="dashboard" newTasksCount={newTasksCount} />
 
         </div>
     );

@@ -26,6 +26,7 @@ export interface StudentAnalytics {
     avatar: string;
     email?: string;
     mastery: Record<string, number>; // Topic -> 0.0-1.0
+    courseMastery?: number; // Course-specific mastery (0.0-1.0) when viewing a specific course
     lastActive: string;
     riskLevel: 'low' | 'medium' | 'high';
     journey: JourneyNode[];
@@ -36,6 +37,8 @@ export interface StudentAnalytics {
         hintDependency: number;
     };
     errorPatterns?: Record<string, number>;
+    isSimulated?: boolean; // True if this is a simulated student from testing
+    simulationProfile?: 'struggling' | 'average' | 'advanced'; // Simulation student type
 }
 
 export interface JourneyNode {
@@ -123,10 +126,115 @@ const sessionsToJourney = (sessions: any[]): JourneyNode[] => {
 };
 
 /**
+ * Enrich journey nodes with adaptive event data (variants, scaffolding)
+ *
+ * This bridges the gap between session data (which lacks scaffolding info)
+ * and adaptive events (which have detailed scaffolding decisions).
+ */
+const enrichJourneyWithAdaptiveEvents = async (
+    userId: string,
+    journey: JourneyNode[]
+): Promise<JourneyNode[]> => {
+    if (journey.length === 0) {
+        return journey;
+    }
+
+    try {
+        // 1. Get recent adaptive events
+        const eventsRef = collection(db, 'users', userId, 'adaptive_events');
+        const eventsQuery = query(
+            eventsRef,
+            orderBy('timestamp', 'desc'),
+            limit(200) // Get enough events to cover the journey
+        );
+        const eventsSnap = await getDocs(eventsQuery);
+
+        if (eventsSnap.empty) {
+            console.log(`No adaptive events found for user ${userId}`);
+            return journey;
+        }
+
+        const events = eventsSnap.docs.map(doc => doc.data());
+
+        // 2. Build mapping: blockId -> variant info
+        const variantMap: Record<string, 'הבנה' | 'יישום' | 'העמקה'> = {};
+        const scaffoldingMap: Record<string, {
+            offered: boolean;
+            accepted?: boolean;
+            declined?: boolean;
+        }> = {};
+
+        events.forEach((event: any) => {
+            const blockId = event.blockId;
+            if (!blockId) return;
+
+            // Map variant selections
+            if (event.type === 'variant_selected') {
+                variantMap[blockId] = event.data?.variantType;
+            }
+
+            // Map scaffolding offers
+            if (event.type === 'scaffolding_offered') {
+                scaffoldingMap[blockId] = { offered: true };
+            }
+
+            // Map scaffolding acceptances
+            if (event.type === 'scaffolding_accepted') {
+                scaffoldingMap[blockId] = {
+                    offered: true,
+                    accepted: true,
+                    declined: false
+                };
+                // Also record the variant that was used
+                if (event.data?.scaffoldingVariantType) {
+                    variantMap[blockId] = event.data.scaffoldingVariantType;
+                }
+            }
+
+            // Map scaffolding declines
+            if (event.type === 'scaffolding_declined') {
+                scaffoldingMap[blockId] = {
+                    offered: true,
+                    accepted: false,
+                    declined: true
+                };
+            }
+        });
+
+        // 3. Enrich journey nodes with the mapped data
+        const enrichedJourney = journey.map(node => {
+            const blockId = node.blockId;
+            if (!blockId) return node;
+
+            return {
+                ...node,
+                variantUsed: variantMap[blockId] || node.variantUsed,
+                metadata: {
+                    ...node.metadata,
+                    scaffoldingOffered: scaffoldingMap[blockId]?.offered || false,
+                    scaffoldingAccepted: scaffoldingMap[blockId]?.accepted,
+                    scaffoldingDeclined: scaffoldingMap[blockId]?.declined
+                }
+            };
+        });
+
+        console.log(`📊 Enriched ${enrichedJourney.length} journey nodes with adaptive events for user ${userId}`);
+        return enrichedJourney;
+
+    } catch (error) {
+        console.error('Error enriching journey with adaptive events:', error);
+        // Return original journey on error
+        return journey;
+    }
+};
+
+/**
  * Get analytics for all students enrolled in a course
  */
 export const getCourseAnalytics = async (courseId: string): Promise<StudentAnalytics[]> => {
     try {
+        console.log('🔍 [getCourseAnalytics] Querying enrollments for courseId:', courseId);
+
         // 1. Get all enrollments for this course
         const enrollmentsRef = collection(db, 'enrollments');
         const enrollmentsQuery = query(
@@ -135,16 +243,21 @@ export const getCourseAnalytics = async (courseId: string): Promise<StudentAnaly
         );
         const enrollmentsSnap = await getDocs(enrollmentsQuery);
 
+        console.log('📊 [getCourseAnalytics] Enrollments found:', enrollmentsSnap.size);
+
         if (enrollmentsSnap.empty) {
-            console.log(`No enrollments found for course ${courseId}`);
+            console.log(`❌ No enrollments found for course ${courseId}`);
             return [];
         }
 
         const studentIds = enrollmentsSnap.docs.map(doc => doc.data().studentId);
+        console.log('👥 [getCourseAnalytics] Student IDs from enrollments:', studentIds);
 
         // 2. Fetch data for each student in parallel
         const analyticsPromises = studentIds.map(studentId => getStudentAnalytics(studentId, courseId));
         const results = await Promise.all(analyticsPromises);
+
+        console.log('✅ [getCourseAnalytics] Analytics fetched for', results.filter(r => r !== null).length, 'students');
 
         // Filter out null results
         return results.filter((r): r is StudentAnalytics => r !== null);
@@ -180,8 +293,8 @@ export const getStudentAnalytics = async (
         const statsSnap = await getDoc(statsRef);
         const stats = statsSnap.exists() ? statsSnap.data() : null;
 
-        // 3. Get proficiency vector
-        const proficiencyRef = doc(db, 'users', studentId, 'profile', 'proficiency_vector');
+        // 3. Get proficiency
+        const proficiencyRef = doc(db, 'users', studentId, 'profile', 'proficiency');
         const proficiencySnap = await getDoc(proficiencyRef);
         const proficiency = proficiencySnap.exists() ? proficiencySnap.data() : null;
 
@@ -191,35 +304,109 @@ export const getStudentAnalytics = async (
         const errorFingerprint = errorSnap.exists() ? errorSnap.data() : null;
 
         // 5. Get recent sessions (for journey trace)
-        const sessionsRef = collection(db, 'users', studentId, 'sessions');
-        let sessionsQuery = query(sessionsRef, orderBy('startTime', 'desc'), limit(20));
+        // Sessions are stored in top-level 'sessions' collection with userId field
+        const sessionsRef = collection(db, 'sessions');
 
-        // If courseId provided, filter by it
-        if (courseId) {
-            sessionsQuery = query(
-                sessionsRef,
-                where('courseId', '==', courseId),
-                orderBy('startTime', 'desc'),
-                limit(20)
-            );
-        }
+        // Simple query with userId only (no orderBy to avoid index requirement)
+        // Sort and filter client-side
+        const sessionsQuery = query(
+            sessionsRef,
+            where('userId', '==', studentId)
+        );
 
         const sessionsSnap = await getDocs(sessionsQuery);
-        const sessions = sessionsSnap.docs.map(doc => doc.data());
+        let sessions = sessionsSnap.docs.map(doc => ({
+            ...doc.data(),
+            // Convert startedAt to startTime for compatibility
+            startTime: doc.data().startedAt?.toMillis?.() || Date.now()
+        }));
+
+        // Client-side filter by courseId if provided
+        if (courseId) {
+            sessions = sessions.filter(s => s.courseId === courseId);
+            console.log(`📊 [getStudentAnalytics] Filtered to ${sessions.length} sessions for courseId ${courseId}`);
+        }
+
+        // Client-side sort by startedAt (newest first)
+        sessions.sort((a, b) => {
+            const aTime = a.startedAt?.toMillis?.() || 0;
+            const bTime = b.startedAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        });
+
+        // Limit to 20 most recent
+        sessions = sessions.slice(0, 20);
 
         // 6. Calculate derived metrics
         const mastery = proficiency?.topics || {};
-        const avgMastery = Object.values(mastery).length > 0
-            ? Object.values(mastery as Record<string, number>).reduce((a, b) => a + b, 0) / Object.values(mastery).length
-            : 0.5;
 
-        const accuracy = stats?.performance?.global_accuracy_rate || 0.5;
-        const hintDependency = stats?.behavioral?.hint_dependency_score || 0;
+        // If courseId is provided, use course-specific mastery and accuracy
+        // Otherwise, use global values
+        let avgMastery: number;
+        let accuracy: number;
+
+        let totalQuestionsAttempted: number;
+        let avgResponseTimeSec: number;
+        let hintDependency: number;
+
+        if (courseId && sessions.length > 0) {
+            // Course-specific mastery from proficiency
+            avgMastery = mastery[courseId] || 0;
+
+            // Course-specific accuracy from sessions
+            totalQuestionsAttempted = sessions.reduce((sum, s) => sum + (s.totalQuestions || 0), 0);
+            const correctAnswers = sessions.reduce((sum, s) => sum + (s.correctAnswers || 0), 0);
+            accuracy = totalQuestionsAttempted > 0 ? correctAnswers / totalQuestionsAttempted : 0;
+
+            // Course-specific average response time
+            const totalInteractions = sessions.reduce((sum, s) => sum + (s.interactions?.length || 0), 0);
+            const totalTime = sessions.reduce((sum, s) => {
+                const sessionTime = s.interactions?.reduce((t: number, i: any) => t + (i.timeSpentSec || 0), 0) || 0;
+                return sum + sessionTime;
+            }, 0);
+            avgResponseTimeSec = totalInteractions > 0 ? totalTime / totalInteractions : 0;
+
+            // Course-specific hint dependency
+            const totalHintsUsed = sessions.reduce((sum, s) => {
+                const sessionHints = s.interactions?.reduce((h: number, i: any) => h + (i.hintsUsed || 0), 0) || 0;
+                return sum + sessionHints;
+            }, 0);
+            hintDependency = totalQuestionsAttempted > 0 ? totalHintsUsed / totalQuestionsAttempted : 0;
+
+            console.log(`📊 [getStudentAnalytics] Course-specific metrics for ${courseId}:`, {
+                mastery: (avgMastery * 100).toFixed(1) + '%',
+                accuracy: (accuracy * 100).toFixed(1) + '%',
+                correctAnswers,
+                totalQuestions: totalQuestionsAttempted,
+                avgResponseTime: avgResponseTimeSec.toFixed(1) + 's',
+                hintDependency: (hintDependency * 100).toFixed(1) + '%'
+            });
+        } else {
+            // Global metrics (average across all courses)
+            avgMastery = Object.values(mastery).length > 0
+                ? Object.values(mastery as Record<string, number>).reduce((a, b) => a + b, 0) / Object.values(mastery).length
+                : 0.5;
+            accuracy = stats?.performance?.global_accuracy_rate || 0.5;
+            totalQuestionsAttempted = stats?.performance?.total_questions_attempted || 0;
+            avgResponseTimeSec = stats?.performance?.average_response_time_sec || 0;
+            hintDependency = stats?.behavioral?.hint_dependency_score || 0;
+        }
 
         const riskLevel = calculateRiskLevel(accuracy, hintDependency, avgMastery);
 
+        console.log(`🎯 [getStudentAnalytics] Risk calculation for ${studentId}:`, {
+            accuracy: (accuracy * 100).toFixed(1) + '%',
+            hintDependency: (hintDependency * 100).toFixed(1) + '%',
+            avgMastery: (avgMastery * 100).toFixed(1) + '%',
+            riskLevel,
+            courseId: courseId || 'none'
+        });
+
         // 7. Build journey from sessions
         const journey = sessionsToJourney(sessions);
+
+        // 7.5. Enrich journey with adaptive events (variants, scaffolding)
+        const enrichedJourney = await enrichJourneyWithAdaptiveEvents(studentId, journey);
 
         // 8. Construct analytics object
         return {
@@ -228,18 +415,21 @@ export const getStudentAnalytics = async (
             email: userData.email,
             avatar: userData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${studentId}`,
             mastery: mastery as Record<string, number>,
+            courseMastery: courseId ? avgMastery : undefined, // Course-specific mastery when viewing a specific course
             lastActive: stats?.engagement?.last_active_at?.toDate?.()?.toISOString() ||
                 userData.lastLogin?.toDate?.()?.toISOString() ||
                 new Date().toISOString(),
             riskLevel,
-            journey,
+            journey: enrichedJourney,
             performance: {
                 accuracy,
-                avgResponseTime: stats?.performance?.average_response_time_sec || 0,
-                totalQuestions: stats?.performance?.total_questions_attempted || 0,
+                avgResponseTime: avgResponseTimeSec,
+                totalQuestions: totalQuestionsAttempted,
                 hintDependency
             },
-            errorPatterns: errorFingerprint?.errorTags || {}
+            errorPatterns: errorFingerprint?.errorTags || {},
+            isSimulated: userData.isSimulated || false,
+            simulationProfile: userData.simulationProfile
         };
 
     } catch (error) {
@@ -477,13 +667,14 @@ export const getMockCourseAnalytics = async (_courseId: string): Promise<Student
  * Smart analytics getter - uses real data if available, falls back to mock
  */
 export const getSmartCourseAnalytics = async (courseId: string): Promise<StudentAnalytics[]> => {
+    console.log('🎯 [getSmartCourseAnalytics] Starting for courseId:', courseId);
     const realData = await getCourseAnalytics(courseId);
 
     if (realData.length > 0) {
-        console.log(`📊 Loaded ${realData.length} real students for course ${courseId}`);
+        console.log(`✅ [getSmartCourseAnalytics] Loaded ${realData.length} real students for course ${courseId}`);
         return realData;
     }
 
-    console.log(`📊 No real data found, using mock data for course ${courseId}`);
+    console.warn(`⚠️ [getSmartCourseAnalytics] No real data found, using mock data for course ${courseId}`);
     return getMockCourseAnalytics(courseId);
 };

@@ -375,6 +375,73 @@ export const StudentMistakesPanel: React.FC<StudentMistakesPanelProps> = ({
                     return;
                 }
 
+                // Check if this is a simulated student - fetch from sessions instead
+                if (studentId.startsWith('sim_')) {
+                    const sessionsQuery = query(
+                        collection(db, 'sessions'),
+                        where('userId', '==', studentId),
+                        where('courseId', '==', courseId)
+                    );
+                    const sessionsSnap = await getDocs(sessionsQuery);
+
+                    if (!sessionsSnap.empty) {
+                        const sessionData = sessionsSnap.docs[0].data();
+                        const interactions = sessionData.interactions || [];
+
+                        // Fetch course blocks to get question text
+                        const unitsSnap = await getDocs(collection(db, 'courses', courseId, 'units'));
+                        const blockMap: Record<string, any> = {};
+                        let blockIndex = 0;
+                        unitsSnap.docs.forEach(unitDoc => {
+                            const unitData = unitDoc.data();
+                            unitData.activityBlocks?.forEach((block: any) => {
+                                const blockId = block.id || `block_${blockIndex}`;
+                                blockMap[blockId] = {
+                                    ...block,
+                                    index: blockIndex + 1
+                                };
+                                blockIndex++;
+                            });
+                        });
+
+                        // Get mistakes from incorrect interactions
+                        const simMistakes: MistakeData[] = interactions
+                            .filter((i: any) => !i.isCorrect)
+                            .map((i: any, idx: number) => {
+                                const block = blockMap[i.blockId];
+                                const questionText = block
+                                    ? extractQuestionText(block) || `שאלה ${block.index}`
+                                    : `שאלה ${idx + 1}`;
+                                const questionType = block?.type || i.type || 'unknown';
+
+                                return {
+                                    blockId: i.blockId,
+                                    questionText,
+                                    questionType,
+                                    studentAnswer: 'תשובה שגויה',
+                                    correctAnswer: block ? extractCorrectAnswer(block) : 'התשובה הנכונה',
+                                    errorTag: i.variantUsed || undefined
+                                };
+                            });
+
+                        setMistakes(simMistakes);
+                        const correctCount = interactions.filter((i: any) => i.isCorrect).length;
+                        if (simMistakes.length > 0) {
+                            setSummary(`התלמיד טעה ב-${simMistakes.length} שאלות מתוך ${interactions.length}`);
+                        } else {
+                            setSummary(`🌟 מצוין! התלמיד ענה נכון על כל ${correctCount} השאלות`);
+                        }
+                        setLoading(false);
+                        return;
+                    }
+
+                    // No sessions - show empty state
+                    setMistakes([]);
+                    setSummary('אין נתוני סימולציה זמינים');
+                    setLoading(false);
+                    return;
+                }
+
                 // 1. Fetch the course to get question blocks
                 const courseDoc = await getDoc(doc(db, 'courses', courseId));
                 if (!courseDoc.exists()) {
@@ -404,14 +471,25 @@ export const StudentMistakesPanel: React.FC<StudentMistakesPanelProps> = ({
                 });
 
                 // 2. Fetch student's submission
-                const submissionsQuery = query(
-                    collection(db, 'submissions'),
-                    where('courseId', '==', courseId),
-                    orderBy('submittedAt', 'desc'),
-                    firestoreLimit(10)
-                );
-
-                const submissionsSnap = await getDocs(submissionsQuery);
+                let submissionsSnap;
+                try {
+                    const submissionsQuery = query(
+                        collection(db, 'submissions'),
+                        where('courseId', '==', courseId),
+                        orderBy('submittedAt', 'desc'),
+                        firestoreLimit(10)
+                    );
+                    submissionsSnap = await getDocs(submissionsQuery);
+                } catch (indexError) {
+                    // Fallback if index doesn't exist
+                    console.warn('[StudentMistakesPanel] Index error, using simpler query:', indexError);
+                    const simpleQuery = query(
+                        collection(db, 'submissions'),
+                        where('courseId', '==', courseId),
+                        firestoreLimit(10)
+                    );
+                    submissionsSnap = await getDocs(simpleQuery);
+                }
 
                 // Find submission for this student (by name or ID in data)
                 let studentSubmission: any = null;
@@ -612,13 +690,24 @@ export const StudentMistakesPanel: React.FC<StudentMistakesPanelProps> = ({
     }
 
     if (mistakes.length === 0) {
+        // Check if this is a "no mistakes" success case vs "no data" case
+        const isSuccess = summary?.includes('מצוין') || summary?.includes('נכון על כל');
+
         return (
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 text-center">
-                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <IconBulb className="w-6 h-6 text-slate-400" />
+            <div className={`rounded-2xl p-6 border text-center ${isSuccess ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${isSuccess ? 'bg-green-100' : 'bg-slate-100'}`}>
+                    {isSuccess ? (
+                        <IconCheck className="w-6 h-6 text-green-600" />
+                    ) : (
+                        <IconBulb className="w-6 h-6 text-slate-400" />
+                    )}
                 </div>
-                <h4 className="font-bold text-slate-600 mb-1">אין נתוני טעויות</h4>
-                <p className="text-slate-500 text-sm">התלמיד עדיין לא הגיש את המשימה, או שאין נתונים זמינים</p>
+                <h4 className={`font-bold mb-1 ${isSuccess ? 'text-green-700' : 'text-slate-600'}`}>
+                    {isSuccess ? 'עבודה מצוינת!' : 'אין נתוני טעויות'}
+                </h4>
+                <p className={`text-sm ${isSuccess ? 'text-green-600' : 'text-slate-500'}`}>
+                    {summary || 'התלמיד עדיין לא הגיש את המשימה, או שאין נתונים זמינים'}
+                </p>
             </div>
         );
     }

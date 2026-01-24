@@ -63,13 +63,15 @@ export const QUALITY_SOURCES = [
 
 /**
  * Fetch blog articles from Firestore
+ * Now reads from aiNews collection and maps to AIBlogArticle format
  */
 export async function getBlogArticles(limitCount: number = 5): Promise<AIBlogArticle[]> {
     try {
-        const blogRef = collection(db, 'aiBlog');
+        // Read from aiNews collection (populated by updateAINews)
+        const newsRef = collection(db, 'aiNews');
         const q = query(
-            blogRef,
-            orderBy('createdAt', 'desc'),
+            newsRef,
+            orderBy('fetchedAt', 'desc'),
             limit(limitCount)
         );
 
@@ -77,7 +79,25 @@ export async function getBlogArticles(limitCount: number = 5): Promise<AIBlogArt
         const articles: AIBlogArticle[] = [];
 
         snapshot.forEach(doc => {
-            articles.push({ id: doc.id, ...doc.data() } as AIBlogArticle);
+            const data = doc.data();
+            // Map aiNews structure to AIBlogArticle structure
+            articles.push({
+                id: doc.id,
+                title: data.hebrewTitle || data.originalTitle,
+                summary: data.hebrewSummary || data.originalSummary,
+                keyPoints: [], // Not available in aiNews
+                classroomTips: [], // Not available in aiNews
+                originalTitle: data.originalTitle,
+                originalUrl: data.sourceUrl,
+                sourceName: data.sourceName,
+                category: 'trend' as const,
+                categoryLabel: 'חדשות',
+                readingTime: 2,
+                publishedAt: data.publishedAt,
+                createdAt: data.fetchedAt,
+                viewCount: 0,
+                helpfulCount: 0
+            });
         });
 
         return articles;
@@ -89,13 +109,14 @@ export async function getBlogArticles(limitCount: number = 5): Promise<AIBlogArt
 
 /**
  * Get featured/latest article
+ * Now reads from aiNews collection
  */
 export async function getFeaturedArticle(): Promise<AIBlogArticle | null> {
     try {
-        const blogRef = collection(db, 'aiBlog');
+        const newsRef = collection(db, 'aiNews');
         const q = query(
-            blogRef,
-            orderBy('createdAt', 'desc'),
+            newsRef,
+            orderBy('fetchedAt', 'desc'),
             limit(1)
         );
 
@@ -103,8 +124,27 @@ export async function getFeaturedArticle(): Promise<AIBlogArticle | null> {
 
         if (snapshot.empty) return null;
 
-        const doc = snapshot.docs[0];
-        return { id: doc.id, ...doc.data() } as AIBlogArticle;
+        const docSnap = snapshot.docs[0];
+        const data = docSnap.data();
+
+        // Map aiNews structure to AIBlogArticle structure
+        return {
+            id: docSnap.id,
+            title: data.hebrewTitle || data.originalTitle,
+            summary: data.hebrewSummary || data.originalSummary,
+            keyPoints: [],
+            classroomTips: [],
+            originalTitle: data.originalTitle,
+            originalUrl: data.sourceUrl,
+            sourceName: data.sourceName,
+            category: 'trend' as const,
+            categoryLabel: 'חדשות',
+            readingTime: 2,
+            publishedAt: data.publishedAt,
+            createdAt: data.fetchedAt,
+            viewCount: 0,
+            helpfulCount: 0
+        };
     } catch (error) {
         console.error('Error fetching featured article:', error);
         return null;
@@ -180,6 +220,24 @@ export async function triggerBlogGeneration(forceRegenerate: boolean = false): P
         return result.data;
     } catch (error) {
         console.error('Error triggering blog generation:', error);
+        throw error;
+    }
+}
+
+/**
+ * Trigger manual AI news update (admin only)
+ * @param forceRegenerate - If true, deletes all existing news first
+ */
+export async function triggerNewsUpdate(forceRegenerate: boolean = false): Promise<{ success: boolean; addedCount: number }> {
+    try {
+        const triggerFunc = httpsCallable<{ forceRegenerate?: boolean }, { success: boolean; addedCount: number }>(
+            functions,
+            'triggerAINewsUpdate'
+        );
+        const result = await triggerFunc({ forceRegenerate });
+        return result.data;
+    } catch (error) {
+        console.error('Error triggering news update:', error);
         throw error;
     }
 }

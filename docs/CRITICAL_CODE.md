@@ -72,7 +72,7 @@ prompts.ts משפיע על:
 
 ### 📊 טסטים רלוונטיים
 
-- [functions/src/ai/__tests__/prompts.test.ts](../functions/src/ai/__tests__/prompts.test.ts)
+- [tests/backend/ai/prompts.test.ts](../tests/backend/ai/prompts.test.ts)
 
 **כיסוי נדרש:** 85%+
 
@@ -191,7 +191,7 @@ streamingServer.ts אחראי על:
 
 ### 📊 טסטים רלוונטיים
 
-- [functions/src/streaming/__tests__/streamingServer.test.ts](../functions/src/streaming/__tests__/streamingServer.test.ts) *(ייווצר)*
+- [tests/backend/streaming/streamingServer.test.ts](../tests/backend/streaming/streamingServer.test.ts)
 
 **כיסוי נדרש:** 80%+
 
@@ -290,7 +290,7 @@ CourseContext.tsx מנהל:
 
 ### 📊 טסטים רלוונטיים
 
-- [src/context/__tests__/CourseContext.test.tsx](../src/context/__tests__/CourseContext.test.tsx) *(ייווצר)*
+- [tests/frontend/context/CourseContext.test.tsx](../tests/frontend/context/CourseContext.test.tsx)
 
 **כיסוי נדרש:** 70%+
 

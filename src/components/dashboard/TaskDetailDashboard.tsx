@@ -53,6 +53,7 @@ import { AiAssistantBanner } from './AiAssistantBanner';
 import { StudentConversationPanel } from './StudentConversationPanel';
 import { GamingAlertPanel, GamingAlertBadge } from './GamingAlertPanel';
 import { StudentMistakesPanel } from './StudentMistakesPanel';
+import { ScaffoldingPatternsSummary } from './ScaffoldingPatternsSummary';
 
 // Bloom Analytics
 import {
@@ -135,7 +136,7 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
 
     if (!student.journey || student.journey.length === 0) {
         return (
-            <div className="bg-slate-50 rounded-2xl p-4 text-center text-slate-400 text-sm">
+            <div className="bento-card rounded-2xl p-4 text-center text-slate-400 text-sm">
                 אין נתוני מסלול עדיין
             </div>
         );
@@ -144,15 +145,17 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
     return (
         <>
             {/* Compact Summary Card */}
-            <div className="bg-gradient-to-l from-slate-50 to-white rounded-2xl p-5 border border-slate-200">
+            <div className="bento-card ai-glow rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                        <IconActivity className="w-5 h-5 text-indigo-600" />
-                        סיכום מסלול למידה
+                    <h4 className="font-bold flex items-center gap-2">
+                        <div className="ai-icon-container w-10 h-10">
+                            <IconActivity className="w-5 h-5 text-white" />
+                        </div>
+                        <span className="ai-gradient-text">סיכום מסלול למידה</span>
                     </h4>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline"
+                        className="ai-action-btn px-3 py-1.5 text-xs"
                     >
                         <IconEye size={14} />
                         צפה במסלול המלא
@@ -161,17 +164,17 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
 
                 {/* Stats Row */}
                 <div className="flex items-center justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl">
+                    <div className="flex items-center gap-1.5 bento-card bg-green-50 text-green-700 px-3 py-2 rounded-xl">
                         <IconCheck size={16} />
                         <span className="font-black text-lg">{stats.success}</span>
                         <span className="text-xs">הצלחות</span>
                     </div>
-                    <div className="flex items-center gap-1 bg-slate-100 text-slate-600 px-3 py-2 rounded-xl">
+                    <div className="flex items-center gap-1.5 bento-card bg-slate-100 text-slate-600 px-3 py-2 rounded-xl">
                         <IconX size={16} />
                         <span className="font-black text-lg">{stats.failure}</span>
                         <span className="text-xs">כישלונות</span>
                     </div>
-                    <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-2 rounded-xl">
+                    <div className="flex items-center gap-1.5 bento-card bg-amber-50 text-amber-700 px-3 py-2 rounded-xl">
                         <IconRefresh size={16} />
                         <span className="font-black text-lg">{stats.remediation}</span>
                         <span className="text-xs">חיזוק</span>
@@ -193,12 +196,12 @@ const JourneySummary: React.FC<{ student: StudentAnalytics }> = ({ student }) =>
 
                 {/* Starting Path - Simple display */}
                 {stats.startingPath && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="mt-3 pt-3 border-t border-slate-100/50 flex items-center justify-between">
                         <span className="text-xs text-slate-500">מסלול נוכחי:</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        <span className={`ai-pill ${
                             stats.startingPath === 'הבנה' ? 'bg-amber-100 text-amber-700' :
                             stats.startingPath === 'העמקה' ? 'bg-purple-100 text-purple-700' :
-                            'bg-slate-100 text-slate-600'
+                            ''
                         }`}>
                             {stats.startingPath === 'הבנה' ? 'הבנה' :
                              stats.startingPath === 'העמקה' ? 'העמקה' : 'יישום'}
@@ -437,14 +440,14 @@ const ClassAnalyticsOverview: React.FC<{
     if (!classStats) return null;
 
     return (
-        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
+        <div className="bento-card bento-featured ai-glow rounded-3xl overflow-hidden mb-8">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-wizdi-royal/5 to-white">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-700">
                 <h2 className="text-xl font-bold flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className="ai-icon-container w-12 h-12">
                         <IconChartBar className="w-6 h-6 text-white" />
                     </div>
-                    תובנות כיתתיות - מבט על
+                    <span className="ai-gradient-text">תובנות כיתתיות - מבט על</span>
                     <span className="text-sm font-normal text-slate-400 mr-auto">({classStats.total} תלמידים)</span>
                 </h2>
             </div>
@@ -733,27 +736,27 @@ const StudentListPanel: React.FC<{
 
     if (students.length === 0) {
         return (
-            <div className="bg-white border border-slate-200 rounded-[32px] p-6 shadow-sm text-center text-slate-400">
+            <div className="bento-card p-6 text-center text-slate-400">
                 אין נתוני תלמידים
             </div>
         );
     }
 
     return (
-        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 rounded-3xl shadow-sm overflow-hidden h-full">
+        <div className="bento-card ai-glow rounded-3xl overflow-hidden h-full !hover:transform-none" style={{ transform: 'none' }}>
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-wizdi-royal/5 to-white">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-700">
                 <h2 className="text-xl font-bold flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className="ai-icon-container w-12 h-12">
                         <IconUsers className="w-6 h-6 text-white" />
                     </div>
-                    רשימת תלמידים
+                    <span className="ai-gradient-text">רשימת תלמידים</span>
                     <span className="text-sm font-normal text-slate-400">({students.length})</span>
                 </h2>
             </div>
 
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 px-5 py-3 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+            <div className="grid grid-cols-12 gap-2 px-5 py-3 mx-4 mt-4 mb-1 bg-slate-100/50 text-xs font-bold text-slate-500 uppercase tracking-wider rounded-xl">
                 <div className="col-span-3">תלמיד/ה</div>
                 <div className="col-span-2 text-center">ציון</div>
                 <div className="col-span-2 text-center">סטטוס</div>
@@ -762,13 +765,16 @@ const StudentListPanel: React.FC<{
                 <div className="col-span-1 text-center">התראות</div>
             </div>
 
-            {/* Student List - Scrollable */}
-            <div className="max-h-[600px] overflow-y-auto">
+            {/* Student List - Scrollable with card separation */}
+            <div className="max-h-[600px] overflow-y-auto relative z-10 p-4 space-y-3">
                 {students.map(s => {
                     const level = getLevelLabel(s.riskLevel);
-                    const avgMastery = Object.values(s.mastery || {}).length > 0
-                        ? Math.round((Object.values(s.mastery).reduce((a, b) => a + b, 0) / Object.values(s.mastery).length) * 100)
-                        : 0;
+                    // Use course-specific mastery if available, otherwise calculate average across all courses
+                    const avgMastery = s.courseMastery !== undefined
+                        ? Math.round(s.courseMastery * 100)
+                        : (Object.values(s.mastery || {}).length > 0
+                            ? Math.round((Object.values(s.mastery).reduce((a, b) => a + b, 0) / Object.values(s.mastery).length) * 100)
+                            : 0);
                     const accuracy = Math.round((s.performance?.accuracy || 0) * 100);
 
                     // Calculate submission status
@@ -799,11 +805,18 @@ const StudentListPanel: React.FC<{
                     return (
                         <div
                             key={s.id}
-                            onClick={() => onSelectStudent(s.id)}
-                            className={`grid grid-cols-12 gap-2 px-5 py-4 items-center cursor-pointer transition-all border-b border-slate-50
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectStudent(s.id);
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectStudent(s.id); }}
+                            style={{ cursor: 'pointer', position: 'relative', zIndex: 10 }}
+                            className={`grid grid-cols-12 gap-2 px-5 py-4 items-center transition-all select-none rounded-2xl border [&>*]:pointer-events-none
                                 ${selectedStudentId === s.id
-                                    ? 'bg-wizdi-royal/5 border-r-4 border-r-wizdi-royal'
-                                    : 'hover:bg-slate-50'}
+                                    ? 'bg-wizdi-royal/5 border-wizdi-royal/30 shadow-md shadow-wizdi-royal/10 ring-2 ring-wizdi-royal/20'
+                                    : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 hover:shadow-sm active:bg-slate-100'}
                             `}
                         >
                             {/* Student Info */}
@@ -825,10 +838,10 @@ const StudentListPanel: React.FC<{
 
                             {/* Score */}
                             <div className="col-span-2 text-center">
-                                <div className={`text-lg font-black ${avgMastery >= 70 ? 'text-wizdi-royal' : 'text-slate-600'}`}>
-                                    {avgMastery}%
+                                <div className={`text-lg font-black ${accuracy >= 70 ? 'text-wizdi-royal' : 'text-slate-600'}`}>
+                                    {accuracy}%
                                 </div>
-                                <div className="text-[10px] text-slate-400">ממוצע</div>
+                                <div className="text-[10px] text-slate-400">דיוק</div>
                             </div>
 
                             {/* Submission Status */}
@@ -853,12 +866,12 @@ const StudentListPanel: React.FC<{
                             </div>
 
                             {/* Motivation */}
-                            <div className="col-span-2 text-center">
+                            <div className="col-span-2 text-center pointer-events-none">
                                 <MotivationBadge student={s} />
                             </div>
 
                             {/* Gaming Alerts */}
-                            <div className="col-span-1 text-center">
+                            <div className="col-span-1 text-center pointer-events-none">
                                 {s.performance?.avgResponseTime && s.performance.avgResponseTime < 5 && accuracy < 50 ? (
                                     <GamingAlertBadge
                                         analysis={{
@@ -879,19 +892,19 @@ const StudentListPanel: React.FC<{
             </div>
 
             {/* Footer Summary */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100">
+            <div className="p-4 mx-4 mb-4 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-xl">
                 <div className="flex justify-between text-xs text-slate-500">
-                    <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1"></span>
-                        מתקשים: {students.filter(s => s.riskLevel === 'high').length}
+                    <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        מתקשים: <strong className="text-amber-600">{students.filter(s => s.riskLevel === 'high').length}</strong>
                     </span>
-                    <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1"></span>
-                        יישום: {students.filter(s => s.riskLevel === 'medium').length}
+                    <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        יישום: <strong className="text-slate-600">{students.filter(s => s.riskLevel === 'medium').length}</strong>
                     </span>
-                    <span>
-                        <span className="inline-block w-2 h-2 rounded-full bg-wizdi-action mr-1"></span>
-                        מתקדמים: {students.filter(s => s.riskLevel === 'low').length}
+                    <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-wizdi-action"></span>
+                        מתקדמים: <strong className="text-wizdi-action">{students.filter(s => s.riskLevel === 'low').length}</strong>
                     </span>
                 </div>
             </div>
@@ -915,10 +928,14 @@ const StudentDetailPanel: React.FC<{
     classBloomAverage?: Record<BloomLevel, number>;
 }> = ({ student, courseId, courseTitle, onCreateRemediation, onGradeOverride, onBack, onPrevStudent, onNextStudent, currentIndex, totalStudents, bloomProfile, classBloomAverage }) => {
     const avgMastery = useMemo(() => {
+        // Use course-specific mastery if available, otherwise calculate average across all courses
+        if (student.courseMastery !== undefined) {
+            return Math.round(student.courseMastery * 100);
+        }
         const values = Object.values(student.mastery || {});
         if (values.length === 0) return 0;
         return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100);
-    }, [student.mastery]);
+    }, [student.mastery, student.courseMastery]);
 
     const getActionConfig = () => {
         if (student.riskLevel === 'high') {
@@ -949,7 +966,7 @@ const StudentDetailPanel: React.FC<{
     return (
         <div className="animate-in fade-in duration-300">
             {/* Navigation Bar */}
-            <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-2xl border border-slate-200/80 shadow-sm p-4 mb-6 flex items-center justify-between">
+            <div className="bento-card rounded-2xl p-4 mb-6 flex items-center justify-between">
                 <button
                     onClick={onBack}
                     className="flex items-center gap-2 text-slate-600 hover:text-wizdi-royal font-bold transition-colors"
@@ -959,7 +976,7 @@ const StudentDetailPanel: React.FC<{
                 </button>
 
                 <div className="flex items-center gap-4">
-                    <span className="text-sm text-slate-500">
+                    <span className="ai-pill">
                         תלמיד {currentIndex + 1} מתוך {totalStudents}
                     </span>
                     <div className="flex items-center gap-2">
@@ -988,31 +1005,38 @@ const StudentDetailPanel: React.FC<{
                 {/* Left Column - Student Info & Actions */}
                 <div className="lg:col-span-1 space-y-6">
                     {/* Student Profile Card */}
-                    <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-6 border border-slate-200/80 shadow-sm">
+                    <div className="bento-card bento-featured ai-glow rounded-3xl p-6">
                         <div className="text-center mb-6">
-                            <img src={student.avatar} alt={student.name} className="w-24 h-24 rounded-3xl border-4 border-white shadow-lg mx-auto" loading="lazy" decoding="async" />
-                            <h2 className="text-2xl font-black text-slate-800 mt-4">{student.name}</h2>
+                            <div className="relative inline-block">
+                                <img src={student.avatar} alt={student.name} className="w-24 h-24 rounded-3xl border-4 border-white shadow-lg" loading="lazy" decoding="async" />
+                                <div className="absolute -bottom-1 -right-1 ai-icon-container w-8 h-8">
+                                    <IconUsers className="w-4 h-4 text-white" />
+                                </div>
+                            </div>
+                            <h2 className="text-2xl font-black mt-4">
+                                <span className="ai-gradient-text">{student.name}</span>
+                            </h2>
                             <div className="text-sm text-slate-500 mt-1">
                                 פעילות אחרונה: {new Date(student.lastActive).toLocaleTimeString('he-IL')}
                             </div>
-                            <div className="text-xs text-wizdi-royal font-mono bg-wizdi-royal/10 px-2 py-1 rounded-lg inline-block mt-2">
+                            <span className="ai-pill mt-2">
                                 ID: {student.id.substring(0, 12)}
-                            </div>
+                            </span>
                         </div>
 
                         {/* Score */}
-                        <div className="bg-gradient-to-br from-wizdi-royal/10 to-wizdi-cyan/10 p-5 rounded-2xl border border-wizdi-royal/20 text-center mb-4">
-                            <div className="text-4xl font-black font-mono text-wizdi-royal">
+                        <div className="bento-card bg-gradient-to-br from-wizdi-royal/10 to-wizdi-cyan/10 p-5 rounded-2xl text-center mb-4">
+                            <div className="text-4xl font-black font-mono ai-gradient-text">
                                 {avgMastery}%
                             </div>
-                            <div className="text-wizdi-royal/70 uppercase font-bold text-xs tracking-wider mt-1">שליטה ממוצעת</div>
+                            <div className="text-slate-500 uppercase font-bold text-xs tracking-wider mt-1">שליטה ממוצעת</div>
                         </div>
 
                         {/* Actions */}
                         <div className="space-y-2">
                             <button
                                 onClick={() => onCreateRemediation(actionConfig.type)}
-                                className={`w-full py-3 px-4 rounded-xl font-bold text-sm border flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm ${actionConfig.color}`}
+                                className="ai-action-btn w-full py-3 px-4 text-sm"
                             >
                                 {actionConfig.icon}
                                 {actionConfig.label}
@@ -1021,7 +1045,7 @@ const StudentDetailPanel: React.FC<{
                             {onGradeOverride && (
                                 <button
                                     onClick={onGradeOverride}
-                                    className="w-full py-2.5 px-4 rounded-xl font-bold text-sm border border-slate-200 bg-slate-50 text-slate-600 flex items-center justify-center gap-2 hover:bg-slate-100 transition-colors"
+                                    className="w-full py-2.5 px-4 rounded-xl font-bold text-sm border border-slate-200 bg-white text-slate-600 flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors"
                                 >
                                     <IconEdit className="w-4 h-4" />
                                     עדכן ציון ידנית
@@ -1042,10 +1066,12 @@ const StudentDetailPanel: React.FC<{
                             compact={false}
                         />
                     ) : (
-                        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+                        <div className="bento-card rounded-2xl p-4">
                             <h4 className="text-slate-700 font-bold mb-2 flex items-center gap-2 text-sm">
-                                <IconBrain className="w-4 h-4 text-purple-500" />
-                                רמות בלום
+                                <div className="ai-icon-container w-8 h-8">
+                                    <IconBrain className="w-4 h-4 text-white" />
+                                </div>
+                                <span className="ai-gradient-text">רמות בלום</span>
                             </h4>
                             <p className="text-xs text-slate-400">אין נתונים זמינים</p>
                         </div>
@@ -1058,8 +1084,11 @@ const StudentDetailPanel: React.FC<{
                         studentName={student.name}
                     />
 
+                    {/* Row 2.5: Scaffolding Patterns Summary */}
+                    <ScaffoldingPatternsSummary userId={student.id} />
+
                     {/* Row 3: Journey Summary - Full width */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bento-card rounded-2xl overflow-hidden">
                         <div className="p-4">
                             <JourneySummary student={student} />
                         </div>
@@ -1103,14 +1132,20 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
     useEffect(() => {
         const fetchData = async () => {
             try {
+                console.log('🎯 [TaskDetailDashboard] Starting fetch for courseId:', courseId);
+
                 // Fetch course
                 const courseDoc = await getDoc(doc(db, 'courses', courseId));
                 if (courseDoc.exists()) {
-                    setCourse({ id: courseDoc.id, ...courseDoc.data() } as Course);
+                    const courseData = { id: courseDoc.id, ...courseDoc.data() } as Course;
+                    console.log('📚 [TaskDetailDashboard] Course loaded:', courseData.title);
+                    setCourse(courseData);
                 }
 
                 // Fetch student analytics
+                console.log('👥 [TaskDetailDashboard] Fetching analytics for courseId:', courseId);
                 const analyticsData = await getSmartCourseAnalytics(courseId);
+                console.log('📊 [TaskDetailDashboard] Analytics returned:', analyticsData.length, 'students');
                 setStudents(analyticsData);
             } catch (error) {
                 console.error('Error fetching task detail data:', error);
@@ -1206,6 +1241,8 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
 
     // Navigation handlers for student detail view
     const handleSelectStudent = (studentId: string) => {
+        // Always use internal view mode for student details
+        // (onViewStudent is available but ID formats may not match)
         setSelectedStudentId(studentId);
         setViewMode('detail');
     };
@@ -1229,9 +1266,12 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center" dir="rtl">
-                <div className="text-center">
+                <div className="bento-card bento-featured text-center p-12">
+                    <div className="ai-icon-container w-16 h-16 mx-auto mb-4">
+                        <IconClipboardCheck className="w-8 h-8 text-white" />
+                    </div>
                     <AIStarsSpinner size="xl" color="primary" className="mx-auto mb-4" />
-                    <p className="text-slate-500">טוען לוח משימה...</p>
+                    <p className="text-slate-500 font-medium">טוען לוח משימה...</p>
                 </div>
             </div>
         );
@@ -1255,25 +1295,25 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
             )}
 
             <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="mb-8 border-b border-slate-200 pb-6 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+                {/* Header - Bento Style */}
+                <div className="bento-card mb-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
                     <div>
                         <button
                             onClick={onBack}
-                            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-4 transition-colors"
+                            className="flex items-center gap-2 text-slate-500 hover:text-violet-600 mb-4 transition-colors font-medium"
                         >
                             <IconArrowRight size={20} />
                             חזרה לדשבורד
                         </button>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-2 flex items-center gap-3">
-                            <div className="w-14 h-14 bg-gradient-to-br from-wizdi-royal to-wizdi-cyan rounded-2xl flex items-center justify-center shadow-lg">
+                        <h1 className="text-3xl md:text-4xl font-black mb-2 flex items-center gap-3">
+                            <div className="ai-icon-container w-14 h-14">
                                 <IconClipboardCheck className="w-7 h-7 text-white" />
                             </div>
-                            לוח משימה
+                            <span className="ai-gradient-text">לוח משימה</span>
                         </h1>
                         <p className="text-slate-500 text-lg">
                             {course?.title ? (
-                                <span className="font-semibold text-wizdi-royal">{course.title}</span>
+                                <span className="font-semibold ai-gradient-text">{course.title}</span>
                             ) : 'מבט על כיתתי בזמן אמת'}
                             {' • '}
                             <span>ביצועים, מסלולי למידה וזיהוי פערים</span>
@@ -1306,7 +1346,7 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                             {/* Access Code Button */}
                             <button
                                 onClick={() => setAccessCodeOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-colors"
+                                className="ai-action-btn px-4 py-2.5 text-sm"
                                 title="קוד גישה"
                             >
                                 <IconKey size={18} />
@@ -1315,10 +1355,10 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                             <button
                                 onClick={handleRefresh}
                                 disabled={refreshing}
-                                className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                                className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                                 title="רענן נתונים"
                             >
-                                <IconRefresh size={20} className={`text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
+                                <IconRefresh size={20} className={`text-slate-600 dark:text-slate-300 ${refreshing ? 'animate-spin' : ''}`} />
                             </button>
                             <ExportDropdown
                                 students={students}
@@ -1381,12 +1421,14 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                             classBloomAverage={classBloomSummary?.averageByLevel}
                         />
                     ) : (
-                        <div className="card-glass bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-12 border border-slate-200/80 shadow-sm text-center">
-                            <IconUsers className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                        <div className="bento-card bento-featured rounded-3xl p-12 text-center">
+                            <div className="ai-icon-container w-16 h-16 mx-auto mb-4">
+                                <IconUsers className="w-8 h-8 text-white" />
+                            </div>
                             <p className="text-slate-500 text-lg">לא נבחר תלמיד</p>
                             <button
                                 onClick={handleBackToList}
-                                className="mt-4 px-6 py-2 bg-wizdi-royal text-white rounded-xl font-bold hover:bg-wizdi-royal/90 transition-colors"
+                                className="ai-action-btn mt-4 px-6 py-2"
                             >
                                 חזרה לרשימה
                             </button>

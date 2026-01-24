@@ -16,6 +16,8 @@ import {
 import { mapSystemItemToBlock } from '../shared/utils/geminiParsers';
 import { AudioGenerator } from '../services/audioGenerator'; // AUDIO Feature
 import { PodcastPlayer } from './PodcastPlayer'; // AUDIO Player
+import { RemotionVideoEditor } from './RemotionVideoEditor'; // Remotion Video
+import { RemotionVideoPlayer } from './RemotionVideoPlayer'; // Remotion Video Player
 import { SourceViewer } from './SourceViewer';
 import { AiRefineToolbar } from './AiRefineToolbar';
 import { uploadMediaFile } from '../firebaseUtils';
@@ -322,6 +324,92 @@ function createActivitySkeletonBlocks(activityTitle: string, stepCount: number =
 }
 
 /**
+ * Extracts all text content from activity blocks for AI processing
+ * Used by RemotionVideoEditor to generate meaningful summaries
+ */
+function extractTextFromBlocks(blocks: ActivityBlock[]): string {
+    if (!blocks || !Array.isArray(blocks)) return '';
+
+    const textParts: string[] = [];
+
+    for (const block of blocks) {
+        const content = block.content;
+        if (!content) continue;
+
+        // Extract text based on block type
+        switch (block.type) {
+            case 'teach':
+            case 'text':
+                if (typeof content === 'string') {
+                    textParts.push(content.replace(/<[^>]*>/g, ' ')); // Strip HTML
+                } else if (content.text) {
+                    textParts.push(content.text.replace(/<[^>]*>/g, ' '));
+                } else if (content.teach_content) {
+                    textParts.push(content.teach_content.replace(/<[^>]*>/g, ' '));
+                }
+                break;
+
+            case 'multiple_choice':
+            case 'multiple-choice':
+            case 'multipleChoice':
+                if (content.question) textParts.push(`שאלה: ${content.question}`);
+                if (content.options) textParts.push(content.options.join(', '));
+                break;
+
+            case 'open-question':
+            case 'open_question':
+                if (content.question) textParts.push(`שאלה פתוחה: ${content.question}`);
+                break;
+
+            case 'fill_in_blanks':
+                if (content.text) textParts.push(content.text.replace(/___/g, '...'));
+                break;
+
+            case 'true_false_speed':
+                if (content.statements) {
+                    content.statements.forEach((s: any) => {
+                        if (s.text) textParts.push(s.text);
+                    });
+                }
+                break;
+
+            case 'categorization':
+                if (content.categories) textParts.push(`קטגוריות: ${content.categories.join(', ')}`);
+                if (content.items) {
+                    content.items.forEach((item: any) => {
+                        if (item.text) textParts.push(item.text);
+                    });
+                }
+                break;
+
+            case 'ordering':
+                if (content.correct_order) textParts.push(content.correct_order.join(' → '));
+                break;
+
+            case 'matching':
+                if (content.leftItems) {
+                    content.leftItems.forEach((item: any) => {
+                        if (item.text) textParts.push(item.text);
+                    });
+                }
+                if (content.rightItems) {
+                    content.rightItems.forEach((item: any) => {
+                        if (item.text) textParts.push(item.text);
+                    });
+                }
+                break;
+
+            case 'activity-intro':
+                if (content.title) textParts.push(content.title);
+                if (content.description) textParts.push(content.description);
+                break;
+        }
+    }
+
+    return textParts.join('\n').trim();
+}
+
+/**
  * Validates that an activity block has meaningful content
  * Returns false if block is empty or has validation errors
  */
@@ -596,7 +684,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     const showScoring = course.mode === 'exam' || unit.type === 'test';
     const AI_ACTIONS = getAiActions(gradeLevel);
-    const mediaBtnClass = "cursor-pointer bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-all shadow-sm";
+    const mediaBtnClass = "cursor-pointer bg-white text-slate-600 hover:text-wizdi-royal hover:bg-wizdi-royal/5 border border-slate-200 hover:border-wizdi-royal/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm";
 
     // --- חישוב ניקוד בזמן אמת ---
     const totalScore = React.useMemo(() => {
@@ -1883,7 +1971,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         // 2. תפריט משנה לתמונה (העלאה או AI)
         if (mode === 'image_select') {
             return (
-                <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
+                <div className="flex gap-2 bg-wizdi-royal/5 p-1.5 rounded-xl animate-scale-in border border-wizdi-royal/10">
                     <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="image/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
                     <button onClick={() => {
                         const block = editedUnit.activityBlocks.find((b: any) => b.id === blockId);
@@ -1903,7 +1991,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         }
                         setMediaInputMode({ ...mediaInputMode, [blockId]: 'image_ai' });
                     }} className={mediaBtnClass}><IconPalette className="w-4 h-4" /> צור ב-AI</button>
-                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><IconX className="w-4 h-4" /></button>
                 </div>
             );
         }
@@ -1911,11 +1999,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         // 3. תפריט משנה לוידאו (העלאה, קישור, או חיפוש YouTube)
         if (mode === 'video_select') {
             return (
-                <div className="flex gap-2 bg-blue-50 p-1 rounded-lg animate-scale-in">
+                <div className="flex gap-2 bg-wizdi-royal/5 p-1.5 rounded-xl animate-scale-in border border-wizdi-royal/10">
                     <button onClick={() => { setYoutubeSearchBlockId(blockId); setYoutubeSearchOpen(true); }} className={`${mediaBtnClass} bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border-red-200`}><IconVideo className="w-4 h-4" /> חפש YouTube</button>
                     <label className={mediaBtnClass}><IconUpload className="w-4 h-4" /> העלאה<input type="file" accept="video/*" className="hidden" onChange={(e) => { handleFileUpload(e, blockId, 'metadata'); setMediaInputMode({ ...mediaInputMode, [blockId]: null }); }} /></label>
                     <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: 'video_link' })} className={mediaBtnClass}><IconLink className="w-4 h-4" /> קישור ידני</button>
-                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-1.5 text-gray-400 hover:text-red-500"><IconX className="w-4 h-4" /></button>
+                    <button onClick={() => setMediaInputMode({ ...mediaInputMode, [blockId]: null })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><IconX className="w-4 h-4" /></button>
                 </div>
             );
         }
@@ -2063,6 +2151,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 { type: 'podcast', icon: IconHeadphones, label: 'פודקאסט AI' },
                 { type: 'infographic', icon: IconInfographic, label: 'אינפוגרפיקה' },
                 { type: 'mindmap', icon: IconBrain },
+                { type: 'remotion-video', icon: IconVideo, label: 'סרטון מונפש' },
             ]
         }
     };
@@ -2073,22 +2162,22 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
         return (
             <div className="relative py-4 flex justify-center z-20">
-                <div className="absolute inset-x-0 top-1/2 h-0.5 bg-blue-100/50 -z-10"></div>
+                <div className="absolute inset-x-0 top-1/2 h-0.5 bg-gradient-to-r from-transparent via-wizdi-royal/20 to-transparent -z-10"></div>
                 <div>
                     {activeInsertIndex === index ? (
-                        <div className="glass border border-white/60 shadow-xl rounded-2xl animate-scale-in backdrop-blur-xl bg-white/95 ring-4 ring-blue-50/50 max-w-2xl overflow-hidden">
+                        <div className="bento-card ai-glow shadow-2xl animate-scale-in max-w-2xl overflow-hidden p-0" style={{ transform: 'none' }}>
                             {/* Category Tabs */}
-                            <div className="flex border-b border-gray-100 bg-gray-50/50">
+                            <div className="flex border-b border-slate-100 bg-slate-50/50">
                                 {categories.map(([key, category]) => {
                                     const Icon = category.icon;
                                     return (
                                         <button
                                             key={key}
                                             onClick={(e) => { e.stopPropagation(); setInsertMenuCategory(key); }}
-                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all ${
+                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all ${
                                                 insertMenuCategory === key
-                                                    ? 'text-blue-600 bg-white border-b-2 border-blue-500'
-                                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                                                    ? 'text-wizdi-royal bg-white border-b-2 border-wizdi-royal'
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
                                             }`}
                                         >
                                             <Icon className="w-4 h-4" />
@@ -2098,7 +2187,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                 })}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActiveInsertIndex(null); }}
-                                    className="px-3 py-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                    className="px-3 py-3 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                                 >
                                     <IconX className="w-4 h-4" />
                                 </button>
@@ -2113,9 +2202,9 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                         <button
                                             key={item.type}
                                             onClick={(e) => { e.stopPropagation(); addBlockAtIndex(item.type, index); }}
-                                            className="insert-btn"
+                                            className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-100 bg-white hover:bg-wizdi-royal/5 hover:border-wizdi-royal/30 text-slate-600 hover:text-wizdi-royal transition-all text-xs font-bold"
                                         >
-                                            <Icon className="w-4 h-4" />
+                                            <Icon className="w-5 h-5" />
                                             <span>{label}</span>
                                         </button>
                                     );
@@ -2123,7 +2212,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                             </div>
                         </div>
                     ) : (
-                        <button onClick={() => setActiveInsertIndex(index)} className="bg-white text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all hover:bg-blue-50 hover:border-blue-300">
+                        <button onClick={() => setActiveInsertIndex(index)} className="ai-pill bg-white text-wizdi-royal border-wizdi-royal/20 hover:bg-wizdi-royal/5 hover:border-wizdi-royal/40 px-5 py-2 flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-105 transition-all">
                             <IconPlus className="w-4 h-4" /><span className="text-xs font-bold">הוסיפו רכיב</span>
                         </button>
                     )}
@@ -2176,47 +2265,55 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
     }[sourceMode as string] || '';
 
     if (isAutoGenerating) {
-        // Show simple loader
+        // Show simple loader - Bento Style
         return (
-            <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-                <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
-                {/* Typewriter status messages */}
-                <div className="min-h-[2rem]">
-                    <TypewriterLoader
-                        contentType={typewriterContentType}
-                        isVisible={true}
-                        showSpinner={false}
-                        className="text-indigo-600"
-                    />
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+                <div className="bento-card bento-featured ai-glow p-12 text-center max-w-md">
+                    <div className="ai-icon-container w-20 h-20 mx-auto mb-6">
+                        <IconSparkles className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="relative mb-6"><AIStarsSpinner size="xl" color="gradient" /></div>
+                    <h2 className="text-2xl font-black ai-gradient-text mb-4">{productTypeHebrew} {sourceTextHebrew} בבניה...</h2>
+                    {/* Typewriter status messages */}
+                    <div className="min-h-[2rem]">
+                        <TypewriterLoader
+                            contentType={typewriterContentType}
+                            isVisible={true}
+                            showSpinner={false}
+                            className="text-wizdi-royal font-medium"
+                        />
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen p-8 font-sans pb-24 bg-gray-50/50">
-            {/* Header */}
-            <div className="sticky top-4 z-50 card-glass p-4 flex justify-between items-center mb-10 gap-4">
-                <div className="flex-1 min-w-0">
-                    <input type="text" value={editedUnit.title} onChange={(e) => { setEditedUnit({ ...editedUnit, title: e.target.value }); setIsDirty(true); }} className="text-2xl font-bold text-gray-800 bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-2 transition-colors placeholder-gray-400 w-full" placeholder={`כותרת ${productTypeHebrew}`} />
-                    <div className="text-sm text-gray-500 px-2 mt-1 flex items-center gap-2">
-                        <span>שכבת גיל: {gradeLevel}</span>
-                        {subject && (
-                            <>
-                                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                                <span>תחום דעת: {subject}</span>
-                            </>
-                        )}
-                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                        <span className={`font-bold ${showScoring ? 'text-blue-800' : 'text-green-700'}`}>{showScoring ? 'מצב מבחן' : productTypeStatusLabel}</span>
+        <div className="min-h-screen p-6 font-sans pb-24 bg-slate-50">
+            {/* Header - Bento Style */}
+            <div className="sticky top-4 z-50 bento-card bento-featured ai-glow p-5 flex justify-between items-center mb-8 gap-4" style={{ transform: 'none' }}>
+                <div className="flex-1 min-w-0 flex items-center gap-4">
+                    <div className="ai-icon-container w-12 h-12 shrink-0">
+                        <IconEdit className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <input type="text" value={editedUnit.title} onChange={(e) => { setEditedUnit({ ...editedUnit, title: e.target.value }); setIsDirty(true); }} className="text-2xl font-black text-slate-800 bg-transparent border-b-2 border-transparent focus:border-wizdi-royal outline-none px-1 transition-colors placeholder-slate-400 w-full" placeholder={`כותרת ${productTypeHebrew}`} />
+                        <div className="text-sm text-slate-500 px-1 mt-1.5 flex items-center gap-3 flex-wrap">
+                            <span className="ai-pill text-xs py-1 px-3">{gradeLevel}</span>
+                            {subject && (
+                                <span className="ai-pill text-xs py-1 px-3 bg-wizdi-cyan/10 text-wizdi-cyan border-wizdi-cyan/20">{subject}</span>
+                            )}
+                            <span className={`ai-pill text-xs py-1 px-3 ${showScoring ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-green-100 text-green-700 border-green-200'}`}>
+                                {showScoring ? 'מצב מבחן' : productTypeStatusLabel}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
                 <div className="flex gap-3 flex-shrink-0 items-center">
                     {/* Primary Actions - Always Visible */}
                     {onPreview && (
-                        <button onClick={() => onPreview(editedUnit)} className="px-5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold transition-colors flex items-center gap-2 border border-blue-200">
+                        <button onClick={() => onPreview(editedUnit)} className="px-5 py-2.5 rounded-xl text-wizdi-royal bg-wizdi-royal/10 hover:bg-wizdi-royal/20 font-bold transition-all flex items-center gap-2 border border-wizdi-royal/20 hover:border-wizdi-royal/30">
                             <IconEye className="w-4 h-4" /> תצוגת תלמיד
                         </button>
                     )}
@@ -2224,10 +2321,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <button
                         onClick={handleSaveWithFeedback}
                         disabled={isSaving}
-                        className={`px-6 py-2 rounded-xl shadow-lg font-bold transition-all hover:-translate-y-0.5 flex items-center gap-2 min-w-[140px] justify-center
-                        ${saveSuccess
-                                ? 'bg-green-600 text-white shadow-green-200'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'}`}
+                        className={`ai-action-btn px-6 py-2.5 text-sm min-w-[140px] justify-center
+                        ${saveSuccess ? '!bg-gradient-to-r !from-green-500 !to-emerald-600' : ''}`}
                     >
                         {isSaving ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> שומר...</>
@@ -2242,7 +2337,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                     <div className="relative">
                         <button
                             onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                            className="p-2 rounded-xl text-gray-600 hover:bg-white/80 border border-gray-200 transition-colors"
+                            className="p-2.5 rounded-xl text-slate-500 hover:text-wizdi-royal hover:bg-white border border-slate-200 transition-all"
                         >
                             <IconMoreVertical className="w-5 h-5" />
                         </button>
@@ -2250,14 +2345,16 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         {showHeaderMenu && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowHeaderMenu(false)} />
-                                <div className="absolute left-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-gray-200 py-2 min-w-[200px] z-50">
+                                <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 min-w-[220px] z-50 overflow-hidden">
                                     {/* Source Toggle */}
                                     {(course.fullBookContent || course.pdfSource) && (
                                         <button
                                             onClick={() => { setShowSource(!showSource); setShowHeaderMenu(false); }}
-                                            className="w-full px-4 py-2.5 text-right hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                                            className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
                                         >
-                                            <IconBook className="w-4 h-4 text-indigo-500" />
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                                                <IconBook className="w-4 h-4 text-indigo-600" />
+                                            </div>
                                             {showSource ? 'סגור מקור' : 'הצג מקור'}
                                         </button>
                                     )}
@@ -2266,9 +2363,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     {showScoring && (
                                         <button
                                             onClick={() => { handleAutoDistributePoints(); setShowHeaderMenu(false); }}
-                                            className="w-full px-4 py-2.5 text-right hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                                            className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
                                         >
-                                            <IconBalance className="w-4 h-4 text-yellow-600" />
+                                            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                                                <IconBalance className="w-4 h-4 text-amber-600" />
+                                            </div>
                                             חלק ניקוד
                                         </button>
                                     )}
@@ -2276,20 +2375,24 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     {/* Copy Link */}
                                     <button
                                         onClick={() => { handleCopyLinkClick(); setShowHeaderMenu(false); }}
-                                        className="w-full px-4 py-2.5 text-right hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                                        className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
                                     >
-                                        <IconLink className={`w-4 h-4 ${isDirty ? 'text-amber-500' : 'text-indigo-500'}`} />
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDirty ? 'bg-amber-100' : 'bg-wizdi-royal/10'}`}>
+                                            <IconLink className={`w-4 h-4 ${isDirty ? 'text-amber-600' : 'text-wizdi-royal'}`} />
+                                        </div>
                                         {isDirty ? 'שמור לפני שיתוף!' : 'העתקת קישור לתלמיד'}
                                     </button>
 
-                                    <div className="border-t border-gray-100 my-1" />
+                                    <div className="border-t border-slate-100 my-2" />
 
                                     {/* Back */}
                                     <button
                                         onClick={() => { handleBack(); setShowHeaderMenu(false); }}
-                                        className="w-full px-4 py-2.5 text-right hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                                        className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
                                     >
-                                        <IconBack className="w-4 h-4 rotate-180 text-gray-500" />
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                            <IconBack className="w-4 h-4 rotate-180 text-slate-500" />
+                                        </div>
                                         חזרה
                                     </button>
                                 </div>
@@ -2300,8 +2403,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             </div>
 
             <div className="flex-1 flex overflow-hidden relative">
-                <div className={`flex-1 overflow-y-auto custom-scrollbar p-8 pb-32 transition-all ${showSource ? 'w-1/2' : 'w-full max-w-4xl mx-auto'}`}>
-                    <div className="space-y-6">
+                <div className={`flex-1 overflow-y-auto custom-scrollbar p-6 pb-32 transition-all ${showSource ? 'w-1/2' : 'w-full max-w-4xl mx-auto'}`}>
+                    <div className="space-y-4">
                         {/* PODCAST PLAYER AREA - Removed (Moved to Blocks) */}
 
                         <InsertMenu index={0} />
@@ -2309,7 +2412,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         {editedUnit.activityBlocks?.map((block: any, index: number) => (
                             <React.Fragment key={block.id}>
                                 <div
-                                    className="card-glass relative group transition-all p-4 pb-14"
+                                    className="bento-card bento-static relative group transition-all p-5 pb-24 hover:shadow-lg" style={{ transform: 'none' }}
                                 >
                                     {/* Top-left corner: Media toolbar (only for blocks that can have embedded media) */}
                                     {!['image', 'video', 'podcast', 'audio-response', 'loading-placeholder', 'activity-intro', 'scenario-image', 'infographic'].includes(block.type) && (
@@ -2319,7 +2422,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     )}
 
                                     {/* Bottom-left corner: AI Refine */}
-                                    <div className="absolute bottom-3 left-2 z-10">
+                                    <div className="absolute bottom-4 left-4 z-10">
                                         <AiRefineToolbar
                                             blockId={block.id}
                                             blockType={block.type}
@@ -2330,27 +2433,27 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                     </div>
 
                                     {/* Bottom-right corner: Controls (move up/down, delete) */}
-                                    <div className="absolute bottom-3 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm rounded-lg p-1 shadow-sm border border-gray-100">
-                                        <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-1.5 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors"><IconArrowUp className="w-4 h-4" /></button>
-                                        <button onClick={() => moveBlock(index, 'down')} disabled={index === editedUnit.activityBlocks.length - 1} className="p-1.5 hover:text-blue-600 disabled:opacity-30 rounded hover:bg-blue-50 transition-colors"><IconArrowDown className="w-4 h-4" /></button>
-                                        <button onClick={() => deleteBlock(block.id)} className="p-1.5 hover:text-red-500 rounded hover:bg-red-50 transition-colors"><IconTrash className="w-4 h-4" /></button>
+                                    <div className="absolute bottom-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all bg-white/90 backdrop-blur-sm rounded-xl p-1.5 shadow-lg border border-slate-200">
+                                        <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-2 hover:text-wizdi-royal disabled:opacity-30 rounded-lg hover:bg-wizdi-royal/10 transition-colors"><IconArrowUp className="w-4 h-4" /></button>
+                                        <button onClick={() => moveBlock(index, 'down')} disabled={index === editedUnit.activityBlocks.length - 1} className="p-2 hover:text-wizdi-royal disabled:opacity-30 rounded-lg hover:bg-wizdi-royal/10 transition-colors"><IconArrowDown className="w-4 h-4" /></button>
+                                        <button onClick={() => deleteBlock(block.id)} className="p-2 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"><IconTrash className="w-4 h-4" /></button>
                                     </div>
 
                                     {/* Header Row - Block type + Level selector */}
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-[10px] font-bold bg-gray-100/80 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="ai-pill text-[10px] py-1 px-3 bg-slate-100 text-slate-600 border-slate-200 uppercase tracking-wide">
                                             {BLOCK_TYPE_MAPPING[block.type] || block.type}
                                         </span>
                                         {/* Learning Level - badge for interactive/question blocks (default: יישום) */}
                                         {!['text', 'image', 'video', 'pdf', 'gem-link', 'podcast', 'activity-intro', 'scenario-image', 'infographic', 'loading-placeholder'].includes(block.type) && (
-                                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">
+                                            <span className="ai-pill text-[10px] py-1 px-3 bg-wizdi-cyan/10 text-wizdi-cyan border-wizdi-cyan/20">
                                                 {block.metadata?.learningLevel || 'יישום'}
                                             </span>
                                         )}
                                     </div>
 
                                     {/* Block Content */}
-                                    <div>
+                                    <div className="pb-8">
                                         {/* ACTIVITY SKELETON BLOCK - Shows while content is being generated */}
                                         {block.type === 'activity-skeleton' && block.content && (() => {
                                             console.log("🎨 [Render] ActivitySkeletonDisplay:", { stepCount: block.content.stepCount, title: block.content.activityTitle });
@@ -3274,6 +3377,41 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             </div>
                                         )}
 
+                                        {/* REMOTION VIDEO - סרטון מונפש */}
+                                        {block.type === 'remotion-video' && (
+                                            <div className="bg-violet-50/50 p-5 rounded-xl border border-violet-100">
+                                                {(block.content as any)?.videoUrl || (block.content as any)?.status === 'ready' ? (
+                                                    <RemotionVideoPlayer
+                                                        content={block.content as any}
+                                                        showControls
+                                                        className="rounded-xl"
+                                                    />
+                                                ) : (block.content as any)?.compositionType ? (
+                                                    <div>
+                                                        <RemotionVideoPlayer
+                                                            content={block.content as any}
+                                                            showControls
+                                                            className="rounded-xl mb-4"
+                                                        />
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            תצוגה מקדימה - הסרטון ירונדר בעת הצורך
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <RemotionVideoEditor
+                                                        lessonContent={extractTextFromBlocks(editedUnit.activityBlocks) || unit?.baseContent || ''}
+                                                        lessonTitle={editedUnit?.title || unit?.title || ''}
+                                                        targetAudience={course?.targetAudience || 'תלמידי יסודי'}
+                                                        courseId={course?.id || ''}
+                                                        unitId={unit?.id || ''}
+                                                        onVideoCreated={(newBlock) => {
+                                                            updateBlock(block.id, newBlock.content);
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+
                                         {/* MATCHING - התאמה */}
                                         {block.type === 'matching' && (
                                             <div className="bg-violet-50/50 p-5 rounded-xl border border-violet-100">
@@ -3362,8 +3500,154 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             </div>
                                         )}
 
+                                        {/* TABLE COMPLETION */}
+                                        {block.type === 'table_completion' && (
+                                            <div>
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="הנחיה (למשל: השלימו את הטבלה הבאה...)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
+
+                                                {/* Headers */}
+                                                <div className="mt-4">
+                                                    <h4 className="text-xs font-medium text-gray-500 mb-2">כותרות עמודות</h4>
+                                                    <div className="flex flex-wrap gap-2 items-center">
+                                                        {(block.content?.headers || []).map((header: string, idx: number) => (
+                                                            <div key={idx} className="flex gap-1 items-center">
+                                                                <input
+                                                                    type="text"
+                                                                    className="p-2 border border-gray-200 rounded-lg bg-white text-sm w-32"
+                                                                    value={header || ''}
+                                                                    onChange={(e) => {
+                                                                        const newHeaders = [...(block.content?.headers || [])];
+                                                                        newHeaders[idx] = e.target.value;
+                                                                        updateBlock(block.id, { ...block.content, headers: newHeaders });
+                                                                    }}
+                                                                    placeholder={`עמודה ${idx + 1}`}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newHeaders = (block.content?.headers || []).filter((_: any, i: number) => i !== idx);
+                                                                        const newRows = (block.content?.rows || []).map((row: any) => ({
+                                                                            ...row,
+                                                                            cells: row.cells.filter((_: any, i: number) => i !== idx)
+                                                                        }));
+                                                                        updateBlock(block.id, { ...block.content, headers: newHeaders, rows: newRows });
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-red-500"
+                                                                >
+                                                                    <IconTrash className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                const newHeaders = [...(block.content?.headers || []), 'עמודה חדשה'];
+                                                                const newRows = (block.content?.rows || []).map((row: any) => ({
+                                                                    ...row,
+                                                                    cells: [...row.cells, { value: '', editable: true, correctAnswer: '' }]
+                                                                }));
+                                                                updateBlock(block.id, { ...block.content, headers: newHeaders, rows: newRows });
+                                                            }}
+                                                            className="text-xs font-medium text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg border border-dashed border-blue-300"
+                                                        >
+                                                            + עמודה
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Rows */}
+                                                <div className="mt-4">
+                                                    <h4 className="text-xs font-medium text-gray-500 mb-2">שורות הטבלה</h4>
+                                                    <div className="space-y-3">
+                                                        {(block.content?.rows || []).map((row: any, rowIdx: number) => (
+                                                            <div key={rowIdx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative group/row">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <span className="text-xs font-medium text-gray-400">שורה {rowIdx + 1}</span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newRows = (block.content?.rows || []).filter((_: any, i: number) => i !== rowIdx);
+                                                                            updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                        }}
+                                                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                                                    >
+                                                                        <IconTrash className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${block.content?.headers?.length || 1}, 1fr)` }}>
+                                                                    {(row.cells || []).map((cell: any, cellIdx: number) => (
+                                                                        <div key={cellIdx} className="space-y-1">
+                                                                            <label className="text-[10px] text-gray-400 block">{block.content?.headers?.[cellIdx] || `עמודה ${cellIdx + 1}`}</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                className={`w-full p-2 border rounded-lg text-sm ${cell.editable ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}
+                                                                                value={cell.value || ''}
+                                                                                onChange={(e) => {
+                                                                                    const newRows = [...(block.content?.rows || [])];
+                                                                                    newRows[rowIdx].cells[cellIdx].value = e.target.value;
+                                                                                    updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                                }}
+                                                                                placeholder={cell.editable ? 'תא לעריכה' : 'ערך קבוע'}
+                                                                            />
+                                                                            <div className="flex items-center gap-2">
+                                                                                <label className="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={cell.editable || false}
+                                                                                        onChange={(e) => {
+                                                                                            const newRows = [...(block.content?.rows || [])];
+                                                                                            newRows[rowIdx].cells[cellIdx].editable = e.target.checked;
+                                                                                            if (!e.target.checked) {
+                                                                                                delete newRows[rowIdx].cells[cellIdx].correctAnswer;
+                                                                                            }
+                                                                                            updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                                        }}
+                                                                                        className="w-3 h-3"
+                                                                                    />
+                                                                                    ניתן לעריכה
+                                                                                </label>
+                                                                            </div>
+                                                                            {cell.editable && (
+                                                                                <input
+                                                                                    type="text"
+                                                                                    className="w-full p-1.5 border border-green-300 bg-green-50 rounded text-xs"
+                                                                                    value={cell.correctAnswer || ''}
+                                                                                    onChange={(e) => {
+                                                                                        const newRows = [...(block.content?.rows || [])];
+                                                                                        newRows[rowIdx].cells[cellIdx].correctAnswer = e.target.value;
+                                                                                        updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                                    }}
+                                                                                    placeholder="תשובה נכונה"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                const headerCount = block.content?.headers?.length || 3;
+                                                                const newRow = {
+                                                                    cells: Array(headerCount).fill(null).map(() => ({ value: '', editable: false }))
+                                                                };
+                                                                updateBlock(block.id, { ...block.content, rows: [...(block.content?.rows || []), newRow] });
+                                                            }}
+                                                            className="w-full py-3 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-all text-sm"
+                                                        >
+                                                            + הוסף שורה
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Generic Question Types (highlight, sentence_builder, etc.) */}
-                                        {['highlight', 'sentence_builder', 'image_labeling', 'table_completion', 'text_selection', 'rating_scale', 'matrix', 'drag_and_drop', 'hotspot'].includes(block.type) && (
+                                        {['highlight', 'sentence_builder', 'image_labeling', 'text_selection', 'rating_scale', 'matrix', 'drag_and_drop', 'hotspot'].includes(block.type) && (
                                             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-200">
                                                 <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
                                                     <IconEdit className="w-5 h-5" /> {BLOCK_TYPE_MAPPING[block.type] || block.type}

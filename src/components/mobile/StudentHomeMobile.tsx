@@ -11,13 +11,14 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useStudentContext } from '../../context/StudentContext';
 import { useMyAssignments, type StudentAssignment } from '../../hooks/useMyAssignments';
 import { formatDueDate } from '../../services/taskAssignmentService';
 import { AIStarsSpinner } from '../ui/Loading/AIStarsSpinner';
+import StudentBottomNav from '../student/StudentBottomNav';
 import {
     IconFlame,
     IconDiamond,
-    IconTrophy,
     IconCheck,
     IconStar,
     IconPlayerPlayFilled,
@@ -30,22 +31,8 @@ import {
     IconTarget,
     IconChevronLeft,
     IconX,
-    IconHome,
-    IconChartBar,
     IconInfoCircle
 } from '@tabler/icons-react';
-
-// Mock gamification data
-const useGamification = () => {
-    return {
-        xp: 1450,
-        level: 12,
-        streak: { current: 14 },
-        currency: { gems: 450 },
-        league: { name: 'Ruby', rank: 4 },
-        dailyGoal: { targetXp: 50, currentXp: 35 }
-    };
-};
 
 interface StudentHomeMobileProps {
     onSelectAssignment: (assignmentId: string, unitId?: string) => void;
@@ -55,10 +42,18 @@ interface StudentHomeMobileProps {
 const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignment }) => {
     const { currentUser } = useAuth();
     const { assignments, loading, newTasksCount } = useMyAssignments(currentUser?.uid);
-    const gameStats = useGamification();
+    const { gamificationProfile } = useStudentContext();
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [selectedTask, setSelectedTask] = useState<StudentAssignment | null>(null);
     const [showStatsLegend, setShowStatsLegend] = useState(false);
+
+    // Derived gamification values
+    const streak = gamificationProfile?.currentStreak || 0;
+    const xp = gamificationProfile?.xp || 0;
+    const gems = gamificationProfile?.gems || 0;
+    const leagueWeeklyXp = gamificationProfile?.leagueWeeklyXp || 0;
+    const dailyTargetXp = 50;
+    const dailyCurrentXp = Math.min(leagueWeeklyXp % 100, dailyTargetXp);
 
     const getFilteredTasks = () => {
         const all = [...assignments.new, ...assignments.inProgress, ...assignments.completed];
@@ -122,20 +117,20 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
 
                     {/* Streak */}
                     <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
-                        <IconFlame className="w-5 h-5 text-orange-300" />
-                        <span className="font-bold text-sm">{gameStats.streak.current}</span>
+                        <IconFlame className={`w-5 h-5 text-orange-300 ${streak > 0 ? 'animate-pulse' : ''}`} />
+                        <span className="font-bold text-sm">{streak}</span>
                     </div>
 
                     {/* XP / Points */}
                     <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
                         <IconStar className="w-5 h-5 text-yellow-300" />
-                        <span className="font-bold text-sm">{gameStats.xp} XP</span>
+                        <span className="font-bold text-sm">{xp} XP</span>
                     </div>
 
                     {/* Gems */}
                     <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full">
                         <IconDiamond className="w-5 h-5 text-cyan-200" />
-                        <span className="font-bold text-sm">{gameStats.currency.gems}</span>
+                        <span className="font-bold text-sm">{gems}</span>
                     </div>
 
                     {/* Notifications */}
@@ -161,15 +156,15 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
                 <div className="bg-white/10 rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">מטרה יומית</span>
-                        <span className="text-sm">{gameStats.dailyGoal.currentXp}/{gameStats.dailyGoal.targetXp} XP</span>
+                        <span className="text-sm">{dailyCurrentXp}/{dailyTargetXp} XP</span>
                     </div>
                     <div className="h-2 bg-white/20 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-white rounded-full transition-all"
-                            style={{ width: `${Math.min((gameStats.dailyGoal.currentXp / gameStats.dailyGoal.targetXp) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((dailyCurrentXp / dailyTargetXp) * 100, 100)}%` }}
                             role="progressbar"
-                            aria-valuenow={gameStats.dailyGoal.currentXp}
-                            aria-valuemax={gameStats.dailyGoal.targetXp}
+                            aria-valuenow={dailyCurrentXp}
+                            aria-valuemax={dailyTargetXp}
                         />
                     </div>
                 </div>
@@ -548,35 +543,8 @@ const StudentHomeMobile: React.FC<StudentHomeMobileProps> = ({ onSelectAssignmen
                 </div>
             )}
 
-            {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-2 safe-area-inset-bottom">
-                <div className="flex items-center justify-around">
-                    <button
-                        className="flex flex-col items-center gap-1 min-w-[64px] min-h-[56px] py-2 text-wizdi-royal"
-                        aria-label="משימות"
-                        aria-current="page"
-                    >
-                        <IconClipboardCheck className="w-6 h-6" />
-                        <span className="text-xs font-bold">משימות</span>
-                    </button>
-
-                    <button
-                        className="flex flex-col items-center gap-1 min-w-[64px] min-h-[56px] py-2 text-slate-400"
-                        aria-label="הישגים"
-                    >
-                        <IconTrophy className="w-6 h-6" />
-                        <span className="text-xs">הישגים</span>
-                    </button>
-
-                    <button
-                        className="flex flex-col items-center gap-1 min-w-[64px] min-h-[56px] py-2 text-slate-400"
-                        aria-label="פרופיל"
-                    >
-                        <IconHome className="w-6 h-6" />
-                        <span className="text-xs">פרופיל</span>
-                    </button>
-                </div>
-            </nav>
+            {/* Bottom Navigation - Duolingo-style */}
+            <StudentBottomNav variant="dashboard" newTasksCount={newTasksCount} />
         </div>
     );
 };

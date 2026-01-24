@@ -19,10 +19,10 @@ const elevenLabsApiKey = defineSecret("ELEVENLABS_API_KEY"); // ElevenLabs TTS A
  * ============================================================
  * IMPORTANT: DO NOT CHANGE THE MODEL WITHOUT EXPLICIT APPROVAL
  * See AI_MODELS_POLICY.md for approved models.
- * Approved: gemini-3-pro-preview (text), gemini-3-pro-image-preview (images)
+ * Approved: gemini-2.0-flash (text), gemini-2.0-flash-exp-image-generation (images)
  * ============================================================
  */
-const MODEL_NAME = "gemini-3-pro-preview"; // Standard model for all LLM calls
+const MODEL_NAME = "gemini-2.0-flash"; // Standard model for all LLM calls
 
 // --- GEMINI 3 PRO SERVICE ---
 import { generateText, generateJSON, generateWithVision, ChatMessage } from "./services/geminiService";
@@ -194,6 +194,676 @@ export const geminiChatFast = onCall({
     } catch (error: any) {
         logger.error('Gemini Chat Fast error:', error);
         throw new HttpsError('internal', `שגיאה: ${error.message}`);
+    }
+});
+
+// --- CURRICULUM STANDARDS QUERY ---
+/**
+ * Query curriculum standards for teacher chat
+ * Allows searching by subject, grade, topic, domain, etc.
+ */
+export const queryCurriculumStandards = onCall({
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const { subject, gradeLevel, topic, domain, bloomLevels, limit = 20 } = request.data as {
+        subject?: string;
+        gradeLevel?: string;
+        topic?: string;
+        domain?: string;
+        bloomLevels?: string[];
+        limit?: number;
+    };
+
+    logger.info(`📚 Curriculum query from user ${userId}`, {
+        subject, gradeLevel, topic, domain, bloomLevels, limit
+    });
+
+    try {
+        let query: any = db.collection('curriculum_standards');
+
+        // Apply filters
+        if (subject) {
+            query = query.where('subject', '==', subject);
+        }
+        if (gradeLevel) {
+            query = query.where('gradeLevel', '==', gradeLevel);
+        }
+        if (domain) {
+            query = query.where('domain', '==', domain);
+        }
+
+        const snapshot = await query.limit(Math.min(limit, 50)).get();
+
+        let standards = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Client-side filtering for topic (keyword matching)
+        if (topic) {
+            const topicWords = topic.toLowerCase().split(/\s+/);
+            standards = standards.filter((s: any) =>
+                topicWords.some(word =>
+                    s.topic?.toLowerCase().includes(word) ||
+                    s.title?.toLowerCase().includes(word) ||
+                    s.description?.toLowerCase().includes(word)
+                )
+            );
+        }
+
+        // Client-side filtering for bloom levels
+        if (bloomLevels && bloomLevels.length > 0) {
+            standards = standards.filter((s: any) =>
+                s.recommendedBloomLevels?.some((b: string) => bloomLevels.includes(b))
+            );
+        }
+
+        logger.info(`📚 Found ${standards.length} curriculum standards`);
+
+        return {
+            success: true,
+            count: standards.length,
+            standards: standards.slice(0, limit)
+        };
+
+    } catch (error: any) {
+        logger.error('Curriculum query error:', error);
+        throw new HttpsError('internal', `שגיאה בחיפוש תוכ"ל: ${error.message}`);
+    }
+});
+
+// --- SEARCH USER CONTENT (BLOCKS IN COURSES) ---
+/**
+ * Calculate quality metrics for a course based on student results
+ */
+async function calculateCourseQuality(courseId: string): Promise<{
+    relevanceScore: number;
+    usageStats: {
+        studentCount: number;
+        successRate: number;
+        avgScore: number;
+        completionRate: number;
+        lastUsed: any;
+    };
+}> {
+    try {
+        // Get all task results for this course
+        const tasksSnapshot = await db.collection('tasks')
+            .where('courseId', '==', courseId)
+            .get();
+
+        if (tasksSnapshot.empty) {
+            // No usage data yet
+            return {
+                relevanceScore: 50, // Default score for new content
+                usageStats: {
+                    studentCount: 0,
+                    successRate: 0,
+                    avgScore: 0,
+                    completionRate: 0,
+                    lastUsed: null
+                }
+            };
+        }
+
+        const tasks = tasksSnapshot.docs.map(doc => doc.data());
+
+        // Calculate metrics
+        const studentCount = new Set(tasks.map(t => t.studentId)).size;
+        const submittedTasks = tasks.filter(t => t.status === 'submitted' || t.status === 'graded');
+        const completedTasks = submittedTasks.length;
+
+        const avgScore = submittedTasks.length > 0
+            ? submittedTasks.reduce((sum, t) => sum + (t.percentage || 0), 0) / submittedTasks.length
+            : 0;
+
+        const completionRate = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
+
+        // Success rate based on telemetry
+        let totalSuccess = 0;
+        let totalBlocks = 0;
+        submittedTasks.forEach(task => {
+            if (task.telemetry) {
+                totalSuccess += task.telemetry.successBlocks || 0;
+                totalBlocks += task.telemetry.totalBlocks || 0;
+            }
+        });
+        const successRate = totalBlocks > 0 ? (totalSuccess / totalBlocks) * 100 : 0;
+
+        // Last used
+        const lastUsed = tasks.reduce((latest, t) => {
+            const timestamp = t.submittedAt || t.startedAt;
+            if (!latest || (timestamp && timestamp.toMillis() > latest.toMillis())) {
+                return timestamp;
+            }
+            return latest;
+        }, null);
+
+        // Calculate weighted relevance score (0-100)
+        // 40% success rate + 30% completion rate + 20% avg score + 10% usage frequency
+        const usageFrequency = Math.min(studentCount / 10, 1) * 100; // Normalize to 0-100
+        const relevanceScore = Math.round(
+            successRate * 0.4 +
+            completionRate * 0.3 +
+            avgScore * 0.2 +
+            usageFrequency * 0.1
+        );
+
+        return {
+            relevanceScore,
+            usageStats: {
+                studentCount,
+                successRate: Math.round(successRate),
+                avgScore: Math.round(avgScore),
+                completionRate: Math.round(completionRate),
+                lastUsed
+            }
+        };
+    } catch (error) {
+        logger.error(`Error calculating quality for course ${courseId}:`, error);
+        // Return default values on error
+        return {
+            relevanceScore: 50,
+            usageStats: {
+                studentCount: 0,
+                successRate: 0,
+                avgScore: 0,
+                completionRate: 0,
+                lastUsed: null
+            }
+        };
+    }
+}
+
+/**
+ * Search for blocks (activities, exams, etc.) in user's courses
+ * Allows searching by topic, type, grade level, etc.
+ * NOW WITH QUALITY SCORING!
+ */
+export const searchUserContent = onCall({
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const { query, blockType, gradeLevel, limit = 20 } = request.data as {
+        query?: string;
+        blockType?: string;
+        gradeLevel?: string;
+        limit?: number;
+    };
+
+    logger.info(`🔍 Content search from user ${userId}`, {
+        query, blockType, gradeLevel, limit
+    });
+
+    try {
+        // Find all courses owned by user
+        const coursesSnapshot = await db.collection('courses')
+            .where('userId', '==', userId)
+            .get();
+
+        if (coursesSnapshot.empty) {
+            return {
+                success: true,
+                count: 0,
+                results: []
+            };
+        }
+
+        const allBlocks: any[] = [];
+
+        // Search blocks in each course
+        for (const courseDoc of coursesSnapshot.docs) {
+            const courseId = courseDoc.id;
+            const courseData = courseDoc.data();
+
+            let blocksQuery: any = db.collection(`courses/${courseId}/blocks`);
+
+            // Apply filters if provided
+            if (blockType) {
+                blocksQuery = blocksQuery.where('blockType', '==', blockType);
+            }
+
+            const blocksSnapshot = await blocksQuery.limit(50).get();
+
+            blocksSnapshot.forEach(blockDoc => {
+                const blockData = blockDoc.data();
+
+                // Client-side filtering for query string and grade level
+                let matchesQuery = true;
+                let matchesGrade = true;
+
+                if (query) {
+                    const searchStr = query.toLowerCase();
+                    const titleMatch = blockData.metadata?.title?.toLowerCase().includes(searchStr);
+                    const topicMatch = blockData.metadata?.topic?.toLowerCase().includes(searchStr);
+                    const descMatch = blockData.metadata?.description?.toLowerCase().includes(searchStr);
+                    matchesQuery = titleMatch || topicMatch || descMatch;
+                }
+
+                if (gradeLevel && blockData.metadata?.gradeLevel) {
+                    matchesGrade = blockData.metadata.gradeLevel === gradeLevel;
+                }
+
+                if (matchesQuery && matchesGrade) {
+                    allBlocks.push({
+                        id: blockDoc.id,
+                        courseId,
+                        courseName: courseData.name || courseData.title || 'ללא שם',
+                        ...blockData
+                    });
+                }
+            });
+        }
+
+        // Calculate quality metrics for each unique course
+        const courseQualityMap = new Map<string, any>();
+        const uniqueCourseIds = [...new Set(allBlocks.map(b => b.courseId))];
+
+        for (const courseId of uniqueCourseIds) {
+            const quality = await calculateCourseQuality(courseId);
+            courseQualityMap.set(courseId, quality);
+        }
+
+        // Enrich blocks with quality metrics
+        const enrichedBlocks = allBlocks.map(block => {
+            const quality = courseQualityMap.get(block.courseId);
+            return {
+                ...block,
+                relevanceScore: quality?.relevanceScore || 50,
+                usageStats: quality?.usageStats
+            };
+        });
+
+        // Sort by relevance score (highest first), then by creation date
+        enrichedBlocks.sort((a, b) => {
+            const scoreDiff = (b.relevanceScore || 0) - (a.relevanceScore || 0);
+            if (scoreDiff !== 0) return scoreDiff;
+
+            // If scores are equal, sort by creation date
+            const aTime = a.metadata?.createdAt?.toMillis?.() || 0;
+            const bTime = b.metadata?.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        });
+
+        const results = enrichedBlocks.slice(0, Math.min(limit, 50));
+
+        logger.info(`🔍 Found ${results.length} matching blocks with quality scores`);
+
+        return {
+            success: true,
+            count: results.length,
+            results
+        };
+
+    } catch (error: any) {
+        logger.error('Content search error:', error);
+        throw new HttpsError('internal', `שגיאה בחיפוש תכנים: ${error.message}`);
+    }
+});
+
+// --- CONTENT TEMPLATES (QUICK TEMPLATES) ---
+/**
+ * Built-in system templates
+ */
+const SYSTEM_TEMPLATES = [
+    {
+        id: 'quick_activity',
+        name: 'פעילות מהירה',
+        description: 'פעילות קצרה לתרגול - 5 שאלות, מיקס סוגים',
+        icon: '⚡',
+        type: 'system',
+        isDefault: true,
+        productType: 'activity',
+        profile: 'balanced',
+        activityLength: 'short',
+        difficultyLevel: 'core',
+        requiresTopic: true,
+        requiresGrade: true,
+        requiresSubject: false
+    },
+    {
+        id: 'summary_exam',
+        name: 'מבחן סיכום',
+        description: 'מבחן מקיף - 10 שאלות, כל רמות הקושי',
+        icon: '📊',
+        type: 'system',
+        productType: 'exam',
+        profile: 'educational',
+        activityLength: 'long',
+        difficultyLevel: 'all',
+        requiresTopic: true,
+        requiresGrade: true,
+        requiresSubject: false
+    },
+    {
+        id: 'learning_game',
+        name: 'משחק למידה',
+        description: 'פעילות משחקית - זיכרון והתאמות',
+        icon: '🎮',
+        type: 'system',
+        productType: 'activity',
+        profile: 'game',
+        activityLength: 'short',
+        difficultyLevel: 'support',
+        requiresTopic: true,
+        requiresGrade: true,
+        requiresSubject: false
+    },
+    {
+        id: 'full_lesson',
+        name: 'שיעור מלא',
+        description: 'מערך שיעור שלם עם כל השלבים',
+        icon: '📚',
+        type: 'system',
+        productType: 'lesson',
+        profile: 'educational',
+        activityLength: 'long',
+        difficultyLevel: 'core',
+        requiresTopic: true,
+        requiresGrade: true,
+        requiresSubject: false
+    }
+];
+
+/**
+ * Get content templates (system + user templates)
+ */
+export const getContentTemplates = onCall({
+    cors: true,
+    memory: "128MiB"
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    try {
+        // Get user templates
+        const userTemplatesSnapshot = await db.collection('content_templates')
+            .where('userId', '==', userId)
+            .where('type', '==', 'user')
+            .get();
+
+        const userTemplates = userTemplatesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Return system templates + user templates
+        return {
+            success: true,
+            templates: [...SYSTEM_TEMPLATES, ...userTemplates]
+        };
+
+    } catch (error: any) {
+        logger.error('Get templates error:', error);
+        throw new HttpsError('internal', `שגיאה בטעינת תבניות: ${error.message}`);
+    }
+});
+
+/**
+ * Save user template
+ */
+export const saveContentTemplate = onCall({
+    cors: true,
+    memory: "128MiB"
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const { template } = request.data as { template: any };
+
+    if (!template || !template.name) {
+        throw new HttpsError('invalid-argument', 'חסר שם לתבנית');
+    }
+
+    try {
+        const templateData = {
+            ...template,
+            type: 'user',
+            userId,
+            usageCount: template.usageCount || 0,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+        };
+
+        let templateId: string;
+
+        if (template.id && template.id.startsWith('user_')) {
+            // Update existing
+            templateId = template.id;
+            await db.collection('content_templates').doc(templateId).set(templateData, { merge: true });
+        } else {
+            // Create new
+            const docRef = await db.collection('content_templates').add(templateData);
+            templateId = docRef.id;
+        }
+
+        return {
+            success: true,
+            templateId
+        };
+
+    } catch (error: any) {
+        logger.error('Save template error:', error);
+        throw new HttpsError('internal', `שגיאה בשמירת תבנית: ${error.message}`);
+    }
+});
+
+/**
+ * Delete user template
+ */
+export const deleteContentTemplate = onCall({
+    cors: true,
+    memory: "128MiB"
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const { templateId } = request.data as { templateId: string };
+
+    if (!templateId) {
+        throw new HttpsError('invalid-argument', 'חסר מזהה תבנית');
+    }
+
+    try {
+        // Verify ownership
+        const templateDoc = await db.collection('content_templates').doc(templateId).get();
+
+        if (!templateDoc.exists) {
+            throw new HttpsError('not-found', 'התבנית לא נמצאה');
+        }
+
+        const templateData = templateDoc.data();
+        if (templateData?.userId !== userId) {
+            throw new HttpsError('permission-denied', 'אין הרשאה למחוק תבנית זו');
+        }
+
+        await db.collection('content_templates').doc(templateId).delete();
+
+        return {
+            success: true
+        };
+
+    } catch (error: any) {
+        logger.error('Delete template error:', error);
+        throw new HttpsError('internal', `שגיאה במחיקת תבנית: ${error.message}`);
+    }
+});
+
+// --- PROMPT LIBRARY ---
+/**
+ * Search relevant prompts from the library
+ * Used by SmartCreationChat to suggest prompts for static content
+ */
+export const searchRelevantPrompts = onCall({
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    const { category, keywords, limit = 3 } = request.data as {
+        category?: string;
+        keywords?: string;
+        limit?: number;
+    };
+
+    try {
+        logger.info(`🔍 Searching prompts - category: ${category}, keywords: ${keywords}`);
+
+        let query: FirebaseFirestore.Query = db.collection('prompts')
+            .where('status', '==', 'active');
+
+        // Filter by category if provided
+        if (category) {
+            query = query.where('category', '==', category);
+        }
+
+        const snapshot = await query.get();
+        let prompts = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Client-side filtering by keywords if provided
+        if (keywords) {
+            const keywordList = keywords.toLowerCase().split(/\s+/);
+            prompts = prompts.filter((prompt: any) => {
+                const searchText = `${prompt.title} ${prompt.description} ${prompt.subcategory}`.toLowerCase();
+                return keywordList.some(kw => searchText.includes(kw));
+            });
+        }
+
+        // Sort by: averageRating (40%) + usageCount (30%) + recency (30%)
+        const now = Date.now();
+        prompts.sort((a: any, b: any) => {
+            const ratingScoreA = (a.averageRating || 0) / 5; // normalize to 0-1
+            const ratingScoreB = (b.averageRating || 0) / 5;
+
+            const maxUsage = Math.max(...prompts.map((p: any) => p.usageCount || 0));
+            const usageScoreA = maxUsage > 0 ? (a.usageCount || 0) / maxUsage : 0;
+            const usageScoreB = maxUsage > 0 ? (b.usageCount || 0) / maxUsage : 0;
+
+            const daysSinceA = (now - (a.createdAt?.toMillis?.() || 0)) / (1000 * 60 * 60 * 24);
+            const daysSinceB = (now - (b.createdAt?.toMillis?.() || 0)) / (1000 * 60 * 60 * 24);
+            const recencyScoreA = Math.max(0, 1 - (daysSinceA / 365)); // decay over 1 year
+            const recencyScoreB = Math.max(0, 1 - (daysSinceB / 365));
+
+            const scoreA = (ratingScoreA * 0.4) + (usageScoreA * 0.3) + (recencyScoreA * 0.3);
+            const scoreB = (ratingScoreB * 0.4) + (usageScoreB * 0.3) + (recencyScoreB * 0.3);
+
+            return scoreB - scoreA;
+        });
+
+        const results = prompts.slice(0, Math.min(limit, 10));
+
+        logger.info(`✅ Found ${results.length} relevant prompts`);
+
+        return {
+            success: true,
+            count: results.length,
+            prompts: results
+        };
+
+    } catch (error: any) {
+        logger.error('Search prompts error:', error);
+        throw new HttpsError('internal', `שגיאה בחיפוש פרומפטים: ${error.message}`);
+    }
+});
+
+/**
+ * Delete all prompts from the library (USE WITH CAUTION!)
+ * Temporary function to clear old prompts before re-seeding
+ */
+export const deleteAllPrompts = onCall({
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 60
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    try {
+        logger.info('🗑️ Deleting all prompts...');
+
+        const promptsSnapshot = await db.collection('prompts').get();
+
+        const batch = db.batch();
+        promptsSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        logger.info(`✅ Deleted ${promptsSnapshot.size} prompts successfully`);
+
+        return {
+            success: true,
+            count: promptsSnapshot.size,
+            message: `נמחקו ${promptsSnapshot.size} פרומפטים בהצלחה!`
+        };
+
+    } catch (error: any) {
+        logger.error('Delete prompts error:', error);
+        throw new HttpsError('internal', `שגיאה במחיקת פרומפטים: ${error.message}`);
+    }
+});
+
+/**
+ * Seed initial prompts to the library (ONE-TIME ONLY)
+ * Call this once to initialize the prompt library with seed data
+ */
+import { seedPrompts } from "./seedPrompts";
+export const seedPromptsLibrary = onCall({
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 60
+}, async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+        throw new HttpsError('unauthenticated', 'נדרשת הזדהות');
+    }
+
+    // Check if user is admin (you may want to add admin check here)
+    // For now, allow any authenticated user - change this in production!
+
+    try {
+        logger.info('🌱 Seeding prompts library...');
+        const count = await seedPrompts();
+        logger.info(`✅ Seeded ${count} prompts successfully`);
+
+        return {
+            success: true,
+            count,
+            message: `נוספו ${count} פרומפטים בהצלחה!`
+        };
+
+    } catch (error: any) {
+        logger.error('Seed prompts error:', error);
+        throw new HttpsError('internal', `שגיאה בהוספת פרומפטים: ${error.message}`);
     }
 });
 
@@ -1713,27 +2383,46 @@ export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
     logger.info(`Cleaned up ${deleted} old events`);
 });
 
-// --- AI NEWS SERVICE ---
-// Fetches AI/EdTech news from RSS feeds, translates to Hebrew using OpenAI
+// --- EDTECH NEWS SERVICE ---
+// Fetches AI/EdTech news from RSS feeds, translates to Hebrew
+// חידושים בטכנולוגיה חינוכית
 
 const AI_NEWS_RSS_FEEDS = [
-    { url: 'https://openai.com/blog/rss.xml', name: 'OpenAI Blog' },
+    // Google Education & Workspace
+    { url: 'https://workspaceupdates.googleblog.com/atom.xml', name: 'Google Workspace Updates' },
     { url: 'https://blog.google/technology/ai/rss/', name: 'Google AI Blog' },
-    { url: 'https://www.edsurge.com/feeds/articles', name: 'EdSurge' },
+    // AI Companies
+    { url: 'https://openai.com/blog/rss.xml', name: 'OpenAI Blog' },
 ];
 
 const EDUCATION_KEYWORDS = [
+    // Core education terms
     'education', 'learning', 'teaching', 'school', 'student', 'teacher',
     'classroom', 'curriculum', 'training', 'course', 'lesson',
-    'academic', 'university', 'edtech', 'e-learning', 'tutoring'
+    'academic', 'university', 'edtech', 'e-learning', 'tutoring',
+    // Google Education tools
+    'classroom', 'workspace', 'chromebook', 'google for education',
+    'notebooklm', 'gemini', 'docs', 'slides', 'forms',
+    // AI in Education
+    'ai tutor', 'personalized learning', 'adaptive learning',
+    'educational ai', 'learning assistant'
 ];
 
 function calculateNewsRelevance(title: string, summary: string): number {
     const text = `${title} ${summary}`.toLowerCase();
-    let score = 5;
+    let score = 0; // Start from 0, not 5!
+
+    // Must contain at least one education keyword
     for (const keyword of EDUCATION_KEYWORDS) {
+        if (text.includes(keyword)) score += 2;
+    }
+
+    // Bonus for explicitly educational content
+    const strongKeywords = ['education', 'learning', 'teaching', 'teacher', 'student', 'classroom', 'school'];
+    for (const keyword of strongKeywords) {
         if (text.includes(keyword)) score += 1;
     }
+
     return Math.min(score, 10);
 }
 
@@ -1935,27 +2624,38 @@ export const updateAINews = onSchedule({
 
 /**
  * Manual trigger for AI news update (for admin use)
+ * @param forceRegenerate - If true, deletes all existing news first
  */
 export const triggerAINewsUpdate = onCall({
     cors: true,
-    secrets: [openAiApiKey, geminiApiKey]
+    secrets: [openAiApiKey, geminiApiKey],
+    timeoutSeconds: 300
 }, async (request) => {
-    // Verify admin (optional - add your admin check logic)
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Authentication required');
     }
 
-    logger.info(`📰 Manual AI News update triggered by ${request.auth.uid}`);
+    const forceRegenerate = request.data?.forceRegenerate === true;
+    logger.info(`📰 Manual AI News update triggered by ${request.auth.uid}${forceRegenerate ? ' (force regenerate)' : ''}`);
 
-    // Re-use the same logic (simplified for manual trigger)
-    const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+    // If force regenerate, delete all existing news
+    if (forceRegenerate) {
+        const existingNews = await db.collection('aiNews').get();
+        const batch = db.batch();
+        existingNews.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        logger.info(`Deleted ${existingNews.size} existing news items`);
+    }
+
     let addedCount = 0;
 
     for (const feed of AI_NEWS_RSS_FEEDS) {
         const articles = await parseRSSFeedServer(feed.url, feed.name);
 
-        for (const article of articles.slice(0, 2)) {
+        for (const article of articles.slice(0, 3)) {
             const relevanceScore = calculateNewsRelevance(article.title, article.summary);
+
+            logger.info(`Article "${article.title}" - relevance score: ${relevanceScore}`);
 
             if (relevanceScore >= 5) {
                 const existing = await db.collection('aiNews')
@@ -1969,7 +2669,6 @@ export const triggerAINewsUpdate = onCall({
                         article.summary
                     );
 
-                    // Verify translation contains Hebrew
                     const hasHebrew = (text: string) => /[\u0590-\u05FF]/.test(text);
                     if (!hasHebrew(hebrewTitle) || !hasHebrew(hebrewSummary)) {
                         logger.warn(`Skipping non-Hebrew translation: ${article.title}`);
@@ -1989,12 +2688,13 @@ export const triggerAINewsUpdate = onCall({
                     });
 
                     addedCount++;
+                    logger.info(`✅ Added: ${hebrewTitle}`);
                 }
             }
         }
     }
 
-    return { success: true, addedCount };
+    return { success: true, addedCount, forceRegenerate };
 });
 
 /**
@@ -2139,6 +2839,12 @@ const PROMPT_CATEGORIES = [
         subcategories: ['מבחן רב-ברירה', 'מבחן פתוח', 'בוחן מהיר (5 דקות)', 'מבחן מותאם לתלמידים עם לקויות']
     },
     {
+        id: 'worksheets',
+        name: 'דפי עבודה',
+        icon: '📄',
+        subcategories: ['דף עבודה להדפסה', 'תרגילי חזרה', 'דף תרגול מונחה', 'דף העמקה']
+    },
+    {
         id: 'lessons',
         name: 'הכנת שיעורים',
         icon: '📚',
@@ -2179,6 +2885,24 @@ const PROMPT_CATEGORIES = [
         name: 'הערכה חלופית',
         icon: '📊',
         subcategories: ['רובריקה להערכה', 'פרויקט מסכם', 'תיק עבודות (Portfolio)', 'הערכת עמיתים']
+    },
+    {
+        id: 'sel',
+        name: 'למידה חברתית-רגשית (SEL)',
+        icon: '🤝',
+        subcategories: ['מערך שיעור חברתי', 'פעילות מיומנויות SEL', 'משחק תפקידים', 'פעילות אופטימיות וחוסן']
+    },
+    {
+        id: 'planning',
+        name: 'תכנון ותכניות עבודה',
+        icon: '📋',
+        subcategories: ['תכנית עבודה כיתתית', 'תכנית לימודית אישית', 'תכנון שנתי', 'תכנון יחידת הוראה']
+    },
+    {
+        id: 'communication',
+        name: 'תקשורת אישית',
+        icon: '💌',
+        subcategories: ['מכתב אישי לתלמיד', 'הודעה להורים', 'משוב מעצים', 'ברכה אישית']
     }
 ];
 
@@ -2623,7 +3347,6 @@ export const checkDueTasksAndSendReports = onSchedule({
 // Quality sources - ONLY AI + Education focused
 const AI_BLOG_SOURCES = [
     // EdTech specific - highest priority (dedicated AI in Education coverage)
-    { url: 'https://www.edsurge.com/feeds/articles', name: 'EdSurge', priority: 3 },
     { url: 'https://www.iste.org/explore/feed', name: 'ISTE', priority: 3 },
     { url: 'https://thejournal.com/rss-feeds/the-journal.aspx', name: 'THE Journal', priority: 2 },
     { url: 'https://www.eschoolnews.com/feed/', name: 'eSchool News', priority: 2 },
@@ -3330,3 +4053,36 @@ export {
     getTeacherDashboard,
     getTaskResults
 } from "./wizdi";
+
+// --- ADAPTIVE LEARNING SIMULATION ---
+import { simulateAdaptiveStudents } from "./simulateAdaptiveStudents";
+
+/**
+ * Simulate Adaptive Students
+ * Creates 3 simulated students and tests adaptive learning features
+ */
+export const runAdaptiveSimulation = onCall({
+    cors: true,
+    memory: "512MiB"
+}, async (request) => {
+    const { courseId, teacherId, numQuestions } = request.data;
+
+    if (!courseId || !teacherId) {
+        throw new HttpsError('invalid-argument', 'courseId and teacherId are required');
+    }
+
+    logger.info('Starting adaptive simulation', { courseId, teacherId });
+
+    try {
+        const result = await simulateAdaptiveStudents({
+            courseId,
+            teacherId,
+            numQuestions: numQuestions || 10
+        }, request);
+
+        return result;
+    } catch (error: any) {
+        logger.error('Simulation error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});

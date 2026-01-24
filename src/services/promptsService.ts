@@ -103,6 +103,17 @@ export const PROMPT_CATEGORIES = [
     ]
   },
   {
+    id: 'worksheets',
+    name: 'דפי עבודה',
+    icon: '📄',
+    subcategories: [
+      'דף עבודה להדפסה',
+      'תרגילי חזרה',
+      'דף תרגול מונחה',
+      'דף העמקה'
+    ]
+  },
+  {
     id: 'lessons',
     name: 'הכנת שיעורים',
     icon: '📚',

@@ -164,16 +164,84 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         console.log('[CourseContext] Setting up onSnapshot for courseId:', currentCourseId);
 
-        // האזנה לשינויים במסמך
+        // 🚀 FAST INITIAL LOAD: Get document immediately (from cache if available)
+        // This prevents the loading screen from appearing when editing existing courses
+        const loadInitialData = async () => {
+            try {
+                const docRef = doc(db, "courses", currentCourseId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists() && docSnap.id === currentCourseId) {
+                    const data = docSnap.data() as Course;
+
+                    // 🔍 DEBUG: Log syllabus structure before lazy loading
+                    const firstUnit = data.syllabus?.[0]?.learningUnits?.[0];
+                    console.log('[CourseContext] 🔍 DEBUG: First unit before lazy load:', {
+                        hasBlocks: !!firstUnit?.activityBlocks?.length,
+                        blockCount: firstUnit?.activityBlocks?.length || 0,
+                        isLazy: (firstUnit as any)?.isLazy,
+                        unitId: firstUnit?.id
+                    });
+
+                    // 🔧 FIX: Check if units have content OR if we need to load from sub-collection
+                    // Support both old format (blocks in main doc) and new format (isLazy + sub-collection)
+                    const hasLazyUnits = data.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => u.isLazy));
+                    const hasEmptyUnits = data.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => !u.activityBlocks?.length));
+
+                    // Try loading from sub-collection if we have lazy units OR if units are empty (might be migrated format)
+                    const shouldLoadFromSubcollection = hasLazyUnits || hasEmptyUnits;
+                    console.log('[CourseContext] 🔍 hasLazyUnits:', hasLazyUnits, 'hasEmptyUnits:', hasEmptyUnits, 'shouldLoad:', shouldLoadFromSubcollection);
+
+                    if (shouldLoadFromSubcollection) {
+                        const unitsRef = collection(db, "courses", currentCourseId, "units");
+                        const unitsSnap = await getDocs(unitsRef);
+                        const unitsMap = new Map();
+                        unitsSnap.forEach(doc => unitsMap.set(doc.id, doc.data()));
+                        console.log('[CourseContext] 🔍 Loaded units from sub-collection:', unitsMap.size, 'units');
+
+                        if (unitsMap.size > 0) {
+                            data.syllabus = data.syllabus.map((module: any) => ({
+                                ...module,
+                                learningUnits: module.learningUnits.map((unit: any) => {
+                                    // Load from sub-collection if it has more content than main doc
+                                    if (unitsMap.has(unit.id)) {
+                                        const fullUnit = unitsMap.get(unit.id) as any;
+                                        if (fullUnit?.activityBlocks?.length > (unit.activityBlocks?.length || 0)) {
+                                            console.log('[CourseContext] 🔍 Merged unit:', unit.id, 'blocks:', fullUnit?.activityBlocks?.length || 0);
+                                            return fullUnit;
+                                        }
+                                    }
+                                    return unit;
+                                })
+                            }));
+                        }
+                    }
+
+                    const initialCourse = sanitizeCourseData(data, docSnap.id);
+                    console.log('[CourseContext] 🔍 After sanitize - blocks:', initialCourse.syllabus?.[0]?.learningUnits?.[0]?.activityBlocks?.length || 0);
+                    setCourseState(initialCourse);
+                    setFullBookContentState(data.fullBookContent || "");
+                    setPdfSourceState(data.pdfSource || null);
+                    console.log('[CourseContext] Initial data loaded via getDoc');
+                }
+            } catch (err) {
+                console.warn('[CourseContext] getDoc failed, falling back to onSnapshot:', err);
+            }
+        };
+        loadInitialData();
+
+        // האזנה לשינויים במסמך (for real-time updates after initial load)
         const unsubscribe = onSnapshot(doc(db, "courses", currentCourseId), async (docSnap) => {
             console.log('[CourseContext] onSnapshot callback - exists:', docSnap.exists());
             if (docSnap.exists()) {
                 const data = docSnap.data() as Course;
 
-                // בדיקה אם הקורס בפורמט החדש (Lazy) - צריך לטעון יחידות מתת-אוסף
-                const hasLazyUnits = data.syllabus?.some(m => m.learningUnits?.some(u => (u as any).isLazy));
+                // 🔧 FIX: Check if units have content OR if we need to load from sub-collection
+                // Support both old format (blocks in main doc) and new format (isLazy + sub-collection)
+                const hasLazyUnits = data.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => u.isLazy));
+                const hasEmptyUnits = data.syllabus?.some((m: any) => m.learningUnits?.some((u: any) => !u.activityBlocks?.length));
+                const shouldLoadFromSubcollection = hasLazyUnits || hasEmptyUnits;
 
-                if (hasLazyUnits) {
+                if (shouldLoadFromSubcollection) {
                     // שליפת כל היחידות מתת-האוסף
                     const unitsRef = collection(db, "courses", currentCourseId, "units");
                     const unitsSnap = await getDocs(unitsRef);
@@ -183,16 +251,21 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         unitsMap.set(doc.id, doc.data());
                     });
 
-                    // מיזוג היחידות המלאות לתוך הסילבוס
-                    data.syllabus = data.syllabus.map(module => ({
-                        ...module,
-                        learningUnits: module.learningUnits.map(unit => {
-                            if ((unit as any).isLazy && unitsMap.has(unit.id)) {
-                                return unitsMap.get(unit.id) as any;
-                            }
-                            return unit;
-                        })
-                    }));
+                    // מיזוג היחידות המלאות לתוך הסילבוס (if sub-collection has more content)
+                    if (unitsMap.size > 0) {
+                        data.syllabus = data.syllabus.map((module: any) => ({
+                            ...module,
+                            learningUnits: module.learningUnits.map((unit: any) => {
+                                if (unitsMap.has(unit.id)) {
+                                    const fullUnit = unitsMap.get(unit.id) as any;
+                                    if (fullUnit?.activityBlocks?.length > (unit.activityBlocks?.length || 0)) {
+                                        return fullUnit;
+                                    }
+                                }
+                                return unit;
+                            })
+                        }));
+                    }
                 }
 
                 if (docSnap.id === currentCourseId) {

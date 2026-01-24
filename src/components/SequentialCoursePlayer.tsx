@@ -5,7 +5,8 @@ import {
     IconSparkles,
     IconChevronLeft, IconChevronRight,
     IconCheck, IconX, IconStar, IconLink,
-    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell, IconInfo
+    IconVideo, IconHeadphones, IconJoystick, IconTarget, IconBook, IconBell, IconInfo, IconBrain,
+    IconHome
 } from '../icons';
 import type { ActivityBlock, Assignment } from '../shared/types/courseTypes';
 import { getIconForBlockType } from '../utils/pedagogicalIcons';
@@ -18,8 +19,8 @@ import ThinkingOverlay from './ThinkingOverlay';
 import { syncProgress, checkDailyStreak, DEFAULT_GAMIFICATION_PROFILE } from '../services/gamificationService';
 import { onSessionComplete, updateProficiencyVector, updateErrorFingerprint } from '../services/profileService';
 import { useStudentTelemetry } from '../hooks/useStudentTelemetry';
-import { makeAdaptiveDecision, applyPolicyDecision, selectVariant, getInitialStudentState, type BKTAction } from '../services/adaptivePolicyService';
-import { logVariantSelected, logBktUpdate, logChallengeMode, logMasterySkip, logRemediationInjected } from '../services/adaptiveLoggingService';
+import { makeAdaptiveDecision, applyPolicyDecision, selectVariant, getInitialStudentState, shouldOfferEnrichment, type BKTAction } from '../services/adaptivePolicyService';
+import { logVariantSelected, logBktUpdate, logChallengeMode, logMasterySkip, logRemediationInjected, logScaffoldingOffered, logScaffoldingAccepted, logScaffoldingDeclined, logEnrichmentOffered, logEnrichmentAccepted, logEnrichmentDeclined } from '../services/adaptiveLoggingService';
 import { getTopicIdForBlock } from '../services/curriculumTopicService';
 import ShopModal from './ShopModal';
 import SuccessModal from './SuccessModal';
@@ -29,6 +30,10 @@ import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring'; // CR
 import { submitAssignment, type SubmissionData } from '../services/submissionService'; // Student submission
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
+import ScaffoldingOfferModal from './ScaffoldingOfferModal'; // NEW: Scaffolding variant modal
+import EnrichmentOfferModal from './EnrichmentOfferModal'; // NEW: Enrichment variant modal
+import { generateVariantInBackground } from '../services/variantCacheService'; // NEW: Variant generation
+import type { VariantType } from '../types/variantCache.types'; // NEW: Variant types
 
 
 // --- Specialized Sub-Components ---
@@ -41,6 +46,7 @@ import MatchingQuestion from './questions/MatchingQuestion';
 import { PodcastPlayer } from './PodcastPlayer';
 import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { InfographicViewer } from './InfographicViewer';
+import { RemotionVideoPlayer } from './RemotionVideoPlayer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { sanitizeHtml, formatTeacherContent, stripAsterisks } from '../utils/sanitize';
@@ -57,23 +63,26 @@ interface SequentialPlayerProps {
 
 const XpFloater = ({ amount, onComplete }: { amount: number, onComplete: () => void }) => {
     useEffect(() => {
-        const timer = setTimeout(onComplete, 1000);
+        const timer = setTimeout(onComplete, 1500);
         return () => clearTimeout(timer);
     }, [onComplete]);
 
     return (
         <div className="absolute top-1/4 right-10 pointer-events-none z-50 animate-bounce-up">
-            <span className="text-4xl font-black text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] header-font">
-                +{amount} XP
-            </span>
+            <div className="relative">
+                <span className="text-5xl font-black bg-gradient-to-r from-amber-300 via-yellow-400 to-orange-400 bg-clip-text text-transparent drop-shadow-[0_4px_8px_rgba(251,191,36,0.5)] header-font">
+                    +{amount} XP
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-300 via-yellow-400 to-orange-400 blur-xl opacity-40 -z-10"></div>
+            </div>
         </div>
     );
 };
 
 const StreakFlame = ({ count }: { count: number }) => (
-    <div className={`flex items-center gap-1 transition-all transform ${count > 0 ? 'scale-110' : 'scale-100 opacity-50'} ${count >= 3 ? 'animate-bounce' : ''}`}>
-        <span className="text-2xl filter drop-shadow-md">🔥</span>
-        <span className={`text-xl font-black ${count >= 3 ? 'text-red-500 drop-shadow-lg' : count > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
+    <div className={`flex items-center gap-1.5 transition-all transform ${count > 0 ? 'scale-110' : 'scale-100 opacity-50'} ${count >= 3 ? 'animate-pulse' : ''}`}>
+        <span className="text-2xl filter drop-shadow-lg">🔥</span>
+        <span className={`text-xl font-black font-mono ${count >= 3 ? 'bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent drop-shadow-lg' : count > 0 ? 'text-orange-300' : 'text-gray-400'}`}>
             {count}
         </span>
     </div>
@@ -200,6 +209,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     // --- ADAPTIVE: Track which variant is being shown for each block ---
     // Hebrew: הבנה=Understanding, יישום=Application, העמקה=Deepening
     const [activeVariants, setActiveVariants] = useState<Record<string, 'יישום' | 'הבנה' | 'העמקה'>>({});
+
+    // --- SCAFFOLDING: Modal for offering variant after 3 failures ---
+    const [isScaffoldingModalOpen, setIsScaffoldingModalOpen] = useState(false);
+    const [scaffoldingBlockId, setScaffoldingBlockId] = useState<string | null>(null);
+    const [scaffoldingVariantType, setScaffoldingVariantType] = useState<VariantType>('הבנה');
+    const [isCurrentBlockScaffolding, setIsCurrentBlockScaffolding] = useState(false);
+
+    // --- ENRICHMENT: Modal for offering challenge variant to high-performers ---
+    const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
+    const [enrichmentBlockId, setEnrichmentBlockId] = useState<string | null>(null);
+    const [enrichmentVariantType, setEnrichmentVariantType] = useState<VariantType>('העמקה');
 
     // Initial Load & Streak Check + Profile-based Starting Level
     useEffect(() => {
@@ -662,26 +682,108 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 });
             }
 
+            // --- ENRICHMENT OFFER LOGIC: Check if student should be offered העמקה variant ---
+            // Only check when student answers correctly (not after failures)
+            if (score === SCORING_CONFIG.CORRECT_FIRST_TRY) {
+                // Check if enrichment should be offered based on performance
+                const shouldOffer = shouldOfferEnrichment(
+                    currentMastery,
+                    recentAccuracy,
+                    combo + 1, // +1 because we just incremented combo
+                    currentBlock
+                );
+
+                if (shouldOffer && !isEnrichmentModalOpen) {
+                    // Check if enrichment variant exists
+                    const hasEnrichment = !!(currentBlock.metadata?.העמקה_id || currentBlock.metadata?.enrichment_id);
+
+                    if (hasEnrichment) {
+                        console.log('🚀 Offering enrichment to high-performing student');
+
+                        // Log offer
+                        if (currentUser?.uid && course?.id) {
+                            logEnrichmentOffered(
+                                currentUser.uid,
+                                course.id,
+                                currentBlock.id,
+                                'העמקה',
+                                currentMastery,
+                                combo + 1
+                            );
+
+                            // Pre-generate variant in background
+                            generateVariantInBackground(
+                                currentBlock.id,
+                                'העמקה',
+                                currentUser.uid,
+                                course.id
+                            );
+                        }
+
+                        // Open enrichment modal
+                        setEnrichmentBlockId(currentBlock.id);
+                        setEnrichmentVariantType('העמקה');
+                        setIsEnrichmentModalOpen(true);
+                    }
+                }
+            }
+
         } else {
             // ✅ NEW: 3-attempt logic with progressive hints
             const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
             const hints = currentBlock.metadata?.progressiveHints || [];
 
             if (currentAttempts >= maxAttempts) {
-                // Final attempt - show correct answer and lock
+                // Final attempt - check mastery to decide scaffolding offer
                 setStepStatus('failure');
                 playSound('failure');
                 setCombo(0);
 
-                // Show all remaining hints + correct answer
+                // Show all remaining hints
                 if (hints.length > 0) {
                     setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
                 }
 
-                const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
-                setFeedbackMsg(currentBlock.type === 'multiple-choice'
-                    ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
-                    : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+                // --- SCAFFOLDING LOGIC: Check mastery ---
+                // Mastery < 0.3 = struggling → offer הבנה variant
+                // Mastery >= 0.3 = just bad luck → show answer
+                if (currentMastery < 0.3) {
+                    console.log(`📚 Low mastery (${currentMastery.toFixed(2)}) - offering scaffolding variant`);
+
+                    // Trigger variant generation in background if not cached
+                    const topic = currentBlock.metadata?.topic || course?.title || 'כללי';
+                    generateVariantInBackground({
+                        baseBlock: currentBlock,
+                        variantType: 'הבנה',
+                        topic,
+                        activityId: course?.id,
+                        runInBackground: true
+                    });
+
+                    // Log scaffolding offer
+                    if (currentUser?.uid && course?.id) {
+                        logScaffoldingOffered(
+                            currentUser.uid,
+                            course.id,
+                            currentBlock.id,
+                            'הבנה',
+                            currentMastery,
+                            currentAttempts
+                        );
+                    }
+
+                    // Open scaffolding modal
+                    setScaffoldingBlockId(currentBlock.id);
+                    setScaffoldingVariantType('הבנה');
+                    setIsScaffoldingModalOpen(true);
+                    setFeedbackMsg('נראה שיש קצת קושי. רוצה לנסות שאלה קלה יותר?');
+                } else {
+                    // High enough mastery - just show answer
+                    const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
+                    setFeedbackMsg(currentBlock.type === 'multiple-choice'
+                        ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
+                        : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+                }
             } else {
                 // Still have attempts - show progressive hint and allow retry
                 setStepStatus('ready_to_check'); // Allow retry
@@ -1080,10 +1182,164 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         }
     };
 
+    // --- SCAFFOLDING HANDLERS ---
+    /**
+     * Handle acceptance of scaffolding variant
+     * Replace current block with variant and reset state
+     */
+    const handleScaffoldingAccept = useCallback((variant: ActivityBlock) => {
+        console.log('✅ Scaffolding variant accepted:', variant.id);
+
+        // Log acceptance
+        if (currentUser?.uid && course?.id && scaffoldingBlockId) {
+            logScaffoldingAccepted(
+                currentUser.uid,
+                course.id,
+                scaffoldingBlockId,
+                variant.id,
+                scaffoldingVariantType,
+                currentMastery
+            );
+        }
+
+        // Replace current block with variant in queue
+        setPlaybackQueue(prev => {
+            const newQueue = [...prev];
+            newQueue[currentIndex] = variant;
+            return newQueue;
+        });
+
+        // Mark this block as scaffolding variant
+        setIsCurrentBlockScaffolding(true);
+
+        // Reset state for new attempt
+        setStepStatus('idle');
+        setUserAnswers(prev => ({ ...prev, [variant.id]: undefined }));
+        setBlockAttempts(prev => ({ ...prev, [variant.id]: 0 }));
+        setHintsVisible(prev => ({ ...prev, [variant.id]: 0 }));
+        setFeedbackMsg(null);
+
+        // Close modal
+        setIsScaffoldingModalOpen(false);
+        setScaffoldingBlockId(null);
+    }, [currentIndex, currentUser, course, scaffoldingBlockId, scaffoldingVariantType, currentMastery]);
+
+    /**
+     * Handle decline of scaffolding variant
+     * Show correct answer and allow continue
+     */
+    const handleScaffoldingDecline = useCallback(() => {
+        console.log('❌ Scaffolding variant declined');
+
+        // Log decline
+        if (currentUser?.uid && course?.id && scaffoldingBlockId) {
+            logScaffoldingDeclined(
+                currentUser.uid,
+                course.id,
+                scaffoldingBlockId,
+                scaffoldingVariantType,
+                currentMastery
+            );
+        }
+
+        // Close modal
+        setIsScaffoldingModalOpen(false);
+        setScaffoldingBlockId(null);
+
+        // Show correct answer
+        const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
+        setFeedbackMsg(currentBlock.type === 'multiple-choice'
+            ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
+            : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+    }, [currentBlock, currentUser, course, scaffoldingBlockId, scaffoldingVariantType, currentMastery]);
+
+    // --- ENRICHMENT HANDLERS ---
+    /**
+     * Handle acceptance of enrichment variant
+     * Replace current block with harder variant and reset state
+     */
+    const handleEnrichmentAccept = useCallback((variant: ActivityBlock) => {
+        console.log('✅ Enrichment variant accepted:', variant.id);
+
+        // Log acceptance
+        if (currentUser?.uid && course?.id && enrichmentBlockId) {
+            logEnrichmentAccepted(
+                currentUser.uid,
+                course.id,
+                enrichmentBlockId,
+                variant.id,
+                enrichmentVariantType,
+                currentMastery
+            );
+        }
+
+        // Replace current block with variant in queue
+        setPlaybackQueue(prev => {
+            const newQueue = [...prev];
+            newQueue[currentIndex] = variant;
+            return newQueue;
+        });
+
+        // Reset state for new attempt
+        setStepStatus('idle');
+        setUserAnswers(prev => ({ ...prev, [variant.id]: undefined }));
+        setBlockAttempts(prev => ({ ...prev, [variant.id]: 0 }));
+        setHintsVisible(prev => ({ ...prev, [variant.id]: 0 }));
+        setFeedbackMsg(null);
+
+        // Close modal
+        setIsEnrichmentModalOpen(false);
+        setEnrichmentBlockId(null);
+
+        // Show motivational toast
+        setAdaptiveToast({
+            show: true,
+            type: 'challenge',
+            title: '🚀 אתגר התקבל!',
+            description: 'בואו נראה איך מתמודדים עם שאלה מתקדמת!'
+        });
+        setTimeout(() => setAdaptiveToast(null), 3000);
+    }, [currentIndex, currentUser, course, enrichmentBlockId, enrichmentVariantType, currentMastery]);
+
+    /**
+     * Handle decline of enrichment variant
+     * Continue normally with standard content
+     */
+    const handleEnrichmentDecline = useCallback(() => {
+        console.log('❌ Enrichment variant declined');
+
+        // Log decline
+        if (currentUser?.uid && course?.id && enrichmentBlockId) {
+            logEnrichmentDeclined(
+                currentUser.uid,
+                course.id,
+                enrichmentBlockId,
+                enrichmentVariantType,
+                currentMastery
+            );
+        }
+
+        // Close modal
+        setIsEnrichmentModalOpen(false);
+        setEnrichmentBlockId(null);
+
+        // Show supportive message
+        setAdaptiveToast({
+            show: true,
+            type: 'info',
+            title: '👍 בסדר גמור!',
+            description: 'נמשיך עם השאלה הרגילה'
+        });
+        setTimeout(() => setAdaptiveToast(null), 2000);
+    }, [currentUser, course, enrichmentBlockId, enrichmentVariantType, currentMastery]);
+
     // --- 4. Navigation ---
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const handleNext = () => {
+        // Reset scaffolding flag when moving to next question
+        setIsCurrentBlockScaffolding(false);
+
         // Prepare next
         if (isLast) {
             setShowSuccessModal(true);
@@ -1128,36 +1384,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             return null;
         }
 
-        // COMPLEX BLOCK LOGIC:
-        // If it's a complex interactive block (Cloze, Ordering, etc.) AND we are in 'idle' mode,
-        // we HIDE the main button because the block usually has its own internal 'Check' button (or drag logic).
-        const complexTypes = ['fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed', 'audio-response'];
-        if (complexTypes.includes(currentBlock.type) && !isChecked) {
-            return null; // Hide button, let the component drive
+        // ALL QUESTION TYPES: Hide footer button - each block has its own internal check button
+        const questionTypes = ['fill_in_blanks', 'ordering', 'categorization', 'memory_game', 'true_false_speed', 'audio-response', 'multiple-choice', 'open-question'];
+        if (questionTypes.includes(currentBlock.type)) {
+            return null; // Hide button, let the component's internal button handle it
         }
 
+        // After check complete, hide button - navigation handled by arrows only
         if (isChecked) {
-            label = "המשך";
-            colorClass = stepStatus === 'success'
-                ? "bg-[#0056b3] text-white border-blue-800 hover:bg-blue-700" // Continue Success (Blue)
-                : stepStatus === 'partial'
-                    ? "bg-amber-500 text-white border-amber-700 hover:bg-amber-400" // Continue Partial (Amber)
-                    : "bg-orange-500 text-white border-orange-700 hover:bg-orange-400"; // Continue - needs improvement (Orange, not red)
-        } else if (stepStatus === 'idle' && currentBlock.type === 'multiple-choice' && !userAnswers[currentBlock.id]) {
-            // Disabled state for MC if nothing selected
-            colorClass = "bg-slate-700 text-slate-500 border-slate-700 cursor-not-allowed transform-none";
+            return null;
         }
 
-        return (
-            <button
-                key={stepStatus} // Re-trigger animation on status change
-                onClick={handleCheck}
-                disabled={!isChecked && stepStatus === 'idle' && currentBlock.type === 'multiple-choice' && !userAnswers[currentBlock.id]}
-                className={`w-full py-4 rounded-2xl font-black text-xl tracking-wide uppercase transition-all active:translate-y-1 active:border-b-0 border-b-4 shadow-lg animate-pop ${colorClass}`}
-            >
-                {label}
-            </button>
-        );
+        return null; // Default: no footer button for questions
     };
 
     const renderProgressiveHints = (block: ActivityBlock) => {
@@ -1176,13 +1414,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         if (isLocked) return null; // Don't show hint button at all if not attempted
 
         return (
-            <div className="mb-6 flex flex-col items-start gap-2 animate-in slide-in-from-top-2">
+            <div className="mb-6 flex flex-col items-start gap-3 animate-in slide-in-from-top-2">
                 <button
                     onClick={() => handleShowHint(block.id)}
                     disabled={isMaxLevel}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${isMaxLevel
-                        ? 'bg-gray-100 text-gray-400 cursor-default'
-                        : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:scale-105 active:scale-95' // Secondary Style
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md ${isMaxLevel
+                        ? 'bg-slate-100 text-slate-400 cursor-default'
+                        : 'bg-gradient-to-r from-violet-50 to-cyan-50 text-violet-600 border border-violet-200/50 hover:border-violet-300 hover:shadow-lg hover:shadow-violet-500/10 hover:scale-105 active:scale-95'
                         }`}
                 >
                     <IconSparkles className="w-4 h-4" />
@@ -1190,11 +1428,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 </button>
 
                 {currentLevel > 0 && (
-                    <div className="space-y-2 w-full max-w-md animate-fade-in mt-2">
+                    <div className="space-y-3 w-full max-w-md animate-fade-in mt-2">
                         {hints.slice(0, currentLevel).map((hint, idx) => (
-                            <div key={idx} className="relative bg-blue-50 border border-blue-200 p-3 pr-4 rounded-xl text-blue-900 text-sm shadow-sm flex gap-3 items-start">
-                                <span className="font-bold bg-blue-200 text-blue-800 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{idx + 1}</span>
-                                <span className="flex-1">{hint}</span>
+                            <div key={idx} className="relative bg-gradient-to-r from-violet-50/80 to-cyan-50/80 border border-violet-200/50 p-4 pr-5 rounded-2xl text-slate-800 text-sm shadow-sm flex gap-3 items-start backdrop-blur-sm">
+                                <span className="font-bold bg-gradient-to-br from-violet-500 to-cyan-500 text-white w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-sm">{idx + 1}</span>
+                                <span className="flex-1 leading-relaxed">{hint}</span>
                             </div>
                         ))}
                     </div>
@@ -1204,6 +1442,23 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     };
 
     const renderBlockContent = () => {
+        return (
+            <div className="relative">
+                {/* Scaffolding Badge - AI-Native Design */}
+                {isCurrentBlockScaffolding && (
+                    <div className="absolute -top-3 right-0 z-10 flex items-center gap-2 bg-gradient-to-r from-violet-100 via-purple-100 to-pink-100 border border-violet-300/50 px-4 py-2 rounded-2xl shadow-lg shadow-violet-500/10 animate-in slide-in-from-top-2">
+                        <IconSparkles className="w-4 h-4 text-violet-600" />
+                        <span className="text-xs font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">שאלה בדיוק בשבילך</span>
+                    </div>
+                )}
+
+                {/* Main Content */}
+                {renderBlockContentInner()}
+            </div>
+        );
+    };
+
+    const renderBlockContentInner = () => {
         switch (currentBlock.type) {
             case 'multiple-choice':
                 return (
@@ -1248,6 +1503,23 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 );
                             })}
                         </div>
+
+                        {/* Internal Check Button for Multiple Choice */}
+                        {!(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') && (
+                            <div className="flex justify-center mt-6">
+                                <button
+                                    onClick={handleCheck}
+                                    disabled={!userAnswers[currentBlock.id]}
+                                    className={`px-8 py-4 rounded-2xl font-black text-xl transition-all shadow-lg ${
+                                        userAnswers[currentBlock.id]
+                                            ? 'bg-[#0056b3] text-white hover:bg-blue-700 active:scale-95'
+                                            : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    בדיקה
+                                </button>
+                            </div>
+                        )}
                     </div>
                 );
 
@@ -1305,6 +1577,23 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 <span className="font-bold">בודק את התשובה...</span>
                             </div>
                         )}
+
+                        {/* Internal Check Button for Open Question */}
+                        {!(stepStatus === 'success' || stepStatus === 'failure') && !isCheckingOpenQuestion && (
+                            <div className="flex justify-center mt-6">
+                                <button
+                                    onClick={handleCheck}
+                                    disabled={!userAnswers[currentBlock.id] || (userAnswers[currentBlock.id] || '').trim().length < 3}
+                                    className={`px-8 py-4 rounded-2xl font-black text-xl transition-all shadow-lg ${
+                                        userAnswers[currentBlock.id] && (userAnswers[currentBlock.id] || '').trim().length >= 3
+                                            ? 'bg-[#0056b3] text-white hover:bg-blue-700 active:scale-95'
+                                            : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    בדיקה
+                                </button>
+                            </div>
+                        )}
                     </div>
                 );
 
@@ -1349,6 +1638,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         />
                     </div>
                 );
+
+            case 'remotion-video':
+                return (
+                    <div className="w-full max-w-4xl mx-auto">
+                        <RemotionVideoPlayer
+                            content={currentBlock.content}
+                            showControls
+                            className="rounded-2xl shadow-lg"
+                        />
+                    </div>
+                );
+
             case 'image':
                 // Check if image URL is empty or missing - show completion message instead
                 if (!currentBlock.content || currentBlock.content.trim() === '') {
@@ -1638,22 +1939,148 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // --- Student Player (Default) ---
     return (
-        <div className="fixed inset-0 bg-[#3565e3] flex flex-col font-sans overflow-hidden" dir="rtl">
+        <div className="fixed top-20 bottom-0 left-0 right-0 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex flex-col font-sans overflow-hidden" dir="rtl">
+            {/* AI Background Particles */}
+            <div className="ai-particles opacity-30" aria-hidden="true">
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+                <div className="ai-particle"></div>
+            </div>
 
-            {/* 1. Header (Gamification) */}
-            <div className="flex-none p-4 pt-20 md:pt-32 pb-2 z-10">
-                <div className="max-w-6xl mx-auto flex items-center justify-between text-white bg-[#3565e3] pb-4 border-b border-white/10">
+            {/* 1. Header (Gamification) - AI-Native Design */}
+            <div className="flex-none p-4 pt-6 md:pt-8 pb-2 z-10 relative">
+                <div className="max-w-6xl mx-auto flex items-center justify-between text-white pb-4 border-b border-white/10">
                     {/* Exit/Back & Progress Text */}
                     <div className="flex items-center gap-4">
-                        {/* Submit Button - Leftmost */}
+                        {/* Dashboard Button - Leftmost */}
+                        <button
+                            onClick={() => {
+                                if (onExit) {
+                                    onExit();
+                                } else if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.hash = '#/';
+                                }
+                            }}
+                            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-slate-700/80 to-slate-800/80 hover:from-slate-600/80 hover:to-slate-700/80 rounded-2xl border border-white/20 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all text-white"
+                            title="חזרה לדשבורד התלמיד"
+                        >
+                            <IconHome className="w-7 h-7" />
+                            <span className="font-bold hidden sm:inline">דשבורד</span>
+                        </button>
+
+                        {/* Source Document Toggle Button */}
+                        {shouldShowSource && (
+                            <button
+                                onClick={() => setShowSourcePanel(!showSourcePanel)}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all border backdrop-blur-sm ${showSourcePanel
+                                        ? 'bg-white text-violet-600 border-white shadow-lg shadow-white/20'
+                                        : 'bg-white/10 hover:bg-white/20 text-white border-white/20 hover:border-white/40'
+                                    }`}
+                                title={showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
+                            >
+                                <IconBook className="w-5 h-5" />
+                                <span className="font-bold text-sm hidden sm:inline">
+                                    {showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
+                                </span>
+                            </button>
+                        )}
+                        <div className="flex flex-col text-right">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold opacity-80 uppercase tracking-widest">{currentUser?.displayName || "אורח"}</span>
+                                <IconBell className="w-4 h-4 opacity-70" />
+                            </div>
+                            <span className="text-xl font-black font-mono" dir="ltr">{currentIndex + 1} / {playbackQueue.length}</span>
+                        </div>
+                    </div>
+
+                    {/* AI-Native Progress Bar */}
+                    <div className="flex-1 mx-4 max-w-xl hidden md:flex items-center gap-4">
+                        {/* Progress Dots & Bar Container */}
+                        <div className="flex-1 flex flex-col gap-3 bg-white/5 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+                            {/* AI-Style Progress Dots */}
+                            <div className="flex items-center justify-center gap-1.5">
+                                {playbackQueue.map((block, idx) => {
+                                    const isCompleted = idx < currentIndex;
+                                    const isCurrent = idx === currentIndex;
+                                    const result = stepResults[block.id];
+
+                                    let dotColor = "bg-white/20"; // Future
+                                    let dotGlow = "";
+                                    if (isCurrent) {
+                                        dotColor = "bg-gradient-to-r from-violet-400 to-cyan-400";
+                                        dotGlow = "shadow-lg shadow-violet-400/50 ring-2 ring-violet-300/50";
+                                    } else if (isCompleted) {
+                                        if (result === 'success') {
+                                            dotColor = "bg-gradient-to-r from-emerald-400 to-green-400";
+                                            dotGlow = "shadow-sm shadow-emerald-400/30";
+                                        }
+                                        else if (result === 'failure') {
+                                            dotColor = "bg-gradient-to-r from-rose-400 to-red-400";
+                                        }
+                                        else {
+                                            dotColor = "bg-gradient-to-r from-emerald-400 to-green-400";
+                                            dotGlow = "shadow-sm shadow-emerald-400/30";
+                                        }
+                                    }
+
+                                    return (
+                                        <div
+                                            key={`dot-${block.id}`}
+                                            className={`w-3 h-3 rounded-full transition-all duration-300 ${dotColor} ${dotGlow} ${isCurrent ? 'scale-125' : 'hover:scale-110'}`}
+                                        />
+                                    );
+                                })}
+                            </div>
+
+                            {/* Step Counter Text with AI Gradient */}
+                            <div className="text-center">
+                                <span className="text-sm font-bold bg-gradient-to-r from-violet-300 via-white to-cyan-300 bg-clip-text text-transparent">
+                                    שלב {currentIndex + 1} מתוך {playbackQueue.length}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    {/* Stats: Streak & XP & Gems - AI-Native Widgets */}
+                    <div className="flex items-center gap-3">
+                        {/* Streak Widget - Bento Card Style */}
+                        <div className="flex items-center gap-2 bg-gradient-to-br from-orange-500/20 to-red-500/20 px-4 py-2.5 rounded-2xl border border-orange-400/30 backdrop-blur-md shadow-lg shadow-orange-500/10 transform hover:scale-105 transition-all group">
+                            <StreakFlame count={gamificationProfile.currentStreak} />
+                            <span className="text-xs font-bold text-orange-200/80 uppercase tracking-wider group-hover:text-orange-100 transition-colors">רצף</span>
+                        </div>
+
+                        {/* XP Widget - AI Glow Effect */}
+                        <div className="flex items-center gap-2 bg-gradient-to-br from-amber-400/20 via-yellow-400/20 to-orange-400/20 px-4 py-2.5 rounded-2xl border border-yellow-400/30 backdrop-blur-md shadow-lg shadow-yellow-500/20 transform hover:scale-105 transition-all group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                            <IconStar className="w-5 h-5 text-yellow-300 drop-shadow-md relative z-10" />
+                            <span className="font-black text-yellow-300 font-mono text-xl drop-shadow-sm relative z-10">{gamificationProfile.xp}</span>
+                            <span className="text-xs font-bold text-yellow-200/80 uppercase tracking-wider relative z-10">XP</span>
+                        </div>
+
+                        {/* Gems Widget - AI Shimmer Effect */}
+                        <button
+                            onClick={() => setIsShopOpen(true)}
+                            className="flex items-center gap-2 bg-gradient-to-br from-violet-500/20 via-cyan-500/20 to-blue-500/20 px-4 py-2.5 rounded-2xl border border-cyan-400/30 backdrop-blur-md shadow-lg shadow-cyan-500/20 transform hover:scale-105 transition-all outline-none focus:ring-2 focus:ring-cyan-400/50 group relative overflow-hidden"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                            <span className="text-xl relative z-10">💎</span>
+                            <span className="font-black bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent font-mono text-xl relative z-10">{gamificationProfile.gems}</span>
+                        </button>
+
+                        {/* Submit Button - Rightmost */}
                         <button
                             onClick={handleSubmitActivity}
                             disabled={isSubmitting || hasSubmitted}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-105 active:scale-95 ${hasSubmitted
-                                    ? 'bg-green-500 text-white cursor-default'
+                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-xl transform hover:scale-105 active:scale-95 ${hasSubmitted
+                                    ? 'bg-gradient-to-r from-emerald-400 to-green-500 text-white cursor-default ring-2 ring-green-400/50'
                                     : isSubmitting
-                                        ? 'bg-white/30 text-white/70 cursor-wait'
-                                        : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 border border-green-300/30'
+                                        ? 'bg-white/20 text-white/70 cursor-wait backdrop-blur-sm'
+                                        : 'bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-white hover:shadow-emerald-500/30 hover:shadow-2xl border border-white/20'
                                 }`}
                             title="הגש פעילות"
                         >
@@ -1674,109 +2101,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 </>
                             )}
                         </button>
-
-                        <button
-                            onClick={() => {
-                                if (onExit) {
-                                    onExit();
-                                } else if (window.history.length > 1) {
-                                    window.history.back();
-                                } else {
-                                    window.location.hash = '#/';
-                                }
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white border border-white/20"
-                            title="חזרה לדשבורד"
-                        >
-                            <IconChevronRight className="w-5 h-5" />
-                            <span className="font-bold text-sm hidden sm:inline">חזרה</span>
-                        </button>
-
-                        {/* Source Document Toggle Button */}
-                        {shouldShowSource && (
-                            <button
-                                onClick={() => setShowSourcePanel(!showSourcePanel)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition border ${showSourcePanel
-                                        ? 'bg-white text-blue-600 border-white'
-                                        : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-                                    }`}
-                                title={showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
-                            >
-                                <IconBook className="w-5 h-5" />
-                                <span className="font-bold text-sm hidden sm:inline">
-                                    {showSourcePanel ? 'סגור טקסט' : 'צפייה בטקסט'}
-                                </span>
-                            </button>
-                        )}
-                        <div className="flex flex-col text-right">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold opacity-80 uppercase tracking-widest">{currentUser?.displayName || "אורח"}</span>
-                                <IconBell className="w-4 h-4 opacity-70" />
-                            </div>
-                            <span className="text-xl font-black font-mono" dir="ltr">{currentIndex + 1} / {playbackQueue.length}</span>
-                        </div>
-                    </div>
-
-                    {/* Simplified Progress Bar */}
-                    <div className="flex-1 mx-4 max-w-lg hidden md:flex items-center gap-4">
-                        {/* Progress Dots & Bar Container */}
-                        <div className="flex-1 flex flex-col gap-2">
-                            {/* Simple Colored Dots */}
-                            <div className="flex items-center justify-center gap-1">
-                                {playbackQueue.map((block, idx) => {
-                                    const isCompleted = idx < currentIndex;
-                                    const isCurrent = idx === currentIndex;
-                                    const result = stepResults[block.id];
-
-                                    let dotColor = "bg-white/30"; // Future
-                                    if (isCurrent) {
-                                        dotColor = "bg-yellow-400 ring-2 ring-yellow-300 ring-offset-1 ring-offset-blue-600";
-                                    } else if (isCompleted) {
-                                        if (result === 'success') dotColor = "bg-green-400";
-                                        else if (result === 'failure') dotColor = "bg-red-400";
-                                        else dotColor = "bg-green-400"; // Viewed/completed
-                                    }
-
-                                    return (
-                                        <div
-                                            key={`dot-${block.id}`}
-                                            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${dotColor} ${isCurrent ? 'scale-125' : ''}`}
-                                        />
-                                    );
-                                })}
-                            </div>
-
-                            {/* Step Counter Text */}
-                            <div className="text-center text-white/80 text-sm font-medium">
-                                שלב {currentIndex + 1} מתוך {playbackQueue.length}
-                            </div>
-                        </div>
-                    </div>
-
-
-                    {/* Stats: Streak & XP & Gems */}
-                    <div className="flex items-center gap-4">
-                        {/* Streak Widget */}
-                        <div className="flex items-center gap-2 bg-black/20 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all">
-                            <StreakFlame count={gamificationProfile.currentStreak} />
-                            <span className="text-xs font-bold text-white/70 uppercase tracking-wider">רצף</span>
-                        </div>
-
-                        {/* XP Widget */}
-                        <div className="flex items-center gap-2 bg-gradient-to-br from-yellow-400/20 to-orange-500/20 px-4 py-2 rounded-2xl border border-yellow-400/30 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all">
-                            <IconStar className="w-5 h-5 text-yellow-300 drop-shadow-md" />
-                            <span className="font-black text-yellow-300 font-mono text-xl drop-shadow-sm">{gamificationProfile.xp}</span>
-                            <span className="text-xs font-bold text-yellow-200 uppercase tracking-wider">נקודות</span>
-                        </div>
-
-                        {/* Gems Widget (Clickable for Shop) */}
-                        <button
-                            onClick={() => setIsShopOpen(true)}
-                            className="flex items-center gap-2 bg-gradient-to-br from-blue-400/20 to-cyan-500/20 px-4 py-2 rounded-2xl border border-cyan-400/30 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all outline-none focus:ring-2 focus:ring-cyan-400"
-                        >
-                            <span className="text-xl">💎</span>
-                            <span className="font-black text-cyan-300 font-mono text-xl drop-shadow-sm">{gamificationProfile.gems}</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -1784,19 +2108,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             {/* 2. Main Card Area with Optional Source Panel */}
             <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? 'pb-48' : 'pb-32'}`}>
 
-                {/* Source Document Panel (Left side when open) */}
+                {/* Source Document Panel (Left side when open) - AI-Native Style */}
                 {showSourcePanel && shouldShowSource && (
-                    <div className="w-1/2 h-full bg-white/95 backdrop-blur border-l border-white/20 flex flex-col animate-in slide-in-from-right duration-300 z-10">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 shrink-0">
-                            <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                                <IconBook className="w-5 h-5 text-blue-500" />
-                                מסמך מקור
+                    <div className="w-1/2 h-full bg-white/98 backdrop-blur-md border-l border-slate-200/50 flex flex-col animate-in slide-in-from-right duration-300 z-10 shadow-2xl shadow-slate-900/10">
+                        <div className="flex items-center justify-between p-4 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 to-violet-50/30 shrink-0">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-sm">
+                                    <IconBook className="w-4 h-4 text-white" />
+                                </div>
+                                <span>מסמך מקור</span>
                             </h3>
                             <button
                                 onClick={() => setShowSourcePanel(false)}
-                                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
                             >
-                                <IconX className="w-5 h-5 text-gray-500" />
+                                <IconX className="w-5 h-5" />
                             </button>
                         </div>
                         <div className="flex-1 overflow-auto min-h-0">
@@ -1842,8 +2168,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             if (hasContext && !showSourcePanel) {
                                 return (
                                     <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:min-h-[500px]">
-                                        {/* Context Panel (Left/Top) - PDF or Text */}
-                                        <div className="lg:flex-1 lg:w-1/2 bg-white/90 backdrop-blur rounded-[32px] shadow-xl p-4 md:p-6 lg:p-8 overflow-y-auto border-4 border-white/50 max-h-[40vh] lg:max-h-[70vh] lg:min-h-[400px]">
+                                        {/* Context Panel (Left/Top) - AI-Native Bento Card */}
+                                        <div className="lg:flex-1 lg:w-1/2 bento-card bento-static bg-white/90 backdrop-blur-sm rounded-[32px] shadow-xl p-4 md:p-6 lg:p-8 overflow-y-auto border border-slate-200/50 max-h-[40vh] lg:max-h-[70vh] lg:min-h-[400px] relative">
+                                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-300 via-violet-400 to-slate-300 opacity-50"></div>
                                             {prevBlock.type === 'pdf' ? (
                                                 <iframe
                                                     src={`${prevBlock.content}#toolbar=0`}
@@ -1854,24 +2181,27 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                                 />
                                             ) : (
                                                 <div
-                                                    className="prose prose-lg lg:prose-xl prose-indigo max-w-none text-slate-800 dir-rtl"
+                                                    className="prose prose-lg lg:prose-xl prose-violet max-w-none text-slate-800 dir-rtl"
                                                     dangerouslySetInnerHTML={{ __html: formatTeacherContent(prevBlock.content) }}
                                                 />
                                             )}
                                         </div>
 
-                                        {/* Active Question Panel (Right/Bottom) */}
-                                        <div className="lg:flex-1 lg:w-1/2 bg-white rounded-[32px] shadow-2xl p-4 md:p-6 lg:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500">
+                                        {/* Active Question Panel (Right/Bottom) - AI-Native Featured Card */}
+                                        <div className="lg:flex-1 lg:w-1/2 bento-card bento-static bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-4 md:p-6 lg:p-8 flex flex-col justify-center animate-in slide-in-from-right-8 duration-500 relative border border-white/50">
+                                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 opacity-60"></div>
                                             {renderBlockContent()}
                                         </div>
                                     </div>
                                 );
                             }
 
-                            // Standard Single View
+                            // Standard Single View - AI-Native Bento Card
                             return (
-                                <div className={`bg-white rounded-[32px] shadow-2xl overflow-hidden min-h-[500px] flex flex-col relative animate-in zoom-in-95 duration-300 ${showSourcePanel ? 'max-w-full' : 'max-w-5xl'} mx-auto w-full`}>
-                                    <div className="p-8 md:p-12 flex-1 flex flex-col justify-center">
+                                <div className={`bento-card bento-static bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl overflow-hidden min-h-[500px] flex flex-col relative animate-in zoom-in-95 duration-300 ${showSourcePanel ? 'max-w-full' : 'max-w-5xl'} mx-auto w-full border border-white/50`}>
+                                    {/* Subtle AI gradient overlay at top */}
+                                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 opacity-60"></div>
+                                    <div className="p-8 md:p-12 flex-1 flex flex-col justify-center relative z-10">
                                         {renderBlockContent()}
                                     </div>
                                 </div>
@@ -1925,53 +2255,53 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 />
             )}
 
-            {/* 3. Bottom Action Bar (Sticky) */}
-            <div className={`fixed bottom-0 left-0 right-0 p-4 transition-transform duration-300 z-20 ${stepStatus === 'success' ? 'bg-[#d7ffb8] translate-y-0' :
-                stepStatus === 'partial' ? 'bg-amber-100 translate-y-0' :
-                    stepStatus === 'failure' ? 'bg-orange-100 translate-y-0' :
-                        'bg-[#3565e3] border-t border-white/10 backdrop-blur-lg translate-y-0'
+            {/* 3. Bottom Action Bar (Sticky) - AI-Native Design */}
+            <div className={`fixed bottom-0 left-0 right-0 p-4 transition-all duration-300 z-20 ${stepStatus === 'success' ? 'bg-gradient-to-t from-emerald-100 to-emerald-50/95 backdrop-blur-sm' :
+                stepStatus === 'partial' ? 'bg-gradient-to-t from-amber-100 to-amber-50/95 backdrop-blur-sm' :
+                    stepStatus === 'failure' ? 'bg-gradient-to-t from-orange-100 to-orange-50/95 backdrop-blur-sm' :
+                        'bg-gradient-to-t from-slate-900/95 to-slate-900/80 border-t border-white/10 backdrop-blur-lg'
                 }`}>
                 <div className="max-w-4xl mx-auto flex flex-row items-end justify-between gap-4">
 
-                    {/* Back Arrow - Hidden on first slide */}
+                    {/* Back Arrow - AI Style */}
                     <div className="flex items-center gap-2 order-1">
                         {currentIndex > 0 && (
                             <button
                                 onClick={handleBack}
-                                className="p-4 rounded-full bg-white/95 hover:bg-white text-blue-600 transition-all active:scale-95 shadow-lg border-2 border-white/50"
+                                className="p-4 rounded-2xl bg-white/95 hover:bg-white text-violet-600 transition-all active:scale-95 shadow-lg shadow-violet-500/10 border border-violet-200/50 hover:border-violet-300 hover:shadow-xl"
                             >
                                 <IconChevronRight className="w-8 h-8" />
                             </button>
                         )}
                     </div>
 
-                    {/* Feedback OR Action Button */}
+                    {/* Feedback OR Action Button - AI-Native Style */}
                     <div className="flex-1 w-full flex items-center justify-center gap-4 order-2">
                         {/* Feedback Text (Only shown on Result) */}
                         {(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? (
                             <div className="flex-1 animate-in slide-in-from-bottom-5 fade-in">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                        stepStatus === 'success' ? 'bg-green-500' :
-                                        stepStatus === 'partial' ? 'bg-amber-500' :
-                                        'bg-orange-500'
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                                        stepStatus === 'success' ? 'bg-gradient-to-br from-emerald-400 to-green-500 shadow-emerald-500/30' :
+                                        stepStatus === 'partial' ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/30' :
+                                        'bg-gradient-to-br from-orange-400 to-red-500 shadow-orange-500/30'
                                     }`}>
-                                        {stepStatus === 'success' ? <IconCheck className="w-6 h-6 text-white" /> :
-                                         stepStatus === 'partial' ? <IconSparkles className="w-6 h-6 text-white" /> :
-                                         <IconInfo className="w-6 h-6 text-white" />}
+                                        {stepStatus === 'success' ? <IconCheck className="w-7 h-7 text-white" /> :
+                                         stepStatus === 'partial' ? <IconSparkles className="w-7 h-7 text-white" /> :
+                                         <IconInfo className="w-7 h-7 text-white" />}
                                     </div>
                                     <h3 className={`text-3xl font-black ${
-                                        stepStatus === 'success' ? 'text-green-800' :
-                                        stepStatus === 'partial' ? 'text-amber-800' :
-                                        'text-orange-800'
+                                        stepStatus === 'success' ? 'bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent' :
+                                        stepStatus === 'partial' ? 'bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent' :
+                                        'bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
                                     }`}>
-                                        {stepStatus === 'success' ? 'נכון!' :
+                                        {stepStatus === 'success' ? 'מעולה!' :
                                          stepStatus === 'partial' ? 'כמעט!' :
                                          'בואו נלמד'}
                                     </h3>
                                 </div>
                                 {feedbackMsg && <p className={`text-lg font-medium whitespace-pre-line break-words max-w-prose ${
-                                    stepStatus === 'success' ? 'text-green-700' :
+                                    stepStatus === 'success' ? 'text-emerald-700' :
                                     stepStatus === 'partial' ? 'text-amber-700' :
                                     'text-orange-700'
                                 }`}>{feedbackMsg}</p>}
@@ -1990,17 +2320,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         )}
 
                         {/* The Big Action Button */}
-                        <div className="w-full">
+                        <div className="shrink-0">
                             {renderFooterButton()}
                         </div>
                     </div>
 
-                    {/* Next Arrow - Hidden on last slide */}
+                    {/* Next Arrow - AI Style */}
                     <div className="flex items-center gap-2 order-3">
                         {!isLast && (
                             <button
                                 onClick={handleNext}
-                                className="p-4 rounded-full bg-white/95 hover:bg-white text-blue-600 transition-all active:scale-95 shadow-lg border-2 border-white/50"
+                                className="p-4 rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white transition-all active:scale-95 shadow-lg shadow-violet-500/30 border border-white/20 hover:shadow-xl hover:shadow-violet-500/40"
                             >
                                 <IconChevronLeft className="w-8 h-8" />
                             </button>
@@ -2011,6 +2341,50 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
             {/* 4. Overlays */}
             {isRemediating && <ThinkingOverlay />}
+
+            {/* Inspector Mode Panel - Debug Info */}
+            {inspectorMode && (
+                <div className="fixed top-4 left-4 z-50 bg-white/95 backdrop-blur-sm rounded-xl shadow-2xl border-2 border-cyan-500 p-4 max-w-sm">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-cyan-200">
+                        <IconBrain className="w-5 h-5 text-cyan-600" />
+                        <h3 className="font-bold text-cyan-900">Adaptive Inspector</h3>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                            <span className="text-slate-600 font-medium">Current Mastery:</span>
+                            <span className={`font-bold ${currentMastery < 0.3 ? 'text-red-600' : currentMastery < 0.7 ? 'text-amber-600' : 'text-green-600'}`}>
+                                {(currentMastery * 100).toFixed(0)}%
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-600 font-medium">Recent Accuracy:</span>
+                            <span className={`font-bold ${recentAccuracy < 0.5 ? 'text-red-600' : recentAccuracy < 0.8 ? 'text-amber-600' : 'text-green-600'}`}>
+                                {(recentAccuracy * 100).toFixed(0)}%
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-600 font-medium">Block Type:</span>
+                            <span className="font-bold text-slate-800">{currentBlock.type}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-600 font-medium">Block ID:</span>
+                            <span className="font-mono text-xs text-slate-500">{currentBlock.id.substring(0, 12)}...</span>
+                        </div>
+                        {isCurrentBlockScaffolding && (
+                            <div className="mt-3 pt-3 border-t border-cyan-200 flex items-center gap-2 bg-cyan-50 px-2 py-1.5 rounded-lg">
+                                <IconBrain className="w-4 h-4 text-cyan-600 flex-shrink-0" />
+                                <span className="font-bold text-cyan-700 text-xs">Scaffolding Variant Active</span>
+                            </div>
+                        )}
+                        <div className="mt-3 pt-3 border-t border-slate-200">
+                            <div className="text-slate-500 text-xs">
+                                Scaffolding triggers when:<br/>
+                                • 3 failures + mastery &lt; 30%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Adaptive Toast Notification (Challenge Mode / Mastery Skip) */}
             {adaptiveToast?.show && (
@@ -2039,6 +2413,30 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 frozenDays={gamificationProfile.frozenDays}
                 onPurchaseComplete={(newGems) => {
                     setGamificationProfile(prev => ({ ...prev, gems: newGems, frozenDays: prev.frozenDays + 1 }));
+                }}
+            />
+
+            {/* Scaffolding Offer Modal */}
+            <ScaffoldingOfferModal
+                isOpen={isScaffoldingModalOpen}
+                onClose={() => setIsScaffoldingModalOpen(false)}
+                onAccept={handleScaffoldingAccept}
+                onDecline={handleScaffoldingDecline}
+                blockId={scaffoldingBlockId}
+                variantType={scaffoldingVariantType}
+            />
+
+            {/* Enrichment Offer Modal */}
+            <EnrichmentOfferModal
+                isOpen={isEnrichmentModalOpen}
+                onClose={() => setIsEnrichmentModalOpen(false)}
+                onAccept={handleEnrichmentAccept}
+                onDecline={handleEnrichmentDecline}
+                blockId={enrichmentBlockId}
+                variantType={enrichmentVariantType}
+                studentStats={{
+                    mastery: currentMastery,
+                    consecutiveSuccesses: combo
                 }}
             />
         </div>

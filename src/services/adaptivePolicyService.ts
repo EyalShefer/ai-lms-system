@@ -305,11 +305,55 @@ export const selectVariant = (
     }
 
     // If excelling, use harder variant (העמקה)
-    if (mastery > 0.8 && recentAccuracy > 0.9 && (block.metadata?.העמקה_id || block.metadata?.enrichment_id)) {
+    // ENHANCED: Lowered threshold from 0.8/0.9 to 0.7/0.85 for proactive enrichment
+    if (mastery >= 0.7 && recentAccuracy >= 0.85 && (block.metadata?.העמקה_id || block.metadata?.enrichment_id)) {
         return 'העמקה';
     }
 
     return 'יישום';
+};
+
+/**
+ * Determines if enrichment should be offered to a high-performing student
+ *
+ * STUDENT AGENCY: This function checks if conditions are met to OFFER enrichment,
+ * but the student will have the choice to accept or decline.
+ *
+ * Pedagogical rationale:
+ * - Offers enrichment after consistent success (not perfection)
+ * - Lower thresholds than automatic variant selection to be proactive
+ * - Requires consecutive successes to ensure stability
+ *
+ * @param mastery - Current topic mastery (0-1)
+ * @param recentAccuracy - Recent accuracy rate (0-1)
+ * @param consecutiveSuccesses - Number of consecutive correct answers
+ * @param block - The current block (to check if enrichment exists)
+ * @returns true if enrichment should be offered
+ */
+export const shouldOfferEnrichment = (
+    mastery: number,
+    recentAccuracy: number,
+    consecutiveSuccesses: number,
+    block: ActivityBlock
+): boolean => {
+    // Check if enrichment variant exists for this block
+    const hasEnrichment = !!(block.metadata?.העמקה_id || block.metadata?.enrichment_id);
+
+    if (!hasEnrichment) {
+        return false; // No enrichment available
+    }
+
+    // Pedagogical thresholds (lowered for proactive enrichment)
+    const MASTERY_THRESHOLD = 0.7;        // Was 0.8 - now offers earlier
+    const ACCURACY_THRESHOLD = 0.85;      // Was 0.9 - more achievable
+    const CONSECUTIVE_THRESHOLD = 3;      // Must succeed 3 times in a row
+
+    // Offer enrichment if student is performing well consistently
+    return (
+        mastery >= MASTERY_THRESHOLD &&
+        recentAccuracy >= ACCURACY_THRESHOLD &&
+        consecutiveSuccesses >= CONSECUTIVE_THRESHOLD
+    );
 };
 
 /**

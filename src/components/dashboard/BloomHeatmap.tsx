@@ -124,9 +124,10 @@ export const BloomStudentBars: React.FC<BloomStudentBarsProps> = ({
                 {BLOOM_LEVELS_ORDERED.map(level => {
                     const score = profile.scores[level];
                     const percentage = score?.percentage || 0;
+                    const hasData = score?.total > 0;
                     const classAvg = classAverage?.[level];
-                    const isWeakest = profile.weakestLevel === level;
-                    const isStrongest = profile.strongestLevel === level;
+                    const isWeakest = profile.weakestLevel === level && hasData;
+                    const isStrongest = profile.strongestLevel === level && hasData;
 
                     return (
                         <div key={level} className="space-y-1">
@@ -138,13 +139,19 @@ export const BloomStudentBars: React.FC<BloomStudentBarsProps> = ({
                                     {BLOOM_LABELS_HE[level]}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                    <span
-                                        className="text-sm font-black"
-                                        style={{ color: getBloomColor(percentage) }}
-                                    >
-                                        {percentage}%
-                                    </span>
-                                    {classAvg !== undefined && (
+                                    {hasData ? (
+                                        <span
+                                            className="text-sm font-black"
+                                            style={{ color: getBloomColor(percentage) }}
+                                        >
+                                            {percentage}%
+                                        </span>
+                                    ) : (
+                                        <span className="text-sm text-slate-400">
+                                            אין שאלות
+                                        </span>
+                                    )}
+                                    {classAvg !== undefined && hasData && (
                                         <span className="text-xs text-slate-400">
                                             (כיתה: {classAvg}%)
                                         </span>
@@ -154,27 +161,35 @@ export const BloomStudentBars: React.FC<BloomStudentBarsProps> = ({
 
                             {/* Progress Bar */}
                             <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden">
-                                {/* Student Bar */}
-                                <div
-                                    className="absolute top-0 left-0 h-full rounded-full transition-all duration-500"
-                                    style={{
-                                        width: `${percentage}%`,
-                                        backgroundColor: getBloomColor(percentage)
-                                    }}
-                                />
+                                {hasData ? (
+                                    <>
+                                        {/* Student Bar */}
+                                        <div
+                                            className="absolute top-0 left-0 h-full rounded-full transition-all duration-500"
+                                            style={{
+                                                width: `${percentage}%`,
+                                                backgroundColor: getBloomColor(percentage)
+                                            }}
+                                        />
 
-                                {/* Class Average Marker */}
-                                {classAvg !== undefined && (
-                                    <div
-                                        className="absolute top-0 w-0.5 h-full bg-slate-400"
-                                        style={{ left: `${classAvg}%` }}
-                                        title={`ממוצע כיתה: ${classAvg}%`}
-                                    />
+                                        {/* Class Average Marker */}
+                                        {classAvg !== undefined && (
+                                            <div
+                                                className="absolute top-0 w-0.5 h-full bg-slate-400"
+                                                style={{ left: `${classAvg}%` }}
+                                                title={`ממוצע כיתה: ${classAvg}%`}
+                                            />
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="h-full bg-slate-200/50 flex items-center justify-center">
+                                        <span className="text-[10px] text-slate-400">לא נבדק</span>
+                                    </div>
                                 )}
                             </div>
 
                             {/* Score details */}
-                            {!compact && score?.total > 0 && (
+                            {!compact && hasData && (
                                 <div className="text-xs text-slate-400">
                                     {score.correct}/{score.total} תשובות נכונות
                                 </div>
@@ -186,13 +201,13 @@ export const BloomStudentBars: React.FC<BloomStudentBarsProps> = ({
 
             {/* Summary Footer */}
             <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-                {profile.strongestLevel && (
+                {profile.strongestLevel && profile.scores[profile.strongestLevel]?.total > 0 && (
                     <span className="flex items-center gap-1 text-green-600">
                         <IconTrophy className="w-3 h-3" />
                         חזק ב{BLOOM_LABELS_HE[profile.strongestLevel]}
                     </span>
                 )}
-                {profile.weakestLevel && (
+                {profile.weakestLevel && profile.scores[profile.weakestLevel]?.total > 0 && (
                     <span className="flex items-center gap-1 text-red-600">
                         <IconAlertTriangle className="w-3 h-3" />
                         לחזק: {BLOOM_LABELS_HE[profile.weakestLevel]}

@@ -53,15 +53,27 @@ service cloud.firestore {
         request.time > resource.data[lastActionField] + duration.value(minIntervalSeconds, 's');
     }
 
+    // Check if user is a teacher of this student
+    function isTeacherOf(userId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.teacherId == request.auth.uid;
+    }
+
     // Users collection - only the user can read/write their own data
     match /users/{userId} {
+      // Users can read their own data
+      // Teachers can read their students' data (where student.teacherId == teacher.uid)
       // QA testers can read all users for testing purposes
-      allow read: if isAuthenticated() && (isOwner(userId) || isQATester());
+      allow read: if isAuthenticated() && (isOwner(userId) || isTeacherOf(userId) || isQATester());
       allow write: if isAuthenticated() && isOwner(userId);
 
-      // User's sub-collections (profile, gamification, etc.)
+      // User's sub-collections (profile, gamification, adaptive_events, sessions, etc.)
       match /{document=**} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isQATester());
+        // Users can read their own data
+        // Teachers can read their students' data
+        // QA testers can read all users for testing purposes
+        allow read: if isAuthenticated() && (isOwner(userId) || isTeacherOf(userId) || isQATester());
         allow write: if isAuthenticated() && isOwner(userId);
       }
     }
@@ -572,6 +584,190 @@ service cloud.firestore {
 
       // Users can update/delete their own ratings
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ============================================
+    // VARIANT CACHE (Scaffolding System)
+    // ============================================
+
+    // Variant Cache - lazy generation system for scaffolding
+    // Created: 2026-01-23
+    match /variants_cache/{variantId} {
+      // All authenticated users can read cached variants
+      // (students need access to retrieve scaffolding)
+      allow read: if isAuthenticated();
+
+      // All authenticated users can write variants
+      // (when generation happens client-side)
+      allow create, update: if isAuthenticated();
+
+      // Only the creator can delete (or Cloud Functions via Admin SDK)
+      allow delete: if false; // Cleanup handled by Cloud Functions
+    }
+
+    // ============================================
+    // BAGRUT PRACTICE COLLECTIONS
+    // ============================================
+
+    // Bagrut Questions - the question bank
+    match /bagrut_questions/{questionId} {
+      // All authenticated users can read questions
+      allow read: if isAuthenticated();
+
+      // Teachers can create questions
+      allow create: if isAuthenticated();
+
+      // Teachers can update their own questions or system questions
+      // Anyone can update usage stats
+      allow update: if isAuthenticated() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.createdBy == 'system' ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['usageCount', 'avgScore', 'avgTimeSeconds'])
+      );
+
+      // Only creators can delete
+      allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Bagrut Practice Modules - student-facing practice experiences
+    match /bagrut_modules/{moduleId} {
+      // All authenticated users can read modules (public practice content)
+      allow read: if isAuthenticated();
+
+      // Teachers can create modules
+      allow create: if isAuthenticated();
+
+      // Teachers can update their own modules
+      allow update: if isAuthenticated() && (
+        resource.data.teacherId == request.auth.uid ||
+        resource.data.teacherId == null
+      );
+
+      // Teachers can delete their own modules
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Bagrut Student Progress - tracking student progress
+    match /bagrut_progress/{progressId} {
+      // Students can read their own progress
+      // Teachers can read progress for students in their classes
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isTeacherOf(resource.data.studentId)
+      );
+
+      // Students can create/update their own progress
+      allow create, update: if isAuthenticated() && (
+        request.resource.data.studentId == request.auth.uid
+      );
+
+      // No deletes from client
+      allow delete: if false;
+    }
+
+    // Bagrut Question Responses - student answers
+    match /bagrut_responses/{responseId} {
+      // Students can read their own responses
+      // Teachers can read responses for students in their classes
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isTeacherOf(resource.data.studentId)
+      );
+
+      // Students can create their own responses
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+
+      // No updates or deletes - responses are immutable
+      allow update, delete: if false;
+    }
+
+    // Bagrut Exam Simulations - full exam practice
+    match /bagrut_simulations/{simulationId} {
+      // Students can read their own simulations
+      // Teachers can read simulations for students in their classes
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isTeacherOf(resource.data.studentId)
+      );
+
+      // Students can create their own simulations
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+
+      // Students can update their own simulations (submit answers)
+      allow update: if isAuthenticated() && resource.data.studentId == request.auth.uid;
+
+      // No deletes from client
+      allow delete: if false;
+    }
+
+    // Bagrut Assignments - teacher-created practice tasks
+    match /bagrut_assignments/{assignmentId} {
+      // Anyone authenticated can read assignments (link-based sharing)
+      allow read: if isAuthenticated();
+
+      // Teachers can create assignments
+      allow create: if isAuthenticated();
+
+      // Teachers can update their own assignments
+      allow update: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+
+      // Teachers can delete their own assignments
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Bagrut Assignment Progress - student progress on assignments
+    match /bagrut_assignment_progress/{progressId} {
+      // Students can read their own progress
+      // Teachers can read progress for their assignments
+      allow read: if isAuthenticated();
+
+      // Students can create/update their own progress
+      allow create, update: if isAuthenticated();
+
+      // No deletes from client
+      allow delete: if false;
+    }
+
+    // ============================================
+    // ENROLLMENTS COLLECTION
+    // ============================================
+
+    // Enrollments - links students to courses
+    match /enrollments/{enrollmentId} {
+      // Students can read their own enrollments
+      // Teachers can read enrollments for any student (to see who's in their courses)
+      // Cloud Functions can create enrollments (via Admin SDK for simulations)
+      allow read: if isAuthenticated();
+
+      // Students can create their own enrollments (self-enroll)
+      // Cloud Functions can create enrollments (via Admin SDK)
+      allow create: if isAuthenticated();
+
+      // Only the student or Cloud Functions can update/delete
+      allow update, delete: if isAuthenticated() && resource.data.studentId == request.auth.uid;
+    }
+
+    // ============================================
+    // SESSIONS COLLECTION (Learning Sessions)
+    // ============================================
+
+    // Sessions - stores student learning session data
+    match /sessions/{sessionId} {
+      // Students can read their own sessions
+      // Teachers can read sessions of their students
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+         get(/databases/$(database)/documents/users/$(resource.data.userId)).data.teacherId == request.auth.uid)
+      );
+
+      // Students can create/update their own sessions
+      // Cloud Functions can create sessions (via Admin SDK for simulations)
+      allow create, update: if isAuthenticated();
+
+      // Only the student can delete their own sessions
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // ============================================

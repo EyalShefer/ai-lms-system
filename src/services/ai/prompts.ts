@@ -87,6 +87,9 @@ export const getTutorPrompt = (mode: string, sourceText: string, question: strin
   3. ** INCORRECT / IRRELEVANT **: The answer is wrong or off - topic.
       * * Action:* Give a specific hint pointing to the relevant paragraph without revealing the answer.
 
+  # CRITICAL RULE
+  NEVER mention "sample answer", "model answer", "תשובה לדוגמא", or "תשובה מודל" in your feedback. The student cannot see this answer.
+
   # OUTPUT FORMAT(JSON ONLY)
     {
       "status": "correct" | "partial" | "incorrect",

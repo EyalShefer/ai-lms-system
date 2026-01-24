@@ -238,6 +238,11 @@ export const createBlock = (type: string, initialPersonaId: string = 'socratic')
         case 'text':
             content = '<h3>כותרת</h3><p>לחצו כאן כדי לערוך את התוכן...</p>';
             break;
+        case 'remotion-video':
+            // Empty initial content - UnitEditor will show RemotionVideoEditor
+            // compositionType must be undefined/falsy for editor to show
+            content = {};
+            break;
         default:
             content = '';
     }

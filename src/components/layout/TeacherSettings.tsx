@@ -15,8 +15,10 @@ import {
     IconUser,
     IconCheck,
     IconX,
-    IconChevronRight
+    IconChevronRight,
+    IconFlask
 } from '@tabler/icons-react';
+import { AdaptiveSimulationButton } from '../AdaptiveSimulationButton';
 
 interface TeacherSettingsProps {
     settings?: {
@@ -49,7 +51,7 @@ const DEFAULT_SETTINGS: NonNullable<TeacherSettingsProps['settings']> = {
     }
 };
 
-type SettingsSection = 'profile' | 'notifications' | 'appearance' | 'data' | 'privacy';
+type SettingsSection = 'profile' | 'notifications' | 'appearance' | 'data' | 'privacy' | 'testing';
 
 export const TeacherSettings: React.FC<TeacherSettingsProps> = ({
     settings: initialSettings = DEFAULT_SETTINGS,
@@ -82,7 +84,8 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({
         { id: 'notifications', label: 'התראות', icon: <IconBell className="w-5 h-5" /> },
         { id: 'appearance', label: 'תצוגה', icon: <IconPalette className="w-5 h-5" /> },
         { id: 'data', label: 'נתונים', icon: <IconDownload className="w-5 h-5" /> },
-        { id: 'privacy', label: 'פרטיות', icon: <IconShield className="w-5 h-5" /> }
+        { id: 'privacy', label: 'פרטיות', icon: <IconShield className="w-5 h-5" /> },
+        { id: 'testing', label: 'בדיקות מערכת', icon: <IconFlask className="w-5 h-5" /> }
     ];
 
     return (
@@ -317,6 +320,18 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Testing Section */}
+                    {activeSection === 'testing' && (
+                        <div className="space-y-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4">בדיקות מערכת</h3>
+                            <p className="text-sm text-slate-500 mb-6">
+                                כלים לבדיקת תכונות המערכת
+                            </p>
+
+                            <AdaptiveSimulationButton />
                         </div>
                     )}
 

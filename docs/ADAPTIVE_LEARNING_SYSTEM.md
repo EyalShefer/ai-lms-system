@@ -2,7 +2,7 @@
 
 > **מטרת המסמך:** תיעוד מערכת הפרופיל האדפטיבי לצורך בדיקה ואימות שהמערכת עובדת כמתוכנן.
 >
-> **תאריך בדיקה אחרונה:** 17 בינואר 2026
+> **תאריך בדיקה אחרונה:** 24 בינואר 2026
 
 ---
 
@@ -56,9 +56,10 @@
 3. [מנגנון הסיווג - 3 שכבות](#מנגנון-הסיווג---3-שכבות)
 4. [מנגנון ההתאמה בזמן אמת](#מנגנון-ההתאמה-בזמן-אמת)
 5. [וריאנטים של תוכן](#וריאנטים-של-תוכן)
-6. [סגנונות למידה](#סגנונות-למידה)
-7. [נקודות לבדיקה](#נקודות-לבדיקה)
-8. [קבצים מרכזיים](#קבצים-מרכזיים)
+6. [Student Agency for Enrichment - הצעת אתגרים עם בחירת תלמיד](#student-agency-for-enrichment---הצעת-אתגרים-עם-בחירת-תלמיד) 🆕
+7. [סגנונות למידה](#סגנונות-למידה)
+8. [נקודות לבדיקה](#נקודות-לבדיקה)
+9. [קבצים מרכזיים](#קבצים-מרכזיים)
 
 ---
 
@@ -222,13 +223,16 @@ function selectVariant(
   }
 
   // מצטיין → אתגר
-  if (mastery > 0.8 && recentAccuracy > 0.9) {
+  // ⚠️ עודכן ב-24/01/2026: הורדנו סף מ-0.8/0.9 ל-0.7/0.85
+  if (mastery >= 0.7 && recentAccuracy >= 0.85) {
     return 'enrichment';
   }
 
   return 'original';
 }
 ```
+
+**הערה:** הסף להעמקה הורד כדי להיות יותר פרואקטיבי ולהציע אתגרים מוקדם יותר.
 
 ---
 
@@ -328,6 +332,179 @@ function getInitialVariant(topicMastery: number, block: Block): VariantType {
   return 'original';
 }
 ```
+
+---
+
+## Student Agency for Enrichment - הצעת אתגרים עם בחירת תלמיד
+
+### רקע פדגוגי
+
+במקום לכפות אוטומטית העמקה על תלמידים מצטיינים, המערכת מציעה להם **בחירה** - לקבל אתגר או להמשיך ברגיל.
+זה מבוסס על עקרונות פדגוגיים:
+- **Student Agency** - תלמידים לומדים טוב יותר כשיש להם שליטה על המסלול
+- **Zone of Proximal Development** (Vygotsky) - אתגר אופטימלי משתנה לפי מצב רגשי
+- **Flow Theory** (Csikszentmihalyi) - איזון בין אתגר ליכולת
+
+### מתי מוצעת העמקה?
+
+**קובץ:** `src/services/adaptivePolicyService.ts`
+
+```typescript
+function shouldOfferEnrichment(
+    mastery: number,
+    recentAccuracy: number,
+    consecutiveSuccesses: number,
+    block: ActivityBlock
+): boolean {
+    // בדיקות:
+    // 1. קיימת העמקה variant לבלוק
+    // 2. שליטה >= 70% (הורדנו מ-80% להיות יותר פרואקטיביים)
+    // 3. דיוק >= 85% (הורדנו מ-90%)
+    // 4. 3 הצלחות רצופות (יציבות בביצועים)
+
+    return (
+        hasEnrichment &&
+        mastery >= 0.7 &&
+        recentAccuracy >= 0.85 &&
+        consecutiveSuccesses >= 3
+    );
+}
+```
+
+### מה קורה כשמוצעת העמקה?
+
+#### 1. הצעת האתגר
+```typescript
+// ב-SequentialCoursePlayer.tsx
+// אחרי תשובה נכונה במנה ראשונה (100 נקודות):
+if (shouldOfferEnrichment(...)) {
+    // לוג אירוע
+    logEnrichmentOffered(userId, courseId, blockId, 'העמקה', mastery, combo);
+
+    // פתיחת מודל
+    setIsEnrichmentModalOpen(true);
+}
+```
+
+#### 2. המודל (EnrichmentOfferModal)
+**קובץ:** `src/components/EnrichmentOfferModal.tsx`
+
+עיצוב מוטיבציוני (סגול-ורוד):
+```
+┌─────────────────────────────────────┐
+│  🎉 כל הכבוד!                       │
+│  נראה שאת/ה שולט/ת בחומר!          │
+│                                     │
+│  רוצה לנסות שאלה יותר מאתגרת?      │
+│                                     │
+│  📊 שליטה נוכחית: 75%              │
+│  🔥 רצף הצלחות: 5                  │
+│                                     │
+│  [בואו לאתגר! 🚀]  [אולי בפעם הבאה] │
+└─────────────────────────────────────┘
+```
+
+#### 3. תגובת התלמיד
+
+**אם מקבל:**
+```typescript
+handleEnrichmentAccept(variant) {
+    // לוג קבלה
+    logEnrichmentAccepted(userId, courseId, blockId, variantId, 'העמקה', mastery);
+
+    // החלפת הבלוק בתור
+    setPlaybackQueue(queue => { queue[index] = variant; });
+
+    // איפוס state (התחלה מחדש)
+    setStepStatus('idle');
+    setBlockAttempts(0);
+
+    // Toast מוטיבציוני
+    "🚀 אתגר התקבל! בואו נראה איך מתמודדים עם שאלה מתקדמת!"
+}
+```
+
+**אם מסרב:**
+```typescript
+handleEnrichmentDecline() {
+    // לוג סירוב
+    logEnrichmentDeclined(userId, courseId, blockId, 'העמקה', mastery);
+
+    // סגירת מודל - ממשיכים רגיל
+    setIsEnrichmentModalOpen(false);
+
+    // Toast תומך
+    "👍 בסדר גמור! נמשיך עם השאלה הרגילה"
+}
+```
+
+### הבדל מ-Scaffolding
+
+| | **Scaffolding** (מתקשים) | **Enrichment** (מצטיינים) |
+|---|---|---|
+| **מתי** | אחרי 3 כישלונות + mastery < 30% | אחרי תשובה מושלמת + mastery >= 70% |
+| **כיוון** | הקלה (הבנה) | הקשחה (העמקה) |
+| **סוג variant** | הבנה - פשוט יותר | העמקה - מאתגר יותר |
+| **בחירה** | כן - תלמיד יכול לסרב | כן - תלמיד יכול לסרב |
+| **טון מסר** | תומך: "רוצה לנסות קל יותר?" | מוטיבציוני: "רוצה אתגר?" |
+
+### Logging Events חדשים
+
+**קובץ:** `src/services/adaptiveLoggingService.ts`
+
+```typescript
+// 3 אירועים חדשים:
+type AdaptiveEventType =
+    // ... קיימים
+    | 'enrichment_offered'   // הוצעה העמקה
+    | 'enrichment_accepted'  // תלמיד קיבל
+    | 'enrichment_declined'; // תלמיד סירב
+
+// Helper functions:
+logEnrichmentOffered(userId, courseId, blockId, variantType, mastery, consecutiveSuccesses);
+logEnrichmentAccepted(userId, courseId, originalBlockId, variantBlockId, variantType, mastery);
+logEnrichmentDeclined(userId, courseId, blockId, variantType, mastery);
+```
+
+### מיקום ב-Firestore
+
+```
+users/{userId}/adaptive_events/{eventId}
+{
+    type: 'enrichment_offered',
+    blockId: 'block_123',
+    timestamp: 2026-01-24T14:30:00Z,
+    data: {
+        scaffoldingVariantType: 'העמקה',
+        mastery: 0.75,
+        attempts: 5  // רצף הצלחות
+    }
+}
+```
+
+### Acceptance Rate Analysis
+
+כדי לנתח את שיעור הקבלה של אתגרים:
+
+```typescript
+// סקריפט ניתוח
+const enrichmentEvents = await getAdaptiveEvents(userId, {
+    types: ['enrichment_offered', 'enrichment_accepted', 'enrichment_declined']
+});
+
+const offered = enrichmentEvents.filter(e => e.type === 'enrichment_offered').length;
+const accepted = enrichmentEvents.filter(e => e.type === 'enrichment_accepted').length;
+const acceptanceRate = offered > 0 ? accepted / offered : 0;
+
+console.log(`Enrichment Acceptance Rate: ${(acceptanceRate * 100).toFixed(0)}%`);
+```
+
+### יתרונות המנגנון
+
+1. **פדגוגי:** תלמיד שולט במסלול הלמידה שלו
+2. **פסיכולוגי:** אין לחץ - יכול לסרב אם לא מרגיש מוכן
+3. **מדידה:** יודעים כמה פעמים הוצעה העמקה ומה שיעור הקבלה
+4. **איזון:** גם תלמידים חזקים לא "נכנעים" תמיד - תלוי במצב רוח/עייפות
 
 ---
 
@@ -462,15 +639,71 @@ console.log('BKT Result:', {
 
 ---
 
+### 🔍 בדיקה 7: האם Student Agency for Enrichment עובד? (חדש - 24/01/2026)
+
+**תרחיש:**
+1. תלמיד מצטיין עונה נכון 3 פעמים ברצף (100 נקודות כל פעם)
+2. mastery >= 0.7, accuracy >= 0.85
+3. יש העמקה variant זמינה לבלוק
+4. **צפי:** מופיע מודל מוטיבציוני עם הצעת אתגר
+
+**סימנים:**
+- מודל סגול-ורוד מופיע עם טקסט: "🎉 כל הכבוד! נראה שאת/ה שולט/ת בחומר!"
+- שתי אפשרויות: "בואו לאתגר! 🚀" / "אולי בפעם הבאה"
+
+**לוג לבדיקה:**
+```javascript
+// ב-Console:
+console.log('🚀 Offering enrichment to high-performing student');
+console.log('📊 [Adaptive Log] enrichment_offered:', {...});
+
+// אם התלמיד מקבל:
+console.log('✅ Enrichment variant accepted:', variant.id);
+console.log('📊 [Adaptive Log] enrichment_accepted:', {...});
+
+// אם התלמיד מסרב:
+console.log('❌ Enrichment variant declined');
+console.log('📊 [Adaptive Log] enrichment_declined:', {...});
+```
+
+**לבדוק ב-Firestore:**
+```javascript
+// אחרי שתלמיד מקבל/מסרב:
+users/{userId}/adaptive_events/{eventId}
+{
+    type: 'enrichment_offered' | 'enrichment_accepted' | 'enrichment_declined',
+    blockId: '...',
+    data: {
+        scaffoldingVariantType: 'העמקה',
+        mastery: 0.75,
+        attempts: 5  // consecutive successes
+    }
+}
+```
+
+**ניתוח acceptance rate:**
+```javascript
+// כמה אחוז מהתלמידים מקבלים אתגרים?
+const offered = events.filter(e => e.type === 'enrichment_offered').length;
+const accepted = events.filter(e => e.type === 'enrichment_accepted').length;
+const rate = (accepted / offered * 100).toFixed(0);
+console.log(`Enrichment Acceptance Rate: ${rate}%`);
+```
+
+---
+
 ## קבצים מרכזיים
 
 | קובץ | תפקיד | קריטיות |
 |------|-------|---------|
 | `src/types/studentProfile.ts` | הגדרת מבנה הפרופיל | 🔴 גבוהה |
 | `src/services/profileService.ts` | שמירה ועדכון פרופיל | 🔴 גבוהה |
-| `src/services/adaptivePolicyService.ts` | מנוע קבלת החלטות | 🔴 גבוהה |
+| `src/services/adaptivePolicyService.ts` | מנוע קבלת החלטות + shouldOfferEnrichment | 🔴 גבוהה |
+| `src/services/adaptiveLoggingService.ts` | logging אירועים אדפטיביים | 🔴 גבוהה |
 | `src/services/adaptiveContentService.ts` | יצירת וריאנטים | 🟡 בינונית |
 | `src/components/SequentialCoursePlayer.tsx` | הפעלה בזמן ריצה | 🔴 גבוהה |
+| `src/components/EnrichmentOfferModal.tsx` | מודל הצעת אתגרים (חדש - 24/01/2026) | 🟡 בינונית |
+| `src/components/ScaffoldingOfferModal.tsx` | מודל הצעת תמיכה | 🟡 בינונית |
 | `src/services/LessonDistributor.ts` | סיווג קבוצות | 🟡 בינונית |
 | `src/services/taskAssignmentService.ts` | הקצאת משימות | 🟡 בינונית |
 | `src/components/SmartGroupingPanel.tsx` | UI קיבוץ | 🟢 נמוכה |
@@ -479,20 +712,26 @@ console.log('BKT Result:', {
 
 ## שאלות פתוחות לבירור
 
-1. **האם Cloud Function של BKT קיימת ופעילה?**
-   - לבדוק ב-Firebase Functions
+1. ✅ **האם Cloud Function של BKT קיימת ופעילה?**
+   - **תשובה:** כן - `functions/src/index.ts:1356` - `submitAdaptiveAnswer`
 
-2. **האם יש לוגים/אנליטיקס על החלטות אדפטיביות?**
-   - חשוב למעקב ודיבוג
+2. ✅ **האם יש לוגים/אנליטיקס על החלטות אדפטיביות?**
+   - **תשובה:** כן - `adaptiveLoggingService.ts` + Firestore `adaptive_events`
 
-3. **מה קורה כשאין פרופיל קיים?**
-   - האם נוצר ברירת מחדל?
+3. ✅ **מה קורה כשאין פרופיל קיים?**
+   - **תשובה:** נוצר profile חדש עם ברירות מחדל (mastery=0.5, accuracy=0.5)
 
-4. **האם הוריאנטים נוצרים בזמן יצירת השיעור או בזמן ריצה?**
-   - משפיע על ביצועים ועלויות AI
+4. ✅ **האם הוריאנטים נוצרים בזמן יצירת השיעור או בזמן ריצה?**
+   - **תשובה:** בזמן יצירה - `generateFullUnitContentWithVariants` + cache ב-Firestore
 
-5. **האם יש UI למורה לראות פרופילי תלמידים?**
-   - חשוב לשקיפות
+5. ✅ **האם יש UI למורה לראות פרופילי תלמידים?**
+   - **תשובה:** כן - `StudentLearningProfile` ב-TeacherDashboard + `TaskDetailDashboard`
+
+6. ❓ **מה שיעור הקבלה של אתגרי העמקה?** (חדש - 24/01/2026)
+   - צריך לאסוף נתונים ולנתח `enrichment_offered` vs `enrichment_accepted`
+
+7. ❓ **האם הסף החדש (0.7/0.85) מתאים או צריך התאמה נוספת?**
+   - צריך A/B testing עם הסף הישן (0.8/0.9) vs החדש
 
 ---
 
@@ -504,6 +743,10 @@ console.log('BKT Result:', {
 | 2026-01-17 | הוספת Adaptive Logging Service | Claude |
 | 2026-01-17 | הוספת StudentLearningProfile לדשבורד מורה | Claude |
 | 2026-01-17 | יצירת סקריפט לבדיקת נתונים | Claude |
+| 2026-01-24 | הוספת Student Agency for Enrichment - הצעת אתגרים עם בחירת תלמיד | Claude |
+| 2026-01-24 | הורדת סף העמקה מ-0.8/0.9 ל-0.7/0.85 (פרואקטיבי יותר) | Claude |
+| 2026-01-24 | הוספת EnrichmentOfferModal - מודל מוטיבציוני להצעת אתגרים | Claude |
+| 2026-01-24 | הוספת 3 אירועי logging: enrichment_offered/accepted/declined | Claude |
 
 ---
 
@@ -609,28 +852,37 @@ generateFullUnitContentWithVariants(...)  // נקרא רק ביצירה חדשה
 
 #### עדיפות קריטית:
 
-1. **הוסף תצוגת פרופיל לומד בדשבורד מורה**
+1. ✅ **הוסף תצוגת פרופיל לומד בדשבורד מורה** (בוצע - 17/01/2026)
    - קומפוננטה חדשה: `StudentLearningProfile`
    - מציג: hint_dependency, media_preference, error_fingerprint
    - מיקום: בתוך StudentInsightsModal
 
-2. **הוסף logging לאירועים אדפטיביים**
+2. ✅ **הוסף logging לאירועים אדפטיביים** (בוצע - 17/01/2026)
    - לשמור: variant_selected, challenge_mode_activated, remediation_injected
    - מיקום: `users/{userId}/adaptive_events`
 
-3. **כלי migration לתוכן קיים**
+3. ✅ **Student Agency for Enrichment** (בוצע - 24/01/2026)
+   - מודל מוטיבציוני להצעת אתגרים
+   - 3 אירועי logging חדשים
+   - הורדת סף ל-0.7/0.85
+
+4. ❌ **כלי migration לתוכן קיים** (עדיין נדרש)
    - סקריפט שרץ על קורסים קיימים
    - מייצר variants לבלוקים שחסרים להם
 
 #### עדיפות בינונית:
 
-4. **התאמת תוכן לפי סגנון למידה**
+5. **התאמת תוכן לפי סגנון למידה**
    - אם תלמיד מעדיף video (70%) - להציע סרטון לפני טקסט
    - לוגיקה ב-SequentialCoursePlayer
 
-5. **דשבורד אדפטיבי עצמאי**
+6. **דשבורד אדפטיבי עצמאי**
    - טאב חדש: "התקדמות אדפטיבית"
    - מראה: proficiency_vector כ-heatmap
+
+7. **A/B Testing של סף העמקה** (חדש - 24/01/2026)
+   - להשוות תוצאות עם סף 0.7/0.85 vs 0.8/0.9
+   - למדוד: acceptance rate, learning outcomes, student satisfaction
 
 ---
 
@@ -661,6 +913,50 @@ generateFullUnitContentWithVariants(...)  // נקרא רק ביצירה חדשה
 
 ---
 
+## 🆕 שינויים חדשים (24 בינואר 2026)
+
+### Student Agency for Enrichment - סיכום יישום
+
+**רקע:**
+במקום לכפות אוטומטית תוכן מאתגר על תלמידים חזקים, המערכת כעת **מציעה** להם בחירה.
+זה משפר את ה-learning experience ומעודד אוטונומיה.
+
+**מה יושם:**
+
+1. **EnrichmentOfferModal.tsx** - מודל חדש
+   - עיצוב מוטיבציוני (סגול-ורוד)
+   - מציג סטטיסטיקות: mastery, consecutive successes
+   - 2 כפתורים: "בואו לאתגר! 🚀" / "אולי בפעם הבאה"
+   - Variant polling אוטומטי מה-cache
+
+2. **shouldOfferEnrichment() ב-adaptivePolicyService.ts**
+   ```typescript
+   // פדגוגיה: מציע אתגר אחרי ביצועים עקביים
+   mastery >= 0.7        // הורדנו מ-0.8
+   accuracy >= 0.85      // הורדנו מ-0.9
+   consecutiveSuccesses >= 3
+   ```
+
+3. **3 אירועי logging חדשים ב-adaptiveLoggingService.ts**
+   - `enrichment_offered` - כשהמערכת מציעה אתגר
+   - `enrichment_accepted` - כשהתלמיד מקבל
+   - `enrichment_declined` - כשהתלמיד מסרב
+
+4. **אינטגרציה ב-SequentialCoursePlayer.tsx**
+   - בודק אחרי כל תשובה מושלמת (100 נקודות)
+   - פותח מודל אם התנאים מתקיימים
+   - מחליף את הבלוק ב-variant אם מקבל
+   - Toast notifications מוטיבציוניים
+
+**מדדים למעקב:**
+- **Acceptance Rate:** % תלמידים שמקבלים אתגרים מתוך כל ההצעות
+- **Performance Impact:** האם תלמידים שמקבלים אתגרים משפרים ביצועים?
+- **Engagement:** האם זה משפיע על זמן למידה והתמדה?
+
+**Build Status:** ✅ עבר בהצלחה (15.20s)
+
+---
+
 ## 🛠️ שינויים שבוצעו (17 בינואר 2026)
 
 ### 1. Adaptive Logging Service (חדש)
@@ -676,6 +972,12 @@ type AdaptiveEventType =
     | 'challenge_mode'       // כשמופעל Challenge Mode
     | 'mastery_skip'         // כשנדלג נושא שנשלט
     | 'remediation_injected' // כשמוזרק בלוק תיקון
+    | 'scaffolding_offered'  // כשמוצעת הבנה לתלמיד מתקשה
+    | 'scaffolding_accepted' // כשתלמיד מקבל scaffolding
+    | 'scaffolding_declined' // כשתלמיד מסרב scaffolding
+    | 'enrichment_offered'   // כשמוצעת העמקה לתלמיד מצטיין (חדש - 24/01/2026)
+    | 'enrichment_accepted'  // כשתלמיד מקבל אתגר העמקה (חדש - 24/01/2026)
+    | 'enrichment_declined'; // כשתלמיד מסרב לאתגר העמקה (חדש - 24/01/2026)
 ```
 
 **מיקום ב-Firestore:**
