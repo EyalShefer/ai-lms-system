@@ -259,7 +259,7 @@ const OpenQuestion = memo(function OpenQuestion({
           {validationResult.isCorrect ? (
             <span><span aria-hidden="true">✓</span> תשובה נכונה!</span>
           ) : (
-            <span><span aria-hidden="true">✗</span> {validationResult.feedback || 'תשובה שגויה, נסה שוב'}</span>
+            <span><span aria-hidden="true">✗</span> {validationResult.feedback || 'תשובה שגויה, נסו שוב'}</span>
           )}
         </div>
       )}

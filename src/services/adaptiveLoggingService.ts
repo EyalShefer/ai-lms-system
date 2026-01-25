@@ -317,8 +317,7 @@ export const logEnrichmentOffered = (
     courseId: string,
     blockId: string,
     variantType: 'העמקה',
-    mastery: number,
-    consecutiveSuccesses: number
+    mastery: number
 ): void => {
     logAdaptiveEvent({
         type: 'enrichment_offered',
@@ -327,8 +326,7 @@ export const logEnrichmentOffered = (
         blockId,
         data: {
             scaffoldingVariantType: variantType,
-            mastery,
-            attempts: consecutiveSuccesses
+            mastery
         }
     });
 };

@@ -609,6 +609,14 @@ export type TaskStatus = 'new' | 'in_progress' | 'submitted' | 'graded' | 'late'
 export type TaskAssignmentTarget = 'all' | 'group' | 'individual';
 export type StudentGroupType = 'support' | 'core' | 'enrichment';
 
+// Variant generation status for Progressive Adaptive System
+export type VariantGenerationStatus =
+    | 'pending'      // Just created, waiting for Cloud Function to pick up
+    | 'processing'   // Cloud Function is generating variants
+    | 'ready'        // All variants generated successfully
+    | 'partial'      // Some variants generated, some failed
+    | 'failed';      // Generation completely failed
+
 export interface StudentTask {
     id: string;
 
@@ -644,6 +652,17 @@ export interface StudentTask {
     // Email report settings
     emailReportEnabled?: boolean;  // Whether to send email report when due date passes
     emailReportSentAt?: any;       // Timestamp when report was sent (prevents duplicates)
+
+    // Variant generation status (Progressive Adaptive System)
+    variantStatus?: VariantGenerationStatus;
+    variantStartedAt?: any;    // Firestore Timestamp
+    variantCompletedAt?: any;  // Firestore Timestamp
+    variantStats?: {
+        totalBlocks: number;
+        processed: number;
+        failed: number;
+    };
+    variantError?: string;     // Error message if generation failed
 }
 
 export interface StudentTaskSubmission {

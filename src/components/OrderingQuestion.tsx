@@ -10,6 +10,8 @@ interface OrderingQuestionProps {
     isExamMode?: boolean; // ✨ NEW: Disable hints in exam mode
     hints?: string[]; // ✨ NEW: Progressive hints
     onHintUsed?: () => void; // ✨ NEW: Callback when hint revealed
+    savedAnswers?: string[]; // For restoring state on back navigation
+    isCompleted?: boolean; // Show completed state without re-attempt
 }
 
 const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
@@ -17,7 +19,9 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     onComplete,
     isExamMode = false,
     hints = [],
-    onHintUsed
+    onHintUsed,
+    savedAnswers,
+    isCompleted = false
 }) => {
     // Telemetry
     const startTimeRef = useRef<number>(Date.now());
@@ -67,15 +71,18 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
         startTimeRef.current = Date.now();
         attemptsRef.current = 0;
 
-        // Initialize with shuffled items
-        if (correct_order.length > 0) {
+        // Restore from saved answers if available, otherwise shuffle
+        if (savedAnswers && savedAnswers.length === correct_order.length) {
+            setItems(savedAnswers);
+            setIsSubmitted(isCompleted);
+        } else if (correct_order.length > 0) {
             const shuffled = [...correct_order].sort(() => Math.random() - 0.5);
             setItems(shuffled);
         } else {
             setItems([]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [JSON.stringify(correct_order)]);
+    }, [JSON.stringify(correct_order), savedAnswers, isCompleted]);
 
     const handleDragStart = (e: React.DragEvent, position: number) => {
         draggingItem.current = position;
@@ -126,6 +133,14 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
         attemptsRef.current += 1;
 
         const isCorrect = JSON.stringify(items) === JSON.stringify(correct_order);
+
+        // Calculate partial accuracy (items in correct position)
+        let correctCount = 0;
+        items.forEach((item, index) => {
+            if (item === correct_order[index]) correctCount++;
+        });
+        const accuracy = correctCount / correct_order.length;
+
         const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
 
         // ✅ NEW: 3-attempt logic with progressive hints
@@ -134,13 +149,15 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
             setIsSubmitted(true);
 
             // ✅ FIXED: Use central scoring function with hints tracking
-            const score = calculateQuestionScore({
+            const baseScore = calculateQuestionScore({
                 isCorrect,
                 attempts: attemptsRef.current,
                 hintsUsed: hintsUsedRef.current,
                 responseTimeSec: (Date.now() - startTimeRef.current) / 1000
             });
 
+            // Apply partial credit for partially correct answers
+            const score = isCorrect ? baseScore : Math.round(baseScore * accuracy);
             const timeSpent = (Date.now() - startTimeRef.current) / 1000;
 
             if (onComplete) {
@@ -286,13 +303,13 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                         ) : (
                             <div className="space-y-4">
                                 <span className="text-red-500 flex items-center justify-center gap-2">
-                                    <IconX className="w-6 h-6" /> הסדר שגוי, נסה שוב
+                                    <IconX className="w-6 h-6" /> הסדר שגוי, נסו שוב
                                 </span>
                                 <button
                                     onClick={() => setIsSubmitted(false)}
                                     className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
                                 >
-                                    נסה שוב
+                                    נסו שוב
                                 </button>
                             </div>
                         )}

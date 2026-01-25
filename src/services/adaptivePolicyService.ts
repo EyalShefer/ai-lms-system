@@ -150,11 +150,11 @@ export const makeAdaptiveDecision = async (
                 return {
                     action: 'skip',
                     skipCount,
-                    message: `מצוין! דילגנו על ${skipCount} שאלות קלות`,
+                    message: '🌟 מצוין!',
                     toast: {
                         type: 'challenge',
-                        title: '🚀 Challenge Mode!',
-                        description: `את/ה מצטיין/ת! דילגנו על ${skipCount} פריטים קלים`
+                        title: '🌟 מצוין!',
+                        description: 'המשיכו כך!'
                     }
                 };
             }
@@ -163,10 +163,10 @@ export const makeAdaptiveDecision = async (
         // No skip possible, but still provide feedback
         return {
             action: 'continue',
-            message: '🌟 מצוין! המערכת מזהה שליטה גבוהה.',
+            message: '🌟 מצוין!',
             toast: {
                 type: 'success',
-                title: '🌟 ביצועים מעולים!',
+                title: '🌟 מצוין!',
                 description: 'המשיכו כך!'
             }
         };
@@ -200,11 +200,11 @@ export const makeAdaptiveDecision = async (
                     action: 'skip_to_topic',
                     skipCount: skippedCount,
                     targetTopicId: queue[nextTopicIndex].metadata?.tags?.[0],
-                    message: `🏆 שליטה מלאה! עוברים לנושא הבא`,
+                    message: '🏆 מצוין!',
                     toast: {
                         type: 'success',
-                        title: '🏆 נושא נשלט!',
-                        description: `דילגנו על ${skippedCount} פריטים ועוברים לנושא חדש`
+                        title: '🏆 מצוין!',
+                        description: 'המשיכו כך!'
                     }
                 };
             }
@@ -213,11 +213,11 @@ export const makeAdaptiveDecision = async (
         // No next topic or can't proceed
         return {
             action: 'continue',
-            message: '🏆 שליטה מלאה! מוכנים לאתגר הבא.',
+            message: '🏆 מצוין!',
             toast: {
                 type: 'success',
-                title: '🏆 מאסטר!',
-                description: 'שליטה מלאה בנושא הנוכחי'
+                title: '🏆 מצוין!',
+                description: 'המשיכו כך!'
             }
         };
     }
@@ -226,7 +226,7 @@ export const makeAdaptiveDecision = async (
     if (bktAction === 'remediate') {
         return {
             action: 'continue',
-            message: '🤖 בואו נחזור על החומר...'
+            message: undefined
         };
     }
 
@@ -320,20 +320,18 @@ export const selectVariant = (
  * but the student will have the choice to accept or decline.
  *
  * Pedagogical rationale:
- * - Offers enrichment after consistent success (not perfection)
- * - Lower thresholds than automatic variant selection to be proactive
- * - Requires consecutive successes to ensure stability
+ * - Based on mastery and accuracy (no streak/combo requirement)
+ * - Students are not penalized for occasional mistakes
+ * - Proactive enrichment for capable students
  *
  * @param mastery - Current topic mastery (0-1)
  * @param recentAccuracy - Recent accuracy rate (0-1)
- * @param consecutiveSuccesses - Number of consecutive correct answers
  * @param block - The current block (to check if enrichment exists)
  * @returns true if enrichment should be offered
  */
 export const shouldOfferEnrichment = (
     mastery: number,
     recentAccuracy: number,
-    consecutiveSuccesses: number,
     block: ActivityBlock
 ): boolean => {
     // Check if enrichment variant exists for this block
@@ -343,16 +341,14 @@ export const shouldOfferEnrichment = (
         return false; // No enrichment available
     }
 
-    // Pedagogical thresholds (lowered for proactive enrichment)
-    const MASTERY_THRESHOLD = 0.7;        // Was 0.8 - now offers earlier
-    const ACCURACY_THRESHOLD = 0.85;      // Was 0.9 - more achievable
-    const CONSECUTIVE_THRESHOLD = 3;      // Must succeed 3 times in a row
+    // Pedagogical thresholds - based on mastery and accuracy only (no combo penalty)
+    const MASTERY_THRESHOLD = 0.7;
+    const ACCURACY_THRESHOLD = 0.85;
 
-    // Offer enrichment if student is performing well consistently
+    // Offer enrichment if student demonstrates good understanding
     return (
         mastery >= MASTERY_THRESHOLD &&
-        recentAccuracy >= ACCURACY_THRESHOLD &&
-        consecutiveSuccesses >= CONSECUTIVE_THRESHOLD
+        recentAccuracy >= ACCURACY_THRESHOLD
     );
 };
 

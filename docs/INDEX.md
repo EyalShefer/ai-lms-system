@@ -1,6 +1,27 @@
 # 📑 מפת ניווט מלאה - Testing & CI/CD
 
-**עדכון:** 2026-01-23
+**עדכון:** 2026-01-25
+
+---
+
+## 📌 מקורות אמת (Source of Truth)
+
+> **חשוב:** לכל נושא יש מסמך מקור אמת אחד בלבד. תמיד התחל משם.
+
+| נושא | מסמך מקור אמת | עדכון אחרון |
+|------|--------------|-------------|
+| **למידה אדפטיבית** | [ADAPTIVE_CURRENT_STATE.md](ADAPTIVE_CURRENT_STATE.md) | 2026-01-25 |
+| **Testing & CI/CD** | מסמך זה (INDEX.md) | 2026-01-25 |
+
+### ארכיון מסמכים ישנים
+
+מסמכים שהועברו לארכיון ואינם מעודכנים נמצאים ב-[docs/archive/](archive/):
+
+| מסמך ישן | סיבה | תאריך |
+|----------|------|-------|
+| ADAPTIVE_LEARNING_SYSTEM.md | הוחלף ב-ADAPTIVE_CURRENT_STATE | 2026-01-25 |
+| ADAPTIVE_SYSTEM_SPEC.md | הוחלף ב-ADAPTIVE_CURRENT_STATE | 2026-01-25 |
+| ADAPTIVE_LEARNING_AUDIT_REPORT.md | הוחלף ב-ADAPTIVE_CURRENT_STATE | 2026-01-25 |
 
 ---
 
@@ -367,7 +388,7 @@
 
 ---
 
-**עדכון אחרון:** 2026-01-23
-**גרסה:** 1.0
+**עדכון אחרון:** 2026-01-25
+**גרסה:** 1.1
 
 **💡 טיפ:** שמור את המסמך הזה כסימניה - זה המפתח לכל התיעוד!

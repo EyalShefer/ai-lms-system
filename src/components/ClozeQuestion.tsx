@@ -11,6 +11,8 @@ interface ClozeQuestionProps {
     isExamMode?: boolean; // ✨ NEW
     hints?: string[]; // ✨ NEW
     onHintUsed?: () => void; // ✨ NEW
+    savedAnswers?: (string | null)[]; // For restoring state on back navigation
+    isCompleted?: boolean; // Show completed state without re-attempt
 }
 
 const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
@@ -18,7 +20,9 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
     onComplete,
     isExamMode = false,
     hints = [],
-    onHintUsed
+    onHintUsed,
+    savedAnswers,
+    isCompleted = false
 }) => {
     // Telemetry Refs
     const startTimeRef = React.useRef<number>(Date.now());
@@ -127,12 +131,19 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
 
         // Prepare blanks based on sentence
         const blanksCount = (sentence.match(/_____/g) || []).length;
-        setUserAnswers(new Array(blanksCount).fill(null));
 
-        // Prepare word bank (shuffled)
+        // Restore from saved answers if available, otherwise start fresh
+        if (savedAnswers && savedAnswers.length === blanksCount) {
+            setUserAnswers(savedAnswers);
+            setIsSubmitted(isCompleted);
+        } else {
+            setUserAnswers(new Array(blanksCount).fill(null));
+        }
+
+        // Prepare word bank (shuffled) - but keep used words filtered if restoring
         const allWords = [...hidden_words, ...(distractors || [])];
         setWordBank(allWords.sort(() => Math.random() - 0.5));
-    }, [block, sentence, hidden_words, distractors]);
+    }, [block, sentence, hidden_words, distractors, savedAnswers, isCompleted]);
 
     const handleDragStart = (e: React.DragEvent, word: string) => {
         e.dataTransfer.setData("text/plain", word);
@@ -352,7 +363,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                                     }}
                                     className="text-blue-600 dark:text-wizdi-cyan text-sm hover:underline mt-2 min-h-[44px] px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 rounded"
                                 >
-                                    נסה שוב
+                                    נסו שוב
                                 </button>
                             </div>
                         )}

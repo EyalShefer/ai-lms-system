@@ -15,6 +15,7 @@ import express from 'express';
 import corsMiddleware from 'cors';
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { GoogleGenAI } from '@google/genai';
 import { getSkeletonPrompt, getStepContentPrompt, getLinguisticConstraintsByGrade } from '../ai/prompts';
 
@@ -72,6 +73,82 @@ export interface StreamChunk {
     // Lesson streaming
     method?: string;
   };
+}
+
+// ============================================================
+// HOOK TYPE CONSTANTS (for variety enforcement)
+// ============================================================
+
+type HookType = 'visual' | 'mystery' | 'game' | 'provocation' | 'hands_on' | 'personal';
+
+const VALID_HOOK_TYPES: HookType[] = ['visual', 'mystery', 'game', 'provocation', 'hands_on', 'personal'];
+
+const HOOK_FALLBACKS: Record<HookType, (topic: string) => string> = {
+  visual: (topic) => `הציגו תמונה מפתיעה הקשורה ל${topic} ושאלו: "מה אתם רואים כאן? מה מפתיע אתכם בתמונה?" תנו לתלמידים 30 שניות להתבונן ולשתף.`,
+  mystery: (topic) => `הנה חידה: יש משהו מוזר לגבי ${topic} שרוב האנשים לא יודעים. מי יכול לנחש מה זה? יש לכם 30 שניות לחשוב על תשובה מפתיעה.`,
+  game: (topic) => `משחק בזק! כתבו על דף 3 מילים שקשורות ל${topic} תוך 20 שניות. מי כתב מילה שאף אחד אחר לא כתב? הוא המנצח!`,
+  provocation: (topic) => `אני טוען משהו קיצוני: רוב מה שאתם חושבים שאתם יודעים על ${topic} - זה לא נכון! מי מסכים איתי? מי מתנגד? נראה מי צודק בסוף השיעור.`,
+  hands_on: (topic) => `כולם קמים! יש לכם 30 שניות למצוא בכיתה או בתיק משהו שקשור ל${topic}. מי שמצא - מרים את היד ומספר מה מצא ולמה זה קשור.`,
+  personal: (topic) => `שאלה אישית: מי מכם נתקל ב${topic} השבוע בלי לשים לב? הרימו יד. עכשיו תגלו משהו מפתיע - ${topic} נמצא בכל מקום סביבנו!`
+};
+
+function selectRandomHookType(excludeTypes: HookType[] = []): HookType {
+  const available = VALID_HOOK_TYPES.filter(t => !excludeTypes.includes(t));
+  const pool = available.length > 0 ? available : VALID_HOOK_TYPES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// ============================================================
+// HOOK HISTORY TRACKING (Firestore)
+// ============================================================
+
+async function getUserHookHistory(userId: string): Promise<HookType[]> {
+  try {
+    const db = getFirestore();
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      return (data?.hookHistory?.types as HookType[]) || [];
+    }
+    return [];
+  } catch (error) {
+    logger.warn('Failed to get user hook history:', error);
+    return [];
+  }
+}
+
+async function updateUserHookHistory(userId: string, hookType: HookType): Promise<void> {
+  try {
+    const db = getFirestore();
+    const userRef = db.collection('users').doc(userId);
+
+    // Get current history
+    const currentHistory = await getUserHookHistory(userId);
+
+    // Keep only last 5 types and add the new one
+    const updatedHistory = [...currentHistory.slice(-4), hookType];
+
+    await userRef.set({
+      hookHistory: {
+        types: updatedHistory,
+        lastUpdated: FieldValue.serverTimestamp()
+      }
+    }, { merge: true });
+
+    logger.info(`Updated hook history for user ${userId}: ${updatedHistory.join(', ')}`);
+  } catch (error) {
+    logger.warn('Failed to update user hook history:', error);
+  }
+}
+
+function selectHookTypeWithHistory(previousTypes: HookType[]): HookType {
+  // Get the last 5 types to avoid
+  const recentTypes = previousTypes.slice(-5);
+  const available = VALID_HOOK_TYPES.filter(t => !recentTypes.includes(t));
+
+  // If all types were used recently, pick from all
+  const pool = available.length > 0 ? available : VALID_HOOK_TYPES;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // ============================================================
@@ -579,6 +656,10 @@ app.post('/stream/lesson', async (req, res) => {
   try {
     const startTime = Date.now();
 
+    // Fetch user's hook history for variety enforcement
+    const hookHistory = await getUserHookHistory(userId);
+    logger.info(`User ${userId} hook history: [${hookHistory.join(', ')}]`);
+
     // ============ PARALLEL GENERATION: Part 1 + Part 2 ============
     sendSSE(res, 'progress', {
       type: 'progress',
@@ -619,7 +700,7 @@ app.post('/stream/lesson', async (req, res) => {
 
         // Validate and ensure required fields exist
         if (parsed) {
-          parsed = validateAndFixPart1(parsed, topic, gradeLevel);
+          parsed = validateAndFixPart1(parsed, topic, gradeLevel, hookHistory);
           sendSSE(res, 'part1_complete', {
             type: 'json_complete',
             content: JSON.stringify(parsed),
@@ -684,7 +765,7 @@ app.post('/stream/lesson', async (req, res) => {
 
     // Combine into full lesson plan
     // Part2 is now ALWAYS validated inside its async function, so we can use it directly
-    const finalPart1 = part1Result || validateAndFixPart1({}, topic, gradeLevel);
+    const finalPart1 = part1Result || validateAndFixPart1({}, topic, gradeLevel, hookHistory);
     const finalPart2 = part2Result || validateAndFixPart2({}, topic);
 
     logger.info(`📊 Final assembly - Part1 result: ${part1Result ? 'OK' : 'FALLBACK'}, Part2 result: ${part2Result ? 'OK' : 'FALLBACK'}`);
@@ -718,6 +799,11 @@ app.post('/stream/lesson', async (req, res) => {
     });
 
     logger.info(`✅ Lesson stream completed for user ${userId} in ${totalTime}ms`);
+
+    // Update user's hook history with the used hook type
+    if (fullLessonPlan.hook?.hook_type) {
+      await updateUserHookHistory(userId, fullLessonPlan.hook.hook_type as HookType);
+    }
 
   } catch (error: any) {
     logger.error('Lesson streaming error:', error);
@@ -762,7 +848,15 @@ Generate ONLY these sections in Hebrew:
    - learning_objectives: 2-3 specific objectives about the CONTENT
 
 2. HOOK (5 min):
-   - script_for_teacher: Engaging opening script (80-120 words, conversational Hebrew)
+   - hook_type: REQUIRED! Must be ONE of: "visual" | "mystery" | "game" | "provocation" | "hands_on" | "personal"
+     * visual: Show surprising image/video, ask "What do you see? What's happening?"
+     * mystery: Present riddle, puzzle, or surprising fact
+     * game: 2-3 minute quick game or challenge
+     * provocation: Controversial statement or moral dilemma
+     * hands_on: Quick physical activity or demonstration
+     * personal: Connect to students' lives with a surprising twist
+   - script_for_teacher: MUST match the hook_type! Creative, engaging opening (80-120 words, conversational Hebrew)
+     FORBIDDEN: Generic openings like "מי יכול לנחש?" or "מה אתם יודעים על...?" - these are BORING!
    - media_asset: { type: "${sourceType === 'YOUTUBE' ? 'youtube_timestamp' : 'illustration'}", content: "${sourceType === 'YOUTUBE' ? 'timestamp range' : 'detailed image prompt for curiosity-provoking visual'}" }
    - classroom_management_tip: One practical tip
 
@@ -778,7 +872,7 @@ Generate ONLY these sections in Hebrew:
 OUTPUT: Valid JSON only (no markdown, no explanations).
 {
   "lesson_metadata": { ... },
-  "hook": { ... },
+  "hook": { "hook_type": "visual|mystery|game|provocation|hands_on|personal", "script_for_teacher": "...", ... },
   "direct_instruction": { "slides": [...] }
 }`;
 }
@@ -962,8 +1056,9 @@ function robustJsonParse(content: string, partName: string): any {
 
 /**
  * Validate and fix Part1 result to ensure all required fields exist
+ * @param hookHistory - Previous hook types used by this user (for variety)
  */
-function validateAndFixPart1(result: any, topic: string, gradeLevel?: string): any {
+function validateAndFixPart1(result: any, topic: string, gradeLevel?: string, hookHistory: HookType[] = []): any {
   const grade = gradeLevel || 'כיתה ה';
 
   // Ensure lesson_metadata exists with all required fields
@@ -987,7 +1082,24 @@ function validateAndFixPart1(result: any, topic: string, gradeLevel?: string): a
   if (!result.hook) {
     result.hook = {};
   }
-  result.hook.script_for_teacher = result.hook.script_for_teacher || `היום נלמד על ${topic}. מי יכול לנחש למה זה חשוב?`;
+
+  // HOOK TYPE VALIDATION: Ensure hook_type is valid, or assign one avoiding recent types
+  if (!result.hook.hook_type || !VALID_HOOK_TYPES.includes(result.hook.hook_type)) {
+    result.hook.hook_type = selectHookTypeWithHistory(hookHistory);
+    logger.info(`Hook type was missing/invalid, assigned type avoiding recent history: ${result.hook.hook_type}`);
+  }
+
+  // CREATIVE FALLBACK: If script is missing or generic, use type-specific creative fallback
+  const genericPatterns = ['מי יכול לנחש', 'מה אתם יודעים על', 'היום נלמד על', 'בואו נתחיל'];
+  const isGenericScript = !result.hook.script_for_teacher ||
+    genericPatterns.some(pattern => result.hook.script_for_teacher?.includes(pattern));
+
+  if (isGenericScript) {
+    const fallbackFn = HOOK_FALLBACKS[result.hook.hook_type as HookType];
+    result.hook.script_for_teacher = fallbackFn(topic);
+    logger.info(`Used creative fallback for hook type: ${result.hook.hook_type}`);
+  }
+
   result.hook.classroom_management_tip = result.hook.classroom_management_tip || 'ודאו שכל התלמידים קשובים לפני שמתחילים';
 
   // Ensure media_asset exists (even if minimal)

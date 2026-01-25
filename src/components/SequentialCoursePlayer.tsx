@@ -34,6 +34,8 @@ import ScaffoldingOfferModal from './ScaffoldingOfferModal'; // NEW: Scaffolding
 import EnrichmentOfferModal from './EnrichmentOfferModal'; // NEW: Enrichment variant modal
 import { generateVariantInBackground } from '../services/variantCacheService'; // NEW: Variant generation
 import type { VariantType } from '../types/variantCache.types'; // NEW: Variant types
+import { useVariantReadiness } from '../hooks/useVariantReadiness'; // Progressive variant generation
+import VariantPreparationOverlay from './VariantPreparationOverlay'; // Progressive variant overlay
 
 
 // --- Specialized Sub-Components ---
@@ -110,6 +112,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const playSound = useSound();
     const { currentUser } = useAuth(); // for FeedbackWidget
 
+    // --- Progressive Variant Generation ---
+    // Check if variants are ready for this task
+    const variantReadiness = useVariantReadiness(assignment?.id);
+    const [skipVariantWait, setSkipVariantWait] = useState(false);
 
     // --- State: The "Pool" ---
     // --- State: The "Pool" (Mutable Queue for Adaptive Injection) ---
@@ -145,6 +151,20 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         if (course?.syllabus && course.id !== 'loading') {
             const initialBlocks = course.syllabus.flatMap(m => m.learningUnits.flatMap(u => (u.activityBlocks || []) as ActivityBlock[]));
             setPlaybackQueue(initialBlocks);
+
+            // DIAGNOSTIC: Log all blocks loaded for debugging off-topic content issues
+            console.log(`📋 [DIAGNOSTIC] Course loaded:`, {
+                courseId: course.id,
+                courseTitle: course.title,
+                subject: course.subject,
+                totalBlocks: initialBlocks.length,
+                blocks: initialBlocks.map((b, i) => ({
+                    index: i,
+                    id: b.id,
+                    type: b.type,
+                    question: b.content?.question?.substring(0, 100) || 'N/A'
+                }))
+            });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [course?.id]);
@@ -183,7 +203,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     const [hasSubmitted, setHasSubmitted] = useState(false);
 
     // UI Helpers
-    const [combo, setCombo] = useState(0); // Multiplier
     const [showFloater, setShowFloater] = useState<{ id: number, amount: number } | null>(null);
     const [isShopOpen, setIsShopOpen] = useState(false);
 
@@ -275,7 +294,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     useEffect(() => {
         if (!currentBlock) return;
 
+        // DIAGNOSTIC: Log each block as it's displayed
+        console.log(`🎬 [DIAGNOSTIC] Displaying block ${currentIndex + 1}/${playbackQueue.length}:`, {
+            courseId: course?.id,
+            courseTitle: course?.title,
+            blockId: currentBlock.id,
+            blockType: currentBlock.type,
+            blockQuestion: currentBlock.content?.question?.substring(0, 150) || 'N/A',
+            fullContent: currentBlock.type === 'open-question' ? currentBlock.content : undefined
+        });
+
         // --- ADAPTIVE: Select appropriate variant based on student performance ---
+        // IMPORTANT: Skip variant selection in exam mode - all students get identical questions
+        if (isExamMode) {
+            console.log('📝 [EXAM MODE] Skipping adaptive variant selection');
+        }
         const questionTypes = [
             'multiple-choice', 'open-question', 'fill_in_blanks', 'ordering',
             'categorization', 'memory_game', 'true_false_speed',
@@ -283,7 +316,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             'matching', 'highlight', 'sentence_builder', 'image_labeling',
             'table_completion', 'text_selection', 'rating_scale', 'matrix'
         ];
-        if (questionTypes.includes(currentBlock.type) && !activeVariants[currentBlock.id]) {
+        if (!isExamMode && questionTypes.includes(currentBlock.type) && !activeVariants[currentBlock.id]) {
             // Check if this block has variants available (הבנה=Understanding, העמקה=Deepening)
             const hasHavana = !!currentBlock.metadata?.הבנה_id || !!currentBlock.metadata?.scaffolding_id;
             const hasHaamaka = !!currentBlock.metadata?.העמקה_id || !!currentBlock.metadata?.enrichment_id;
@@ -513,13 +546,12 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     // Allow retry with guidance
                     setStepStatus('ready_to_check');
                     playSound('failure');
-                    const attemptsLeft = maxAttempts - currentAttempts;
                     const currentHintLevel = hintsVisible[currentBlock.id] || 0;
                     if (currentHintLevel < hints.length) {
                         setHintsVisible(prev => ({ ...prev, [currentBlock.id]: currentHintLevel + 1 }));
-                        setFeedbackMsg(`${result.feedback || 'כמעט! נסה להרחיב את התשובה.'}\nנותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
+                        setFeedbackMsg(`${result.feedback || 'כמעט! נסו להרחיב את התשובה.'}\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
                     } else {
-                        setFeedbackMsg(`${result.feedback || 'כמעט! נסה להרחיב את התשובה.'}\nנותרו ${attemptsLeft} ניסיונות.`);
+                        setFeedbackMsg(result.feedback || 'כמעט! נסו להרחיב את התשובה.');
                     }
                 }
 
@@ -533,26 +565,25 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     if (hints.length > 0) {
                         setHintsVisible(prev => ({ ...prev, [currentBlock.id]: hints.length }));
                     }
-                    setFeedbackMsg(`נגמרו הניסיונות. ${modelAnswer ? `התשובה הנכונה: ${stripAsterisks(modelAnswer)}` : (result.feedback || 'נסה שאלה אחרת.')}`);
+                    setFeedbackMsg(modelAnswer ? `הנה התשובה: ${stripAsterisks(modelAnswer)}` : (result.feedback || 'נסו שאלה אחרת.'));
                 } else {
                     // Still have attempts - show progressive hint
                     setStepStatus('ready_to_check');
                     playSound('failure');
-                    const attemptsLeft = maxAttempts - currentAttempts;
                     const currentHintLevel = hintsVisible[currentBlock.id] || 0;
 
                     if (currentHintLevel < hints.length) {
                         setHintsVisible(prev => ({ ...prev, [currentBlock.id]: currentHintLevel + 1 }));
-                        setFeedbackMsg(`${result.feedback || 'נסה שוב.'}\nנותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
+                        setFeedbackMsg(`${result.feedback || 'נסו שוב.'}\n💡 רמז ${currentHintLevel + 1}: ${hints[currentHintLevel]}`);
                     } else {
-                        setFeedbackMsg(`${result.feedback || 'נסה שוב.'}\nנותרו ${attemptsLeft} ניסיונות.`);
+                        setFeedbackMsg(result.feedback || 'נסו שוב.');
                     }
                 }
             }
         } catch (error: any) {
             console.error('❌ Error checking open question:', error);
             console.error('Error details:', error?.message, error?.code);
-            setFeedbackMsg('שגיאה בבדיקה. נסה שוב. ' + (error?.message || ''));
+            setFeedbackMsg('שגיאה בבדיקה. נסו שוב.');
         } finally {
             setIsCheckingOpenQuestion(false);
         }
@@ -654,22 +685,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 currentStreak: prev.currentStreak + 1,
             }));
 
-            setCombo(prev => prev + 1);
             setShowFloater({ id: Date.now(), amount: totalXpGain });
 
-            // ✅ FIXED: Contextual feedback based on score
+            // ✅ FIXED: Clean contextual feedback (no scores/penalties shown)
             let feedback: string;
             if (score === SCORING_CONFIG.CORRECT_FIRST_TRY) {
-                feedback = ["מעולה!", "כל הכבוד!", "יפה מאוד!", "מושלם!"][Math.floor(Math.random() * 4)];
+                feedback = "מעולה!";
+            } else if (score >= 80) {
+                feedback = "כל הכבוד";
             } else if (score >= SCORING_CONFIG.RETRY_PARTIAL) {
-                if (hintsUsed > 0) {
-                    const penalty = SCORING_CONFIG.CORRECT_FIRST_TRY - score;
-                    feedback = `יפה! (${penalty} נקודות הופחתו בגלל ${hintsUsed} רמזים)`;
-                } else {
-                    feedback = "טוב! (תשובה נכונה בניסיון נוסף)";
-                }
+                feedback = "יפה";
             } else {
-                feedback = "כמעט!";
+                feedback = "יפה";
             }
             setFeedbackMsg(feedback);
 
@@ -685,16 +712,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             // --- ENRICHMENT OFFER LOGIC: Check if student should be offered העמקה variant ---
             // Only check when student answers correctly (not after failures)
             if (score === SCORING_CONFIG.CORRECT_FIRST_TRY) {
-                // Check if enrichment should be offered based on performance
+                // Check if enrichment should be offered based on performance (mastery + accuracy)
                 const shouldOffer = shouldOfferEnrichment(
                     currentMastery,
                     recentAccuracy,
-                    combo + 1, // +1 because we just incremented combo
                     currentBlock
                 );
 
-                if (shouldOffer && !isEnrichmentModalOpen) {
-                    // Check if enrichment variant exists
+                if (shouldOffer && !isEnrichmentModalOpen && !isExamMode) {
+                    // Check if enrichment variant exists (skip in exam mode)
                     const hasEnrichment = !!(currentBlock.metadata?.העמקה_id || currentBlock.metadata?.enrichment_id);
 
                     if (hasEnrichment) {
@@ -707,8 +733,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 course.id,
                                 currentBlock.id,
                                 'העמקה',
-                                currentMastery,
-                                combo + 1
+                                currentMastery
                             );
 
                             // Pre-generate variant in background
@@ -737,7 +762,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 // Final attempt - check mastery to decide scaffolding offer
                 setStepStatus('failure');
                 playSound('failure');
-                setCombo(0);
 
                 // Show all remaining hints
                 if (hints.length > 0) {
@@ -747,7 +771,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 // --- SCAFFOLDING LOGIC: Check mastery ---
                 // Mastery < 0.3 = struggling → offer הבנה variant
                 // Mastery >= 0.3 = just bad luck → show answer
-                if (currentMastery < 0.3) {
+                // IMPORTANT: Skip scaffolding in exam mode
+                if (currentMastery < 0.3 && !isExamMode) {
                     console.log(`📚 Low mastery (${currentMastery.toFixed(2)}) - offering scaffolding variant`);
 
                     // Trigger variant generation in background if not cached
@@ -772,23 +797,21 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         );
                     }
 
-                    // Open scaffolding modal
+                    // Open scaffolding modal (no message - modal explains itself, icon shows adaptation)
                     setScaffoldingBlockId(currentBlock.id);
                     setScaffoldingVariantType('הבנה');
                     setIsScaffoldingModalOpen(true);
-                    setFeedbackMsg('נראה שיש קצת קושי. רוצה לנסות שאלה קלה יותר?');
                 } else {
                     // High enough mastery - just show answer
                     const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
                     setFeedbackMsg(currentBlock.type === 'multiple-choice'
-                        ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
-                        : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+                        ? `הנה התשובה הנכונה: ${correctAnswer}`
+                        : (correctAnswer ? `הנה התשובה: ${correctAnswer}` : 'נסו שאלה אחרת.'));
                 }
             } else {
                 // Still have attempts - show progressive hint and allow retry
                 setStepStatus('ready_to_check'); // Allow retry
                 playSound('failure');
-                setCombo(0);
 
                 // Auto-reveal next hint if available
                 const currentHintLevel = hintsVisible[currentBlock.id] || 0;
@@ -798,12 +821,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                     // Show next progressive hint
                     setHintsVisible(prev => ({ ...prev, [currentBlock.id]: nextHintIndex + 1 }));
                     const hintText = hints[nextHintIndex];
-                    const attemptsLeft = maxAttempts - currentAttempts;
-                    setFeedbackMsg(`לא נכון. נותרו ${attemptsLeft} ניסיונות.\n💡 רמז ${nextHintIndex + 1}: ${hintText}`);
+                    setFeedbackMsg(`נסו שוב.\n💡 רמז ${nextHintIndex + 1}: ${hintText}`);
                 } else {
                     // No more hints but still have attempts
-                    const attemptsLeft = maxAttempts - currentAttempts;
-                    setFeedbackMsg(`לא נכון. נותרו ${attemptsLeft} ניסיונות. נסה שוב!`);
+                    setFeedbackMsg('נסו שוב');
                 }
 
                 // Clear user answer to allow re-selection
@@ -848,7 +869,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             currentMastery,
                             data.mastery || 0,
                             data.action || 'continue',
-                            isCorrect,
+                            passed,
                             topicId
                         );
 
@@ -869,10 +890,10 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         setRecentAccuracy(newAccuracy);
 
                         // --- POLICY ENGINE: Act on BKT recommendations ---
-                        if (data.action === 'remediate') {
-                            // Trigger "Thinking" Overlay
+                        // IMPORTANT: Skip adaptive actions in exam mode
+                        if (data.action === 'remediate' && !isExamMode) {
+                            // Trigger "Thinking" Overlay (no message - icon shows adaptation)
                             setIsRemediating(true);
-                            setFeedbackMsg(prev => (prev || "") + "\n🤖 המערכת מזהה קושי. מנתח פערים...");
 
                             try {
                                 const remedialBlock = await generateRemedialBlock(
@@ -888,8 +909,6 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                         newQ.splice(currentIndex + 1, 0, remedialBlock);
                                         return newQ;
                                     });
-                                    setFeedbackMsg("יצרתי עבורכם הסבר ממוקד לחזרה. לחצו על המשך.");
-
                                     // Log remediation to Firestore
                                     logRemediationInjected(
                                         user.uid,
@@ -904,7 +923,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             } finally {
                                 setIsRemediating(false); // Hide Overlay
                             }
-                        } else if (data.action === 'challenge' || data.action === 'mastered') {
+                        } else if ((data.action === 'challenge' || data.action === 'mastered') && !isExamMode) {
                             // --- ADAPTIVE POLICY: Challenge Mode & Mastery Skip ---
                             try {
                                 const decision = await makeAdaptiveDecision(
@@ -963,9 +982,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                 console.error("Policy decision error:", policyErr);
                                 // Fallback to simple messages
                                 if (data.action === 'challenge') {
-                                    setFeedbackMsg(prev => (prev || "") + "\n🌟 מצוין! המערכת מזהה שליטה גבוהה.");
+                                    setFeedbackMsg(prev => (prev || "") + "\n🌟 מצוין!");
                                 } else {
-                                    setFeedbackMsg(prev => (prev || "") + "\n🏆 שליטה מלאה! מוכנים לאתגר הבא.");
+                                    setFeedbackMsg(prev => (prev || "") + "\n🏆 מצוין!");
                                 }
                             }
                         }
@@ -979,13 +998,18 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // Callback for "Self-Checking" components (Cloze, Ordering, Categorization)
     // ✅ FIXED: Now properly handles partial scores from complex components
-    const handleComplexBlockComplete = (score: number, telemetryData?: { attempts?: number, hintsUsed?: number }) => {
+    const handleComplexBlockComplete = (score: number, telemetryData?: { attempts?: number, hintsUsed?: number, lastAnswer?: any }) => {
         // Complex blocks pass their own score (0-100)
         // We need to handle partial scores properly, not just pass/fail
 
         // Update hints if provided by the component
         if (telemetryData?.hintsUsed && telemetryData.hintsUsed > 0) {
             setHintsVisible(prev => ({ ...prev, [currentBlock.id]: telemetryData.hintsUsed ?? 0 }));
+        }
+
+        // Save the answers for back navigation
+        if (telemetryData?.lastAnswer !== undefined) {
+            setUserAnswers(prev => ({ ...prev, [currentBlock.id]: telemetryData.lastAnswer }));
         }
 
         // Process with actual score for proper feedback
@@ -1023,19 +1047,20 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 currentStreak: prev.currentStreak + 1,
             }));
 
-            setCombo(prev => prev + 1);
             setShowFloater({ id: Date.now(), amount: totalXpGain });
 
             // Contextual feedback based on actual score
             let feedback: string;
             if (isPerfect) {
-                feedback = ["מעולה!", "כל הכבוד!", "יפה מאוד!", "מושלם!"][Math.floor(Math.random() * 4)];
+                feedback = "מעולה!";
             } else if (score >= 80) {
-                feedback = `כמעט מושלם! קיבלת ${score} נקודות.`;
+                feedback = "כל הכבוד";
             } else if (score >= 60) {
-                feedback = `עברת! קיבלת ${score} נקודות. נסה לשפר בפעם הבאה.`;
+                feedback = "יפה";
+            } else if (score >= 51) {
+                feedback = "קרוב! נסו שוב";
             } else {
-                feedback = "כמעט!";
+                feedback = "נסו שוב";
             }
             setFeedbackMsg(feedback);
 
@@ -1050,10 +1075,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         } else {
             setStepStatus('failure');
             playSound('failure');
-            setCombo(0);
 
-            // Show score even on failure for complex questions
-            setFeedbackMsg(`קיבלת ${score} נקודות. צריך לפחות 61 כדי לעבור. נסו שוב!`);
+            // Encouraging feedback without showing scores
+            setFeedbackMsg(score >= 51 ? "קרוב! נסו שוב" : "נסו שוב");
         }
 
         // --- ADAPTIVE BRAIN SYNC (Cloud) ---
@@ -1090,7 +1114,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             currentMastery,
                             data.mastery || 0,
                             data.action || 'continue',
-                            isCorrect,
+                            passed,
                             topicId
                         );
 
@@ -1111,9 +1135,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         setRecentAccuracy(newAccuracy);
 
                         // --- POLICY ENGINE: Act on BKT recommendations ---
-                        if (data.action === 'remediate') {
+                        // IMPORTANT: Skip adaptive actions in exam mode
+                        if (data.action === 'remediate' && !isExamMode) {
                             setIsRemediating(true);
-                            setFeedbackMsg(prev => (prev || "") + "\n🤖 המערכת מזהה קושי. מנתח פערים...");
 
                             try {
                                 const remedialBlock = await generateRemedialBlock(
@@ -1128,14 +1152,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                         newQ.splice(currentIndex + 1, 0, remedialBlock);
                                         return newQ;
                                     });
-                                    setFeedbackMsg("יצרתי עבורכם הסבר ממוקד לחזרה. לחצו על המשך.");
                                 }
                             } catch (genErr) {
                                 console.error("Factory Error:", genErr);
                             } finally {
                                 setIsRemediating(false);
                             }
-                        } else if (data.action === 'challenge' || data.action === 'mastered') {
+                        } else if ((data.action === 'challenge' || data.action === 'mastered') && !isExamMode) {
                             // --- ADAPTIVE POLICY: Challenge Mode & Mastery Skip ---
                             try {
                                 const decision = await makeAdaptiveDecision(
@@ -1249,8 +1272,8 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         // Show correct answer
         const correctAnswer = currentBlock.content?.correctAnswer || currentBlock.content?.correct;
         setFeedbackMsg(currentBlock.type === 'multiple-choice'
-            ? `נגמרו הניסיונות. התשובה הנכונה: ${correctAnswer}`
-            : `נגמרו הניסיונות. ${correctAnswer ? `התשובה הנכונה: ${correctAnswer}` : 'נסה שאלה אחרת.'}`);
+            ? `הנה התשובה הנכונה: ${correctAnswer}`
+            : (correctAnswer ? `הנה התשובה: ${correctAnswer}` : 'נסו שאלה אחרת.'));
     }, [currentBlock, currentUser, course, scaffoldingBlockId, scaffoldingVariantType, currentMastery]);
 
     // --- ENRICHMENT HANDLERS ---
@@ -1442,13 +1465,38 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     };
 
     const renderBlockContent = () => {
+        // Check if current block is using an adaptive variant
+        const currentVariant = activeVariants[currentBlock?.id];
+        const isAdaptiveVariant = currentVariant && currentVariant !== 'יישום';
+
         return (
             <div className="relative">
-                {/* Scaffolding Badge - AI-Native Design */}
+                {/* Scaffolding Badge - AI-Native Design (shown when user accepts scaffolding) */}
                 {isCurrentBlockScaffolding && (
                     <div className="absolute -top-3 right-0 z-10 flex items-center gap-2 bg-gradient-to-r from-violet-100 via-purple-100 to-pink-100 border border-violet-300/50 px-4 py-2 rounded-2xl shadow-lg shadow-violet-500/10 animate-in slide-in-from-top-2">
                         <IconSparkles className="w-4 h-4 text-violet-600" />
                         <span className="text-xs font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">שאלה בדיוק בשבילך</span>
+                    </div>
+                )}
+
+                {/* Adaptive Variant Indicator - Subtle icon showing content is personalized */}
+                {isAdaptiveVariant && !isCurrentBlockScaffolding && (
+                    <div
+                        className="absolute -top-2 left-2 z-10"
+                        title={currentVariant === 'הבנה' ? 'גרסה מותאמת - תומכת' : 'גרסה מותאמת - מאתגרת'}
+                    >
+                        <div className="relative group">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                <IconBrain className="w-4 h-4 text-white" />
+                            </div>
+                            {/* Subtle glow ring */}
+                            <div className="absolute inset-0 rounded-full bg-indigo-400/50 animate-ping" style={{ animationDuration: '2s' }}></div>
+                            {/* Tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                תוכן מותאם אישית
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -1598,11 +1646,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 );
 
             case 'fill_in_blanks':
-                return <ClozeQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
+                return <ClozeQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'ordering':
-                return <OrderingQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
+                return <OrderingQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'categorization':
-                return <CategorizationQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
+                return <CategorizationQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'memory_game':
                 return <MemoryGameQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
             case 'true_false_speed':
@@ -1855,13 +1903,30 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         // Normalize to percentage
         const finalScore = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0;
 
+        // Verify user is authenticated before submission (required by Firestore rules)
+        const auth = getAuth();
+        const authenticatedUserId = currentUser?.uid || auth.currentUser?.uid;
+        console.log('🔐 Auth Debug:', {
+            contextUserId: currentUser?.uid,
+            firebaseAuthUserId: auth.currentUser?.uid,
+            finalUserId: authenticatedUserId,
+            userEmail: currentUser?.email || auth.currentUser?.email
+        });
+        if (!authenticatedUserId) {
+            console.error('❌ Cannot submit: No authenticated user');
+            alert('נדרשת התחברות כדי להגיש את הפעילות. אנא התחבר/י ונסה שוב.');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             const submissionData: SubmissionData = {
                 assignmentId: courseId, // Using courseId as assignmentId for direct submissions
                 courseId: courseId,
-                studentName: currentUser?.displayName || currentUser?.email || 'אורח',
+                studentId: authenticatedUserId, // Must match auth.uid for Firestore rules
+                teacherId: (course as any)?.teacherId, // Course teacher for read access
+                studentName: currentUser?.displayName || currentUser?.email || auth.currentUser?.displayName || auth.currentUser?.email || 'אורח',
                 answers: userAnswers,
                 score: finalScore,
                 maxScore: 100,
@@ -1889,7 +1954,13 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             if (result.success) {
                 setHasSubmitted(true);
                 playSound('success');
-                alert(`הפעילות הוגשה בהצלחה! ציון: ${finalScore}%`);
+                // Don't show score for exams - teacher will review and provide feedback
+                const isExam = (course as any)?.wizardData?.settings?.productType === 'exam';
+                if (isExam) {
+                    alert('הבחינה הוגשה בהצלחה! המורה יבדוק את התשובות.');
+                } else {
+                    alert(`הפעילות הוגשה בהצלחה! ציון: ${finalScore}%`);
+                }
             }
         } catch (error) {
             console.error('❌ Submission error:', error);
@@ -1910,7 +1981,37 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
     // This prevents showing the wrong view while data is still being fetched
     if (isCourseLoading) {
         console.log("🕵️ SequentialCoursePlayer: Course still loading from Firestore...");
-        return <div className="h-screen w-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">טוען שיעור...</div>;
+        return (
+            <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex flex-col items-center justify-center text-white" dir="rtl">
+                <button
+                    onClick={() => {
+                        console.log('🚀 Dashboard button clicked during loading, onExit:', !!onExit);
+                        if (onExit) onExit();
+                        else if (window.history.length > 1) window.history.back();
+                        else window.location.href = '/';
+                    }}
+                    className="absolute top-6 right-6 flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-slate-700/80 to-slate-800/80 hover:from-slate-600/80 hover:to-slate-700/80 rounded-2xl border border-white/20 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all text-white"
+                    title="חזרה לדשבורד התלמיד"
+                >
+                    <IconHome className="w-6 h-6" />
+                    <span className="font-bold">דשבורד</span>
+                </button>
+                <div className="font-bold text-2xl animate-pulse">טוען שיעור...</div>
+            </div>
+        );
+    }
+
+    // --- Progressive Variant Generation: Show overlay while variants are being prepared ---
+    // Only show if: variants are loading AND user hasn't chosen to skip AND this is an assigned task
+    if (variantReadiness.isLoading && !skipVariantWait && assignment?.id) {
+        return (
+            <VariantPreparationOverlay
+                stats={variantReadiness.stats}
+                onSkip={() => setSkipVariantWait(true)}
+                title="מכינים תוכן מותאם"
+                description="המערכת מייצרת גרסאות מותאמות אישית לרמה שלך..."
+            />
+        );
     }
 
     if ((productType === 'lesson' || productType === 'podcast') && !forceExam && !inspectorMode) {
@@ -1935,7 +2036,26 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // --- Loading State ---
     // Only show loading for regular student content (not lesson/podcast which use TeacherCockpit)
-    if (!currentBlock) return <div className="h-screen w-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">טוען שיעור...</div>;
+    if (!currentBlock) {
+        return (
+            <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex flex-col items-center justify-center text-white" dir="rtl">
+                <button
+                    onClick={() => {
+                        console.log('🚀 Dashboard button clicked during block loading, onExit:', !!onExit);
+                        if (onExit) onExit();
+                        else if (window.history.length > 1) window.history.back();
+                        else window.location.href = '/';
+                    }}
+                    className="absolute top-6 right-6 flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-slate-700/80 to-slate-800/80 hover:from-slate-600/80 hover:to-slate-700/80 rounded-2xl border border-white/20 backdrop-blur-md shadow-lg transform hover:scale-105 transition-all text-white"
+                    title="חזרה לדשבורד התלמיד"
+                >
+                    <IconHome className="w-6 h-6" />
+                    <span className="font-bold">דשבורד</span>
+                </button>
+                <div className="font-bold text-2xl animate-pulse">טוען שיעור...</div>
+            </div>
+        );
+    }
 
     // --- Student Player (Default) ---
     return (
@@ -1957,6 +2077,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         {/* Dashboard Button - Leftmost */}
                         <button
                             onClick={() => {
+                                console.log('🚀 Dashboard button clicked, onExit:', !!onExit);
                                 if (onExit) {
                                     onExit();
                                 } else if (window.history.length > 1) {
@@ -2258,7 +2379,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             {/* 3. Bottom Action Bar (Sticky) - AI-Native Design */}
             <div className={`fixed bottom-0 left-0 right-0 p-4 transition-all duration-300 z-20 ${stepStatus === 'success' ? 'bg-gradient-to-t from-emerald-100 to-emerald-50/95 backdrop-blur-sm' :
                 stepStatus === 'partial' ? 'bg-gradient-to-t from-amber-100 to-amber-50/95 backdrop-blur-sm' :
-                    stepStatus === 'failure' ? 'bg-gradient-to-t from-orange-100 to-orange-50/95 backdrop-blur-sm' :
+                    stepStatus === 'failure' ? 'bg-gradient-to-t from-sky-100 to-sky-50/95 backdrop-blur-sm' :
                         'bg-gradient-to-t from-slate-900/95 to-slate-900/80 border-t border-white/10 backdrop-blur-lg'
                 }`}>
                 <div className="max-w-4xl mx-auto flex flex-row items-end justify-between gap-4">
@@ -2284,7 +2405,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
                                         stepStatus === 'success' ? 'bg-gradient-to-br from-emerald-400 to-green-500 shadow-emerald-500/30' :
                                         stepStatus === 'partial' ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/30' :
-                                        'bg-gradient-to-br from-orange-400 to-red-500 shadow-orange-500/30'
+                                        'bg-gradient-to-br from-sky-400 to-blue-500 shadow-sky-500/30'
                                     }`}>
                                         {stepStatus === 'success' ? <IconCheck className="w-7 h-7 text-white" /> :
                                          stepStatus === 'partial' ? <IconSparkles className="w-7 h-7 text-white" /> :
@@ -2293,17 +2414,17 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                     <h3 className={`text-3xl font-black ${
                                         stepStatus === 'success' ? 'bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent' :
                                         stepStatus === 'partial' ? 'bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent' :
-                                        'bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
+                                        'bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent'
                                     }`}>
                                         {stepStatus === 'success' ? 'מעולה!' :
                                          stepStatus === 'partial' ? 'כמעט!' :
-                                         'בואו נלמד'}
+                                         ''}
                                     </h3>
                                 </div>
                                 {feedbackMsg && <p className={`text-lg font-medium whitespace-pre-line break-words max-w-prose ${
                                     stepStatus === 'success' ? 'text-emerald-700' :
                                     stepStatus === 'partial' ? 'text-amber-700' :
-                                    'text-orange-700'
+                                    'text-sky-700'
                                 }`}>{feedbackMsg}</p>}
                                 <div className="mt-2 text-right">
                                     <FeedbackWidget
@@ -2435,8 +2556,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 blockId={enrichmentBlockId}
                 variantType={enrichmentVariantType}
                 studentStats={{
-                    mastery: currentMastery,
-                    consecutiveSuccesses: combo
+                    mastery: currentMastery
                 }}
             />
         </div>

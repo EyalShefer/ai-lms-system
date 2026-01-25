@@ -248,7 +248,17 @@ export interface LessonMetadata {
     learning_objectives?: string[]; // Added: Clear learning goals
 }
 
+// Hook Type for variety enforcement
+export type HookType =
+    | 'visual'      // Type A: תמונה/סרטון
+    | 'mystery'     // Type B: חידה/תעלומה
+    | 'game'        // Type C: משחקון מהיר
+    | 'provocation' // Type D: פרובוקציה/דילמה
+    | 'hands_on'    // Type E: חוויה מעשית
+    | 'personal';   // Type F: חיבור אישי
+
 export interface HookSection {
+    hook_type?: HookType; // Optional for backward compatibility - will be auto-assigned if missing
     script_for_teacher: string;
     media_asset?: MediaAsset;
     classroom_management_tip?: string; // Added: Tips for teacher (e.g., "If students are noisy, wait 10 seconds")

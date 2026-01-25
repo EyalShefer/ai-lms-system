@@ -42,12 +42,29 @@ export interface StudentAssignment {
     // Flags
     isOverdue?: boolean;
     isNew?: boolean;
+
+    // Source tracking
+    source?: 'teacher_assigned' | 'direct_link';
 }
 
 export interface GroupedAssignments {
     new: StudentAssignment[];
     inProgress: StudentAssignment[];
     completed: StudentAssignment[];
+}
+
+// Interface for direct link submissions (from 'submissions' collection)
+interface DirectSubmission {
+    id: string;
+    courseId: string;
+    studentId: string;
+    studentName: string;
+    score?: number;
+    maxScore?: number;
+    courseTopic?: string;
+    submittedAt?: any;
+    status?: string;
+    answers?: Record<string, any>;
 }
 
 export const useMyAssignments = (studentId: string | undefined) => {
@@ -66,38 +83,53 @@ export const useMyAssignments = (studentId: string | undefined) => {
             return;
         }
 
-        // Listen to tasks assigned to all students
+        // Listen to tasks assigned to all students (teacher-assigned)
         const tasksQuery = query(
             collection(db, 'student_tasks'),
             orderBy('assignedAt', 'desc')
         );
 
-        // Listen to this student's submissions
-        const submissionsQuery = query(
+        // Listen to this student's task_submissions (for teacher-assigned tasks)
+        const taskSubmissionsQuery = query(
             collection(db, 'task_submissions'),
             where('studentId', '==', studentId)
         );
 
+        // Listen to this student's direct submissions (from direct links - WhatsApp/email)
+        const directSubmissionsQuery = query(
+            collection(db, 'submissions'),
+            where('studentId', '==', studentId)
+        );
+
         let tasks: StudentTask[] = [];
-        let submissions: StudentTaskSubmission[] = [];
+        let taskSubmissions: StudentTaskSubmission[] = [];
+        let directSubmissions: DirectSubmission[] = [];
 
         const processData = () => {
-            // Create a map of submissions by taskId
-            const submissionMap = new Map<string, StudentTaskSubmission>();
-            submissions.forEach(sub => {
-                submissionMap.set(sub.taskId, sub);
+            console.log('📊 useMyAssignments processing:', {
+                studentId,
+                tasksCount: tasks.length,
+                taskSubmissionsCount: taskSubmissions.length,
+                directSubmissionsCount: directSubmissions.length
+            });
+
+            // Create a map of task submissions by taskId
+            const taskSubmissionMap = new Map<string, StudentTaskSubmission>();
+            taskSubmissions.forEach(sub => {
+                taskSubmissionMap.set(sub.taskId, sub);
             });
 
             // Filter tasks that are assigned to this student (or all)
             const relevantTasks = tasks.filter(task => {
-                return task.assignedTo === 'all' ||
+                const isRelevant = task.assignedTo === 'all' ||
                        task.studentIds?.includes(studentId) ||
                        task.assignedTo === 'group';
+                return isRelevant;
             });
 
-            // Combine tasks with submissions
-            const combined: StudentAssignment[] = relevantTasks.map(task => {
-                const submission = submissionMap.get(task.id);
+            // Combine teacher-assigned tasks with their submissions
+            const teacherAssigned: StudentAssignment[] = relevantTasks.map(task => {
+                const submission = taskSubmissionMap.get(task.id);
                 const now = new Date();
                 const dueDate = task.dueDate?.toDate ? task.dueDate.toDate() : (task.dueDate ? new Date(task.dueDate) : null);
                 const isOverdue = dueDate ? now > dueDate : false;
@@ -135,9 +167,45 @@ export const useMyAssignments = (studentId: string | undefined) => {
                     percentage: submission?.percentage,
                     taskType: task.taskType,
                     isOverdue,
-                    isNew
+                    isNew,
+                    source: 'teacher_assigned' as const
                 };
             });
+
+            // Get courseIds from teacher-assigned tasks to avoid duplicates
+            const teacherAssignedCourseIds = new Set(teacherAssigned.map(t => t.courseId));
+
+            // Convert direct submissions to StudentAssignment format
+            // Only include if not already assigned by teacher
+            const directAssigned: StudentAssignment[] = directSubmissions
+                .filter(sub => !teacherAssignedCourseIds.has(sub.courseId))
+                .map(sub => {
+                    const submittedAt = sub.submittedAt?.toDate ? sub.submittedAt.toDate() :
+                                       (sub.submittedAt?.seconds ? new Date(sub.submittedAt.seconds * 1000) : new Date());
+
+                    return {
+                        id: `direct_${sub.id}`,
+                        taskId: sub.courseId,
+                        submissionId: sub.id,
+                        courseId: sub.courseId,
+                        courseTitle: sub.courseTopic || 'פעילות',
+                        title: sub.courseTopic || 'פעילות מקישור',
+                        teacherName: '',
+                        status: 'submitted' as AssignmentStatus,
+                        progress: 100,
+                        submittedAt: sub.submittedAt,
+                        maxPoints: sub.maxScore || 100,
+                        score: sub.score,
+                        percentage: sub.score,
+                        taskType: 'activity' as const,
+                        isOverdue: false,
+                        isNew: false,
+                        source: 'direct_link' as const
+                    };
+                });
+
+            // Combine both sources
+            const combined: StudentAssignment[] = [...teacherAssigned, ...directAssigned];
 
             // Sort: new/in_progress by due date, completed by submission date
             combined.sort((a, b) => {
@@ -149,7 +217,14 @@ export const useMyAssignments = (studentId: string | undefined) => {
                 // New items at the top
                 if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
 
-                // Then by due date
+                // Then by due date or submission date
+                if (aCompleted && bCompleted) {
+                    // Sort completed by submission date (newest first)
+                    const subA = a.submittedAt?.seconds || 0;
+                    const subB = b.submittedAt?.seconds || 0;
+                    return subB - subA;
+                }
+
                 const dueDateA = a.dueDate?.seconds || 0;
                 const dueDateB = b.dueDate?.seconds || 0;
                 return dueDateA - dueDateB; // Ascending (earliest due first)
@@ -172,12 +247,19 @@ export const useMyAssignments = (studentId: string | undefined) => {
                 }
             });
 
+            console.log('📊 useMyAssignments grouped results:', {
+                new: grouped.new.length,
+                inProgress: grouped.inProgress.length,
+                completed: grouped.completed.length,
+                directLinkCompleted: grouped.completed.filter(a => a.source === 'direct_link').length
+            });
+
             setAssignments(grouped);
             setNewTasksCount(grouped.new.filter(a => a.isNew).length);
             setLoading(false);
         };
 
-        // Subscribe to tasks
+        // Subscribe to teacher-assigned tasks
         const unsubTasks = onSnapshot(tasksQuery, (snapshot) => {
             tasks = [];
             snapshot.forEach((doc) => {
@@ -190,21 +272,34 @@ export const useMyAssignments = (studentId: string | undefined) => {
             setLoading(false);
         });
 
-        // Subscribe to submissions
-        const unsubSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
-            submissions = [];
+        // Subscribe to task submissions (for teacher-assigned)
+        const unsubTaskSubmissions = onSnapshot(taskSubmissionsQuery, (snapshot) => {
+            taskSubmissions = [];
             snapshot.forEach((doc) => {
-                submissions.push({ id: doc.id, ...doc.data() } as StudentTaskSubmission);
+                taskSubmissions.push({ id: doc.id, ...doc.data() } as StudentTaskSubmission);
             });
             processData();
         }, (err) => {
-            console.error("Error fetching submissions:", err);
+            console.error("Error fetching task submissions:", err);
             // Don't set error - submissions might just be empty
+        });
+
+        // Subscribe to direct submissions (from direct links)
+        const unsubDirectSubmissions = onSnapshot(directSubmissionsQuery, (snapshot) => {
+            directSubmissions = [];
+            snapshot.forEach((doc) => {
+                directSubmissions.push({ id: doc.id, ...doc.data() } as DirectSubmission);
+            });
+            processData();
+        }, (err) => {
+            console.error("Error fetching direct submissions:", err);
+            // Don't set error - direct submissions might just be empty
         });
 
         return () => {
             unsubTasks();
-            unsubSubmissions();
+            unsubTaskSubmissions();
+            unsubDirectSubmissions();
         };
     }, [studentId]);
 

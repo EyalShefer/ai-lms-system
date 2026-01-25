@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
-import { SCORING_CONFIG } from '../utils/scoring';
+import { SCORING_CONFIG, calculateQuestionScore } from '../utils/scoring';
 
 interface CategorizationQuestionProps {
     block: ActivityBlock;
@@ -9,6 +9,8 @@ interface CategorizationQuestionProps {
     isExamMode?: boolean; // ✨ NEW
     hints?: string[]; // ✨ NEW
     onHintUsed?: () => void; // ✨ NEW
+    savedAnswers?: Record<string, Item[]>; // For restoring state on back navigation
+    isCompleted?: boolean; // Show completed state without re-attempt
 }
 
 interface Item {
@@ -22,7 +24,9 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     onComplete,
     isExamMode = false,
     hints = [],
-    onHintUsed
+    onHintUsed,
+    savedAnswers,
+    isCompleted = false
 }) => {
     // Telemetry
     const startTimeRef = useRef<number>(Date.now());
@@ -63,12 +67,23 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
             id: `item-${index}`
         })).sort(() => Math.random() - 0.5);
 
-        setBankItems(initialItems);
-
-        const initialBuckets: Record<string, Item[]> = {};
-        categories.forEach(c => initialBuckets[c] = []);
-        setBuckets(initialBuckets);
-    }, [block]);
+        // Restore from saved answers if available
+        if (savedAnswers && Object.keys(savedAnswers).length > 0) {
+            setBuckets(savedAnswers);
+            // Calculate which items are already in buckets
+            const usedIds = new Set<string>();
+            Object.values(savedAnswers).forEach(bucketItems => {
+                bucketItems.forEach(item => usedIds.add(item.id));
+            });
+            setBankItems(initialItems.filter(item => !usedIds.has(item.id)));
+            setIsSubmitted(isCompleted);
+        } else {
+            setBankItems(initialItems);
+            const initialBuckets: Record<string, Item[]> = {};
+            categories.forEach(c => initialBuckets[c] = []);
+            setBuckets(initialBuckets);
+        }
+    }, [block, savedAnswers, isCompleted]);
 
     // ... (Handlers kept via skip, or I must include them if I replace large block) 
     // I am replacing the TOP part and the CHECK part separate? 
@@ -182,6 +197,7 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
         totalItems = items.length;
 
         const isFullyCorrect = correctCount === totalItems;
+        const accuracy = correctCount / totalItems;
         const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
 
         // ✅ NEW: 3-attempt logic with progressive hints
@@ -189,7 +205,16 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
             // Correct or final attempt - lock the question
             setIsSubmitted(true);
 
-            const score = Math.round((correctCount / totalItems) * 100);
+            // ✅ FIXED: Use central scoring function with hints
+            const baseScore = calculateQuestionScore({
+                isCorrect: isFullyCorrect,
+                attempts: attemptsRef.current,
+                hintsUsed: hintsUsedRef.current,
+                responseTimeSec: (Date.now() - startTimeRef.current) / 1000
+            });
+
+            // Apply partial credit for partially correct answers
+            const score = isFullyCorrect ? baseScore : Math.round(baseScore * accuracy);
             const timeSpent = (Date.now() - startTimeRef.current) / 1000;
 
             if (onComplete) {

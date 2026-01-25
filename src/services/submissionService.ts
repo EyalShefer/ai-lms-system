@@ -5,6 +5,7 @@ import { generateStudentAnalysis } from './ai/geminiApi';
 export interface SubmissionData {
     assignmentId: string;
     courseId: string;
+    studentId: string; // Required for Firestore rules
     studentName: string;
     answers: Record<string, any>;
     submittedAt?: any;
@@ -12,17 +13,29 @@ export interface SubmissionData {
     maxScore?: number;
     courseTopic?: string; // Added for context
     telemetry?: Record<string, any>; // Sensor data
+    teacherId?: string; // Optional: course teacher for read access
 }
 
 export const submitAssignment = async (data: SubmissionData) => {
+    console.log('📋 submitAssignment called with:', {
+        assignmentId: data.assignmentId,
+        courseId: data.courseId,
+        studentId: data.studentId,
+        studentName: data.studentName,
+        hasAnswers: !!data.answers,
+        score: data.score
+    });
+
     try {
         // 1. Initial Submission
+        console.log('📤 Creating submission document...');
         const docRef = await addDoc(collection(db, "submissions"), {
             ...data,
             submittedAt: serverTimestamp(),
             status: 'submitted',
             analysisStatus: 'pending' // UI can show "Analyzing..."
         });
+        console.log('✅ Submission document created:', docRef.id);
 
         // Attempt to update the student_assignment status if distinct document exists
         try {

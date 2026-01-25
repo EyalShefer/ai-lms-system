@@ -190,7 +190,7 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
         } else {
             setStepStatus('failure');
             playSound('failure');
-            setFeedbackMsg('טעות, נסה שוב');
+            setFeedbackMsg('טעות, נסו שוב');
         }
 
         // Sync to server
@@ -245,7 +245,7 @@ const SequentialCoursePlayerMobile: React.FC<MobilePlayerProps> = ({
                     setFeedbackMsg(result.feedback || 'מצוין! תשובה נכונה.');
                     processResult(true);
                 } else {
-                    setFeedbackMsg(result.feedback || 'נסה שוב');
+                    setFeedbackMsg(result.feedback || 'נסו שוב');
                     playSound('failure');
                 }
             } catch (error: any) {

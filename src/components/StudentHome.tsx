@@ -20,7 +20,8 @@ import {
     IconTarget,
     IconChevronLeft,
     IconInfoCircle,
-    IconX
+    IconX,
+    IconBook
 } from '@tabler/icons-react';
 
 // League tier display names

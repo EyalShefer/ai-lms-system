@@ -4086,3 +4086,106 @@ export const runAdaptiveSimulation = onCall({
         throw new HttpsError('internal', error.message);
     }
 });
+
+// --- PROGRESSIVE VARIANT GENERATION ---
+import { generateVariantsForCourse } from "./services/variantGenerationService";
+
+/**
+ * Progressive Variant Generation Trigger
+ *
+ * Triggered when a new student task is created.
+ * Generates Bloom-aware variants in the background.
+ *
+ * Strategy:
+ * - Lower Bloom (Remember/Understand): Only generate harder variant (העמקה)
+ * - Middle Bloom (Apply/Analyze): Generate both variants
+ * - Higher Bloom (Evaluate/Create): Only generate easier variant (הבנה)
+ *
+ * Created: 2026-01-25
+ */
+export const onVariantGenerationRequired = onDocumentCreated(
+    {
+        document: "student_tasks/{taskId}",
+        secrets: [openAiApiKey],
+        timeoutSeconds: 540,  // 9 minutes max
+        memory: "1GiB",
+    },
+    async (event) => {
+        if (!event.data) return;
+
+        const taskId = event.params.taskId;
+        const taskData = event.data.data() as any;
+
+        // Skip if no courseId (can't generate variants without content)
+        if (!taskData?.courseId) {
+            logger.info(`Task ${taskId} has no courseId, skipping variant generation`);
+            return;
+        }
+
+        // Skip if already processed (avoid duplicate triggers)
+        if (taskData.variantStatus && taskData.variantStatus !== 'pending') {
+            logger.info(`Task ${taskId} already processed (status: ${taskData.variantStatus})`);
+            return;
+        }
+
+        logger.info(`Starting progressive variant generation for task ${taskId}`, {
+            courseId: taskData.courseId,
+            courseTitle: taskData.courseTitle
+        });
+
+        try {
+            // 1. Update status to processing
+            await event.data.ref.update({
+                variantStatus: 'processing',
+                variantStartedAt: FieldValue.serverTimestamp()
+            });
+
+            // 2. Initialize OpenAI
+            const openai = new OpenAI({ apiKey: openAiApiKey.value() });
+
+            // 3. Get course title for context
+            const topic = taskData.courseTitle || taskData.title || 'General';
+
+            // 4. Generate variants
+            const stats = await generateVariantsForCourse(
+                openai,
+                taskData.courseId,
+                topic
+            );
+
+            // 5. Determine final status
+            let finalStatus: 'ready' | 'partial' | 'failed' = 'ready';
+            if (stats.failed > 0 && stats.processed === 0) {
+                finalStatus = 'failed';
+            } else if (stats.failed > 0) {
+                finalStatus = 'partial';
+            }
+
+            // 6. Update task with completion status
+            await event.data.ref.update({
+                variantStatus: finalStatus,
+                variantCompletedAt: FieldValue.serverTimestamp(),
+                variantStats: {
+                    totalBlocks: stats.totalBlocks,
+                    processed: stats.processed,
+                    failed: stats.failed
+                }
+            });
+
+            logger.info(`Completed variant generation for task ${taskId}:`, {
+                status: finalStatus,
+                stats
+            });
+
+        } catch (error: any) {
+            logger.error(`Variant generation failed for task ${taskId}:`, error);
+
+            // Update with error status
+            await event.data.ref.update({
+                variantStatus: 'failed',
+                variantError: error.message || 'Unknown error',
+                variantCompletedAt: FieldValue.serverTimestamp()
+            });
+        }
+    }
+);

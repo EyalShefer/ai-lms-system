@@ -5,7 +5,8 @@ import { StudentProvider } from './context/StudentContext';
 import Login from './components/Login';
 import { useCourseStore, CourseProvider } from './context/CourseContext';
 import { auth, db, storage } from './firebase';
-import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import { createTask } from './services/taskAssignmentService';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { generateCoursePlan } from './gemini';
 import type { Assignment } from './courseTypes';
@@ -226,6 +227,11 @@ const AuthenticatedApp = () => {
     // console.log("DEBUG: App wizardMode changed to:", wizardMode);
   }, [wizardMode]);
 
+  // Debug: Log mode and isStudentLink changes
+  useEffect(() => {
+    console.log('🔄 App state changed:', { mode, isStudentLink });
+  }, [mode, isStudentLink]);
+
   // Check for bagrut assignment URL pattern
   useEffect(() => {
     const path = window.location.pathname;
@@ -241,6 +247,13 @@ const AuthenticatedApp = () => {
     const params = new URLSearchParams(window.location.search);
     const studentLinkID = params.get('studentCourseId');
     const assignmentId = params.get('assignmentId');
+
+    console.log('🔄 Student link init effect:', {
+      studentLinkID,
+      assignmentId,
+      hasUser: !!currentUser,
+      uid: currentUser?.uid
+    });
 
     const init = async () => {
       if (assignmentId) {
@@ -265,10 +278,61 @@ const AuthenticatedApp = () => {
         setIsStudentLink(true);
         loadCourse(studentLinkID);
         setMode('student');
+
+        // Auto-create task for student when accessing via direct link
+        if (currentUser?.uid) {
+          console.log('🎯 Auto-creating task for student link access...');
+          try {
+            // Check if task already exists for this student and course
+            const tasksQuery = query(
+              collection(db, 'student_tasks'),
+              where('courseId', '==', studentLinkID)
+            );
+            const existingTasks = await getDocs(tasksQuery);
+            console.log('📋 Found existing tasks:', existingTasks.size);
+
+            // Check if any task is assigned to this student
+            let taskExists = false;
+            existingTasks.forEach((taskDoc) => {
+              const task = taskDoc.data();
+              if (task.assignedTo === 'all' ||
+                  task.studentIds?.includes(currentUser.uid) ||
+                  task.createdByStudentLink === currentUser.uid) {
+                taskExists = true;
+              }
+            });
+
+            console.log('🎯 Task exists for this student:', taskExists);
+
+            if (!taskExists) {
+              // Get course details for task creation
+              const courseDoc = await getDoc(doc(db, 'courses', studentLinkID));
+              if (courseDoc.exists()) {
+                const courseData = courseDoc.data();
+                console.log('🚀 Creating task for student...');
+                await createTask({
+                  teacherId: courseData.teacherId || 'system',
+                  teacherName: 'קישור ישיר',
+                  courseId: studentLinkID,
+                  courseTitle: courseData.title || 'משימה מקישור',
+                  title: courseData.title || 'משימה מקישור',
+                  assignedTo: 'individual',
+                  studentIds: [currentUser.uid],
+                  taskType: courseData.productType === 'exam' ? 'exam' : 'activity'
+                });
+                console.log('✅ Auto-created task for student from direct link');
+              }
+            }
+          } catch (e) {
+            console.error('❌ Error auto-creating task:', e);
+          }
+        } else {
+          console.log('⏭️ Skipping task creation - user not authenticated yet');
+        }
       }
     };
     init();
-  }, [loadCourse]);
+  }, [loadCourse, currentUser?.uid]);
 
   const handleCourseSelect = (courseId: string) => {
     console.log('[App] handleCourseSelect called with courseId:', courseId);
@@ -630,7 +694,10 @@ const AuthenticatedApp = () => {
                 initialCourseId={currentAssignment?.courseId || new URLSearchParams(window.location.search).get('studentCourseId') || null}
                 initialAssignmentId={currentAssignment?.assignmentId || new URLSearchParams(window.location.search).get('assignmentId') || null}
               >
-                <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => setMode('student-dashboard')} />
+                <SequentialCoursePlayer assignment={currentAssignment || undefined} onExit={() => {
+                  console.log('🎯 onExit called from isStudentLink player - setting mode to student-dashboard');
+                  setMode('student-dashboard');
+                }} />
               </StudentProvider>
             ) : isStudentLink && mode === 'student-dashboard' ? (
               <StudentProvider uid={currentUser?.uid || null}>

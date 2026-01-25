@@ -398,7 +398,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                                         }}
                                         className="bg-yellow-500 text-white px-6 py-2 rounded-full font-medium hover:bg-yellow-600 transition-colors"
                                     >
-                                        💡 קבל רמז ונסה שוב
+                                        💡 קבלו רמז ונסו שוב
                                     </button>
                                 </div>
                             )}
@@ -408,7 +408,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                                     onClick={resetQuestion}
                                     className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700"
                                 >
-                                    נסה שוב {!isExamMode && hints.length > 0 && currentHintLevel < hints.length ? 'בלי רמז' : ''}
+                                    נסו שוב {!isExamMode && hints.length > 0 && currentHintLevel < hints.length ? 'בלי רמז' : ''}
                                 </button>
                             </div>
                         </div>

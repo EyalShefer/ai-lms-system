@@ -37,8 +37,7 @@ interface EnrichmentOfferModalProps {
     /** מידע על הביצועים */
     studentStats?: {
         mastery: number;
-        consecutiveSuccesses: number;
-        recentAccuracy: number;
+        recentAccuracy?: number;
     };
 }
 
@@ -94,11 +93,13 @@ export const EnrichmentOfferModal: React.FC<EnrichmentOfferModalProps> = ({
                         {studentStats && (
                             <div className="flex items-center justify-center gap-2 mt-2">
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-bold">
-                                    {studentStats.consecutiveSuccesses} הצלחות ברצף
+                                    {Math.round(studentStats.mastery * 100)}% שליטה
                                 </span>
-                                <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full font-bold">
-                                    {Math.round(studentStats.recentAccuracy * 100)}% דיוק
-                                </span>
+                                {studentStats.recentAccuracy !== undefined && (
+                                    <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full font-bold">
+                                        {Math.round(studentStats.recentAccuracy * 100)}% דיוק
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>

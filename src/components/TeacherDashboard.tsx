@@ -76,6 +76,7 @@ interface CourseAggregation {
     submittedCount: number; // New field for submitted count
     parentLesson?: { courseId: string; title: string }; // If extracted from lesson plan
     hasSimulation?: boolean; // New field to track if activity has simulation data
+    hasAdaptiveVariants?: boolean; // Track if activity has adaptive variants ready
 }
 
 interface TeacherDashboardProps {
@@ -366,6 +367,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
     }, [viewingTestStudent]);
 
     const [assignmentsMap, setAssignmentsMap] = useState<Record<string, any[]>>({});
+    const [adaptiveVariantsMap, setAdaptiveVariantsMap] = useState<Record<string, boolean>>({}); // Track courses with adaptive variants
 
     // --- 1. Fetch Courses Metadata (Realtime) ---
     useEffect(() => {
@@ -471,6 +473,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
         });
 
         return () => { unsubscribe(); unsubSub(); unsubAlerts(); };
+    }, [currentUser]);
+
+    // --- 2.5 Fetch Adaptive Variants Status ---
+    useEffect(() => {
+        if (!currentUser) return;
+
+        // Listen for student_tasks with variant status to track which courses have adaptive variants
+        const qTasks = query(
+            collection(db, "student_tasks"),
+            where("teacherId", "==", currentUser.uid)
+        );
+        const unsubTasks = onSnapshot(qTasks, (snapshot) => {
+            const variantsMap: Record<string, boolean> = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                // Mark course as having adaptive variants if any task has ready/partial status
+                if (data.courseId && (data.variantStatus === 'ready' || data.variantStatus === 'partial')) {
+                    variantsMap[data.courseId] = true;
+                }
+            });
+            setAdaptiveVariantsMap(variantsMap);
+        }, (error) => {
+            console.error("Error fetching student tasks:", error);
+        });
+
+        return () => unsubTasks();
     }, [currentUser]);
 
     // --- 3. Merge Data ---
@@ -622,7 +650,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
                     productType: productType,
                     mode: meta.mode as any,
                     submittedCount: 0,
-                    parentLesson: (meta as any).parentLesson // Track if extracted from lesson plan
+                    parentLesson: (meta as any).parentLesson, // Track if extracted from lesson plan
+                    hasAdaptiveVariants: adaptiveVariantsMap[id] || false // Track adaptive variants
                 };
             }
         });
@@ -678,7 +707,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
         });
 
         return result;
-    }, [allData, coursesMap, assignmentsMap, filterSubject, filterGrade, searchTerm, sortConfig]);
+    }, [allData, coursesMap, assignmentsMap, adaptiveVariantsMap, filterSubject, filterGrade, searchTerm, sortConfig]);
 
     const currentCourseStudents = useMemo(() => {
         if (!selectedCourseId) return [];
@@ -1100,9 +1129,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                                     <div className="relative z-10 flex justify-between items-start">
                                                         <div className="flex flex-col gap-1">
-                                                            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm ${getProductTypeDisplay(c.productType, c.mode).cardColor}`}>
-                                                                {getProductTypeDisplay(c.productType, c.mode).label}
-                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border shadow-sm ${getProductTypeDisplay(c.productType, c.mode).cardColor}`}>
+                                                                    {getProductTypeDisplay(c.productType, c.mode).label}
+                                                                </span>
+                                                                {/* Adaptive Variants Indicator */}
+                                                                {c.hasAdaptiveVariants && (
+                                                                    <div
+                                                                        className="w-6 h-6 rounded-full bg-white/90 flex items-center justify-center shadow-lg"
+                                                                        title="תוכן אדפטיבי מוכן"
+                                                                    >
+                                                                        <IconBrain className="w-3.5 h-3.5 text-indigo-600" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                             {c.parentLesson && (
                                                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/30">
                                                                     ממערך שיעור
@@ -1260,9 +1300,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onEditCourse, onVie
 
                                                     {/* Type */}
                                                     <div className="col-span-1">
-                                                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
-                                                            {getProductTypeDisplay(c.productType, c.mode).label}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getProductTypeDisplay(c.productType, c.mode).color}`}>
+                                                                {getProductTypeDisplay(c.productType, c.mode).label}
+                                                            </span>
+                                                            {/* Adaptive Variants Indicator */}
+                                                            {c.hasAdaptiveVariants && (
+                                                                <div
+                                                                    className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm"
+                                                                    title="תוכן אדפטיבי מוכן"
+                                                                >
+                                                                    <IconBrain className="w-3 h-3 text-white" />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         {c.parentLesson && (
                                                             <span className="block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600 w-fit" title={`ממערך: ${c.parentLesson.title}`}>
                                                                 ממערך

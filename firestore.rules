@@ -128,13 +128,33 @@ service cloud.firestore {
     // Student Tasks collection (for QA testing)
     match /student_tasks/{taskId} {
       // Teachers can create student tasks
-      allow create: if isAuthenticated() && request.resource.data.teacherId == request.auth.uid;
+      // System can create tasks for student links
+      allow create: if isAuthenticated();
 
       // Any authenticated user can read tasks (for student links)
       allow read: if isAuthenticated();
 
       // Teachers can update/delete
       allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Task Submissions collection - student answers/progress for tasks
+    match /task_submissions/{submissionId} {
+      // Students can create their own submissions
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+
+      // Students can read their own submissions
+      // Teachers can read submissions for their tasks
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.teacherId == request.auth.uid
+      );
+
+      // Students can update their own submissions
+      allow update: if isAuthenticated() && resource.data.studentId == request.auth.uid;
+
+      // Teachers can delete submissions for their tasks
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
     }
 
     // Student assignments collection
@@ -149,11 +169,11 @@ service cloud.firestore {
       );
 
       // Teachers can update/delete
-      // Students can update their own status
+      // Students can update their own status, progress, and score
       allow update: if isAuthenticated() && (
         resource.data.teacherId == request.auth.uid ||
         (resource.data.studentId == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'progress']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'progress', 'score']))
       );
 
       allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
