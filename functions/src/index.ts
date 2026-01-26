@@ -26,9 +26,26 @@ const MODEL_NAME = "gemini-2.0-flash"; // Standard model for all LLM calls
 
 // --- GEMINI 3 PRO SERVICE ---
 import { generateText, generateJSON, generateWithVision, ChatMessage } from "./services/geminiService";
+import { withGeminiRetry } from "./utils/retry";
+
+// --- CUSTOM CLAIMS SERVICE ---
+import {
+  setUserRole,
+  grantPremium,
+  revokePremium,
+  getUserClaims,
+  initializeNewUserClaims,
+  syncClaimsFromFirestore,
+  bulkSyncClaims,
+  requireRole,
+  extractClaimsFromContext,
+  UserClaims
+} from "./services/customClaims";
 
 // --- MIDDLEWARE ---
-import { checkRateLimit } from "./middleware/rateLimiter";
+// SECURITY: Use distributed rate limiter (Firestore-backed) instead of memory-based
+// Memory-based rate limiting doesn't work in serverless as each instance has its own state
+import { distributedRateLimit } from "./middleware/distributedRateLimiter";
 
 // --- USAGE TRACKING SERVICE ---
 import { checkQuota, logUsage, extractOpenAITokens, AICallType } from "./services/usageService";
@@ -160,14 +177,16 @@ export const geminiChatFast = onCall({
             fullPrompt += '\n\nIMPORTANT: Respond with valid JSON only. No explanations or markdown.';
         }
 
-        // Use Flash model for speed
-        const response = await client.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: fullPrompt,
-            config: {
-                temperature: options?.temperature ?? 0.7,
-                maxOutputTokens: options?.maxTokens ?? 2048
-            }
+        // Use Flash model for speed with retry logic
+        const response = await withGeminiRetry(async () => {
+            return client.models.generateContent({
+                model: 'gemini-2.0-flash',
+                contents: fullPrompt,
+                config: {
+                    temperature: options?.temperature ?? 0.7,
+                    maxOutputTokens: options?.maxTokens ?? 2048
+                }
+            });
         });
 
         const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -1011,7 +1030,7 @@ export const openaiProxy = onRequest({ secrets: [openAiApiKey], cors: true }, as
         }
     }
 
-    await checkRateLimit(rateLimitType)(req, res, async () => {
+    await distributedRateLimit(rateLimitType)(req, res, async () => {
         const userId = (req as any).auth?.uid;
         const startTime = Date.now();
 
@@ -1151,7 +1170,7 @@ export const elevenLabsProxy = onRequest({ secrets: [elevenLabsApiKey], cors: tr
     }
 
     // 3. Apply Rate Limiting
-    await checkRateLimit('ai-generation')(req, res, async () => {
+    await distributedRateLimit('ai-generation')(req, res, async () => {
         try {
             const apiKey = elevenLabsApiKey.value();
             const { voiceId, text, modelId, voiceSettings } = req.body;
@@ -2219,8 +2238,20 @@ export const generateCurriculumActivity = onDocumentCreated(
 
 // --- ADAPTIVE BRAIN (BKT ENGINE) ---
 // This function moves the "Student Model" logic from the client (insecure) to the cloud (secure).
+// Enhanced with variant tracking and IRT data collection for future calibration.
 export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
-    const { userId, unitId, blockId, score, metadata, isCorrect } = request.data;
+    const {
+        userId,
+        unitId,
+        blockId,
+        score,
+        metadata,
+        isCorrect,
+        // Enhanced fields (optional, backwards compatible)
+        variantId,
+        variantType,
+        responseTimeMs,
+    } = request.data;
 
     if (!userId || !unitId) {
         throw new HttpsError('invalid-argument', 'Missing userId or unitId');
@@ -2231,6 +2262,7 @@ export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
     // Fallback chain: curriculumTopicId → tags[0] → 'general'
     const topic = metadata?.curriculumTopicId || metadata?.tags?.[0] || 'general';
     const difficulty = metadata?.difficulty_level || 0.5;
+    const effectiveVariantType = variantType || metadata?.variantType || 'יישום';
 
     // Log if using legacy fallback (helps track migration progress)
     if (!metadata?.curriculumTopicId) {
@@ -2284,9 +2316,30 @@ export const submitAdaptiveAnswer = onCall({ cors: true }, async (request) => {
             isCorrect,
             timestamp: Date.now(),
             prior,
-            posterior: newMastery
+            posterior: newMastery,
+            // Enhanced fields for IRT calibration (backwards compatible)
+            ...(variantId && { variantId }),
+            ...(effectiveVariantType && { variantType: effectiveVariantType }),
+            ...(responseTimeMs && { responseTimeMs }),
+            difficulty,
         })
     }, { merge: true });
+
+    // Log to IRT statistics collection for future calibration
+    // This data will be used by the IRT calibration job
+    const irtStatsRef = db.collection('irt_submission_logs');
+    await irtStatsRef.add({
+        questionId: blockId,
+        variantId: variantId || blockId,
+        variantType: effectiveVariantType,
+        isCorrect,
+        responseTimeMs: responseTimeMs || null,
+        studentMasteryAtSubmission: prior,
+        difficulty,
+        topic,
+        userId, // For deduplication, not for IRT calculation
+        timestamp: FieldValue.serverTimestamp(),
+    });
 
     // 5. Policy Engine: Decide Next Action
     let action = 'continue';
@@ -2381,6 +2434,325 @@ export const processEventsScheduled = onSchedule('every 5 minutes', async () => 
 export const cleanupEventsScheduled = onSchedule('0 2 * * *', async () => {
     const deleted = await cleanupOldEvents(30); // Delete events older than 30 days
     logger.info(`Cleaned up ${deleted} old events`);
+});
+
+/**
+ * Cleanup expired rate limit entries
+ * Runs daily at 3 AM (after event cleanup)
+ */
+import { cleanupExpiredRateLimits } from "./middleware/distributedRateLimiter";
+export const cleanupRateLimitsScheduled = onSchedule('0 3 * * *', async () => {
+    const deleted = await cleanupExpiredRateLimits();
+    logger.info(`Cleaned up ${deleted} expired rate limit entries`);
+});
+
+// --- IRT CALIBRATION ---
+// Calculates question difficulty from real student response data
+import { runIRTCalibration, cleanupOldIRTLogs } from "./services/irtCalibrationService";
+
+/**
+ * IRT Calibration Job
+ * Runs daily at 4 AM to calibrate question difficulty from response data
+ */
+export const runIRTCalibrationScheduled = onSchedule('0 4 * * *', async () => {
+    logger.info('Starting IRT calibration job');
+
+    const results = await runIRTCalibration(30); // Minimum 30 responses
+
+    logger.info('IRT calibration complete', results);
+
+    // Cleanup old logs
+    const cleaned = await cleanupOldIRTLogs(90); // Keep 90 days
+    logger.info(`Cleaned up ${cleaned} old IRT submission logs`);
+});
+
+// --- BUDGET ALERTS HANDLER ---
+// Handles Pub/Sub messages from GCP Budget Alerts
+import { onMessagePublished } from 'firebase-functions/v2/pubsub';
+import { processBudgetAlert, getBudgetStatus, disableEmergencyMode } from './services/budgetAlerts';
+
+export const handleBudgetAlert = onMessagePublished('budget-alerts', async (event) => {
+    const message = event.data.message;
+    const data = message.json;
+
+    logger.info('Budget alert received', { data });
+
+    await processBudgetAlert({ data });
+});
+
+/**
+ * Get current budget/emergency status (for admin dashboard)
+ */
+export const getBudgetStatusEndpoint = onCall({ cors: true }, async (request) => {
+    // Only admins can check budget status
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.data()?.isAdmin) {
+        throw new HttpsError('permission-denied', 'Admin access required');
+    }
+
+    return getBudgetStatus();
+});
+
+/**
+ * Disable emergency mode (admin only)
+ */
+export const disableEmergencyModeEndpoint = onCall({ cors: true }, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.data()?.isAdmin) {
+        throw new HttpsError('permission-denied', 'Admin access required');
+    }
+
+    await disableEmergencyMode();
+    logger.info('Emergency mode disabled by admin', { uid });
+
+    return { success: true };
+});
+
+// --- CUSTOM CLAIMS MANAGEMENT ---
+// ============================================================
+// Admin endpoints for managing user roles via Custom Claims
+// Claims are stored in JWT tokens for performant authorization
+// ============================================================
+
+/**
+ * Set user role (admin only)
+ * Roles: 'admin', 'teacher', 'student'
+ */
+export const setUserRoleEndpoint = onCall({ cors: true }, async (request) => {
+    // Verify admin using claims (not Firestore lookup)
+    try {
+        requireRole(request.auth, 'admin');
+    } catch {
+        // Fallback to Firestore check for backward compatibility
+        const adminUid = request.auth?.uid;
+        if (!adminUid) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+        const adminDoc = await db.collection('users').doc(adminUid).get();
+        if (!adminDoc.data()?.isAdmin && adminDoc.data()?.role !== 'admin') {
+            throw new HttpsError('permission-denied', 'Admin access required');
+        }
+    }
+
+    const { userId, role } = request.data as { userId: string; role: UserClaims['role'] };
+
+    if (!userId || !role) {
+        throw new HttpsError('invalid-argument', 'userId and role are required');
+    }
+
+    if (!['admin', 'teacher', 'student'].includes(role)) {
+        throw new HttpsError('invalid-argument', 'Invalid role');
+    }
+
+    const success = await setUserRole(userId, role);
+    if (!success) {
+        throw new HttpsError('internal', 'Failed to set user role');
+    }
+
+    logger.info('User role updated via claims', {
+        adminId: request.auth?.uid,
+        targetUserId: userId,
+        newRole: role
+    });
+
+    return { success: true, userId, role };
+});
+
+/**
+ * Grant premium status (admin only)
+ */
+export const grantPremiumEndpoint = onCall({ cors: true }, async (request) => {
+    try {
+        requireRole(request.auth, 'admin');
+    } catch {
+        const adminUid = request.auth?.uid;
+        if (!adminUid) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+        const adminDoc = await db.collection('users').doc(adminUid).get();
+        if (!adminDoc.data()?.isAdmin) {
+            throw new HttpsError('permission-denied', 'Admin access required');
+        }
+    }
+
+    const { userId } = request.data as { userId: string };
+
+    if (!userId) {
+        throw new HttpsError('invalid-argument', 'userId is required');
+    }
+
+    const success = await grantPremium(userId);
+    if (!success) {
+        throw new HttpsError('internal', 'Failed to grant premium');
+    }
+
+    logger.info('Premium granted via claims', {
+        adminId: request.auth?.uid,
+        targetUserId: userId
+    });
+
+    return { success: true, userId, premium: true };
+});
+
+/**
+ * Revoke premium status (admin only)
+ */
+export const revokePremiumEndpoint = onCall({ cors: true }, async (request) => {
+    try {
+        requireRole(request.auth, 'admin');
+    } catch {
+        const adminUid = request.auth?.uid;
+        if (!adminUid) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+        const adminDoc = await db.collection('users').doc(adminUid).get();
+        if (!adminDoc.data()?.isAdmin) {
+            throw new HttpsError('permission-denied', 'Admin access required');
+        }
+    }
+
+    const { userId } = request.data as { userId: string };
+
+    if (!userId) {
+        throw new HttpsError('invalid-argument', 'userId is required');
+    }
+
+    const success = await revokePremium(userId);
+    if (!success) {
+        throw new HttpsError('internal', 'Failed to revoke premium');
+    }
+
+    logger.info('Premium revoked via claims', {
+        adminId: request.auth?.uid,
+        targetUserId: userId
+    });
+
+    return { success: true, userId, premium: false };
+});
+
+/**
+ * Get user claims (admin only)
+ */
+export const getUserClaimsEndpoint = onCall({ cors: true }, async (request) => {
+    try {
+        requireRole(request.auth, 'admin');
+    } catch {
+        const adminUid = request.auth?.uid;
+        if (!adminUid) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+        const adminDoc = await db.collection('users').doc(adminUid).get();
+        if (!adminDoc.data()?.isAdmin) {
+            throw new HttpsError('permission-denied', 'Admin access required');
+        }
+    }
+
+    const { userId } = request.data as { userId: string };
+
+    if (!userId) {
+        throw new HttpsError('invalid-argument', 'userId is required');
+    }
+
+    const claims = await getUserClaims(userId);
+
+    return { userId, claims };
+});
+
+/**
+ * Sync claims from Firestore (admin only)
+ * Useful for migrating existing users to claims-based auth
+ */
+export const syncUserClaimsEndpoint = onCall({ cors: true }, async (request) => {
+    try {
+        requireRole(request.auth, 'admin');
+    } catch {
+        const adminUid = request.auth?.uid;
+        if (!adminUid) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+        const adminDoc = await db.collection('users').doc(adminUid).get();
+        if (!adminDoc.data()?.isAdmin) {
+            throw new HttpsError('permission-denied', 'Admin access required');
+        }
+    }
+
+    const { userId, userIds } = request.data as { userId?: string; userIds?: string[] };
+
+    if (userId) {
+        // Single user sync
+        const result = await syncClaimsFromFirestore(userId);
+        return result;
+    } else if (userIds && userIds.length > 0) {
+        // Bulk sync (max 100 at a time)
+        const limitedIds = userIds.slice(0, 100);
+        const results = await bulkSyncClaims(limitedIds);
+        return {
+            total: limitedIds.length,
+            succeeded: results.filter(r => r.success).length,
+            failed: results.filter(r => !r.success).length,
+            results
+        };
+    }
+
+    throw new HttpsError('invalid-argument', 'userId or userIds is required');
+});
+
+/**
+ * Get my claims (authenticated user)
+ * Allows users to check their own claims
+ */
+export const getMyClaimsEndpoint = onCall({ cors: true }, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    // Extract claims from token (no database lookup needed!)
+    const claims = extractClaimsFromContext(request.auth);
+
+    return { userId: uid, claims };
+});
+
+/**
+ * Firestore Trigger: Initialize claims when a new user document is created
+ * This ensures every new user gets proper claims set up automatically
+ */
+export const onUserCreated = onDocumentCreated('users/{userId}', async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+        logger.error('No data in user created event');
+        return;
+    }
+
+    const userId = event.params.userId;
+    const userData = snapshot.data();
+
+    logger.info('New user document created, initializing claims', {
+        userId,
+        role: userData?.role
+    });
+
+    // Initialize claims based on user data
+    const success = await initializeNewUserClaims(userId, {
+        role: userData?.role || 'student',
+        organizationId: userData?.organizationId
+    });
+
+    if (success) {
+        logger.info('Claims initialized for new user', { userId });
+    } else {
+        logger.error('Failed to initialize claims for new user', { userId });
+    }
 });
 
 // --- EDTECH NEWS SERVICE ---

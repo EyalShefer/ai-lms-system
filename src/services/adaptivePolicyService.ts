@@ -5,11 +5,26 @@
  * - Challenge Mode: Skip easy content when student excels
  * - Mastery Skip: Jump to next topic when current is mastered
  * - Content Variants: Select appropriate difficulty variants
+ *
+ * Enhanced with:
+ * - Forgetting Curve: Mastery decays over time
+ * - Learning Trend: Detect improving/declining students
+ * - A/B Testing: Experiment with policy parameters
  */
 
 import type { ActivityBlock } from '../shared/types/courseTypes';
 import { MATH_TOPICS, getRecommendedTopics, canLearnTopic } from '../data/topicTaxonomy';
 import { getProficiencyVector } from './profileService';
+import { isFeatureEnabled } from '../config/adaptiveFeatureFlags';
+import {
+    getEffectiveMastery,
+    getDaysSincePractice,
+    getLearningTrendForTopic,
+    getExperimentValue,
+    selectVariantEnhanced,
+    getExtendedProficiency,
+} from './adaptiveEnhancementsService';
+import type { LearningTrend, SelectVariantOutput } from '../shared/types/adaptiveTypes';
 
 /**
  * BKT Action types from the backend
@@ -421,5 +436,198 @@ export const getInitialStudentState = async (
     } catch (e) {
         console.error('Failed to load student profile:', e);
         return { mastery: 0.5, accuracy: 0.5 };
+    }
+};
+
+// ============================================================================
+// ENHANCED VARIANT SELECTION (with feature flags)
+// ============================================================================
+
+/**
+ * Enhanced variant selection that uses all available adaptive signals.
+ *
+ * This function extends selectVariant with:
+ * - Forgetting Curve: Considers time since last practice
+ * - Learning Trend: Considers if student is improving/declining
+ * - A/B Testing: Can use experimental thresholds
+ *
+ * BACKWARDS COMPATIBLE: When all feature flags are disabled,
+ * this function behaves exactly like the original selectVariant.
+ *
+ * @param block - The activity block to select variant for
+ * @param mastery - Current mastery level (0-1)
+ * @param recentAccuracy - Recent accuracy rate (0-1)
+ * @param userId - Optional: User ID for fetching enhanced data
+ * @param topicId - Optional: Topic ID for fetching enhanced data
+ * @returns Promise resolving to variant selection with metadata
+ *
+ * @example
+ * // Basic usage (backwards compatible)
+ * const result = await selectVariantWithEnhancements(block, 0.35, 0.4);
+ * console.log(result.variant); // 'הבנה'
+ *
+ * @example
+ * // Enhanced usage with user context
+ * const result = await selectVariantWithEnhancements(block, 0.35, 0.4, userId, 'fractions');
+ * console.log(result.variant); // May differ based on trend, forgetting, etc.
+ * console.log(result.factors); // Shows what influenced the decision
+ */
+export const selectVariantWithEnhancements = async (
+    block: ActivityBlock,
+    mastery: number,
+    recentAccuracy: number,
+    userId?: string,
+    topicId?: string
+): Promise<SelectVariantOutput> => {
+    // If no enhanced features enabled or no user context, use simple logic
+    const anyEnhancementEnabled =
+        isFeatureEnabled('useForgettingCurve') ||
+        isFeatureEnabled('useTrendAnalysis') ||
+        isFeatureEnabled('enableABTesting') ||
+        isFeatureEnabled('usePrerequisiteCheck');
+
+    if (!anyEnhancementEnabled || !userId) {
+        // Fall back to original logic
+        const variant = selectVariant(block, mastery, recentAccuracy);
+        return {
+            variant,
+            factors: {
+                basedOnMastery: true,
+                basedOnAccuracy: true,
+                basedOnTrend: false,
+                basedOnForgetting: false,
+                basedOnExperiment: false,
+                basedOnPrerequisites: false,
+            },
+            effectiveValues: {
+                mastery,
+                threshold: 0.4,
+            },
+        };
+    }
+
+    // Gather enhanced data
+    let trend: LearningTrend | undefined;
+    let daysSincePractice: number | undefined;
+    let experimentThreshold: number | undefined;
+
+    try {
+        // Get extended proficiency data
+        if (topicId) {
+            const extendedProfile = await getExtendedProficiency(userId);
+
+            if (extendedProfile) {
+                // Get trend
+                if (isFeatureEnabled('useTrendAnalysis') && extendedProfile.trends) {
+                    trend = extendedProfile.trends[topicId];
+                }
+
+                // Get days since practice
+                if (isFeatureEnabled('useForgettingCurve') && extendedProfile.lastPracticeDate) {
+                    const lastPractice = extendedProfile.lastPracticeDate[topicId];
+                    if (lastPractice) {
+                        daysSincePractice = getDaysSincePractice(lastPractice);
+                    }
+                }
+            }
+        }
+
+        // Get experiment threshold if A/B testing enabled
+        if (isFeatureEnabled('enableABTesting')) {
+            experimentThreshold = await getExperimentValue(
+                userId,
+                'scaffolding_threshold_experiment',
+                0.4 // default threshold
+            );
+        }
+
+    } catch (error) {
+        console.error('Error gathering enhanced data:', error);
+        // Continue with available data
+    }
+
+    // Use enhanced selection
+    return selectVariantEnhanced(block, {
+        mastery,
+        recentAccuracy,
+        trend,
+        daysSincePractice,
+        experimentThreshold,
+    });
+};
+
+/**
+ * Get enhanced initial student state including trend and effective mastery
+ *
+ * Extends getInitialStudentState with:
+ * - Effective mastery (after forgetting curve)
+ * - Learning trend for the topic
+ * - Days since last practice
+ */
+export const getEnhancedStudentState = async (
+    userId: string,
+    topicId: string
+): Promise<{
+    mastery: number;
+    effectiveMastery: number;
+    accuracy: number;
+    trend: LearningTrend;
+    daysSincePractice: number;
+}> => {
+    try {
+        const extendedProfile = await getExtendedProficiency(userId);
+
+        if (!extendedProfile?.topics || extendedProfile.topics[topicId] === undefined) {
+            // No existing data - return defaults
+            return {
+                mastery: 0.5,
+                effectiveMastery: 0.5,
+                accuracy: 0.5,
+                trend: 'insufficient_data',
+                daysSincePractice: 0,
+            };
+        }
+
+        const storedMastery = extendedProfile.topics[topicId];
+
+        // Calculate days since practice
+        let daysSincePractice = 0;
+        if (extendedProfile.lastPracticeDate?.[topicId]) {
+            daysSincePractice = getDaysSincePractice(extendedProfile.lastPracticeDate[topicId]);
+        }
+
+        // Calculate effective mastery
+        const effectiveMastery = getEffectiveMastery(storedMastery, daysSincePractice);
+
+        // Get trend
+        const trend = extendedProfile.trends?.[topicId] || 'insufficient_data';
+
+        // Estimate accuracy based on mastery
+        const estimatedAccuracy = effectiveMastery > 0.7 ? 0.75 : effectiveMastery < 0.3 ? 0.4 : 0.6;
+
+        console.log(`📊 Enhanced profile for ${userId}/${topicId}:`, {
+            storedMastery: storedMastery.toFixed(3),
+            effectiveMastery: effectiveMastery.toFixed(3),
+            daysSincePractice,
+            trend,
+        });
+
+        return {
+            mastery: storedMastery,
+            effectiveMastery,
+            accuracy: estimatedAccuracy,
+            trend,
+            daysSincePractice,
+        };
+
+    } catch (e) {
+        console.error('Failed to load enhanced student profile:', e);
+        return {
+            mastery: 0.5,
+            effectiveMastery: 0.5,
+            accuracy: 0.5,
+            trend: 'insufficient_data',
+            daysSincePractice: 0,
+        };
     }
 };

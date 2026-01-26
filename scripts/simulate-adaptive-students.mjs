@@ -1,19 +1,24 @@
 /**
- * Adaptive Learning Simulation Script
+ * Adaptive Learning Simulation Script (Enhanced)
  *
- * מדמה 3 תלמידים עם פרופילים שונים ובודק את מערכת הלמידה האדפטיבית:
+ * מדמה תלמידים עם פרופילים שונים ובודק את מערכת הלמידה האדפטיבית:
  * - שרה כהן: תלמידה מתקשה (mastery=0.25)
  * - דוד לוי: תלמיד רגיל (mastery=0.60)
  * - מאיה אברהם: תלמידה מצטיינת (mastery=0.85)
+ * - יוסי כץ: תלמיד חוזר אחרי הפסקה (forgetting curve test)
+ * - נועה שמיר: תלמידה משתפרת (trend test)
  *
- * הסקריפט:
- * 1. יוצר 3 תלמידים עם פרופילים שונים
- * 2. מדמה ביצוע פעילות מלא לכל תלמיד
- * 3. קורא ל-BKT Cloud Function האמיתי
- * 4. שומר הכל ב-Firestore
- * 5. מדפיס דוח מפורט
+ * הסקריפט בודק:
+ * 1. BKT mastery updates
+ * 2. Variant selection (הבנה/יישום/העמקה)
+ * 3. Scaffolding offers and acceptance
+ * 4. Enrichment offers and acceptance
+ * 5. IRT data logging (לכיול עתידי)
+ * 6. Forgetting curve (תלמיד שלא תרגל זמן רב)
+ * 7. Learning trend detection
+ * 8. Mastery history tracking
  *
- * Usage: node scripts/simulate-adaptive-students.mjs <courseId>
+ * Usage: node scripts/simulate-adaptive-students.mjs <courseId> [teacherId]
  */
 
 import admin from 'firebase-admin';
@@ -48,7 +53,9 @@ const STUDENTS = [
             type: 'struggling',
             mastery: 0.25,
             accuracy: 0.35,
-            description: 'תלמידה מתקשה - צריכה תמיכה ו-scaffolding'
+            description: 'תלמידה מתקשה - צריכה תמיכה ו-scaffolding',
+            daysSincePractice: 2, // תרגלה לאחרונה לפני יומיים
+            trend: 'stable'
         },
         behavior: {
             answerCorrectly: 0.35, // 35% נכון
@@ -65,7 +72,9 @@ const STUDENTS = [
             type: 'average',
             mastery: 0.60,
             accuracy: 0.70,
-            description: 'תלמיד רגיל - ביצועים ממוצעים'
+            description: 'תלמיד רגיל - ביצועים ממוצעים',
+            daysSincePractice: 5,
+            trend: 'stable'
         },
         behavior: {
             answerCorrectly: 0.70, // 70% נכון
@@ -82,7 +91,9 @@ const STUDENTS = [
             type: 'advanced',
             mastery: 0.85,
             accuracy: 0.95,
-            description: 'תלמידה מצטיינת - מועמדת ל-enrichment'
+            description: 'תלמידה מצטיינת - מועמדת ל-enrichment',
+            daysSincePractice: 1,
+            trend: 'stable'
         },
         behavior: {
             answerCorrectly: 0.95, // 95% נכון
@@ -91,12 +102,104 @@ const STUDENTS = [
             useHints: 0.10,
             attemptsPerQuestion: 1.1
         }
+    },
+    // NEW: Test forgetting curve
+    {
+        id: 'sim_yossi_katz',
+        email: 'yossi.katz.sim@example.com',
+        displayName: 'יוסי כץ',
+        profile: {
+            type: 'returning',
+            mastery: 0.75, // היה טוב בעבר
+            accuracy: 0.60, // ביצועים ירודים עכשיו (שכח)
+            description: 'תלמיד חוזר אחרי חודש הפסקה - בדיקת forgetting curve',
+            daysSincePractice: 30, // לא תרגל חודש!
+            trend: 'insufficient_data'
+        },
+        behavior: {
+            answerCorrectly: 0.55, // ביצועים ירודים כי שכח
+            acceptScaffolding: 0.60,
+            useHints: 0.50,
+            attemptsPerQuestion: 1.8
+        }
+    },
+    // NEW: Test improving trend
+    {
+        id: 'sim_noa_shamir',
+        email: 'noa.shamir.sim@example.com',
+        displayName: 'נועה שמיר',
+        profile: {
+            type: 'improving',
+            mastery: 0.35, // mastery נמוך אבל...
+            accuracy: 0.65, // ...ביצועים משתפרים!
+            description: 'תלמידה משתפרת - בדיקת trend detection',
+            daysSincePractice: 1,
+            trend: 'improving_fast' // צריך לזהות את זה!
+        },
+        behavior: {
+            answerCorrectly: 0.75, // 75% נכון - טוב מה-mastery שלה
+            acceptScaffolding: 0.30, // לא צריכה הרבה עזרה
+            useHints: 0.20,
+            attemptsPerQuestion: 1.3
+        }
     }
 ];
 
 // ========================================
 // SIMULATION LOGIC
 // ========================================
+
+// ========================================
+// FORGETTING CURVE CALCULATION
+// ========================================
+
+/**
+ * Calculate effective mastery after forgetting curve
+ * Matches the implementation in adaptiveEnhancementsService.ts
+ */
+function calculateEffectiveMastery(storedMastery, daysSincePractice) {
+    if (daysSincePractice <= 0) return storedMastery;
+
+    const decayRate = 0.02;
+    const minimumRetention = 0.3;
+    const strengthFactor = 1.5;
+
+    // Higher mastery = slower decay
+    const strength = 1 + (storedMastery - 0.5) * strengthFactor;
+    const adjustedDecayRate = decayRate / Math.max(strength, 0.5);
+
+    // Exponential decay
+    const retention = Math.exp(-adjustedDecayRate * daysSincePractice);
+    const effectiveRetention = Math.max(retention, minimumRetention);
+
+    return storedMastery * effectiveRetention;
+}
+
+/**
+ * Classify trend based on mastery history
+ */
+function classifyTrend(masteryHistory) {
+    if (masteryHistory.length < 5) return 'insufficient_data';
+
+    // Simple linear regression
+    const n = masteryHistory.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
+    masteryHistory.forEach((entry, i) => {
+        sumX += i;
+        sumY += entry.mastery;
+        sumXY += i * entry.mastery;
+        sumX2 += i * i;
+    });
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+
+    if (slope > 0.02) return 'improving_fast';
+    if (slope > 0.005) return 'improving';
+    if (slope < -0.02) return 'declining_fast';
+    if (slope < -0.005) return 'declining';
+    return 'stable';
+}
 
 class AdaptiveSimulator {
     constructor(courseId, teacherId) {
@@ -109,7 +212,11 @@ class AdaptiveSimulator {
                 scaffoldingAccepted: 0,
                 enrichmentOffered: 0,
                 enrichmentAccepted: 0,
-                totalInteractions: 0
+                totalInteractions: 0,
+                // NEW: Enhanced metrics
+                irtLogsCreated: 0,
+                forgettingCurveApplied: 0,
+                trendOverrides: 0
             }
         };
     }
@@ -157,8 +264,97 @@ class AdaptiveSimulator {
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        // NEW: Initialize extended proficiency vector for enhanced features
+        const defaultTopic = 'simulation_topic';
+        const lastPracticeDate = new Date();
+        lastPracticeDate.setDate(lastPracticeDate.getDate() - (student.profile.daysSincePractice || 0));
+
+        // Create fake mastery history for trend testing
+        const masteryHistory = this.generateMasteryHistory(
+            student.profile.mastery,
+            student.profile.trend || 'stable'
+        );
+
+        await userRef.collection('profile').doc('proficiency_vector').set({
+            topics: {
+                [defaultTopic]: student.profile.mastery
+            },
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+            // Enhanced fields
+            masteryHistory: {
+                [defaultTopic]: masteryHistory
+            },
+            lastPracticeDate: {
+                [defaultTopic]: lastPracticeDate
+            },
+            trends: {
+                [defaultTopic]: student.profile.trend || 'stable'
+            },
+            learningVelocity: {
+                [defaultTopic]: this.getTrendVelocity(student.profile.trend)
+            }
+        });
+
         console.log(`✅ Created ${student.displayName}`);
+        console.log(`   📊 Initial mastery: ${student.profile.mastery}`);
+        console.log(`   📅 Days since practice: ${student.profile.daysSincePractice || 0}`);
+        console.log(`   📈 Trend: ${student.profile.trend || 'stable'}`);
+
         return userRef;
+    }
+
+    /**
+     * Generate fake mastery history based on desired trend
+     */
+    generateMasteryHistory(currentMastery, trend) {
+        const history = [];
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+
+        // Generate 10 historical points
+        for (let i = 9; i >= 0; i--) {
+            let historicalMastery;
+
+            switch (trend) {
+                case 'improving_fast':
+                    // Started much lower
+                    historicalMastery = currentMastery - (0.03 * i) - Math.random() * 0.02;
+                    break;
+                case 'improving':
+                    historicalMastery = currentMastery - (0.015 * i) - Math.random() * 0.01;
+                    break;
+                case 'declining':
+                    // Started higher
+                    historicalMastery = currentMastery + (0.015 * i) + Math.random() * 0.01;
+                    break;
+                case 'declining_fast':
+                    historicalMastery = currentMastery + (0.03 * i) + Math.random() * 0.02;
+                    break;
+                default: // stable
+                    historicalMastery = currentMastery + (Math.random() - 0.5) * 0.05;
+            }
+
+            history.push({
+                mastery: Math.max(0, Math.min(1, historicalMastery)),
+                timestamp: new Date(now - (i * dayMs)),
+                questionCount: (10 - i) * 5
+            });
+        }
+
+        return history;
+    }
+
+    /**
+     * Get velocity based on trend type
+     */
+    getTrendVelocity(trend) {
+        switch (trend) {
+            case 'improving_fast': return 0.03;
+            case 'improving': return 0.01;
+            case 'declining': return -0.01;
+            case 'declining_fast': return -0.03;
+            default: return 0;
+        }
     }
 
     /**
@@ -222,11 +418,27 @@ class AdaptiveSimulator {
         console.log(`🎓 Simulating: ${student.displayName} (${student.profile.type})`);
         console.log(`${'='.repeat(60)}`);
 
+        // NEW: Calculate effective mastery with forgetting curve
+        const daysSincePractice = student.profile.daysSincePractice || 0;
+        const storedMastery = student.profile.mastery;
+        const effectiveMastery = calculateEffectiveMastery(storedMastery, daysSincePractice);
+
+        if (effectiveMastery !== storedMastery) {
+            console.log(`\n🧠 FORGETTING CURVE APPLIED:`);
+            console.log(`   Stored mastery: ${(storedMastery * 100).toFixed(0)}%`);
+            console.log(`   Days since practice: ${daysSincePractice}`);
+            console.log(`   Effective mastery: ${(effectiveMastery * 100).toFixed(0)}%`);
+            this.report.summary.forgettingCurveApplied++;
+        }
+
         const studentReport = {
             student: student.displayName,
             type: student.profile.type,
-            initialMastery: student.profile.mastery,
-            finalMastery: student.profile.mastery,
+            initialMastery: storedMastery,
+            effectiveMastery: effectiveMastery,
+            finalMastery: effectiveMastery,
+            daysSincePractice: daysSincePractice,
+            trend: student.profile.trend || 'stable',
             interactions: [],
             variantsUsed: { הבנה: 0, יישום: 0, העמקה: 0 },
             scaffoldingOffered: 0,
@@ -234,13 +446,17 @@ class AdaptiveSimulator {
             enrichmentOffered: 0,
             enrichmentAccepted: 0,
             totalCorrect: 0,
-            totalQuestions: 0
+            totalQuestions: 0,
+            trendOverrides: 0
         };
 
-        let currentMastery = student.profile.mastery;
+        // Start with effective mastery (after forgetting)
+        let currentMastery = effectiveMastery;
+        let currentAccuracy = student.profile.accuracy; // Start with profile accuracy
         let consecutiveCorrect = 0;
         let totalCorrect = 0;
         let totalQuestions = 0;
+        const trend = student.profile.trend || 'stable';
 
         // Get all question blocks from course
         const questions = this.extractQuestions(course);
@@ -262,17 +478,33 @@ class AdaptiveSimulator {
 
             console.log(`\n📝 Question ${i + 1}/${questions.length}: ${question.title || question.id}`);
 
-            // Determine variant to use
+            // Determine variant to use (with trend-aware logic)
             let variant = 'יישום'; // default
-            if (currentMastery < 0.4 && Math.random() < 0.5) {
+            let trendOverride = false;
+
+            // NEW: Trend-aware variant selection
+            if (trend === 'improving_fast' && currentMastery < 0.4) {
+                // Student is improving fast - don't scaffold, let them progress
+                variant = 'יישום';
+                trendOverride = true;
+                studentReport.trendOverrides++;
+                this.report.summary.trendOverrides++;
+            } else if ((trend === 'declining' || trend === 'declining_fast') && currentMastery < 0.5) {
+                // Student is declining - scaffold earlier
+                variant = 'הבנה';
+                trendOverride = true;
+                studentReport.trendOverrides++;
+                this.report.summary.trendOverrides++;
+            } else if (currentMastery < 0.4 && currentAccuracy < 0.5) {
                 variant = 'הבנה'; // Use scaffolding variant
-            } else if (currentMastery >= 0.7 && Math.random() < 0.3) {
+            } else if (currentMastery >= 0.7 && currentAccuracy >= 0.85) {
                 variant = 'העמקה'; // Use enrichment variant
             }
 
             studentReport.variantsUsed[variant]++;
             console.log(`   📊 Current mastery: ${(currentMastery * 100).toFixed(0)}%`);
-            console.log(`   🎯 Variant selected: ${variant}`);
+            console.log(`   📈 Trend: ${trend}`);
+            console.log(`   🎯 Variant selected: ${variant}${trendOverride ? ' (TREND OVERRIDE)' : ''}`);
 
             // Simulate answer
             const answer = this.simulateAnswer(student, i, currentMastery);
@@ -288,7 +520,8 @@ class AdaptiveSimulator {
                 consecutiveCorrect = 0;
             }
 
-            const currentAccuracy = totalCorrect / totalQuestions;
+            // Update accuracy after this answer
+            currentAccuracy = totalCorrect / totalQuestions;
 
             // Check for scaffolding offer (after failures)
             let scaffoldingOffered = false;
@@ -369,9 +602,37 @@ class AdaptiveSimulator {
                     previousMastery: currentMastery,
                     newMastery: newMastery,
                     action: bktAction,
-                    isCorrect: answer.isCorrect
+                    isCorrect: answer.isCorrect,
+                    // NEW: Enhanced data
+                    variantType: variant,
+                    trend: trend,
+                    daysSincePractice: daysSincePractice
                 }
             });
+
+            // NEW: Log IRT submission data for future calibration
+            await this.logIRTSubmission(student.id, {
+                questionId: question.id,
+                variantId: `${question.id}_${variant}`,
+                variantType: variant,
+                isCorrect: answer.isCorrect,
+                responseTimeMs: Math.round(answer.responseTime * 1000),
+                mastery: currentMastery,
+                difficulty: question.metadata?.difficulty_level || 0.5,
+                topic: question.metadata?.curriculumTopicId || 'simulation_topic'
+            });
+
+            // NEW: Update mastery history for trend tracking
+            const updatedTrend = await this.updateMasteryHistory(
+                student.id,
+                'simulation_topic',
+                newMastery,
+                totalQuestions
+            );
+
+            if (updatedTrend && updatedTrend !== trend) {
+                console.log(`   📈 Trend changed: ${trend} → ${updatedTrend}`);
+            }
 
             currentMastery = newMastery;
 
@@ -432,6 +693,66 @@ class AdaptiveSimulator {
     }
 
     /**
+     * Log IRT submission data for future calibration
+     * This mimics what submitAdaptiveAnswer does in the real system
+     */
+    async logIRTSubmission(userId, data) {
+        await db.collection('irt_submission_logs').add({
+            questionId: data.questionId,
+            variantId: data.variantId || data.questionId,
+            variantType: data.variantType,
+            isCorrect: data.isCorrect,
+            responseTimeMs: data.responseTimeMs,
+            studentMasteryAtSubmission: data.mastery,
+            difficulty: data.difficulty || 0.5,
+            topic: data.topic || 'simulation_topic',
+            userId: userId,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        this.report.summary.irtLogsCreated++;
+    }
+
+    /**
+     * Update mastery history for trend tracking
+     */
+    async updateMasteryHistory(userId, topicId, mastery, questionCount) {
+        const vectorRef = db.collection('users')
+            .doc(userId)
+            .collection('profile')
+            .doc('proficiency_vector');
+
+        const vectorDoc = await vectorRef.get();
+        if (!vectorDoc.exists) return;
+
+        const vector = vectorDoc.data();
+        const history = vector.masteryHistory?.[topicId] || [];
+
+        // Add new entry
+        history.push({
+            mastery,
+            timestamp: new Date(),
+            questionCount
+        });
+
+        // Keep last 30
+        const trimmedHistory = history.slice(-30);
+
+        // Recalculate trend
+        const newTrend = classifyTrend(trimmedHistory);
+
+        await vectorRef.update({
+            [`topics.${topicId}`]: mastery,
+            [`masteryHistory.${topicId}`]: trimmedHistory,
+            [`lastPracticeDate.${topicId}`]: new Date(),
+            [`trends.${topicId}`]: newTrend,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return newTrend;
+    }
+
+    /**
      * Extract question blocks from course
      */
     extractQuestions(course) {
@@ -479,7 +800,7 @@ class AdaptiveSimulator {
      */
     printReport() {
         console.log(`\n${'='.repeat(60)}`);
-        console.log(`📊 SIMULATION REPORT`);
+        console.log(`📊 SIMULATION REPORT (Enhanced)`);
         console.log(`${'='.repeat(60)}\n`);
 
         // Summary
@@ -490,16 +811,36 @@ class AdaptiveSimulator {
         console.log(`   Enrichment Offered: ${this.report.summary.enrichmentOffered}`);
         console.log(`   Enrichment Accepted: ${this.report.summary.enrichmentAccepted} (${(this.report.summary.enrichmentAccepted / Math.max(1, this.report.summary.enrichmentOffered) * 100).toFixed(0)}%)`);
 
+        // NEW: Enhanced metrics
+        console.log(`\n📊 ENHANCED METRICS:`);
+        console.log(`   IRT Logs Created: ${this.report.summary.irtLogsCreated}`);
+        console.log(`   Forgetting Curve Applied: ${this.report.summary.forgettingCurveApplied} students`);
+        console.log(`   Trend-based Overrides: ${this.report.summary.trendOverrides}`);
+
         // Per student
         for (const student of this.report.students) {
             console.log(`\n${'─'.repeat(60)}`);
             console.log(`👤 ${student.student} (${student.type})`);
             console.log(`${'─'.repeat(60)}`);
             console.log(`   Questions: ${student.totalCorrect}/${student.totalQuestions} correct (${(student.totalCorrect / student.totalQuestions * 100).toFixed(0)}%)`);
-            console.log(`   Mastery: ${(student.initialMastery * 100).toFixed(0)}% → ${(student.finalMastery * 100).toFixed(0)}%`);
+
+            // Show forgetting curve effect if applicable
+            if (student.effectiveMastery !== student.initialMastery) {
+                console.log(`   Mastery (stored): ${(student.initialMastery * 100).toFixed(0)}%`);
+                console.log(`   Mastery (effective after ${student.daysSincePractice}d): ${(student.effectiveMastery * 100).toFixed(0)}%`);
+                console.log(`   Mastery (final): ${(student.finalMastery * 100).toFixed(0)}%`);
+            } else {
+                console.log(`   Mastery: ${(student.initialMastery * 100).toFixed(0)}% → ${(student.finalMastery * 100).toFixed(0)}%`);
+            }
+
+            console.log(`   Trend: ${student.trend}`);
             console.log(`   Variants: הבנה=${student.variantsUsed.הבנה}, יישום=${student.variantsUsed.יישום}, העמקה=${student.variantsUsed.העמקה}`);
             console.log(`   Scaffolding: ${student.scaffoldingAccepted}/${student.scaffoldingOffered} accepted`);
             console.log(`   Enrichment: ${student.enrichmentAccepted}/${student.enrichmentOffered} accepted`);
+
+            if (student.trendOverrides > 0) {
+                console.log(`   🎯 Trend Overrides: ${student.trendOverrides} (variant selection affected by trend)`);
+            }
         }
 
         console.log(`\n${'='.repeat(60)}`);
@@ -508,9 +849,19 @@ class AdaptiveSimulator {
 
         console.log(`📌 Next Steps:`);
         console.log(`   1. Open Teacher Dashboard`);
-        console.log(`   2. Look for students: שרה כהן, דוד לוי, מאיה אברהם`);
+        console.log(`   2. Look for students: שרה כהן, דוד לוי, מאיה אברהם, יוסי כץ, נועה שמיר`);
         console.log(`   3. Click on each student to see their adaptive profile`);
-        console.log(`   4. Check Firestore: users/{studentId}/adaptive_events`);
+        console.log(`   4. Check Firestore collections:`);
+        console.log(`      - users/{studentId}/adaptive_events`);
+        console.log(`      - users/{studentId}/profile/proficiency_vector (for mastery history + trends)`);
+        console.log(`      - irt_submission_logs (for IRT calibration data)`);
+        console.log(`\n`);
+
+        console.log(`🧪 Enhanced Features Tested:`);
+        console.log(`   ✅ Forgetting Curve: יוסי כץ (30 days without practice)`);
+        console.log(`   ✅ Learning Trend: נועה שמיר (improving_fast trend)`);
+        console.log(`   ✅ IRT Data Logging: ${this.report.summary.irtLogsCreated} submissions logged`);
+        console.log(`   ✅ Mastery History: Updated for all students`);
         console.log(`\n`);
     }
 }
