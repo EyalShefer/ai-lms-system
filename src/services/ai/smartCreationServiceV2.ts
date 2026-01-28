@@ -18,10 +18,18 @@ import {
 } from './capabilityRAG';
 import {
     executeCapability,
+    findCapabilityByFunctionName,
     type FunctionCallResult,
     type ExecutorContext
 } from './toolExecutor';
 import { getCurriculumTopics } from '../curriculumTopicService';
+import {
+    getPromptFieldsForContentType,
+    getMissingRequiredFields,
+    buildClarificationQuestion,
+    extractFieldValuesFromResponse,
+    mapCapabilityToContentType
+} from './promptFieldsService';
 
 // ========== Types ==========
 
@@ -35,12 +43,28 @@ export interface SmartResponseV2 {
     contentAnalysis?: {
         mode: 'interactive' | 'static' | 'ambiguous';
     };
+    // For prompt-aware flow: track pending execution waiting for more fields
+    pendingExecution?: {
+        functionName: string;
+        collectedParams: Record<string, any>;
+        missingFields: string[];
+        contentType?: string;
+        currentField?: { fieldId: string; mapToParam: string; type: string; options?: string[] };
+    };
 }
 
 export interface ConversationContext {
     messages: ChatMessage[];
     contentMode?: 'interactive' | 'static' | null;
     collectedParams?: Record<string, any>;
+    // For prompt-aware flow: track pending execution waiting for more fields
+    pendingExecution?: {
+        functionName: string;
+        collectedParams: Record<string, any>;
+        missingFields: string[];
+        contentType?: string;
+        currentField?: { fieldId: string; mapToParam: string; type: string; options?: string[] };
+    };
 }
 
 // ========== Core System Prompt ==========
@@ -368,6 +392,73 @@ export async function analyzeIntentV2(
 ): Promise<SmartResponseV2> {
     console.log('🧠 [SmartCreationV2] Analyzing:', userMessage.substring(0, 50) + '...');
 
+    // ===== STEP -1: Handle pending execution (prompt-aware flow) =====
+    if (context.pendingExecution) {
+        console.log('🔄 [SmartCreationV2] Resuming pending execution:', context.pendingExecution.functionName);
+
+        const { functionName, collectedParams, missingFields, contentType, currentField } = context.pendingExecution;
+
+        // Extract field values from user response, passing the current field we asked about
+        const extractedValues = extractFieldValuesFromResponse(userMessage, missingFields, currentField);
+        console.log('📥 [SmartCreationV2] Extracted values:', extractedValues);
+
+        // Merge with previously collected params
+        const mergedParams = { ...collectedParams, ...extractedValues };
+
+        // Re-check for missing fields
+        if (contentType) {
+            const promptFields = await getPromptFieldsForContentType(contentType);
+            const { missingFields: stillMissing, allFieldsProvided } = getMissingRequiredFields(
+                promptFields.fields,
+                mergedParams
+            );
+
+            if (!allFieldsProvided) {
+                // Still missing fields, ask about the next one
+                console.log('⚠️ [SmartCreationV2] Still missing fields:', stillMissing.map(f => f.fieldId));
+                const clarification = buildClarificationQuestion(stillMissing);
+                return {
+                    type: 'clarification',
+                    message: clarification.question,
+                    quickReplies: clarification.options,
+                    pendingExecution: {
+                        functionName,
+                        collectedParams: mergedParams,
+                        missingFields: stillMissing.map(f => f.mapToParam),
+                        contentType,
+                        currentField: clarification.currentField ? {
+                            fieldId: clarification.currentField.fieldId,
+                            mapToParam: clarification.currentField.mapToParam,
+                            type: clarification.currentField.type,
+                            options: clarification.currentField.options
+                        } : undefined
+                    }
+                };
+            }
+        }
+
+        // All fields collected - execute!
+        console.log('✅ [SmartCreationV2] All fields collected, executing:', functionName);
+        const capability = findCapabilityByFunctionName(functionName, capabilities);
+
+        if (capability && executorContext) {
+            const result = await executeCapability(
+                { name: functionName, args: mergedParams },
+                [capability],
+                executorContext
+            );
+
+            return {
+                type: 'function_call',
+                message: result.nextSteps?.message || 'מבצע...',
+                functionCall: { name: functionName, args: mergedParams },
+                executionResult: result,
+                quickReplies: result.nextSteps?.quickReplies,
+                matchedCapabilities: [capability.id]
+            };
+        }
+    }
+
     // ===== STEP 0: Check for content type ambiguity =====
     // First, check if user is responding to a content type question
     const detectedMode = detectContentTypeResponse(userMessage);
@@ -446,6 +537,52 @@ export async function analyzeIntentV2(
                     quickReplies: enriched.options,
                     matchedCapabilities: ragResult.capabilities.map(c => c.capability.id)
                 };
+            }
+
+            // ===== PROMPT-AWARE CHECK: Verify all required fields before execution =====
+            const capability = findCapabilityByFunctionName(
+                response.functionCall.name,
+                ragResult.capabilities.map(r => r.capability)
+            );
+
+            if (capability?.category === 'static_content') {
+                const contentType = mapCapabilityToContentType(capability.id);
+
+                if (contentType) {
+                    console.log('📋 [SmartCreationV2] Checking prompt fields for:', contentType);
+
+                    const promptFields = await getPromptFieldsForContentType(contentType);
+                    const { missingFields, allFieldsProvided } = getMissingRequiredFields(
+                        promptFields.fields,
+                        response.functionCall.args
+                    );
+
+                    if (!allFieldsProvided) {
+                        console.log('⚠️ [SmartCreationV2] Missing required fields:', missingFields.map(f => f.fieldId));
+
+                        const clarification = buildClarificationQuestion(missingFields);
+                        return {
+                            type: 'clarification',
+                            message: clarification.question,
+                            quickReplies: clarification.options,
+                            matchedCapabilities: [capability.id],
+                            pendingExecution: {
+                                functionName: response.functionCall.name,
+                                collectedParams: response.functionCall.args,
+                                missingFields: missingFields.map(f => f.mapToParam),
+                                contentType,
+                                currentField: clarification.currentField ? {
+                                    fieldId: clarification.currentField.fieldId,
+                                    mapToParam: clarification.currentField.mapToParam,
+                                    type: clarification.currentField.type,
+                                    options: clarification.currentField.options
+                                } : undefined
+                            }
+                        };
+                    }
+
+                    console.log('✅ [SmartCreationV2] All prompt fields provided');
+                }
             }
 
             // Execute the capability

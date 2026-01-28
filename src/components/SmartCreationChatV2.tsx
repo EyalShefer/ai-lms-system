@@ -84,6 +84,13 @@ const SmartCreationChatV2: React.FC<SmartCreationChatV2Props> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
     const [contentMode, setContentMode] = useState<'interactive' | 'static' | null>(null);
+    // For prompt-aware flow: track pending execution waiting for more fields
+    const [pendingExecution, setPendingExecution] = useState<{
+        functionName: string;
+        collectedParams: Record<string, any>;
+        missingFields: string[];
+        contentType?: string;
+    } | null>(null);
 
     // ========== Hooks ==========
     const { capabilities, isLoading: capabilitiesLoading, error: capabilitiesError, refresh: refreshCapabilities } = useCapabilities();
@@ -213,10 +220,16 @@ const SmartCreationChatV2: React.FC<SmartCreationChatV2Props> = ({
                 console.log('🔄 [SmartCreationChatV2] New content request detected, resetting contentMode');
                 setContentMode(null);
                 effectiveContentMode = null;
+                // Also clear pending execution for fresh start
+                if (pendingExecution) {
+                    console.log('🧹 [SmartCreationChatV2] Clearing pending execution for new request');
+                    setPendingExecution(null);
+                }
             }
             const context: ConversationContext = {
                 messages: newHistory,
-                contentMode: effectiveContentMode
+                contentMode: effectiveContentMode,
+                pendingExecution: pendingExecution || undefined
             };
 
             // Build executor context
@@ -278,7 +291,12 @@ const SmartCreationChatV2: React.FC<SmartCreationChatV2Props> = ({
             // Handle response based on type
             switch (response.type) {
                 case 'function_call':
-                    // Function was executed
+                    // Function was executed - clear pending execution
+                    if (pendingExecution) {
+                        console.log('🧹 [SmartCreationChatV2] Clearing pending execution after successful call');
+                        setPendingExecution(null);
+                    }
+
                     if (response.executionResult?.success) {
                         if (response.executionResult.result?.action === 'wizard_triggered') {
                             // Wizard will be triggered via callback
@@ -316,6 +334,12 @@ const SmartCreationChatV2: React.FC<SmartCreationChatV2Props> = ({
                     // Update content mode if determined
                     if (response.contentAnalysis?.mode !== 'ambiguous') {
                         setContentMode(response.contentAnalysis?.mode || null);
+                    }
+
+                    // Store pending execution for prompt-aware flow
+                    if (response.pendingExecution) {
+                        console.log('💾 [SmartCreationChatV2] Storing pending execution:', response.pendingExecution);
+                        setPendingExecution(response.pendingExecution);
                     }
                     break;
 
