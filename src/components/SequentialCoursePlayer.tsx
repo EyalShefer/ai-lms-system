@@ -45,6 +45,7 @@ import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
 import TrueFalseQuestion from './TrueFalseQuestion';
 import MatchingQuestion from './questions/MatchingQuestion';
+import MatrixQuestion from './questions/MatrixQuestion';
 import { PodcastPlayer } from './PodcastPlayer';
 import { AudioRecorderBlock } from './AudioRecorderBlock';
 import { InfographicViewer } from './InfographicViewer';
@@ -1851,6 +1852,16 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             case 'audio-response':
                 // @ts-ignore
                 return <AudioRecorderBlock block={currentBlock} onAnswer={(url) => handleComplexBlockComplete(100)} />;
+
+            case 'matrix':
+                return (
+                    <MatrixQuestion
+                        block={currentBlock}
+                        onComplete={(score) => handleComplexBlockComplete(score)}
+                        isExamMode={isExamMode}
+                        hints={(currentBlock.content as any)?.hints}
+                    />
+                );
 
             default:
                 return <div className="p-10 text-center text-gray-500">Feature coming soon: {currentBlock.type}</div>;

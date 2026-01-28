@@ -19,6 +19,7 @@ import CategorizationQuestion from './CategorizationQuestion';
 import MemoryGameQuestion from './MemoryGameQuestion';
 import MatchingQuestion from './questions/MatchingQuestion';
 import TableCompletionQuestion from './questions/TableCompletionQuestion';
+import MatrixQuestion from './questions/MatrixQuestion';
 import { SCORING_CONFIG, calculateQuestionScore, type AnswerAttempt, OPEN_QUESTION_SCORES } from '../utils/scoring';
 import { CitationService } from '../services/citationService'; // GROUNDED QA
 // import { SourceViewer } from './SourceViewer'; // NOTEBOOKLM GUIDE (Removed unused import)
@@ -1578,6 +1579,17 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ assignment, reviewMode = fa
                 return (
                     <div key={block.id} className="mb-8">
                         <TableCompletionQuestion
+                            block={block}
+                            onComplete={(score, tel) => handleGameComplete(block.id, score, tel)}
+                            isExamMode={isExamMode}
+                            hints={(block.content as any)?.hints}
+                        />
+                    </div>
+                );
+            case 'matrix':
+                return (
+                    <div key={block.id} className="mb-8">
+                        <MatrixQuestion
                             block={block}
                             onComplete={(score, tel) => handleGameComplete(block.id, score, tel)}
                             isExamMode={isExamMode}

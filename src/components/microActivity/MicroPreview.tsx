@@ -150,6 +150,8 @@ function ContentPreview({ activity, onEdit }: ContentPreviewProps) {
       return <OpenQuestionPreview content={content} />;
     case 'fill_in_blanks':
       return <FillInBlanksPreview content={content} />;
+    case 'matrix':
+      return <MatrixPreview content={content} />;
     default:
       return <GenericPreview content={content} />;
   }
@@ -352,6 +354,52 @@ function FillInBlanksPreview({ content }: { content: any }) {
             </p>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Matrix Preview
+function MatrixPreview({ content }: { content: any }) {
+  const columns = content.columns || [];
+  const rows = content.rows || [];
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-600 mb-3">{content.instruction}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse" dir="rtl">
+          <thead>
+            <tr className="bg-blue-500 text-white">
+              <th className="px-3 py-2 text-right border border-blue-400">שאלה</th>
+              {columns.map((col: string, idx: number) => (
+                <th key={idx} className="px-3 py-2 text-center border border-blue-400">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row: any, rowIdx: number) => (
+              <tr key={rowIdx} className={rowIdx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                <td className="px-3 py-2 text-right border border-gray-200 font-medium">
+                  {row.question}
+                </td>
+                {columns.map((col: string, colIdx: number) => (
+                  <td key={colIdx} className="px-3 py-2 text-center border border-gray-200">
+                    <div className={`w-5 h-5 rounded-full border-2 mx-auto flex items-center justify-center ${
+                      row.correctAnswer === col
+                        ? 'bg-green-500 border-green-600'
+                        : 'bg-white border-gray-300'
+                    }`}>
+                      {row.correctAnswer === col && <span className="text-white text-xs">✓</span>}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

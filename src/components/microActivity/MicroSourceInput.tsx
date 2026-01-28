@@ -195,24 +195,26 @@ export default function MicroSourceInput({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {(() => {
           const dropzoneProps = getRootProps();
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { ref, ...spreadProps } = dropzoneProps as any;
 
           return (
-            <SourceCard
-              label="העלאת קובץ"
-              icon={IconCloudUpload}
-              color="blue"
-              isActive={mode === 'upload'}
-              innerRef={ref}
-              {...spreadProps}
-              onClick={(e: any) => {
-                e.stopPropagation();
-                open();
-              }}
-            >
-              {file ? <span className="text-blue-600 font-bold">{file.name}</span> : "PDF, Word, TXT"}
-              <input {...getInputProps()} />
-            </SourceCard>
+            <div ref={ref}>
+              <SourceCard
+                label="העלאת קובץ"
+                icon={IconCloudUpload}
+                color="blue"
+                isActive={mode === 'upload'}
+                {...spreadProps}
+                onClick={(e: any) => {
+                  e.stopPropagation();
+                  open();
+                }}
+              >
+                {file ? <span className="text-blue-600 font-bold">{file.name}</span> : "PDF, Word, TXT"}
+                <input {...getInputProps()} />
+              </SourceCard>
+            </div>
           );
         })()}
 

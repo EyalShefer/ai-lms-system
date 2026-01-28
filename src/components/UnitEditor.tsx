@@ -2378,59 +2378,50 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         <span className="hidden sm:inline">{isDirty ? 'שמור לפני שיתוף' : 'קישור לתלמיד'}</span>
                     </button>
 
-                    {/* Secondary Actions - Dropdown Menu */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                            className="p-2.5 rounded-xl text-slate-500 hover:text-wizdi-royal hover:bg-white border border-slate-200 transition-all"
-                        >
-                            <IconMoreVertical className="w-5 h-5" />
-                        </button>
+                    {/* Secondary Actions - Dropdown Menu (only show if there are items) */}
+                    {((course.fullBookContent || course.pdfSource) || showScoring) && (
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                                className="p-2.5 rounded-xl text-slate-500 hover:text-wizdi-royal hover:bg-white border border-slate-200 transition-all"
+                            >
+                                <IconMoreVertical className="w-5 h-5" />
+                            </button>
 
-                        {showHeaderMenu && (
-                            <>
-                                <div className="fixed inset-0 z-40" onClick={() => setShowHeaderMenu(false)} />
-                                <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 min-w-[220px] z-50 overflow-hidden">
-                                    {/* Source Toggle */}
-                                    {(course.fullBookContent || course.pdfSource) && (
-                                        <button
-                                            onClick={() => { setShowSource(!showSource); setShowHeaderMenu(false); }}
-                                            className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
-                                        >
-                                            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                                                <IconBook className="w-4 h-4 text-indigo-600" />
-                                            </div>
-                                            {showSource ? 'סגור מקור' : 'הצג מקור'}
-                                        </button>
-                                    )}
+                            {showHeaderMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowHeaderMenu(false)} />
+                                    <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 min-w-[220px] z-50 overflow-hidden">
+                                        {/* Source Toggle */}
+                                        {(course.fullBookContent || course.pdfSource) && (
+                                            <button
+                                                onClick={() => { setShowSource(!showSource); setShowHeaderMenu(false); }}
+                                                className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                                                    <IconBook className="w-4 h-4 text-indigo-600" />
+                                                </div>
+                                                {showSource ? 'סגור מקור' : 'הצג מקור'}
+                                            </button>
+                                        )}
 
-                                    {/* Scoring Distribution */}
-                                    {showScoring && (
-                                        <button
-                                            onClick={() => { handleAutoDistributePoints(); setShowHeaderMenu(false); }}
-                                            className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
-                                        >
-                                            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                                                <IconBalance className="w-4 h-4 text-amber-600" />
-                                            </div>
-                                            חלק ניקוד
-                                        </button>
-                                    )}
-
-                                    {/* Back */}
-                                    <button
-                                        onClick={() => { handleBack(); setShowHeaderMenu(false); }}
-                                        className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
-                                    >
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                                            <IconBack className="w-4 h-4 rotate-180 text-slate-500" />
-                                        </div>
-                                        חזרה
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
+                                        {/* Scoring Distribution */}
+                                        {showScoring && (
+                                            <button
+                                                onClick={() => { handleAutoDistributePoints(); setShowHeaderMenu(false); }}
+                                                className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                                                    <IconBalance className="w-4 h-4 text-amber-600" />
+                                                </div>
+                                                חלק ניקוד
+                                            </button>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -3678,8 +3669,185 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             </div>
                                         )}
 
+                                        {/* MATRIX Question Editor */}
+                                        {block.type === 'matrix' && (
+                                            <div className="space-y-4">
+                                                {/* Instruction */}
+                                                <RichTextEditor
+                                                    value={(block.content && block.content.instruction) || ''}
+                                                    onChange={(html) => updateBlock(block.id, { ...block.content, instruction: html })}
+                                                    placeholder="הנחיה (למשל: סמן את התשובה המתאימה לכל שורה...)"
+                                                    minHeight="40px"
+                                                    maxHeight="150px"
+                                                    collapsible={true}
+                                                />
+
+                                                {/* Columns (Answer Options) */}
+                                                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-200">
+                                                    <h4 className="text-xs font-bold text-blue-700 mb-3 flex items-center gap-2">
+                                                        <IconLayer className="w-4 h-4" /> עמודות (אפשרויות תשובה)
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2 items-center">
+                                                        {(block.content?.columns || []).map((col: string, idx: number) => (
+                                                            <div key={idx} className="flex gap-1 items-center bg-white rounded-lg border border-blue-200 p-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="p-2 bg-transparent border-none outline-none text-sm w-24"
+                                                                    value={col || ''}
+                                                                    onChange={(e) => {
+                                                                        const newColumns = [...(block.content?.columns || [])];
+                                                                        const oldCol = newColumns[idx];
+                                                                        newColumns[idx] = e.target.value;
+                                                                        // Update correctAnswer in rows if it matched the old column name
+                                                                        const newRows = (block.content?.rows || []).map((row: any) => ({
+                                                                            ...row,
+                                                                            correctAnswer: row.correctAnswer === oldCol ? e.target.value : row.correctAnswer
+                                                                        }));
+                                                                        updateBlock(block.id, { ...block.content, columns: newColumns, rows: newRows });
+                                                                    }}
+                                                                    placeholder={`עמודה ${idx + 1}`}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newColumns = (block.content?.columns || []).filter((_: any, i: number) => i !== idx);
+                                                                        updateBlock(block.id, { ...block.content, columns: newColumns });
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-red-500 p-1"
+                                                                    title="הסר עמודה"
+                                                                >
+                                                                    <IconTrash className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                const newColumns = [...(block.content?.columns || []), `אפשרות ${(block.content?.columns?.length || 0) + 1}`];
+                                                                updateBlock(block.id, { ...block.content, columns: newColumns });
+                                                            }}
+                                                            className="text-xs font-medium text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg border border-dashed border-blue-300"
+                                                        >
+                                                            + עמודה
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Rows (Questions) */}
+                                                <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+                                                    <h4 className="text-xs font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                                        <IconList className="w-4 h-4" /> שורות (שאלות/טענות)
+                                                    </h4>
+                                                    <div className="space-y-3">
+                                                        {(block.content?.rows || []).map((row: any, rowIdx: number) => (
+                                                            <div key={rowIdx} className="p-3 bg-white rounded-lg border border-slate-200 relative group/row">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <span className="text-xs font-medium text-gray-400">שורה {rowIdx + 1}</span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newRows = (block.content?.rows || []).filter((_: any, i: number) => i !== rowIdx);
+                                                                            updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                        }}
+                                                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                                                        title="הסר שורה"
+                                                                    >
+                                                                        <IconTrash className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                    {/* Question/Statement */}
+                                                                    <div>
+                                                                        <label className="text-[10px] text-gray-500 block mb-1">שאלה / טענה</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            className="w-full p-2 border border-gray-200 rounded-lg text-sm"
+                                                                            value={row.question || ''}
+                                                                            onChange={(e) => {
+                                                                                const newRows = [...(block.content?.rows || [])];
+                                                                                newRows[rowIdx] = { ...newRows[rowIdx], question: e.target.value };
+                                                                                updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                            }}
+                                                                            placeholder="הזן טענה או שאלה..."
+                                                                        />
+                                                                    </div>
+                                                                    {/* Correct Answer */}
+                                                                    <div>
+                                                                        <label className="text-[10px] text-green-600 block mb-1">תשובה נכונה</label>
+                                                                        <select
+                                                                            className="w-full p-2 border border-green-200 bg-green-50 rounded-lg text-sm"
+                                                                            value={row.correctAnswer || ''}
+                                                                            onChange={(e) => {
+                                                                                const newRows = [...(block.content?.rows || [])];
+                                                                                newRows[rowIdx] = { ...newRows[rowIdx], correctAnswer: e.target.value };
+                                                                                updateBlock(block.id, { ...block.content, rows: newRows });
+                                                                            }}
+                                                                        >
+                                                                            <option value="" disabled>בחר תשובה נכונה</option>
+                                                                            {(block.content?.columns || []).map((col: string, colIdx: number) => (
+                                                                                <option key={colIdx} value={col}>{col}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                const newRow = { question: '', correctAnswer: '' };
+                                                                updateBlock(block.id, { ...block.content, rows: [...(block.content?.rows || []), newRow] });
+                                                            }}
+                                                            className="w-full py-3 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-all text-sm"
+                                                        >
+                                                            + הוסף שורה
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Preview Table */}
+                                                {(block.content?.columns?.length > 0 && block.content?.rows?.length > 0) && (
+                                                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200">
+                                                        <h4 className="text-xs font-bold text-indigo-700 mb-3 flex items-center gap-2">
+                                                            <IconEye className="w-4 h-4" /> תצוגה מקדימה
+                                                        </h4>
+                                                        <div className="bg-white rounded-lg overflow-hidden border border-indigo-200">
+                                                            <table className="w-full text-sm" dir="rtl">
+                                                                <thead>
+                                                                    <tr className="bg-gradient-to-r from-blue-500 to-blue-600">
+                                                                        <th className="px-3 py-2 text-white font-bold text-right border-l border-blue-400">שאלה</th>
+                                                                        {(block.content?.columns || []).map((col: string, idx: number) => (
+                                                                            <th key={idx} className="px-3 py-2 text-white font-bold text-center border-l border-blue-400 last:border-l-0">
+                                                                                {col}
+                                                                            </th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {(block.content?.rows || []).map((row: any, rowIdx: number) => (
+                                                                        <tr key={rowIdx} className={rowIdx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                                                                            <td className="px-3 py-2 text-right border-l border-gray-200 font-medium text-gray-700">
+                                                                                {row.question || `שורה ${rowIdx + 1}`}
+                                                                            </td>
+                                                                            {(block.content?.columns || []).map((col: string, colIdx: number) => (
+                                                                                <td key={colIdx} className="px-3 py-2 text-center border-l border-gray-200 last:border-l-0">
+                                                                                    <div className={`w-5 h-5 rounded-full border-2 mx-auto flex items-center justify-center ${
+                                                                                        row.correctAnswer === col
+                                                                                            ? 'bg-green-500 border-green-600'
+                                                                                            : 'bg-white border-gray-300'
+                                                                                    }`}>
+                                                                                        {row.correctAnswer === col && <span className="text-white text-xs">✓</span>}
+                                                                                    </div>
+                                                                                </td>
+                                                                            ))}
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         {/* Generic Question Types (highlight, sentence_builder, etc.) */}
-                                        {['highlight', 'sentence_builder', 'image_labeling', 'text_selection', 'rating_scale', 'matrix', 'drag_and_drop', 'hotspot'].includes(block.type) && (
+                                        {['highlight', 'sentence_builder', 'image_labeling', 'text_selection', 'rating_scale', 'drag_and_drop', 'hotspot'].includes(block.type) && (
                                             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-200">
                                                 <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
                                                     <IconEdit className="w-5 h-5" /> {BLOCK_TYPE_MAPPING[block.type] || block.type}
