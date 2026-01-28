@@ -73,7 +73,7 @@ export const ResponsiveSequentialCoursePlayer: React.FC<SequentialPlayerProps> =
  * Renders mobile or desktop teacher home page based on screen size.
  */
 interface HomePageProps {
-    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
+    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity', chatContext?: any) => void;
     onCreateWithWizardData?: (wizardData: any) => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
@@ -85,6 +85,7 @@ interface HomePageProps {
     onNavigateToSpeedAnalytics?: () => void;
     onNavigateToAgentDashboard?: () => void;
     onNavigateToBagrut?: () => void;
+    onLogout?: () => void;
 }
 
 export const ResponsiveHomePage: React.FC<HomePageProps> = (props) => {

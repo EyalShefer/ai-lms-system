@@ -811,6 +811,357 @@ export const searchRelevantPrompts = onCall({
     }
 });
 
+// --- STATIC CONTENT GENERATION ---
+/**
+ * Generate static content (worksheets, letters, plans, etc.) directly with AI
+ * Used by SmartCreationChat when teacher requests static/printable content
+ *
+ * NOTE: Using onRequest instead of onCall due to CORS issues with Firebase Functions v2
+ */
+export const generateStaticContent = onRequest({
+    secrets: [geminiApiKey],
+    memory: "512MiB",
+    timeoutSeconds: 60,
+    cors: true // Enable CORS for all origins
+}, async (req, res) => {
+    // Set CORS headers explicitly
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+
+    // Only allow POST
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
+    }
+
+    try {
+        // Verify Firebase Auth token from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+            res.status(401).json({ error: 'נדרשת הזדהות' });
+            return;
+        }
+
+        const idToken = authHeader.split('Bearer ')[1];
+        let userId: string;
+
+        try {
+            const decodedToken = await auth.verifyIdToken(idToken);
+            userId = decodedToken.uid;
+        } catch (authError) {
+            logger.error('Auth verification failed:', authError);
+            res.status(401).json({ error: 'טוקן לא תקין' });
+            return;
+        }
+
+        // Parse request body - handle both direct and wrapped data formats
+        const requestData = req.body?.data || req.body;
+        const { contentType, topic, grade, subject, additionalInstructions, language = 'he' } = requestData as {
+            contentType: 'worksheet' | 'test' | 'lesson_plan' | 'letter' | 'feedback' | 'rubric' | 'custom';
+            topic: string;
+            grade?: string;
+            subject?: string;
+            additionalInstructions?: string;
+            language?: 'he' | 'en';
+        };
+
+    if (!contentType || !topic) {
+        throw new HttpsError('invalid-argument', 'contentType and topic are required');
+    }
+
+    logger.info(`📝 Generating static content - type: ${contentType}, topic: ${topic}, user: ${userId}`);
+
+    // === Step 1: Try to find a matching prompt from the library ===
+    const contentTypeToCategory: Record<string, { category: string; subcategory?: string; keywords: string[] }> = {
+        worksheet: { category: 'דפי עבודה', subcategory: 'דף עבודה להדפסה', keywords: ['דף עבודה', 'תרגילים'] },
+        test: { category: 'יצירת מבחנים', keywords: ['מבחן', 'בוחן', 'שאלות'] },
+        lesson_plan: { category: 'הכנת שיעורים', keywords: ['מערך שיעור', 'תכנון'] },
+        letter: { category: 'תקשורת אישית', keywords: ['מכתב', 'הורים'] },
+        feedback: { category: 'תקשורת אישית', subcategory: 'מכתב אישי לתלמיד', keywords: ['משוב', 'תלמיד'] },
+        rubric: { category: 'יצירת מבחנים', keywords: ['מחוון', 'רובריקה', 'הערכה'] }
+    };
+
+    let libraryPrompt: { promptTemplate: string; title: string } | null = null;
+    const categoryInfo = contentTypeToCategory[contentType];
+
+    if (categoryInfo) {
+        try {
+            // Search for matching prompt in library
+            let query: FirebaseFirestore.Query = db.collection('prompts')
+                .where('status', '==', 'active')
+                .where('category', '==', categoryInfo.category);
+
+            if (categoryInfo.subcategory) {
+                query = query.where('subcategory', '==', categoryInfo.subcategory);
+            }
+
+            const snapshot = await query.limit(5).get();
+
+            if (!snapshot.empty) {
+                // Find best match based on keywords
+                const prompts = snapshot.docs.map(doc => doc.data());
+                const topicLower = topic.toLowerCase();
+
+                // Score prompts by relevance
+                let bestPrompt = prompts[0];
+                let bestScore = 0;
+
+                for (const prompt of prompts) {
+                    let score = 0;
+                    const searchText = `${prompt.title} ${prompt.description}`.toLowerCase();
+
+                    // Check if topic words appear in prompt
+                    topicLower.split(/\s+/).forEach(word => {
+                        if (searchText.includes(word)) score += 2;
+                    });
+
+                    // Bonus for rating
+                    score += (prompt.averageRating || 0) / 2;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPrompt = prompt;
+                    }
+                }
+
+                libraryPrompt = {
+                    promptTemplate: bestPrompt.promptTemplate,
+                    title: bestPrompt.title
+                };
+
+                logger.info(`📚 Found library prompt: "${libraryPrompt.title}"`);
+            }
+        } catch (promptError) {
+            logger.warn('Could not search prompt library, using fallback:', promptError);
+        }
+    }
+
+    // === Step 2: Fill placeholders if library prompt found ===
+    const fillPlaceholders = (template: string, data: Record<string, string | undefined>): string => {
+        let filled = template;
+        const placeholderMap: Record<string, string | undefined> = {
+            '{{מקצוע}}': data.subject,
+            '{{שכבה}}': data.grade,
+            '{{נושא}}': data.topic,
+            '{{רמת_קושי}}': data.difficulty || 'בינונית',
+            '{{מספר_תרגילים}}': data.numExercises || '7',
+            '{{פרטים}}': data.additionalInstructions,
+            '{{סוג_מבחן}}': data.testType || 'מסכם',
+            '{{מספר_שאלות}}': data.numQuestions || '10',
+            '{{משך_שיעור}}': data.duration || '45 דקות'
+        };
+
+        for (const [placeholder, value] of Object.entries(placeholderMap)) {
+            if (value) {
+                filled = filled.split(placeholder).join(value);
+            } else {
+                // Remove lines with unfilled required placeholders
+                filled = filled.split('\n').filter(line => !line.includes(placeholder)).join('\n');
+            }
+        }
+
+        return filled;
+    };
+
+    // === Step 3: Build the final prompt ===
+    let finalPrompt: string;
+
+    if (libraryPrompt) {
+        // Use the library prompt with filled placeholders
+        const filledPrompt = fillPlaceholders(libraryPrompt.promptTemplate, {
+            subject,
+            grade,
+            topic,
+            additionalInstructions
+        });
+
+        finalPrompt = `
+אתה מומחה פדגוגי ליצירת תוכן חינוכי. השתמש בהנחיות הבאות ליצירת התוכן:
+
+${filledPrompt}
+
+הנחיות נוספות:
+- הפלט צריך להיות HTML נקי שאפשר להדפיס
+- אל תוסיף \`\`\`html או תגיות קוד - רק HTML נקי
+- שפה: ${language === 'he' ? 'עברית (RTL)' : 'English'}
+- עיצוב: מקצועי, ברור, עם טבלאות ורשימות לפי הצורך
+`;
+    } else {
+        // Fallback to hardcoded prompts
+        logger.info('📝 Using fallback hardcoded prompt');
+
+    // Content type prompts (Fallback)
+    const contentTypePrompts: Record<string, { title: string; systemPrompt: string }> = {
+        worksheet: {
+            title: 'דף עבודה',
+            systemPrompt: `אתה מומחה ליצירת דפי עבודה חינוכיים. צור דף עבודה מקצועי ומעוצב היטב.
+הדף צריך לכלול:
+- כותרת ברורה עם מקום לשם התלמיד ותאריך
+- הוראות ברורות
+- תרגילים/שאלות מגוונים (לפחות 5-7)
+- מקום לתשובות
+- בונוס/אתגר בסוף (אופציונלי)
+
+פורמט הפלט: HTML נקי עם עיצוב בסיסי (טבלאות, רשימות, קווים לכתיבה)`
+        },
+        test: {
+            title: 'מבחן/בוחן',
+            systemPrompt: `אתה מומחה ליצירת מבחנים ובחנים. צור מבחן מקצועי להדפסה.
+המבחן צריך לכלול:
+- כותרת עם שם המבחן, תאריך, שם התלמיד
+- הוראות ברורות
+- חלוקת ניקוד
+- שאלות מגוונות (בחירה מרובה, פתוחות, השלמה)
+- סה"כ 100 נקודות
+
+פורמט הפלט: HTML נקי עם עיצוב מבחן מקצועי`
+        },
+        lesson_plan: {
+            title: 'מערך שיעור',
+            systemPrompt: `אתה מומחה פדגוגי ליצירת מערכי שיעור. צור מערך שיעור מפורט למורה.
+המערך צריך לכלול:
+- פרטי השיעור (נושא, כיתה, משך)
+- מטרות ויעדים
+- חומרים נדרשים
+- מהלך השיעור (פתיחה, גוף, סיכום)
+- פעילויות והערכה
+- התאמות לתלמידים מתקשים/מתקדמים
+- רפלקציה
+
+פורמט הפלט: HTML מעוצב עם כותרות וטבלאות`
+        },
+        letter: {
+            title: 'מכתב להורים',
+            systemPrompt: `אתה מומחה בתקשורת בית-ספר-הורים. צור מכתב מקצועי ונעים.
+המכתב צריך לכלול:
+- כותרת בית הספר/מורה
+- תאריך
+- פנייה אישית
+- גוף המכתב ברור ומכבד
+- חתימה
+- פרטי קשר
+
+פורמט הפלט: HTML נקי בפורמט מכתב רשמי`
+        },
+        feedback: {
+            title: 'משוב לתלמיד',
+            systemPrompt: `אתה מומחה בכתיבת משובים חינוכיים. צור משוב בונה ומעודד.
+המשוב צריך לכלול:
+- פנייה אישית
+- נקודות חוזקה (לפחות 3)
+- תחומים לשיפור (1-2, בצורה בונה)
+- המלצות להמשך
+- סיום מעודד
+
+פורמט הפלט: HTML נקי וידידותי`
+        },
+        rubric: {
+            title: 'רובריקה להערכה',
+            systemPrompt: `אתה מומחה בהערכה חינוכית. צור רובריקה מקצועית להערכת עבודות/מטלות.
+הרובריקה צריכה לכלול:
+- שם המטלה וקריטריונים
+- רמות ביצוע (מצוין, טוב, מספק, דורש שיפור)
+- תיאורי רמה מפורטים
+- ניקוד לכל קריטריון
+- סה"כ ניקוד
+
+פורמט הפלט: טבלת HTML מעוצבת`
+        },
+        custom: {
+            title: 'תוכן מותאם',
+            systemPrompt: `אתה עוזר חינוכי מקצועי. צור תוכן לפי הבקשה הספציפית של המורה.
+התוכן צריך להיות:
+- מקצועי ומדויק
+- מותאם לקהל היעד
+- מעוצב להדפסה
+- ברור וקריא
+
+פורמט הפלט: HTML נקי ומעוצב`
+        }
+    };
+
+    const config = contentTypePrompts[contentType] || contentTypePrompts.custom;
+
+    // Build the fallback prompt
+    finalPrompt = `
+${config.systemPrompt}
+
+פרטים:
+- נושא: ${topic}
+${grade ? `- כיתה/קהל יעד: ${grade}` : ''}
+${subject ? `- מקצוע: ${subject}` : ''}
+${additionalInstructions ? `- הנחיות נוספות: ${additionalInstructions}` : ''}
+
+שפת התוכן: ${language === 'he' ? 'עברית (RTL)' : 'English'}
+
+צור את התוכן עכשיו. הפלט צריך להיות HTML נקי שאפשר להדפיס.
+אל תוסיף \`\`\`html או תגיות קוד - רק HTML נקי.
+`;
+    } // End of else (fallback)
+
+    try {
+        const messages: ChatMessage[] = [
+            { role: 'user', content: finalPrompt }
+        ];
+
+        const result = await generateText(messages, {
+            temperature: 0.7,
+            maxTokens: 4000
+        });
+
+        // Clean up the result - remove markdown code blocks if present
+        let content = result || '';
+        content = content.replace(/```html\n?/g, '').replace(/```\n?/g, '').trim();
+
+        // Add RTL wrapper for Hebrew
+        if (language === 'he' && !content.includes('dir="rtl"')) {
+            content = `<div dir="rtl" style="font-family: 'Heebo', 'Arial', sans-serif; line-height: 1.8;">${content}</div>`;
+        }
+
+        // Determine the title to use
+        const contentTitle = libraryPrompt?.title || {
+            worksheet: 'דף עבודה',
+            test: 'מבחן/בוחן',
+            lesson_plan: 'מערך שיעור',
+            letter: 'מכתב להורים',
+            feedback: 'משוב לתלמיד',
+            rubric: 'רובריקה להערכה',
+            custom: 'תוכן מותאם'
+        }[contentType] || 'תוכן';
+
+        logger.info(`✅ Generated static content successfully - ${content.length} chars (source: ${libraryPrompt ? 'library' : 'fallback'})`);
+
+        // Return response wrapped in 'data' to match callable function format
+        res.json({
+            data: {
+                success: true,
+                contentType,
+                title: contentTitle,
+                topic,
+                content,
+                usedLibraryPrompt: !!libraryPrompt,
+                generatedAt: new Date().toISOString()
+            }
+        });
+
+    } catch (genError: any) {
+        logger.error('Generate static content AI error:', genError);
+        res.status(500).json({ data: { success: false, error: `שגיאה ביצירת תוכן: ${genError.message}` } });
+    }
+
+    } catch (error: any) {
+        logger.error('Generate static content error:', error);
+        res.status(500).json({ error: `שגיאה: ${error.message}` });
+    }
+});
+
 /**
  * Delete all prompts from the library (USE WITH CAUTION!)
  * Temporary function to clear old prompts before re-seeding
@@ -4561,3 +4912,292 @@ export const onVariantGenerationRequired = onDocumentCreated(
         }
     }
 );
+
+// --- MICRO ACTIVITY GENERATION ---
+// ============================================================
+// Quick generation of single activity blocks
+// ============================================================
+
+import {
+    generateMicroActivity,
+    regenerateMicroActivity,
+    MicroGeneratorInput
+} from './services/microActivityGenerator';
+import {
+    MicroActivity,
+    GenerateMicroActivityRequest
+} from './shared/types/microActivityTypes';
+
+/**
+ * Generate a micro activity (single activity block)
+ * Quick generation without full Architect/Guardian pipeline
+ */
+export const generateMicroActivityEndpoint = onCall({
+    secrets: [geminiApiKey],
+    cors: true,
+    memory: "512MiB",
+    timeoutSeconds: 60
+}, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const data = request.data as GenerateMicroActivityRequest;
+
+    if (!data.type || !data.source || !data.gradeLevel) {
+        throw new HttpsError('invalid-argument', 'type, source, and gradeLevel are required');
+    }
+
+    logger.info('Generating micro activity', {
+        userId: uid,
+        type: data.type,
+        gradeLevel: data.gradeLevel,
+        sourceType: data.source.type
+    });
+
+    const input: MicroGeneratorInput = {
+        type: data.type,
+        source: data.source,
+        gradeLevel: data.gradeLevel,
+        teacherId: uid,
+        subject: data.subject
+    };
+
+    const result = await generateMicroActivity(input);
+
+    if (!result.success) {
+        throw new HttpsError('internal', result.error || 'Generation failed');
+    }
+
+    return result;
+});
+
+/**
+ * Save a micro activity to the teacher's collection
+ */
+export const saveMicroActivity = onCall({
+    cors: true
+}, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { microActivity } = request.data as { microActivity: MicroActivity };
+
+    if (!microActivity || !microActivity.block) {
+        throw new HttpsError('invalid-argument', 'microActivity with block is required');
+    }
+
+    // Ensure teacher owns the activity
+    if (microActivity.teacherId !== uid) {
+        microActivity.teacherId = uid;
+    }
+
+    // Generate ID if not present
+    if (!microActivity.id) {
+        microActivity.id = uuidv4();
+    }
+
+    // Set timestamps
+    microActivity.createdAt = FieldValue.serverTimestamp() as any;
+    microActivity.updatedAt = FieldValue.serverTimestamp() as any;
+
+    // Save to Firestore
+    await db
+        .collection('teachers')
+        .doc(uid)
+        .collection('microActivities')
+        .doc(microActivity.id)
+        .set(microActivity);
+
+    logger.info('Micro activity saved', {
+        userId: uid,
+        activityId: microActivity.id,
+        type: microActivity.type
+    });
+
+    return {
+        success: true,
+        id: microActivity.id
+    };
+});
+
+/**
+ * Get teacher's micro activities
+ */
+export const getMicroActivities = onCall({
+    cors: true
+}, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { limit = 50, type } = request.data as { limit?: number; type?: string };
+
+    let query = db
+        .collection('teachers')
+        .doc(uid)
+        .collection('microActivities')
+        .orderBy('createdAt', 'desc')
+        .limit(Math.min(limit, 100));
+
+    if (type) {
+        query = query.where('type', '==', type) as any;
+    }
+
+    const snapshot = await query.get();
+    const activities = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+    }));
+
+    return { activities };
+});
+
+/**
+ * Delete a micro activity
+ */
+export const deleteMicroActivity = onCall({
+    cors: true
+}, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { activityId } = request.data as { activityId: string };
+
+    if (!activityId) {
+        throw new HttpsError('invalid-argument', 'activityId is required');
+    }
+
+    await db
+        .collection('teachers')
+        .doc(uid)
+        .collection('microActivities')
+        .doc(activityId)
+        .delete();
+
+    logger.info('Micro activity deleted', {
+        userId: uid,
+        activityId
+    });
+
+    return { success: true };
+});
+
+/**
+ * Create a share link for a micro activity
+ */
+export const createMicroActivityShare = onCall({
+    cors: true
+}, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { activityId } = request.data as { activityId: string };
+
+    if (!activityId) {
+        throw new HttpsError('invalid-argument', 'activityId is required');
+    }
+
+    // Verify ownership
+    const activityDoc = await db
+        .collection('teachers')
+        .doc(uid)
+        .collection('microActivities')
+        .doc(activityId)
+        .get();
+
+    if (!activityDoc.exists) {
+        throw new HttpsError('not-found', 'Activity not found');
+    }
+
+    // Generate share code
+    const shareCode = uuidv4().substring(0, 8);
+
+    // Save share record
+    await db.collection('microActivityShares').doc(shareCode).set({
+        microActivityId: activityId,
+        teacherId: uid,
+        createdAt: FieldValue.serverTimestamp()
+    });
+
+    // Update activity with share code
+    await activityDoc.ref.update({
+        shareCode,
+        updatedAt: FieldValue.serverTimestamp()
+    });
+
+    logger.info('Micro activity share created', {
+        userId: uid,
+        activityId,
+        shareCode
+    });
+
+    return {
+        success: true,
+        shareCode,
+        shareUrl: `/play/${shareCode}`
+    };
+});
+
+/**
+ * Get a micro activity by share code (public - no auth required)
+ */
+export const getMicroActivityByShare = onCall({
+    cors: true
+}, async (request) => {
+    const { shareCode } = request.data as { shareCode: string };
+
+    if (!shareCode) {
+        throw new HttpsError('invalid-argument', 'shareCode is required');
+    }
+
+    // Get share record
+    const shareDoc = await db.collection('microActivityShares').doc(shareCode).get();
+
+    if (!shareDoc.exists) {
+        throw new HttpsError('not-found', 'Share link not found or expired');
+    }
+
+    const shareData = shareDoc.data()!;
+
+    // Get the activity
+    const activityDoc = await db
+        .collection('teachers')
+        .doc(shareData.teacherId)
+        .collection('microActivities')
+        .doc(shareData.microActivityId)
+        .get();
+
+    if (!activityDoc.exists) {
+        throw new HttpsError('not-found', 'Activity not found');
+    }
+
+    // Increment usage count
+    await activityDoc.ref.update({
+        usageCount: FieldValue.increment(1)
+    });
+
+    return {
+        success: true,
+        activity: {
+            id: activityDoc.id,
+            ...activityDoc.data()
+        }
+    };
+});
+
+// --- SUPER AGENT V2 - CAPABILITIES SEEDING ---
+export {
+    seedCapabilities,
+    seedCapabilitiesCallable,
+    getCapability,
+    listCapabilities
+} from './admin/seedCapabilitiesFunction';

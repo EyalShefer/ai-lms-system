@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "test": "jest --verbose",
     "test:watch": "jest --watch",
@@ -15,16 +15,27 @@
     "test:critical": "jest --testPathPattern='(CourseContext|streamingService|CourseEditor)'",
     "test:ci": "jest --ci --coverage --maxWorkers=2",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
     "type-check": "tsc --noEmit",
     "validate": "npm run type-check && npm run lint && npm run test:ci",
     "prepare": "husky",
     "remotion:preview": "remotion preview src/remotion/index.ts",
     "remotion:studio": "remotion studio src/remotion/index.ts",
-    "remotion:render": "remotion render src/remotion/index.ts"
+    "remotion:render": "remotion render src/remotion/index.ts",
+    "review": "npx tsx scripts/peer-review.ts",
+    "review:gemini": "npx tsx scripts/peer-review.ts --model gemini",
+    "review:claude": "npx tsx scripts/peer-review.ts --model claude",
+    "review:gpt4": "npx tsx scripts/peer-review.ts --model gpt4o",
+    "review:compare": "npx tsx scripts/peer-review.ts --models gemini,claude,gpt4o"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
     "@google/generative-ai": "^0.24.1",
+    "@sentry/react": "^8.0.0",
     "@remotion/cli": "^4.0.409",
     "@remotion/player": "^4.0.409",
     "@tabler/icons-react": "^3.36.0",
@@ -79,7 +90,9 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.6",
     "firebase-admin": "^13.6.0",
+    "glob": "^11.0.0",
     "husky": "^9.1.7",
+    "tsx": "^4.19.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.2.0",
     "jsdom": "^27.4.0",
@@ -88,8 +101,10 @@
     "tailwindcss": "^3.4.3",
     "ts-jest": "^29.4.6",
     "typescript": "^5.2.2",
+    "typescript-eslint": "^8.53.1",
     "vite": "^5.2.0",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "@playwright/test": "^1.50.0"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

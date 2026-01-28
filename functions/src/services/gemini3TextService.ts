@@ -14,6 +14,7 @@
 
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI } from '@google/genai';
+import { withGeminiRetry } from '../utils/retry';
 
 // Configuration for Gemini 3 Pro (Text)
 export const GEMINI_TEXT_CONFIG = {
@@ -109,15 +110,17 @@ ${content.substring(0, 1500)}
 
 Generate ONLY the HTML code, no explanations.`;
 
-        // Generate content using Google GenAI SDK
+        // Generate content using Google GenAI SDK with retry logic
         const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
-        const response = await client.models.generateContent({
-            model: GEMINI_TEXT_CONFIG.model,
-            contents: fullPrompt,
-            config: {
-                temperature: 0.5,
-                maxOutputTokens: 8192
-            }
+        const response = await withGeminiRetry(async () => {
+            return client.models.generateContent({
+                model: GEMINI_TEXT_CONFIG.model,
+                contents: fullPrompt,
+                config: {
+                    temperature: 0.5,
+                    maxOutputTokens: 8192
+                }
+            });
         });
 
         const generationTime = Date.now() - startTime;

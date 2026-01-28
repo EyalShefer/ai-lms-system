@@ -5,6 +5,12 @@ import { getStorage } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { connectFirestoreEmulator } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import {
+    initializeAppCheck,
+    ReCaptchaEnterpriseProvider,
+    ReCaptchaV3Provider,
+    getToken
+} from "firebase/app-check";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -37,6 +43,52 @@ if (typeof window !== 'undefined') {
 }
 
 export { analytics };
+
+// --- APP CHECK INITIALIZATION ---
+// Protects backend APIs from abuse by verifying requests come from our app
+// Setup: Enable App Check in Firebase Console and add reCAPTCHA site key
+let appCheck: any = null;
+
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+
+if (typeof window !== 'undefined' && RECAPTCHA_SITE_KEY) {
+    try {
+        // Use debug token in development
+        if (import.meta.env.DEV) {
+            // @ts-ignore - Debug token for local development
+            self.FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true;
+        }
+
+        appCheck = initializeAppCheck(app, {
+            provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+            isTokenAutoRefreshEnabled: true
+        });
+        console.log('🛡️ Firebase App Check initialized');
+    } catch (error) {
+        console.warn('🛡️ Firebase App Check initialization failed:', error);
+    }
+}
+
+export { appCheck };
+
+/**
+ * Get App Check token for manual API calls
+ * Use this when calling external APIs that need verification
+ */
+export async function getAppCheckToken(): Promise<string | null> {
+    if (!appCheck) {
+        console.warn('App Check not initialized');
+        return null;
+    }
+
+    try {
+        const tokenResult = await getToken(appCheck, false);
+        return tokenResult.token;
+    } catch (error) {
+        console.error('Failed to get App Check token:', error);
+        return null;
+    }
+}
 
 // --- LOCAL EMULATOR CONNECTION ---
 // Emulator connection removed to deploy to production (Java missing locally)

@@ -255,7 +255,7 @@ const TicTacToeLoader: React.FC<TicTacToeLoaderProps> = ({ isLoading, onContinue
                                     transition-all duration-200
                                     ${!cell && isXNext && !winner ? 'hover:scale-105 hover:bg-sky-50 cursor-pointer shadow-md' : ''}
                                     ${cell === 'X' ? 'text-indigo-500' : 'text-rose-400'}
-                                    ${!!cell ? 'cursor-default' : ''}
+                                    ${cell ? 'cursor-default' : ''}
                                 `}
                             >
                                 {cell}

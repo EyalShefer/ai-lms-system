@@ -13,6 +13,7 @@ interface ClozeQuestionProps {
     onHintUsed?: () => void; // ✨ NEW
     savedAnswers?: (string | null)[]; // For restoring state on back navigation
     isCompleted?: boolean; // Show completed state without re-attempt
+    onReset?: () => void; // Callback to reset parent state on "Try Again"
 }
 
 const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
@@ -22,12 +23,14 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
     hints = [],
     onHintUsed,
     savedAnswers,
-    isCompleted = false
+    isCompleted = false,
+    onReset
 }) => {
     // Telemetry Refs
     const startTimeRef = React.useRef<number>(Date.now());
     const attemptsRef = React.useRef<number>(0);
     const hintsUsedRef = React.useRef<number>(0); // ✨ NEW
+    const resetsRef = React.useRef<number>(0); // Track resets for telemetry
 
     // Safe parsing of content with memoization to prevent infinite loops
     // Safe parsing of content with robust fallback for different formats
@@ -122,6 +125,14 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
     const [currentHintLevel, setCurrentHintLevel] = useState(0);
     const [hasAttempted, setHasAttempted] = useState(false);
 
+    // NEW: Partial check feedback state - FIXED: Added more granular feedback types
+    const [partialFeedback, setPartialFeedback] = useState<{
+        cleared: number;
+        kept: number;
+        empty: number;
+        type: 'wrong' | 'partial' | 'incomplete';
+    } | null>(null);
+
     // Initialize
     useEffect(() => {
         startTimeRef.current = Date.now(); // Reset timer on new question
@@ -154,6 +165,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
         const word = e.dataTransfer.getData("text/plain");
         if (isSubmitted) return;
 
+        setPartialFeedback(null); // Clear feedback on new interaction
         setUserAnswers(prev => {
             const newState = [...prev];
             newState[index] = word;
@@ -167,6 +179,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
 
     const removeAnswer = (index: number) => {
         if (isSubmitted) return;
+        setPartialFeedback(null); // Clear feedback on new interaction
         setUserAnswers(prev => {
             const newState = [...prev];
             newState[index] = null;
@@ -177,13 +190,23 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
     const checkAnswers = () => {
         setHasAttempted(true); // ✨ Unlock hints
         attemptsRef.current += 1;
+        setPartialFeedback(null); // Clear any previous feedback
 
         let correctCount = 0;
+        let wrongCount = 0;
+        let emptyCount = 0;
+
         userAnswers.forEach((ans, i) => {
-            if (ans === hidden_words[i]) correctCount++;
+            if (ans === null) {
+                emptyCount++;
+            } else if (ans === hidden_words[i]) {
+                correctCount++;
+            } else {
+                wrongCount++;
+            }
         });
 
-        // Calculate raw accuracy
+        // Calculate raw accuracy based on total blanks
         const accuracy = correctCount / hidden_words.length;
         const isFullyCorrect = accuracy === 1;
         const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
@@ -213,6 +236,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                     timeSeconds: Math.round(timeSpent),
                     attempts: attemptsRef.current,
                     hintsUsed: hintsUsedRef.current,
+                    resets: resetsRef.current,
                     lastAnswer: userAnswers
                 });
             }
@@ -223,11 +247,52 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                 hintsUsedRef.current += 1;
                 onHintUsed?.();
             }
-            // Clear wrong answers to allow re-attempt
+
+            // FIXED: Show clear feedback about what was cleared/kept/empty
+            if (wrongCount > 0) {
+                setPartialFeedback({
+                    cleared: wrongCount,
+                    kept: correctCount,
+                    empty: emptyCount,
+                    type: 'wrong'
+                });
+            } else if (correctCount > 0 && emptyCount > 0) {
+                setPartialFeedback({
+                    cleared: 0,
+                    kept: correctCount,
+                    empty: emptyCount,
+                    type: 'partial'
+                });
+            } else if (emptyCount > 0 && correctCount === 0) {
+                // All empty or partial - shouldn't happen since button is disabled, but handle gracefully
+                setPartialFeedback({
+                    cleared: 0,
+                    kept: 0,
+                    empty: emptyCount,
+                    type: 'incomplete'
+                });
+            }
+
+            // Clear wrong answers to allow re-attempt (keep correct ones)
             setUserAnswers(prev => prev.map((ans, i) =>
                 ans === hidden_words[i] ? ans : null // Keep correct, clear wrong
             ));
         }
+    };
+
+    // Pre-submission reset - clears all answers, doesn't reset attempts
+    const handlePreSubmitReset = () => {
+        if (isSubmitted) return; // Safety check
+
+        resetsRef.current += 1; // Track reset for telemetry
+
+        // Clear all answers
+        setUserAnswers(new Array(hidden_words.length).fill(null));
+
+        // Clear feedback and hints display (but don't reset counters)
+        setPartialFeedback(null);
+        setCurrentHintLevel(0);
+        setHasAttempted(false);
     };
 
     // Split sentence by placeholders
@@ -287,6 +352,7 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                                 // Find first empty blank
                                 const firstEmpty = userAnswers.findIndex(a => a === null);
                                 if (firstEmpty !== -1) {
+                                    setPartialFeedback(null); // Clear feedback on new interaction
                                     setUserAnswers(prev => {
                                         const newState = [...prev];
                                         newState[firstEmpty] = word;
@@ -329,45 +395,113 @@ const ClozeQuestion: React.FC<ClozeQuestionProps> = ({
                 </div>
             )}
 
+            {/* FIXED: Partial Check Feedback - Clear distinction between different states */}
+            {!isSubmitted && partialFeedback && (
+                <div className="mb-6 animate-fade-in" role="alert" aria-live="polite">
+                    <div className={`border-2 rounded-xl p-4 ${
+                        partialFeedback.type === 'wrong'
+                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600'
+                            : partialFeedback.type === 'partial'
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600'
+                                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600'
+                    }`}>
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">
+                                {partialFeedback.type === 'wrong' ? '🔄' : partialFeedback.type === 'partial' ? '✨' : '⚠️'}
+                            </span>
+                            <div className="flex-1 text-right">
+                                {partialFeedback.type === 'wrong' ? (
+                                    <>
+                                        <div className="font-bold text-orange-700 dark:text-orange-300 mb-1">
+                                            יש טעויות - נסו שוב!
+                                        </div>
+                                        <div className="text-sm text-orange-600 dark:text-orange-400">
+                                            {partialFeedback.kept > 0 && (
+                                                <span>✓ {partialFeedback.kept} תשובות נכונות נשארו במקום. </span>
+                                            )}
+                                            <span>{partialFeedback.cleared} תשובות שגויות הוסרו - השלימו את החסר.</span>
+                                        </div>
+                                    </>
+                                ) : partialFeedback.type === 'partial' ? (
+                                    <>
+                                        <div className="font-bold text-blue-700 dark:text-blue-300 mb-1">
+                                            יפה! המשיכו למלא
+                                        </div>
+                                        <div className="text-sm text-blue-600 dark:text-blue-400">
+                                            ✓ {partialFeedback.kept} תשובות נכונות - השלימו את {partialFeedback.empty} משבצות נוספות.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="font-bold text-amber-700 dark:text-amber-300 mb-1">
+                                            לא סיימת למלא!
+                                        </div>
+                                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                                            יש עוד {partialFeedback.empty} משבצות ריקות - גררו מילים מהמחסן.
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {!isSubmitted && (
-                <div className="text-center">
-                    <button
-                        onClick={checkAnswers}
-                        aria-label="בדיקת התשובות"
-                        className="bg-blue-600 dark:bg-wizdi-action text-white px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition-transform active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
-                    >
-                        בדיקה
-                    </button>
-                    {userAnswers.some(a => a === null) && (
-                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">ניתן לבדוק גם תשובות חלקיות</p>
+                <div className="text-center flex flex-col items-center gap-3">
+                    <div className="flex gap-3 justify-center">
+                        {!isExamMode && (
+                            <button
+                                onClick={handlePreSubmitReset}
+                                className="bg-gray-500 dark:bg-slate-600 text-white px-6 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-gray-600 dark:hover:bg-slate-500 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+                                aria-label="איפוס השאלה - ניקוי כל התשובות"
+                            >
+                                איפוס
+                            </button>
+                        )}
+                        <button
+                            onClick={checkAnswers}
+                            disabled={!userAnswers.some(a => a !== null)}
+                            aria-label="בדיקת התשובות"
+                            aria-disabled={!userAnswers.some(a => a !== null)}
+                            className={`px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ${
+                                userAnswers.some(a => a !== null)
+                                    ? 'bg-blue-600 dark:bg-wizdi-action text-white hover:bg-blue-700 dark:hover:bg-wizdi-action-hover active:scale-95 motion-reduce:transition-none cursor-pointer'
+                                    : 'bg-gray-300 dark:bg-slate-600 text-gray-500 dark:text-slate-400 cursor-not-allowed'
+                            }`}
+                        >
+                            בדיקה
+                        </button>
+                    </div>
+                    {userAnswers.some(a => a === null) && userAnswers.some(a => a !== null) && (
+                        <p className="text-xs text-gray-400 dark:text-slate-500">ניתן לבדוק גם תשובות חלקיות</p>
+                    )}
+                    {!userAnswers.some(a => a !== null) && (
+                        <p className="text-xs text-gray-400 dark:text-slate-500">גררו מילה לפחות אחת כדי לבדוק</p>
                     )}
                 </div>
             )}
 
-            {isSubmitted && (
-                <div className="mt-6 text-center animate-fade-in motion-reduce:animate-none" role="alert" aria-live="polite">
-                    <div className="text-lg font-bold mb-4">
-                        {userAnswers.every((a, i) => a === hidden_words[i]) ? (
-                            <span className="text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
-                                <IconCheck className="w-6 h-6" aria-hidden="true" /> מעולה! כל התשובות נכונות
-                            </span>
-                        ) : (
-                            <div className="flex flex-col items-center gap-2">
-                                <span className="text-red-500 dark:text-red-400 flex items-center justify-center gap-2">
-                                    <IconX className="w-6 h-6" aria-hidden="true" /> יש טעויות
-                                </span>
-                                <button
-                                    onClick={() => {
-                                        setIsSubmitted(false);
-                                        setUserAnswers(new Array(hidden_words.length).fill(null));
-                                    }}
-                                    className="text-blue-600 dark:text-wizdi-cyan text-sm hover:underline mt-2 min-h-[44px] px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 rounded"
-                                >
-                                    נסו שוב
-                                </button>
-                            </div>
-                        )}
-                    </div>
+            {/* Post-submission: Only show "Try Again" button for incorrect answers - feedback text is shown in parent to avoid redundancy */}
+            {isSubmitted && !userAnswers.every((a, i) => a === hidden_words[i]) && (
+                <div className="mt-6 text-center animate-fade-in motion-reduce:animate-none">
+                    <button
+                        onClick={() => {
+                            setIsSubmitted(false);
+                            setPartialFeedback(null);
+                            setUserAnswers(new Array(hidden_words.length).fill(null));
+                            attemptsRef.current = 0;
+                            hintsUsedRef.current = 0;
+                            setCurrentHintLevel(0);
+                            setHasAttempted(false);
+                            startTimeRef.current = Date.now();
+                            // Notify parent to reset its state
+                            onReset?.();
+                        }}
+                        className="bg-blue-600 dark:bg-wizdi-action text-white px-6 py-2 min-h-[44px] rounded-full font-bold shadow-md hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+                    >
+                        נסו שוב
+                    </button>
                 </div>
             )}
         </div>

@@ -8,6 +8,7 @@ import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { withGeminiRetry } from './utils/retry';
 
 // Google AI Studio API Key
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
@@ -88,13 +89,15 @@ export const generateGeminiImage = onRequest(
                 vertexai: false
             });
 
-            // 6. Generate image
-            const response = await client.models.generateContent({
-                model: GEMINI_IMAGE_MODEL,
-                contents: prompt,
-                config: {
-                    responseModalities: [Modality.IMAGE, Modality.TEXT],
-                }
+            // 6. Generate image with retry logic
+            const response = await withGeminiRetry(async () => {
+                return client.models.generateContent({
+                    model: GEMINI_IMAGE_MODEL,
+                    contents: prompt,
+                    config: {
+                        responseModalities: [Modality.IMAGE, Modality.TEXT],
+                    }
+                });
             });
 
             // 7. Extract image from response

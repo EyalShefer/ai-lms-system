@@ -1297,20 +1297,22 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
             <div className="max-w-7xl mx-auto">
                 {/* Header - Bento Style */}
                 <div className="bento-card mb-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
-                    <div>
+                    <div className="flex items-center gap-4">
+                        {/* Back button next to title */}
                         <button
                             onClick={onBack}
-                            className="flex items-center gap-2 text-slate-500 hover:text-violet-600 mb-4 transition-colors font-medium"
+                            className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
+                            title="חזרה לדשבורד"
                         >
-                            <IconArrowRight size={20} />
-                            חזרה לדשבורד
+                            <IconArrowRight size={24} className="text-slate-600" />
                         </button>
-                        <h1 className="text-3xl md:text-4xl font-black mb-2 flex items-center gap-3">
-                            <div className="ai-icon-container w-14 h-14">
-                                <IconClipboardCheck className="w-7 h-7 text-white" />
-                            </div>
-                            <span className="ai-gradient-text">לוח משימה</span>
-                        </h1>
+                        <div>
+                            <h1 className="text-3xl md:text-4xl font-black mb-2 flex items-center gap-3">
+                                <div className="ai-icon-container w-14 h-14">
+                                    <IconClipboardCheck className="w-7 h-7 text-white" />
+                                </div>
+                                <span className="ai-gradient-text">לוח משימה</span>
+                            </h1>
                         <p className="text-slate-500 text-lg">
                             {course?.title ? (
                                 <span className="font-semibold ai-gradient-text">{course.title}</span>
@@ -1338,6 +1340,7 @@ export const TaskDetailDashboard: React.FC<TaskDetailDashboardProps> = ({
                                 )}
                             </div>
                         )}
+                        </div>
                     </div>
 
                     {/* Actions */}

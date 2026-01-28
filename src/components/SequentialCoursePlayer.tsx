@@ -1016,6 +1016,23 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
         processComplexResult(score, telemetryData);
     };
 
+    // Reset handler for "Try Again" in complex components (Cloze, etc.)
+    const handleComplexBlockReset = () => {
+        // Clear parent state so the user can re-attempt the question
+        setStepStatus('idle');
+        setFeedbackMsg(null);
+        setStepResults(prev => {
+            const newResults = { ...prev };
+            delete newResults[currentBlock.id];
+            return newResults;
+        });
+        setUserAnswers(prev => {
+            const newAnswers = { ...prev };
+            delete newAnswers[currentBlock.id];
+            return newAnswers;
+        });
+    };
+
     // NEW: Process results from complex questions with partial scoring
     const processComplexResult = async (score: number, _telemetryData?: { attempts?: number, hintsUsed?: number }) => {
         const isPerfect = score === 100;
@@ -1594,21 +1611,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             value={userAnswers[currentBlock.id] || ''}
                         />
 
-                        {/* Scaffolded Feedback Display */}
-                        {feedbackMsg && stepStatus !== 'failure' && (
-                            <div className={`animate-in slide-in-from-top-2 border-2 rounded-2xl p-4 ${
-                                stepStatus === 'success'
-                                    ? 'bg-green-50 border-green-200 text-green-900'
-                                    : 'bg-amber-50 border-amber-200 text-amber-900'
-                            }`}>
+                        {/* Scaffolded Feedback Display - only for hints/partial feedback, NOT success (which is shown in bottom bar) */}
+                        {feedbackMsg && stepStatus !== 'failure' && stepStatus !== 'success' && (
+                            <div className="animate-in slide-in-from-top-2 border-2 rounded-2xl p-4 bg-amber-50 border-amber-200 text-amber-900">
                                 <div className="flex items-start gap-3">
-                                    <span className="text-2xl">{stepStatus === 'success' ? '🎉' : '💭'}</span>
+                                    <span className="text-2xl">💭</span>
                                     <div className="flex-1">
-                                        <p className="font-bold text-lg mb-1">
-                                            {stepStatus === 'success' ? 'כל הכבוד!' : 'משוב מהמורה:'}
-                                        </p>
+                                        <p className="font-bold text-lg mb-1">משוב מהמורה:</p>
                                         <p className="whitespace-pre-line">{feedbackMsg}</p>
-                                        {openQuestionAttemptCount > 0 && stepStatus !== 'success' && (
+                                        {openQuestionAttemptCount > 0 && (
                                             <p className="text-sm mt-2 text-amber-700">
                                                 ניסיון {openQuestionAttemptCount} • נסה לשפר את התשובה ולחץ שוב על "בדיקה"
                                             </p>
@@ -1646,11 +1657,11 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                 );
 
             case 'fill_in_blanks':
-                return <ClozeQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
+                return <ClozeQuestion block={currentBlock} onComplete={handleComplexBlockComplete} onReset={handleComplexBlockReset} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'ordering':
                 return <OrderingQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'categorization':
-                return <CategorizationQuestion block={currentBlock} onComplete={handleComplexBlockComplete} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
+                return <CategorizationQuestion block={currentBlock} onComplete={handleComplexBlockComplete} onReset={handleComplexBlockReset} savedAnswers={userAnswers[currentBlock.id]} isCompleted={!!stepResults[currentBlock.id]} />;
             case 'memory_game':
                 return <MemoryGameQuestion block={currentBlock} onComplete={handleComplexBlockComplete} />;
             case 'true_false_speed':
@@ -2059,7 +2070,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
     // --- Student Player (Default) ---
     return (
-        <div className="fixed top-20 bottom-0 left-0 right-0 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex flex-col font-sans overflow-hidden" dir="rtl">
+        <div className="fixed inset-0 pt-20 bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 flex flex-col font-sans overflow-hidden h-[100dvh]" dir="rtl">
             {/* AI Background Particles */}
             <div className="ai-particles opacity-30" aria-hidden="true">
                 <div className="ai-particle"></div>
@@ -2227,7 +2238,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
             </div>
 
             {/* 2. Main Card Area with Optional Source Panel */}
-            <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? 'pb-48' : 'pb-32'}`}>
+            <div className={`flex-1 overflow-hidden flex transition-all duration-300 ${(stepStatus === 'success' || stepStatus === 'failure' || stepStatus === 'partial') ? 'pb-36 sm:pb-44' : 'pb-24 sm:pb-28'}`}>
 
                 {/* Source Document Panel (Left side when open) - AI-Native Style */}
                 {showSourcePanel && shouldShowSource && (
@@ -2288,9 +2299,9 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                             // Only show inline context if source panel is closed
                             if (hasContext && !showSourcePanel) {
                                 return (
-                                    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:min-h-[500px]">
+                                    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:min-h-[min(500px,55dvh)]">
                                         {/* Context Panel (Left/Top) - AI-Native Bento Card */}
-                                        <div className="lg:flex-1 lg:w-1/2 bento-card bento-static bg-white/90 backdrop-blur-sm rounded-[32px] shadow-xl p-4 md:p-6 lg:p-8 overflow-y-auto border border-slate-200/50 max-h-[40vh] lg:max-h-[70vh] lg:min-h-[400px] relative">
+                                        <div className="lg:flex-1 lg:w-1/2 bento-card bento-static bg-white/90 backdrop-blur-sm rounded-[32px] shadow-xl p-4 md:p-6 lg:p-8 overflow-y-auto border border-slate-200/50 max-h-[35dvh] lg:max-h-[50dvh] lg:min-h-[min(400px,45dvh)] relative">
                                             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-300 via-violet-400 to-slate-300 opacity-50"></div>
                                             {prevBlock.type === 'pdf' ? (
                                                 <iframe
@@ -2319,7 +2330,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
 
                             // Standard Single View - AI-Native Bento Card
                             return (
-                                <div className={`bento-card bento-static bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl overflow-hidden min-h-[500px] flex flex-col relative animate-in zoom-in-95 duration-300 ${showSourcePanel ? 'max-w-full' : 'max-w-5xl'} mx-auto w-full border border-white/50`}>
+                                <div className={`bento-card bento-static bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl overflow-hidden min-h-[min(500px,60dvh)] flex flex-col relative animate-in zoom-in-95 duration-300 ${showSourcePanel ? 'max-w-full' : 'max-w-5xl'} mx-auto w-full border border-white/50`}>
                                     {/* Subtle AI gradient overlay at top */}
                                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 opacity-60"></div>
                                     <div className="p-8 md:p-12 flex-1 flex flex-col justify-center relative z-10">
@@ -2365,7 +2376,7 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                         }
 
                         setShowSuccessModal(false);
-                        onExit && onExit();
+                        if (onExit) onExit();
                     }}
                     onReview={() => {
                         setShowSuccessModal(false);
@@ -2421,11 +2432,15 @@ const SequentialCoursePlayer: React.FC<SequentialPlayerProps> = ({ assignment, o
                                          ''}
                                     </h3>
                                 </div>
-                                {feedbackMsg && <p className={`text-lg font-medium whitespace-pre-line break-words max-w-prose ${
-                                    stepStatus === 'success' ? 'text-emerald-700' :
-                                    stepStatus === 'partial' ? 'text-amber-700' :
-                                    'text-sky-700'
-                                }`}>{feedbackMsg}</p>}
+                                {feedbackMsg &&
+                                 !(stepStatus === 'success' && feedbackMsg === 'מעולה!') &&
+                                 !(stepStatus === 'partial' && feedbackMsg === 'כמעט!') && (
+                                    <p className={`text-lg font-medium whitespace-pre-line break-words max-w-prose ${
+                                        stepStatus === 'success' ? 'text-emerald-700' :
+                                        stepStatus === 'partial' ? 'text-amber-700' :
+                                        'text-sky-700'
+                                    }`}>{feedbackMsg}</p>
+                                )}
                                 <div className="mt-2 text-right">
                                     <FeedbackWidget
                                         courseId={course.id}

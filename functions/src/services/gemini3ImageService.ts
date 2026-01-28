@@ -13,6 +13,7 @@
 
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { withGeminiRetry } from '../utils/retry';
 
 /**
  * Gemini 3 Pro Image configuration
@@ -77,13 +78,15 @@ export const generateGemini3Image = async (
       apiKey: process.env.GEMINI_API_KEY!
     });
 
-    // Generate content with image output
-    const response = await client.models.generateContent({
-      model: GEMINI3_IMAGE_CONFIG.model,
-      contents: prompt,
-      config: {
-        responseModalities: [Modality.IMAGE, Modality.TEXT],
-      }
+    // Generate content with image output and retry logic
+    const response = await withGeminiRetry(async () => {
+      return client.models.generateContent({
+        model: GEMINI3_IMAGE_CONFIG.model,
+        contents: prompt,
+        config: {
+          responseModalities: [Modality.IMAGE, Modality.TEXT],
+        }
+      });
     });
 
     const generationTime = Date.now() - startTime;

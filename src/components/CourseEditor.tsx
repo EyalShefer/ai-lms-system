@@ -370,14 +370,30 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     const wizardHasRun = useRef(false);
     const hasAutoSelected = useRef(false);
 
+    // Reset refs when course changes to allow fresh generation
+    useEffect(() => {
+        if (course?.id && course.id !== 'loading') {
+            console.log("[CourseEditor] 🔄 Course changed, resetting refs for course:", course?.id);
+            wizardHasRun.current = false;
+            hasAutoSelected.current = false;
+            setSelectedUnitId(null); // Reset selected unit for new course
+        }
+    }, [course?.id]);
+
     // --- התיקון לקריטי למניעת 429 ולולאות ---
     // --- התיקון לקריטי למניעת 429 ולולאות ---
     useEffect(() => {
         // הגנה ראשונית: אם כבר רץ וויזארד או שיש תהליך יצירה, עוצרים
-        if (wizardHasRun.current || isGenerating) return;
+        if (wizardHasRun.current || isGenerating) {
+            console.log("[CourseEditor] ⛔ Early return - wizardHasRun:", wizardHasRun.current, "isGenerating:", isGenerating);
+            return;
+        }
 
         // הגנה משנית: אם אין קורס כלל או שהוא בטעינה
-        if (!course || course.id === 'loading') return;
+        if (!course || course.id === 'loading') {
+            console.log("[CourseEditor] ⛔ Early return - course missing or loading");
+            return;
+        }
 
         // בדיקה האם הקורס מאוכלס בסילבוס
         const hasSyllabus = course.syllabus && course.syllabus.length > 0;
@@ -390,8 +406,19 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
         const firstUnit = course.syllabus?.[0]?.learningUnits?.[0];
         const isFreshShell = hasSyllabus && firstUnit && (!firstUnit.activityBlocks || firstUnit.activityBlocks.length === 0);
 
+        console.log("[CourseEditor] 🔍 Auto-select check:", {
+            hasSyllabus,
+            isLessonMode,
+            isFreshShell,
+            hasAutoSelected: hasAutoSelected.current,
+            selectedUnitId,
+            firstUnitId: firstUnit?.id,
+            productType: course.wizardData?.settings?.productType,
+            courseMode: course.mode
+        });
+
         if (isFreshShell && course.wizardData && isLessonMode) {
-            // console.log("🚀 Detected Fresh Lesson Shell. Triggering V4 Auto-Generation...");
+            console.log("🚀 Detected Fresh Lesson Shell. Triggering V4 Auto-Generation...");
             handleWizardComplete(course.wizardData);
             return;
         }
@@ -400,8 +427,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
             if (firstUnit && !selectedUnitId) {
                 // CRITICAL: Prevent auto-select for Lesson Plans
                 if (!isLessonMode) {
+                    console.log("[CourseEditor] ✅ Setting selectedUnitId to:", firstUnit.id);
                     setSelectedUnitId(firstUnit.id);
                     hasAutoSelected.current = true;
+                } else {
+                    console.log("[CourseEditor] ⛔ Skipping auto-select (lesson mode)");
                 }
             }
         }
@@ -1630,7 +1660,13 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ onBack }) => {
     // For now, we restrict the "Always Open" behavior to Lesson Mode to avoid trapping Game Mode users.
     const unitToRender = activeUnit || (isLessonMode ? defaultUnit : null);
 
-    // console.log("DEBUG: Editor Render. active:", !!activeUnit, "default:", !!defaultUnit, "isLesson:", isLessonMode, "RENDER:", unitToRender ? "UnitEditor" : "Overview");
+    console.log("[CourseEditor] 🎯 Render check:", {
+        activeUnit: !!activeUnit,
+        defaultUnit: !!defaultUnit,
+        isLessonMode,
+        unitToRender: unitToRender ? unitToRender.id : null,
+        selectedUnitId
+    });
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans">

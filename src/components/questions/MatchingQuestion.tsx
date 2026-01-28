@@ -323,17 +323,10 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 </div>
             )}
 
-            {/* Results */}
-            {isSubmitted && (
+            {/* Results - only show error feedback; success is shown in parent to avoid redundancy */}
+            {isSubmitted && !(Object.values(results).every(r => r) && connections.length === correctMatches.length) && (
                 <div className="mt-6 animate-fade-in">
-                    {Object.values(results).every(r => r) && connections.length === correctMatches.length ? (
-                        <div className="text-center">
-                            <span className="text-green-400 flex items-center justify-center gap-2 text-lg font-bold">
-                                <IconCheck className="w-6 h-6" /> כל הכבוד! כל ההתאמות נכונות
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
+                    <div className="space-y-4">
                             <div className="text-center">
                                 <span className="text-red-400 flex items-center justify-center gap-2 text-lg font-bold">
                                     <IconX className="w-6 h-6" /> יש התאמות שגויות
@@ -412,7 +405,6 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                                 </button>
                             </div>
                         </div>
-                    )}
                 </div>
             )}
         </div>

@@ -11,6 +11,7 @@ interface CategorizationQuestionProps {
     onHintUsed?: () => void; // ✨ NEW
     savedAnswers?: Record<string, Item[]>; // For restoring state on back navigation
     isCompleted?: boolean; // Show completed state without re-attempt
+    onReset?: () => void; // Callback to reset parent state on "Try Again"
 }
 
 interface Item {
@@ -26,12 +27,14 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     hints = [],
     onHintUsed,
     savedAnswers,
-    isCompleted = false
+    isCompleted = false,
+    onReset
 }) => {
     // Telemetry
     const startTimeRef = useRef<number>(Date.now());
     const attemptsRef = useRef<number>(0);
     const hintsUsedRef = useRef<number>(0); // ✨ NEW
+    const resetsRef = useRef<number>(0); // Track resets for telemetry
 
     // Safe parsing
     // Safe parsing
@@ -52,6 +55,7 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     const [currentHintLevel, setCurrentHintLevel] = useState(0); // ✨ NEW: Progressive hints
     const [draggingId, setDraggingId] = useState<string | null>(null); // Track which item is being dragged
     const [justDroppedId, setJustDroppedId] = useState<string | null>(null); // Track recently dropped item for bounce animation
+    const [partialFeedback, setPartialFeedback] = useState<{ correct: number; total: number; incomplete: boolean } | null>(null); // NEW: Partial check feedback
 
     useEffect(() => {
         // Reset Telemetry
@@ -105,7 +109,12 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     // Call 1: Imports and Top Logic.
 
     const handleDragStart = (e: React.DragEvent, itemId: string, source: 'bank' | string) => {
-        setIsSubmitted(false);
+        // FIXED: Don't auto-unlock on drag - require explicit "Try Again" action
+        if (isSubmitted) {
+            e.preventDefault();
+            return;
+        }
+        setPartialFeedback(null); // Clear feedback on new interaction
         setDraggingId(itemId);
         e.dataTransfer.setData("itemId", itemId);
         e.dataTransfer.setData("source", source);
@@ -174,38 +183,51 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
     };
 
     const checkAnswers = () => {
-        // אם כבר בדק ולחץ "בדוק שוב" - לאפשר תיקון
-        if (isSubmitted) {
-            setIsSubmitted(false);
-            return;
+        // FIXED: Removed confusing toggle logic - use explicit "Try Again" button instead
+        if (isSubmitted) return;
+
+        // Count items in buckets vs bank
+        const itemsInBuckets = Object.values(buckets).reduce((sum, items) => sum + items.length, 0);
+        const totalItems = items.length;
+        const itemsInBank = bankItems.length;
+
+        // FIXED: Check for incomplete board - all items must be sorted
+        if (itemsInBank > 0) {
+            // Show feedback for incomplete task
+            setPartialFeedback({
+                correct: 0,
+                total: totalItems,
+                incomplete: true
+            });
+            return; // Don't count as attempt - user needs to sort all items first
         }
 
         attemptsRef.current += 1;
+        setPartialFeedback(null);
 
         let correctCount = 0;
-        let totalItems = 0;
+        let wrongItems: Item[] = [];
 
         Object.entries(buckets).forEach(([cat, catItems]) => {
             catItems.forEach(item => {
-                totalItems++;
-                if (item.category === cat) correctCount++;
+                if (item.category === cat) {
+                    correctCount++;
+                } else {
+                    wrongItems.push(item);
+                }
             });
         });
-
-        // Also count items left in bank as incomplete/incorrect if we want strictly all assigned
-        // In this implementation, total items is based on what's defined in the block
-        totalItems = items.length;
 
         const isFullyCorrect = correctCount === totalItems;
         const accuracy = correctCount / totalItems;
         const maxAttempts = SCORING_CONFIG.MAX_ATTEMPTS;
 
-        // ✅ NEW: 3-attempt logic with progressive hints
+        // ✅ 3-attempt logic with progressive hints
         if (isFullyCorrect || attemptsRef.current >= maxAttempts) {
             // Correct or final attempt - lock the question
             setIsSubmitted(true);
 
-            // ✅ FIXED: Use central scoring function with hints
+            // ✅ Use central scoring function with hints
             const baseScore = calculateQuestionScore({
                 isCorrect: isFullyCorrect,
                 attempts: attemptsRef.current,
@@ -222,18 +244,88 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                     timeSeconds: Math.round(timeSpent),
                     attempts: attemptsRef.current,
                     hintsUsed: hintsUsedRef.current,
+                    resets: resetsRef.current,
                     lastAnswer: buckets
                 });
             }
         } else {
-            // Still have attempts - show progressive hint and allow retry
+            // Still have attempts - show feedback, move wrong items back to bank, allow retry
+            setPartialFeedback({
+                correct: correctCount,
+                total: totalItems,
+                incomplete: false
+            });
+
+            // Move wrong items back to bank for correction
+            if (wrongItems.length > 0) {
+                const newBuckets: Record<string, Item[]> = {};
+                Object.entries(buckets).forEach(([cat, catItems]) => {
+                    newBuckets[cat] = catItems.filter(item => item.category === cat); // Keep only correct items
+                });
+                setBuckets(newBuckets);
+                setBankItems(prev => [...prev, ...wrongItems]); // Return wrong items to bank
+            }
+
+            // Show progressive hint
             if (currentHintLevel < hints.length) {
                 setCurrentHintLevel(prev => prev + 1);
                 hintsUsedRef.current += 1;
                 onHintUsed?.();
             }
-            // Don't lock - allow user to continue dragging
         }
+    };
+
+    // Pre-submission reset - just reshuffles, doesn't reset attempts
+    const handlePreSubmitReset = () => {
+        if (isSubmitted) return; // Safety check
+
+        resetsRef.current += 1; // Track reset for telemetry
+
+        // Return all items to bank (reshuffled)
+        const safeItems = Array.isArray(items) ? items : [];
+        const allItems = safeItems.map((item, index) => ({
+            ...item,
+            text: item?.text || '?',
+            category: item?.category || 'Uncategorized',
+            id: `item-${index}`
+        })).sort(() => Math.random() - 0.5);
+
+        setBankItems(allItems);
+
+        const emptyBuckets: Record<string, Item[]> = {};
+        categories.forEach(c => emptyBuckets[c] = []);
+        setBuckets(emptyBuckets);
+
+        // Clear partial feedback and hints display (but don't reset counters)
+        setPartialFeedback(null);
+        setCurrentHintLevel(0);
+    };
+
+    // NEW: Reset handler for "Try Again" button (post-submission)
+    const handleReset = () => {
+        setIsSubmitted(false);
+        setPartialFeedback(null);
+
+        // Return all items to bank
+        const allItems = [
+            ...bankItems,
+            ...Object.values(buckets).flat()
+        ].sort(() => Math.random() - 0.5);
+
+        setBankItems(allItems);
+
+        const emptyBuckets: Record<string, Item[]> = {};
+        categories.forEach(c => emptyBuckets[c] = []);
+        setBuckets(emptyBuckets);
+
+        // Reset tracking
+        attemptsRef.current = 0;
+        hintsUsedRef.current = 0;
+        setCurrentHintLevel(0);
+        startTimeRef.current = Date.now();
+
+        // Notify parent
+        onReset?.();
     };
 
     return (
@@ -348,13 +440,13 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                     {hints.slice(0, currentHintLevel).map((hint, idx) => (
                         <div
                             key={idx}
-                            className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 animate-fade-in"
+                            className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-600 rounded-xl p-4 animate-fade-in"
                         >
                             <div className="flex items-start gap-3">
                                 <span className="text-2xl">💡</span>
                                 <div className="flex-1">
-                                    <div className="text-xs text-yellow-700 font-bold mb-1">רמז {idx + 1}</div>
-                                    <div className="text-gray-700">{hint}</div>
+                                    <div className="text-xs text-yellow-700 dark:text-yellow-400 font-bold mb-1">רמז {idx + 1}</div>
+                                    <div className="text-gray-700 dark:text-slate-200">{hint}</div>
                                 </div>
                             </div>
                         </div>
@@ -362,15 +454,89 @@ const CategorizationQuestion: React.FC<CategorizationQuestionProps> = ({
                 </div>
             )}
 
-            <div className="text-center">
-                <button
-                    onClick={checkAnswers}
-                    aria-label={isSubmitted ? 'בדוק שוב' : 'בדיקת התשובות'}
-                    className="bg-blue-600 dark:bg-wizdi-action text-white px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
-                >
-                    {isSubmitted ? 'בדוק שוב' : 'בדיקה'}
-                </button>
-            </div>
+            {/* FIXED: Partial Check Feedback - shows when items are incomplete or partially correct */}
+            {!isSubmitted && partialFeedback && (
+                <div className="mb-6 animate-fade-in" role="alert" aria-live="polite">
+                    <div className={`border-2 rounded-xl p-4 ${
+                        partialFeedback.incomplete
+                            ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600'
+                            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600'
+                    }`}>
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">{partialFeedback.incomplete ? '⚠️' : '🔄'}</span>
+                            <div className="flex-1 text-right">
+                                {partialFeedback.incomplete ? (
+                                    <>
+                                        <div className="font-bold text-amber-700 dark:text-amber-300 mb-1">
+                                            לא סיימת למיין!
+                                        </div>
+                                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                                            יש פריטים במחסן - גרור את כולם לקטגוריות המתאימות לפני הבדיקה.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="font-bold text-orange-700 dark:text-orange-300 mb-1">
+                                            יש טעויות - נסו שוב!
+                                        </div>
+                                        <div className="text-sm text-orange-600 dark:text-orange-400">
+                                            {partialFeedback.correct > 0 && (
+                                                <span>✓ {partialFeedback.correct} פריטים נכונים נשארו במקום. </span>
+                                            )}
+                                            <span>{partialFeedback.total - partialFeedback.correct} פריטים הוחזרו למחסן - סדרו אותם מחדש.</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Check Button - FIXED: Disabled when board is empty */}
+            {!isSubmitted && (
+                <div className="text-center flex flex-col items-center gap-3">
+                    <div className="flex gap-3 justify-center">
+                        {!isExamMode && (
+                            <button
+                                onClick={handlePreSubmitReset}
+                                className="bg-gray-500 dark:bg-slate-600 text-white px-6 py-3 min-h-[44px] rounded-full font-bold shadow-lg hover:bg-gray-600 dark:hover:bg-slate-500 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+                                aria-label="איפוס השאלה - החזרת כל הפריטים למחסן"
+                            >
+                                איפוס
+                            </button>
+                        )}
+                        <button
+                            onClick={checkAnswers}
+                            disabled={Object.values(buckets).every(items => items.length === 0)}
+                            aria-label="בדיקת התשובות"
+                            aria-disabled={Object.values(buckets).every(items => items.length === 0)}
+                            className={`px-8 py-3 min-h-[44px] rounded-full font-bold shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2 ${
+                                Object.values(buckets).some(items => items.length > 0)
+                                    ? 'bg-blue-600 dark:bg-wizdi-action text-white hover:bg-blue-700 dark:hover:bg-wizdi-action-hover active:scale-95 motion-reduce:transition-none cursor-pointer'
+                                    : 'bg-gray-300 dark:bg-slate-600 text-gray-500 dark:text-slate-400 cursor-not-allowed'
+                            }`}
+                        >
+                            בדיקה
+                        </button>
+                    </div>
+                    {Object.values(buckets).every(items => items.length === 0) && (
+                        <p className="text-xs text-gray-400 dark:text-slate-500">גררו פריטים לקטגוריות כדי לבדוק</p>
+                    )}
+                </div>
+            )}
+
+            {/* Post-submission: Only show "Try Again" button for incorrect answers - feedback text is shown in parent to avoid redundancy */}
+            {isSubmitted && !Object.entries(buckets).every(([cat, catItems]) => catItems.every(item => item.category === cat)) && (
+                <div className="mt-6 text-center animate-fade-in motion-reduce:animate-none">
+                    <button
+                        onClick={handleReset}
+                        className="bg-blue-600 dark:bg-wizdi-action text-white px-6 py-2 min-h-[44px] rounded-full font-bold shadow-md hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+                    >
+                        נסו שוב
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

@@ -229,6 +229,18 @@ const DEFAULT_CONFIG = {
     ]
 };
 
+// Chat context type for pre-filling wizard from bot conversation
+interface ChatContext {
+    topic?: string;
+    grade?: string;
+    subject?: string;
+    productType?: 'lesson' | 'podcast' | 'exam' | 'activity' | 'micro';
+    activityLength?: 'short' | 'medium' | 'long';
+    profile?: 'balanced' | 'educational' | 'game' | 'custom';
+    difficultyLevel?: string;
+    conversationSummary?: string;
+}
+
 interface IngestionWizardProps {
     onComplete: (data: any) => void;
     onCancel: () => void;
@@ -238,6 +250,7 @@ interface IngestionWizardProps {
     title?: string;
     cancelLabel?: string;
     cancelIcon?: React.ReactNode;
+    chatContext?: ChatContext;
 }
 
 // --- UI Components ---
@@ -400,29 +413,51 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
     initialTopic,
     initialMode = 'learning',
     initialProduct,
+    chatContext,
     //  cancelLabel = "חזרה",
     //  cancelIcon = <IconArrowBack className="w-4 h-4 rotate-180" />
 }) => {
+    // Log chatContext for debugging
+    if (chatContext) {
+        console.log('🧙 [IngestionWizard] Received chatContext:', chatContext);
+    }
+
+    // Helper to find grade from chatContext (e.g., 'ו' -> 'כיתה ו׳')
+    const findGradeFromContext = (gradeHint?: string): string => {
+        if (!gradeHint) return GRADES[6];
+        // Try to find a matching grade
+        const normalized = gradeHint.trim();
+        const found = GRADES.find(g =>
+            g.includes(normalized) ||
+            g.replace(/[׳״\'\"]/g, '').includes(normalized.replace(/[׳״\'\"]/g, ''))
+        );
+        return found || GRADES[6];
+    };
+
     // --- State ---
     const [step, setStep] = useState(1); // 1: Source, 2: Product, 3: Settings
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // Step 1: Source
-    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | 'multimodal' | 'textbook' | null>(null);
-    const [topic, setTopic] = useState('');
+    // Step 1: Source - auto-select 'topic' mode if chatContext has topic
+    const [mode, setMode] = useState<'upload' | 'topic' | 'text' | 'multimodal' | 'textbook' | null>(
+        chatContext?.topic ? 'topic' : null
+    );
+    const [topic, setTopic] = useState(chatContext?.topic || '');
     const [file, setFile] = useState<File | null>(null);
     const [pastedText, setPastedText] = useState('');
     const [textbookSelection, setTextbookSelection] = useState<TextbookSelection | null>(null);
     // const [subMode, setSubMode] = useState<'youtube' | 'audio' | null>(null);
 
-    // Step 2: Product - use initialProduct if provided
-    const [selectedProduct, setSelectedProduct] = useState<ProductType>(initialProduct || null);
+    // Step 2: Product - use chatContext.productType or initialProduct if provided
+    const [selectedProduct, setSelectedProduct] = useState<ProductType>(
+        (chatContext?.productType === 'micro' ? 'activity' : chatContext?.productType) || initialProduct || null
+    );
 
-    // Step 3: Settings
-    const [customTitle, setCustomTitle] = useState('');
-    const [grade, setGrade] = useState(GRADES[6]);
-    const [subject, setSubject] = useState('חינוך לשוני (עברית)');
-    const [activityLength, setActivityLength] = useState<'short' | 'medium' | 'long'>('medium');
+    // Step 3: Settings - pre-fill from chatContext if available
+    const [customTitle, setCustomTitle] = useState(chatContext?.topic || '');
+    const [grade, setGrade] = useState(findGradeFromContext(chatContext?.grade));
+    const [subject, setSubject] = useState(chatContext?.subject || 'חינוך לשוני (עברית)');
+    const [activityLength, setActivityLength] = useState<'short' | 'medium' | 'long'>(chatContext?.activityLength || 'medium');
     const [taxonomy, setTaxonomy] = useState<{ knowledge: number; application: number; evaluation: number }>({ knowledge: 30, application: 50, evaluation: 20 });
     const [includeBot] = useState(false); // Restore includeBot state
     const [botPersona] = useState('socratic');
@@ -450,6 +485,22 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
         activity: 'game',
         exam: 'educational'
     };
+
+    // Auto-advance steps if chatContext provides enough data
+    useEffect(() => {
+        if (!chatContext) return;
+
+        // If we have topic and productType, go to step 3 (settings)
+        if (chatContext.topic && chatContext.productType) {
+            console.log('🧙 [IngestionWizard] Auto-advancing to step 3 (settings) from chatContext');
+            setStep(3);
+        }
+        // If we have topic but no productType, go to step 2 (product selection)
+        else if (chatContext.topic) {
+            console.log('🧙 [IngestionWizard] Auto-advancing to step 2 (product) from chatContext');
+            setStep(2);
+        }
+    }, []); // Run once on mount
 
     // טעינת העדפות המורה מ-Firestore - לכל סוגי המוצרים
     useEffect(() => {
@@ -760,7 +811,14 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
             if (step === 3 && selectedProduct === 'lesson') {
                 setSelectedProduct(null);
             }
-            setStep(step - 1);
+
+            // Skip step 2 when going back if chatContext had productType or initialProduct was set
+            // This mirrors the skip logic in handleNext
+            if (step === 3 && (chatContext?.productType || initialProduct)) {
+                setStep(1);
+            } else {
+                setStep(step - 1);
+            }
         }
         else onCancel();
     };
@@ -795,13 +853,25 @@ const IngestionWizard: React.FC<IngestionWizardProps> = ({
                         </button>
                     </div>
 
-                    {/* Stepper */}
+                    {/* Stepper - show only 2 steps if productType was pre-selected */}
                     <div className="flex items-center justify-center max-w-2xl mx-auto relative z-10">
-                        <StepIndicator num="1" label="בחירת מקור" isActive={step === 1} isCompleted={step > 1} />
-                        <StepLine isCompleted={step > 1} />
-                        <StepIndicator num="2" label="סוג תוצר" isActive={step === 2} isCompleted={step > 2} />
-                        <StepLine isCompleted={step > 2} />
-                        <StepIndicator num="3" label="הגדרות" isActive={step === 3} isCompleted={step > 3} />
+                        {(chatContext?.productType || initialProduct) ? (
+                            <>
+                                {/* 2-step flow: Source -> Settings (product already chosen) */}
+                                <StepIndicator num="1" label="בחירת מקור" isActive={step === 1} isCompleted={step > 1} />
+                                <StepLine isCompleted={step > 1} />
+                                <StepIndicator num="2" label="הגדרות" isActive={step === 3} isCompleted={step > 3} />
+                            </>
+                        ) : (
+                            <>
+                                {/* 3-step flow: Source -> Product -> Settings */}
+                                <StepIndicator num="1" label="בחירת מקור" isActive={step === 1} isCompleted={step > 1} />
+                                <StepLine isCompleted={step > 1} />
+                                <StepIndicator num="2" label="סוג תוצר" isActive={step === 2} isCompleted={step > 2} />
+                                <StepLine isCompleted={step > 2} />
+                                <StepIndicator num="3" label="הגדרות" isActive={step === 3} isCompleted={step > 3} />
+                            </>
+                        )}
                     </div>
                 </div>
 

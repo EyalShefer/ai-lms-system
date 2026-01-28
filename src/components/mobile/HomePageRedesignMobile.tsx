@@ -32,7 +32,8 @@ import {
     IconBook,
     IconHome,
     IconWand,
-    IconSchool
+    IconSchool,
+    IconLogout
 } from '@tabler/icons-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -47,7 +48,7 @@ interface RecentActivity {
 }
 
 interface HomePageRedesignMobileProps {
-    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity') => void;
+    onCreateNew: (mode: string, product?: 'lesson' | 'podcast' | 'exam' | 'activity', chatContext?: any) => void;
     onCreateWithWizardData?: (wizardData: any) => void;
     onNavigateToDashboard: () => void;
     onEditCourse?: (courseId: string) => void;
@@ -59,6 +60,7 @@ interface HomePageRedesignMobileProps {
     onNavigateToSpeedAnalytics?: () => void;
     onNavigateToAgentDashboard?: () => void;
     onNavigateToBagrut?: () => void;
+    onLogout?: () => void;
 }
 
 const HomePageRedesignMobile = ({
@@ -73,7 +75,8 @@ const HomePageRedesignMobile = ({
     onNavigateToUsage,
     onNavigateToSpeedAnalytics,
     onNavigateToAgentDashboard,
-    onNavigateToBagrut
+    onNavigateToBagrut,
+    onLogout
 }: HomePageRedesignMobileProps) => {
     const { currentUser } = useAuth();
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -202,9 +205,16 @@ const HomePageRedesignMobile = ({
                         <h1 className="text-2xl font-black flex items-center gap-2">סטודיו יצירה חכם <IconWand className="w-6 h-6" /></h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                            <IconSparkles className="w-5 h-5" />
-                        </div>
+                        {onLogout && (
+                            <button
+                                onClick={onLogout}
+                                className="w-10 h-10 bg-white/20 hover:bg-rose-500/80 rounded-full flex items-center justify-center transition-colors"
+                                title="התנתק"
+                                aria-label="התנתק"
+                            >
+                                <IconLogout className="w-5 h-5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

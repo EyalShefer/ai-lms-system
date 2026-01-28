@@ -318,6 +318,7 @@ export interface TelemetryData {
     timeSeconds: number;
     attempts: number;
     hintsUsed: number;
+    resets?: number; // Track how many times student reset the question
     lastAnswer: any;
     events?: { event: string; level?: number; timestamp?: number;[key: string]: any }[];
 }

@@ -1,16 +1,16 @@
 /**
- * שמות רמות הקושי במערכת (הוראה דיפרנציאלית)
+ * שמות רמות הקושי במערכת (לפי טקסונומיית בלום)
  *
  * המפתחות הטכניים נשארים: support, core, enrichment
  * אבל השמות בעברית שמוצגים למשתמשים הם:
- * - support → הבנה (לתלמידים מתקשים)
- * - core → יישום (לרוב התלמידים)
- * - enrichment → העמקה (לתלמידים מתקדמים)
+ * - support → ידע והבנה (Remember, Understand) - לתלמידים מתקשים
+ * - core → יישום וניתוח (Apply, Analyze) - לרוב התלמידים
+ * - enrichment → הערכה ויצירה (Evaluate, Create) - לתלמידים מתקדמים
  */
 export const DIFFICULTY_LEVELS = {
-    support: { key: 'support', label: 'הבנה', description: 'לתלמידים מתקשים' },
-    core: { key: 'core', label: 'יישום', description: 'לרוב התלמידים' },
-    enrichment: { key: 'enrichment', label: 'העמקה', description: 'לתלמידים מתקדמים' }
+    support: { key: 'support', label: 'ידע והבנה', description: 'לתלמידים מתקשים' },
+    core: { key: 'core', label: 'יישום וניתוח', description: 'לרוב התלמידים' },
+    enrichment: { key: 'enrichment', label: 'הערכה ויצירה', description: 'לתלמידים מתקדמים' }
 } as const;
 
 export const GRADE_OPTIONS = [

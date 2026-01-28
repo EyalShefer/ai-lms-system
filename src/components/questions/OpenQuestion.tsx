@@ -115,7 +115,7 @@ const OpenQuestion = memo(function OpenQuestion({
     // Check if content contains LaTeX
     if (question.includes('$') || question.includes('\\')) {
       return (
-        <div className="prose max-w-none mb-4">
+        <div className="wizdi-question-text wizdi-readable-text">
           <MathRenderer content={question} />
         </div>
       );
@@ -124,7 +124,7 @@ const OpenQuestion = memo(function OpenQuestion({
     // Regular HTML content - sanitize for XSS protection
     return (
       <div
-        className="prose max-w-none mb-4"
+        className="wizdi-question-text wizdi-readable-text"
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(question) }}
       />
     );
@@ -204,10 +204,22 @@ const OpenQuestion = memo(function OpenQuestion({
       default:
         return (
           <div className="flex flex-col gap-3">
+            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              הקלד את תשובתך כאן
+            </label>
             <textarea
-              className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={6}
-              placeholder="כתוב את תשובתך כאן..."
+              className="w-full p-4 border-2 border-slate-200 dark:border-slate-600 rounded-xl resize-none
+                focus:ring-2 focus:ring-wizdi-cyan focus:border-wizdi-cyan
+                bg-white dark:bg-slate-800
+                text-slate-800 dark:text-slate-100
+                placeholder:text-slate-400
+                transition-all duration-200"
+              style={{
+                fontSize: 'var(--wizdi-font-size-base)',
+                lineHeight: 'var(--wizdi-line-height-tight)',
+              }}
+              rows={5}
+              placeholder="הקלד את תשובתך כאן..."
               value={answer?.text || ''}
               onChange={(e) => handleTextChange(e.target.value)}
               disabled={readOnly}
@@ -237,20 +249,22 @@ const OpenQuestion = memo(function OpenQuestion({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow" role="region" aria-labelledby={block.title ? 'open-question-title' : undefined}>
+    <div className="wizdi-question-block" role="region" aria-labelledby={block.title ? 'open-question-title' : undefined}>
       {block.title && (
-        <h3 id="open-question-title" className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{block.title}</h3>
+        <h3 id="open-question-title" className="text-xl font-bold mb-6 text-slate-800 dark:text-white">{block.title}</h3>
       )}
 
       {renderQuestion()}
-      {renderInput()}
+      <div className="wizdi-answer-area">
+        {renderInput()}
+      </div>
 
       {/* Validation feedback */}
       {validationResult && (
         <div
           role="alert"
           aria-live="polite"
-          className={`mt-3 p-3 min-h-[44px] rounded-lg ${
+          className={`mt-4 p-4 min-h-[44px] rounded-xl text-base font-medium ${
             validationResult.isCorrect
               ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700'
               : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700'
@@ -269,7 +283,7 @@ const OpenQuestion = memo(function OpenQuestion({
         <button
           onClick={handleSubmit}
           aria-label="שלח תשובה"
-          className="mt-4 px-6 py-2 min-h-[44px] bg-blue-600 dark:bg-wizdi-action text-white rounded-lg hover:bg-blue-700 dark:hover:bg-wizdi-action-hover transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wizdi-cyan focus-visible:ring-offset-2"
+          className="btn-lip-action mt-6 px-8 py-3"
           disabled={!answer?.text?.trim()}
         >
           שלח תשובה

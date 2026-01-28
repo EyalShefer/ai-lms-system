@@ -37,3 +37,6 @@ functions/coverage/
 
 # Temporary files
 nul
+
+# AI Peer Review Results
+reviews/

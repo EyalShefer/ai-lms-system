@@ -20,6 +20,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import * as logger from 'firebase-functions/logger';
+import { withGeminiRetry } from '../utils/retry';
 import { MCPToolImplementations, MCPToolSchemas, executeToolCall } from './mcpTools';
 import type {
     ActivityGenerationRequest,
@@ -225,18 +226,20 @@ export class CurriculumAgent {
 
                 logger.info(`Agent iteration ${iteration}/${this.config.maxIterations}`);
 
-                // Call Gemini with function calling
-                const response = await this.client.models.generateContent({
-                    model: GEMINI_MODEL,
-                    contents: [
-                        ...history,
-                        { role: 'user', parts: [{ text: currentMessage }] }
-                    ],
-                    config: {
-                        systemInstruction: systemPrompt,
-                        tools: [{ functionDeclarations: geminiTools }],
-                        maxOutputTokens: 4096
-                    }
+                // Call Gemini with function calling and retry logic
+                const response = await withGeminiRetry(async () => {
+                    return this.client.models.generateContent({
+                        model: GEMINI_MODEL,
+                        contents: [
+                            ...history,
+                            { role: 'user', parts: [{ text: currentMessage }] }
+                        ],
+                        config: {
+                            systemInstruction: systemPrompt,
+                            tools: [{ functionDeclarations: geminiTools }],
+                            maxOutputTokens: 4096
+                        }
+                    });
                 });
 
                 const candidate = response.candidates?.[0];

@@ -14,10 +14,36 @@
 import express from 'express';
 import corsMiddleware from 'cors';
 import * as logger from 'firebase-functions/logger';
+import * as admin from 'firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { GoogleGenAI } from '@google/genai';
 import { getSkeletonPrompt, getStepContentPrompt, getLinguisticConstraintsByGrade } from '../ai/prompts';
+import { withGeminiRetry } from '../utils/retry';
+import { z } from 'zod';
+
+// ============================================================
+// REQUEST VALIDATION SCHEMAS
+// ============================================================
+
+const StreamRequestSchema = z.object({
+  type: z.enum(['lesson', 'exam', 'activity', 'differentiated', 'podcast']),
+  prompt: z.string().min(1).max(50000),
+  systemPrompt: z.string().max(20000).optional(),
+  options: z.object({
+    temperature: z.number().min(0).max(2).optional(),
+    maxTokens: z.number().min(1).max(32768).optional(),
+    gradeLevel: z.string().optional(),
+    subject: z.string().optional(),
+    topic: z.string().optional(),
+    isDifferentiated: z.boolean().optional(),
+    activityLength: z.string().optional()
+  }).optional()
+});
+
+// App Check configuration
+const APP_CHECK_ENABLED = process.env.APP_CHECK_ENABLED !== 'false';
+const APP_CHECK_MODE = (process.env.APP_CHECK_MODE || 'warn') as 'enforce' | 'warn';
 
 // ============================================================
 // CONFIGURATION
@@ -25,12 +51,18 @@ import { getSkeletonPrompt, getStepContentPrompt, getLinguisticConstraintsByGrad
 
 const GEMINI_MODEL = 'gemini-3-pro-preview';
 const GEMINI_FLASH_MODEL = 'gemini-2.0-flash';  // Fast model for skeleton generation
-const CORS_ORIGINS = [
-  'https://ai-lms-pro.web.app',
-  'https://ai-lms-pro.firebaseapp.com',
-  'http://localhost:5173',
-  'http://localhost:3000'
-];
+// CORS origins - localhost only in development
+const CORS_ORIGINS = process.env.NODE_ENV === 'production'
+  ? [
+      'https://ai-lms-pro.web.app',
+      'https://ai-lms-pro.firebaseapp.com'
+    ]
+  : [
+      'https://ai-lms-pro.web.app',
+      'https://ai-lms-pro.firebaseapp.com',
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ];
 
 // ============================================================
 // TYPES
@@ -191,16 +223,19 @@ export async function* streamFromGemini(
   const model = options.useFastModel ? GEMINI_FLASH_MODEL : GEMINI_MODEL;
 
   try {
-    const response = await client.models.generateContentStream({
-      model,
-      contents: fullPrompt,
-      config: {
-        temperature: options.temperature ?? 0.7,
-        maxOutputTokens: options.maxTokens ?? 16384
-      }
+    // Use retry logic for initial connection - streaming can fail on connection setup
+    const response = await withGeminiRetry(async () => {
+      return client.models.generateContentStream({
+        model,
+        contents: fullPrompt,
+        config: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxTokens ?? 16384
+        }
+      });
     });
 
-    // Stream chunks as they arrive
+    // Stream chunks as they arrive (no retry here - once connected, let it flow)
     for await (const chunk of response) {
       const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
@@ -244,6 +279,38 @@ async function verifyAuth(req: express.Request): Promise<string | null> {
   }
 }
 
+/**
+ * Verify App Check token
+ * Returns true if valid or if App Check is disabled/in warn mode
+ */
+async function verifyAppCheck(req: express.Request): Promise<{
+  valid: boolean;
+  appId?: string;
+}> {
+  if (!APP_CHECK_ENABLED) {
+    return { valid: true };
+  }
+
+  const appCheckToken = req.headers['x-firebase-appcheck'] as string;
+
+  if (!appCheckToken) {
+    logger.warn('App Check: No token provided', {
+      ip: req.ip,
+      path: req.path
+    });
+    return { valid: APP_CHECK_MODE !== 'enforce' };
+  }
+
+  try {
+    const decodedToken = await admin.appCheck().verifyToken(appCheckToken);
+    logger.info('App Check: Token verified', { appId: decodedToken.appId });
+    return { valid: true, appId: decodedToken.appId };
+  } catch (error) {
+    logger.warn('App Check: Token verification failed', { error });
+    return { valid: APP_CHECK_MODE !== 'enforce' };
+  }
+}
+
 // ============================================================
 // EXPRESS APP
 // ============================================================
@@ -256,6 +323,30 @@ app.use(corsMiddleware({
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
+
+// App Check middleware (logs warnings, can be set to enforce via env var)
+app.use(async (req, res, next) => {
+  // Skip for health checks
+  if (req.path === '/health') {
+    next();
+    return;
+  }
+
+  const appCheckResult = await verifyAppCheck(req);
+  if (!appCheckResult.valid) {
+    res.status(401).json({
+      error: 'App Check verification failed',
+      code: 'APP_CHECK_FAILED'
+    });
+    return;
+  }
+
+  // Attach App Check info to request
+  (req as any).appCheckVerified = appCheckResult.valid;
+  (req as any).appCheckAppId = appCheckResult.appId;
+
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -280,12 +371,21 @@ app.post('/stream/content', async (req, res) => {
     return;
   }
 
-  const streamRequest = req.body as StreamRequest;
-
-  if (!streamRequest.prompt) {
-    res.status(400).json({ error: 'prompt is required' });
+  // Validate request body with Zod
+  const validationResult = StreamRequestSchema.safeParse(req.body);
+  if (!validationResult.success) {
+    logger.warn('Invalid stream request', {
+      userId,
+      errors: validationResult.error.issues
+    });
+    res.status(400).json({
+      error: 'Invalid request',
+      details: validationResult.error.issues.map(e => `${e.path.join('.')}: ${e.message}`)
+    });
     return;
   }
+
+  const streamRequest = validationResult.data;
 
   logger.info(`🌊 Starting stream for user ${userId}`, {
     type: streamRequest.type,

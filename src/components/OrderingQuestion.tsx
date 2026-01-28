@@ -3,6 +3,7 @@ import type { ActivityBlock, TelemetryData } from '../courseTypes';
 import { IconCheck, IconX } from '../icons';
 import { calculateQuestionScore, SCORING_CONFIG } from '../utils/scoring';
 import { MathRenderer } from './MathRenderer';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface OrderingQuestionProps {
     block: ActivityBlock;
@@ -27,6 +28,7 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
     const startTimeRef = useRef<number>(Date.now());
     const attemptsRef = useRef<number>(0);
     const hintsUsedRef = useRef<number>(0); // ✨ NEW: Track hints
+    const resetsRef = useRef<number>(0); // Track resets for telemetry
 
     // Safe parsing
     // Safe parsing
@@ -165,6 +167,7 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                     timeSeconds: Math.round(timeSpent),
                     attempts: attemptsRef.current,
                     hintsUsed: hintsUsedRef.current,
+                    resets: resetsRef.current,
                     lastAnswer: items
                 });
             }
@@ -179,9 +182,28 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
         }
     };
 
+    // Reset handler - reshuffles items without resetting attempts
+    const handleReset = () => {
+        if (isSubmitted) return; // Safety check
+
+        resetsRef.current += 1; // Track reset for telemetry
+
+        // Reshuffle items
+        const shuffled = [...correct_order].sort(() => Math.random() - 0.5);
+        setItems(shuffled);
+
+        // Clear hints (but don't reset hintsUsedRef - we track total hints used)
+        setCurrentHintLevel(0);
+        setHasAttempted(false);
+    };
+
     return (
         <div className="w-full mx-auto" role="region" aria-label="שאלת סידור">
-            <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold">{instruction}</p>
+            {instruction.includes('$') || instruction.includes('\\') ? (
+                <MathRenderer content={instruction} className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold" />
+            ) : (
+                <p className="text-lg text-indigo-800 dark:text-white/90 mb-6 text-right font-bold" dangerouslySetInnerHTML={{ __html: sanitizeHtml(instruction) }} />
+            )}
 
             <div
                 className="space-y-3 mb-8"
@@ -283,7 +305,16 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
             )}
 
             {!isSubmitted && (
-                <div className="text-center">
+                <div className="text-center flex gap-3 justify-center">
+                    {!isExamMode && (
+                        <button
+                            onClick={handleReset}
+                            className="bg-gray-500 text-white px-6 py-3 rounded-full font-bold shadow-lg hover:bg-gray-600 transition-transform active:scale-95"
+                            aria-label="איפוס השאלה - ערבוב מחדש"
+                        >
+                            איפוס
+                        </button>
+                    )}
                     <button
                         onClick={checkOrder}
                         className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
@@ -293,27 +324,15 @@ const OrderingQuestion: React.FC<OrderingQuestionProps> = ({
                 </div>
             )}
 
-            {isSubmitted && (
+            {/* Post-submission: Only show "Try Again" button for incorrect answers - feedback text is shown in parent to avoid redundancy */}
+            {isSubmitted && JSON.stringify(items) !== JSON.stringify(correct_order) && (
                 <div className="mt-6 text-center animate-fade-in">
-                    <div className="text-lg font-bold">
-                        {JSON.stringify(items) === JSON.stringify(correct_order) ? (
-                            <span className="text-green-600 flex items-center justify-center gap-2">
-                                <IconCheck className="w-6 h-6" /> כל הכבוד! הסדר נכון
-                            </span>
-                        ) : (
-                            <div className="space-y-4">
-                                <span className="text-red-500 flex items-center justify-center gap-2">
-                                    <IconX className="w-6 h-6" /> הסדר שגוי, נסו שוב
-                                </span>
-                                <button
-                                    onClick={() => setIsSubmitted(false)}
-                                    className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
-                                >
-                                    נסו שוב
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <button
+                        onClick={() => setIsSubmitted(false)}
+                        className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
+                    >
+                        נסו שוב
+                    </button>
                 </div>
             )}
         </div>

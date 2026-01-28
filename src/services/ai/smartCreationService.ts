@@ -14,7 +14,7 @@ export interface CollectedData {
     subject: string | null;
     activityLength: 'short' | 'medium' | 'long' | null;
     profile: 'balanced' | 'educational' | 'game' | 'custom' | null;
-    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all' | null; // הבנה/יישום/העמקה/כולם
+    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all' | null; // ידע והבנה/יישום וניתוח/הערכה ויצירה/כולם
     constraints: string[];
     // New fields for advanced capabilities
     sourceMode: 'topic' | 'file' | 'text' | 'textbook' | 'youtube' | null;
@@ -23,6 +23,8 @@ export interface CollectedData {
     hasFileToUpload: boolean | null;
     textbookInfo: string | null; // e.g., "ספר מתמטיקה כיתה ד פרק 3"
     youtubeUrl: string | null;
+    // Content delivery mode - interactive (in-system) vs static (printable)
+    contentDeliveryMode: 'interactive' | 'static' | null;
 }
 
 export interface ContentOption {
@@ -32,7 +34,7 @@ export interface ContentOption {
     productType: 'lesson' | 'exam' | 'activity' | 'podcast';
     profile: 'balanced' | 'educational' | 'game' | 'custom';
     activityLength: 'short' | 'medium' | 'long';
-    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all'; // הבנה/יישום/העמקה/כולם
+    difficultyLevel: 'support' | 'core' | 'enrichment' | 'all'; // ידע והבנה/יישום וניתוח/הערכה ויצירה/כולם
     questionCount: number;
     estimatedTime: string;
     questionTypes: string[];
@@ -75,14 +77,43 @@ export interface PromptSuggestion {
     promptTemplate: string;
 }
 
+// Menu option for the creation menu
+export interface CreationMenuOption {
+    id: 'existing' | 'template' | 'scratch' | 'back';
+    label: string;
+    icon: string;
+    description: string;
+}
+
+// Static content request for direct generation
+export interface StaticContentRequest {
+    contentType: 'worksheet' | 'test' | 'lesson_plan' | 'letter' | 'feedback' | 'rubric' | 'custom';
+    topic: string;
+    grade?: string;
+    subject?: string;
+    additionalInstructions?: string;
+}
+
+// Static content result from AI generation
+export interface StaticContentResult {
+    title: string;
+    content: string; // HTML content
+    contentType: string;
+    topic: string;
+    generatedAt: string;
+}
+
 export interface AIResponse {
-    type: 'question' | 'options' | 'info' | 'ready' | 'curriculum_query' | 'content_search' | 'template_suggestion' | 'reuse_suggestion' | 'prompt_suggestion';
+    type: 'question' | 'options' | 'info' | 'ready' | 'curriculum_query' | 'content_search' | 'template_suggestion' | 'reuse_suggestion' | 'prompt_suggestion' | 'creation_menu' | 'static_content';
     message: string;
     quickReplies?: string[];
     options?: ContentOption[];
     templates?: ContentTemplate[];
     reuseSuggestions?: ReuseContentSuggestion[];
     promptSuggestions?: PromptSuggestion[];
+    menuOptions?: CreationMenuOption[]; // For creation_menu type
+    staticContentRequest?: StaticContentRequest; // For static_content type - request to generate
+    staticContentResult?: StaticContentResult; // For static_content type - generated result
     collectedData?: Partial<CollectedData>;
     contentType?: 'interactive' | 'static' | 'unclear';
     curriculumQuery?: {
@@ -157,10 +188,10 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 - בוט מלווה (includeBot): בוט סוקרטי שמלווה את התלמיד ונותן רמזים
 - סוגי שאלות מותאמים (custom): בחירה ספציפית של סוגי שאלות רצויים
 
-## ⭐ שלוש רמות קושי (הוראה דיפרנציאלית):
+## ⭐ שלוש רמות קושי (לפי טקסונומיית בלום):
 המערכת יכולה לייצר תוכן ב-3 רמות קושי שונות:
 
-### רמה 1: הבנה - לתלמידים מתקשים
+### רמה 1: ידע והבנה (support) - לתלמידים מתקשים
 - שפה פשוטה מאוד - משפטים קצרים (עד 10 מילים)
 - שאלות ישירות - התשובה מופיעה במפורש בטקסט
 - מסיחים ברורים כשגויים, קל לפסול אותם
@@ -168,14 +199,14 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 - רמות בלום: Remember, Understand
 - מתאים ל: תלמידים עם קשיי קריאה/הבנת הנקרא, לקויי למידה, עולים חדשים
 
-### רמה 2: יישום - לתלמידים טיפוסיים
+### רמה 2: יישום וניתוח (core) - לתלמידים טיפוסיים
 - שפה מותאמת לגיל - משפטים עד 15 מילים
 - דורש הבנה - לא רק איתור מידע
 - מסיחים אמינים שדורשים חשיבה
 - רמות בלום: Understand, Apply, Analyze
 - מתאים ל: רוב התלמידים בכיתה
 
-### רמה 3: העמקה - לתלמידים מתקדמים
+### רמה 3: הערכה ויצירה (enrichment) - לתלמידים מתקדמים
 - שפה אקדמית ומורכבת
 - חשיבה ביקורתית - הערכה, סינתזה
 - מסיחים שכולם נראים אמינים
@@ -426,40 +457,196 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 - "מכתב להורים על ההתנהגות" → category: "תקשורת אישית", keywords: "הורים התנהגות מכתב"
 - "משוב לתלמיד מצטיין" → category: "תקשורת אישית", keywords: "משוב תלמיד מצטיין עידוד"
 
-### מתי לא להציע פרומפטים:
-- המורה רוצה **תוכן אינטראקטיבי** דיגיטלי (פעילות, מבחן דיגיטלי, שיעור, פודקאסט)
-- המורה מדברת על "פעילות" ללא ציון "להדפסה"
-- המורה רוצה יצירה אוטומטית במערכת
+## 📄 יצירת תוכן סטטי ישירות (Static Content Generation):
+**עדיפות ראשונה לתוכן סטטי!** במקום להציע פרומפטים להעתקה, **צור את התוכן ישירות**.
 
-### איך לזהות אם אינטראקטיבי או סטטי:
-**אינטראקטיבי (לא פרומפטים)**:
-- "פעילות", "תרגול", "משחק דיגיטלי"
-- "מבחן" (ללא "מודפס" או "להדפסה")
-- "שיעור" (מערך שיעור במערכת)
-- "פודקאסט"
+### מתי להשתמש ב-static_content:
+- המורה מבקשת דף עבודה, מבחן להדפסה, מכתב, משוב, רובריקה, תכנית עבודה
+- יש לך את הנושא הברור
+- המורה לא ביקשה במפורש "פרומפט" או "להעתיק ל-ChatGPT"
 
-**סטטי (פרומפטים)**:
-- "דף עבודה", "גיליון", "דף תרגול"
-- "מבחן מודפס", "בוחן להדפסה"
-- "משוב", "מכתב", "הודעה"
-- "תכנית עבודה", "רובריקה"
-- כל דבר עם "להדפסה", "PDF", "Word"
+### איך להגיב ביצירת תוכן סטטי:
+החזר type: "static_content" עם staticContentRequest:
+{
+  "type": "static_content",
+  "message": "מעולה! אני יוצר לך את התוכן עכשיו... 📝",
+  "contentType": "static",
+  "staticContentRequest": {
+    "contentType": "worksheet" | "test" | "lesson_plan" | "letter" | "feedback" | "rubric" | "custom",
+    "topic": "הנושא",
+    "grade": "כיתה X (אופציונלי)",
+    "subject": "מקצוע (אופציונלי)",
+    "additionalInstructions": "הנחיות נוספות מהמורה (אופציונלי)"
+  },
+  "collectedData": {...}
+}
 
-**לא בטוח? שאל!**
-- "אתמתרצה פעילות דיגיטלית במערכת או דף עבודה להדפסה?"
+### סוגי תוכן סטטי:
+- **worksheet** - דף עבודה, דף תרגול, גיליון
+- **test** - מבחן מודפס, בוחן להדפסה
+- **lesson_plan** - מערך שיעור להדפסה
+- **letter** - מכתב להורים, הודעה
+- **feedback** - משוב לתלמיד
+- **rubric** - רובריקה להערכה
+- **custom** - תוכן מותאם אחר
+
+### דוגמאות ליצירת תוכן סטטי:
+- "דף עבודה על שברים לכיתה ד" → static_content, contentType: "worksheet"
+- "מבחן להדפסה על מערכת העיכול" → static_content, contentType: "test"
+- "מכתב להורים על טיול" → static_content, contentType: "letter"
+- "משוב לתלמיד מצטיין" → static_content, contentType: "feedback"
+- "רובריקה להערכת פרויקט" → static_content, contentType: "rubric"
+
+### מתי להציע פרומפטים במקום יצירה ישירה:
+- המורה מבקשת במפורש "פרומפט", "תבנית", "להעתיק ל-ChatGPT"
+- המורה רוצה לראות אפשרויות שונות לפני יצירה
+
+### 🔍 איך לזהות אם אינטראקטיבי או סטטי - לוגיקת החלטה:
+
+**⚠️ חשוב מאוד: אותה מילה יכולה להיות גם וגם!**
+- "מערך שיעור" → יכול להיות שיעור אינטראקטיבי במערכת OR תכנית שיעור מודפסת
+- "דף עבודה" → יכול להיות פעילות דיגיטלית OR PDF להדפסה
+- "מבחן" → יכול להיות מבחן דיגיטלי עם ציון OR מבחן מודפס
+
+**סיגנלים חזקים לאינטראקטיבי (תמיד מנצחים):**
+- "אינטראקטיבי", "דיגיטלי", "במערכת"
+- "עם משוב מיידי", "עם ציון אוטומטי"
+- "משחק", "גיימיפיקציה"
+- "עם תמונות מונפשות", "אינפוגרפיקה"
+- "שהתלמידים יעשו במחשב/בנייד"
+- "עם רמזים אוטומטיים", "עם בוט"
+- "פעילות אדפטיבית"
+
+**סיגנלים חזקים לסטטי (תמיד מנצחים):**
+- "להדפסה", "מודפס", "PDF", "Word"
+- "להוריד", "לחלק לתלמידים"
+- "דף עבודה", "גיליון עבודה" (ללא "אינטראקטיבי")
+- "מכתב", "הודעה להורים"
+- "משוב כתוב", "הערות"
+- "תכנית עבודה", "תל"א", "רובריקה"
+
+**מילים דו-משמעיות - תמיד שאל!**
+
+| מילה | שאלה לשאול |
+|------|-----------|
+| "מערך שיעור" / "שיעור" | "איזה סוג שיעור? 🖥️ שיעור אינטראקטיבי במערכת (עם תמונות ושאלות) או 📄 מערך שיעור להדפסה (תכנון למורה)?" |
+| "מבחן" / "בוחן" | "איזה סוג מבחן? 🖥️ מבחן דיגיטלי (עם ציון אוטומטי) או 📄 מבחן להדפסה?" |
+| "תרגילים" | "איך תרצו את התרגילים? 🖥️ פעילות אינטראקטיבית (עם משוב מיידי) או 📄 דף תרגילים להדפסה?" |
+
+**דוגמאות להחלטות:**
+
+| בקשה | החלטה | הסבר |
+|------|--------|------|
+| "מערך שיעור על שברים" | ❓ **שאל** | "מערך שיעור" דו-משמעי |
+| "שיעור אינטראקטיבי על שברים" | ✅ **אינטראקטיבי** | "אינטראקטיבי" = סיגנל חזק |
+| "מערך שיעור להדפסה" | ✅ **סטטי** | "להדפסה" = סיגנל חזק |
+| "דף עבודה על הפועל" | ✅ **סטטי** | "דף עבודה" = סיגנל חזק לסטטי |
+| "פעילות על הפועל" | ✅ **אינטראקטיבי** | "פעילות" = ברירת מחדל אינטראקטיבי |
+| "פעילות להדפסה" | ✅ **סטטי** | "להדפסה" מנצח |
+| "מבחן על מערכת העיכול" | ❓ **שאל** | "מבחן" דו-משמעי |
+| "מבחן דיגיטלי עם ציון" | ✅ **אינטראקטיבי** | "דיגיטלי" + "ציון" |
+| "שיעור SEL על רגשות" | ❓ **שאל** | SEL יכול להיות גם וגם |
+
+**כלל אצבע:**
+1. יש סיגנל חזק? → השתמש בו
+2. אין סיגנלים? → בדוק אם יש מילה דו-משמעית → **שאל**
+3. "פעילות" ללא סיגנלים אחרים → אינטראקטיבי (ברירת מחדל)
+4. "דף עבודה" ללא סיגנלים אחרים → סטטי
+
+**איך לשאול במקרה של ספק:**
+{
+  "type": "question",
+  "message": "איזה סוג [מערך שיעור/מבחן] אתם צריכים?",
+  "quickReplies": ["🖥️ דיגיטלי במערכת", "📄 להדפסה/להורדה"],
+  "collectedData": {...}
+}
+
+## 📋 תפריט יצירה (Creation Menu):
+כשהמורה מביעה רצון ליצור תוכן (אבל לא נתנה פרטים ספציפיים), הצג תפריט אפשרויות ברור.
+
+### מתי להציג תפריט יצירה:
+- המורה אומרת "רוצה ליצור...", "צריכה...", "בוא ניצור..."
+- יש לפחות נושא או סוג מוצר, אבל לא שניהם
+- המורה לא ציינה במפורש מסלול ספציפי (קובץ/תבנית/חיפוש)
+
+### איך להגיב בתפריט יצירה:
+החזר type: "creation_menu" עם menuOptions:
+{
+  "type": "creation_menu",
+  "message": "מעולה! איך תרצי להמשיך?",
+  "menuOptions": [
+    {
+      "id": "existing",
+      "label": "פעילות קיימת",
+      "icon": "🔄",
+      "description": "חיפוש בתכנים שיצרת בעבר"
+    },
+    {
+      "id": "template",
+      "label": "תבנית מוכנה",
+      "icon": "⚡",
+      "description": "תבניות מהירות לשימוש חוזר"
+    },
+    {
+      "id": "scratch",
+      "label": "מאפס",
+      "icon": "✨",
+      "description": "יצירה חדשה לגמרי"
+    },
+    {
+      "id": "back",
+      "label": "חזרה",
+      "icon": "←",
+      "description": "חזור לשיחה"
+    }
+  ],
+  "collectedData": {
+    "intent": "create",
+    "topic": "הנושא שזוהה (אם יש)",
+    "productType": "סוג המוצר (אם יש)"
+  }
+}
+
+### דוגמה לתפריט יצירה:
+קלט: "מבחן על השואה"
+תשובה:
+{
+  "type": "creation_menu",
+  "message": "מעולה! מבחן על השואה 📝 איך תרצי להמשיך?",
+  "menuOptions": [
+    {"id": "existing", "label": "פעילות קיימת", "icon": "🔄", "description": "חיפוש בתכנים שיצרת בעבר"},
+    {"id": "template", "label": "תבנית מוכנה", "icon": "⚡", "description": "תבניות מהירות לשימוש חוזר"},
+    {"id": "scratch", "label": "מאפס", "icon": "✨", "description": "יצירה חדשה לגמרי"},
+    {"id": "back", "label": "חזרה", "icon": "←", "description": "חזור לשיחה"}
+  ],
+  "collectedData": {
+    "intent": "create",
+    "topic": "השואה",
+    "productType": "exam",
+    "subject": "היסטוריה"
+  }
+}
+
+### מתי לא להציג תפריט יצירה:
+- המורה ציינה את כל הפרטים (נושא + סוג + כיתה + רמה) - עבור ישר ל-options
+- המורה ביקשה במפורש חיפוש ("יש לי משהו על...?") - עבור ל-content_search
+- המורה ביקשה תבנית ("תבנית מהירה", "משהו מוכן") - עבור ל-template_suggestion
+- המורה ביקשה יצירה מקובץ/טקסט/יוטיוב - טפל במקור התוכן
+- intent הוא advise או question
 
 ## התנהגות חשובה:
 1. זהה את כוונת המורה: יצירה (create), בקשת ייעוץ (advise), או שאלה כללית (question)
-2. **חשוב מאוד**: תמיד שאל לאיזו רמת קושי הפעילות מיועדת (הבנה/יישום/העמקה) - אלא אם המורה כבר ציינה
+2. **חשוב מאוד**: תמיד שאל לאיזו רמת קושי הפעילות מיועדת (ידע והבנה/יישום וניתוח/הערכה ויצירה) - אלא אם המורה כבר ציינה
 3. אם חסר מידע קריטי - שאל שאלה אחת ממוקדת וקצרה
-4. כשיש מספיק מידע (נושא + סוג + כיתה + רמה) - הצע 2-3 אפשרויות קונקרטיות
-5. התאם את ההצעות לגיל התלמידים, לנושא ולרמת הקושי
-6. היה קצר, חם וידידותי - מקסימום 2-3 משפטים לכל תשובה
-7. אם המורה מבקש ייעוץ - תן רעיונות יצירתיים ומעניינים
-8. הבן הקשר: אם המורה אומר "כיתה ד" - זה grade, אם אומר "מתמטיקה" - זה subject
-9. אם המורה מזכירה "תלמידים מתקשים", "לקויי למידה", "הבנת הנקרא" - זה רמז לרמה 1 (הבנה)
-10. אם המורה מזכירה "מחוננים", "מתקדמים", "אתגר" - זה רמז לרמה 3 (העמקה)
-11. אם המורה שואלת "מה ההבדל בין הרמות?" - הסבר בקצרה ושאל לאיזו רמה היא צריכה
+4. **שיקוף לפני יצירה**: כשיש מספיק מידע להציע אפשרויות, תמיד התחל בסיכום קצר של מה שהבנת מהמורה. למשל: "אז בואי נסכם: פעילות על שברים, לכיתה ד׳, ברמת יישום וניתוח. הנה האפשרויות:"
+5. כשיש מספיק מידע (נושא + סוג + כיתה + רמה) - הצע 2-3 אפשרויות קונקרטיות
+6. התאם את ההצעות לגיל התלמידים, לנושא ולרמת הקושי
+7. היה קצר, חם וידידותי - מקסימום 2-3 משפטים לכל תשובה
+8. אם המורה מבקש ייעוץ - תן רעיונות יצירתיים ומעניינים
+9. הבן הקשר: אם המורה אומר "כיתה ד" - זה grade, אם אומר "מתמטיקה" - זה subject
+10. אם המורה מזכירה "תלמידים מתקשים", "לקויי למידה", "הבנת הנקרא" - זה רמז לרמה 1 (ידע והבנה)
+11. אם המורה מזכירה "מחוננים", "מתקדמים", "אתגר" - זה רמז לרמה 3 (הערכה ויצירה)
+12. אם המורה שואלת "מה ההבדל בין הרמות?" - הסבר בקצרה ושאל לאיזו רמה היא צריכה
 
 ## זיהוי מקורות תוכן:
 12. אם המורה אומרת "יש לי קובץ", "רוצה להעלות", "יש לי PDF" - סמן sourceMode: "file" ו-hasFileToUpload: true
@@ -474,15 +661,17 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 
 ## פורמט תשובה (JSON):
 {
-  "type": "question" | "options" | "info" | "curriculum_query" | "content_search" | "template_suggestion" | "reuse_suggestion" | "prompt_suggestion",
+  "type": "question" | "options" | "info" | "curriculum_query" | "content_search" | "template_suggestion" | "reuse_suggestion" | "prompt_suggestion" | "creation_menu" | "static_content",
   "message": "הודעה קצרה למורה",
-  "contentType": "interactive" | "static" | "unclear",  // רק אם type=prompt_suggestion או reuse_suggestion
+  "contentType": "interactive" | "static" | "unclear",  // רק אם type=prompt_suggestion או reuse_suggestion או static_content
   "quickReplies": ["אפשרות 1", "אפשרות 2", "אפשרות 3"],  // רק אם type=question
   "options": [...],  // רק אם type=options
   "curriculumQuery": {...},  // רק אם type=curriculum_query
   "contentSearch": {...},  // רק אם type=content_search או reuse_suggestion
   "promptSearch": {...},  // רק אם type=prompt_suggestion
   "templates": [...],  // רק אם type=template_suggestion
+  "menuOptions": [...],  // רק אם type=creation_menu - אפשרויות התפריט
+  "staticContentRequest": {...},  // רק אם type=static_content - פרטי התוכן ליצירה
   "collectedData": {  // תמיד - מה הבנת מהשיחה
     "intent": "create" | "advise" | "question" | null,
     "productType": "lesson" | "exam" | "activity" | "podcast" | null,
@@ -507,7 +696,7 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 {
   "type": "question",
   "message": "מעולה! לאיזו כיתה ולאיזו רמה?",
-  "quickReplies": ["כיתה ד׳ - יישום", "כיתה ד׳ - הבנה", "כיתה ה׳ - יישום", "כיתה אחרת"],
+  "quickReplies": ["כיתה ד׳ - יישום וניתוח", "כיתה ד׳ - ידע והבנה", "כיתה ה׳ - יישום וניתוח", "כיתה אחרת"],
   "collectedData": {
     "intent": "create",
     "productType": "activity",
@@ -533,8 +722,8 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 תשובה:
 {
   "type": "info",
-  "message": "יש 3 רמות:\\n\\n🟢 **הבנה** - שפה פשוטה, שאלות ישירות, רמזים - לתלמידים מתקשים\\n🔵 **יישום** - רמה רגילה, דורש הבנה - לרוב הכיתה\\n🔴 **העמקה** - אתגר, חשיבה ביקורתית - למתקדמים\\n\\nלאיזו רמה את צריכה?",
-  "quickReplies": ["הבנה", "יישום", "העמקה", "את שלושתן"],
+  "message": "יש 3 רמות:\\n\\n🟢 **ידע והבנה** - שפה פשוטה, שאלות ישירות, רמזים - לתלמידים מתקשים\\n🔵 **יישום וניתוח** - רמה רגילה, דורש הבנה - לרוב הכיתה\\n🔴 **הערכה ויצירה** - אתגר, חשיבה ביקורתית - למתקדמים\\n\\nלאיזו רמה את צריכה?",
+  "quickReplies": ["ידע והבנה", "יישום וניתוח", "הערכה ויצירה", "את שלושתן"],
   "collectedData": {
     "intent": "question"
   }
@@ -544,7 +733,7 @@ const SYSTEM_PROMPT = `אתה עוזר חכם ליצירת תוכן לימודי
 תשובה (עם הקשר קודם של ט״ו בשבט):
 {
   "type": "options",
-  "message": "הנה 3 אפשרויות לפעילות ט״ו בשבט לכיתה ד׳ ברמת יישום:",
+  "message": "אז אני מבין: פעילות על ט״ו בשבט, לכיתה ד׳, ברמת יישום וניתוח. הנה מה שאני מציע:",
   "options": [
     {
       "id": 1,
@@ -744,7 +933,7 @@ ${historyText || '(שיחה חדשה)'}
  */
 function normalizeResponse(response: any): AIResponse {
     // Ensure type is valid
-    const validTypes = ['question', 'options', 'info', 'ready', 'curriculum_query', 'content_search', 'template_suggestion', 'reuse_suggestion', 'prompt_suggestion'];
+    const validTypes = ['question', 'options', 'info', 'ready', 'curriculum_query', 'content_search', 'template_suggestion', 'reuse_suggestion', 'prompt_suggestion', 'creation_menu', 'static_content'];
     const type = validTypes.includes(response.type) ? response.type : 'question';
 
     // Ensure message exists
@@ -815,6 +1004,27 @@ function normalizeResponse(response: any): AIResponse {
     // Add content type if present
     if (response.contentType) {
         result.contentType = response.contentType;
+    }
+
+    // Add menu options if present (for creation_menu type)
+    if (response.menuOptions && Array.isArray(response.menuOptions)) {
+        result.menuOptions = response.menuOptions.map((opt: any) => ({
+            id: opt.id || 'scratch',
+            label: opt.label || '',
+            icon: opt.icon || '✨',
+            description: opt.description || ''
+        }));
+    }
+
+    // Add static content request if present (for static_content type)
+    if (response.staticContentRequest) {
+        result.staticContentRequest = {
+            contentType: response.staticContentRequest.contentType || 'custom',
+            topic: response.staticContentRequest.topic || '',
+            grade: response.staticContentRequest.grade,
+            subject: response.staticContentRequest.subject,
+            additionalInstructions: response.staticContentRequest.additionalInstructions
+        };
     }
 
     return result;
@@ -909,6 +1119,40 @@ export function prepareWizardData(
         }
     };
 
+    // Generate a human-readable summary of what was collected
+    const generateSummary = () => {
+        const parts: string[] = [];
+
+        if (collectedData.topic) {
+            parts.push(`נושא: ${collectedData.topic}`);
+        }
+        if (selectedOption.productType) {
+            const productNames: Record<string, string> = {
+                'activity': 'פעילות',
+                'exam': 'מבחן',
+                'lesson': 'מערך שיעור',
+                'podcast': 'פודקאסט'
+            };
+            parts.push(`סוג: ${productNames[selectedOption.productType] || selectedOption.productType}`);
+        }
+        if (collectedData.grade) {
+            parts.push(`קהל יעד: ${collectedData.grade}`);
+        }
+        if (collectedData.subject) {
+            parts.push(`מקצוע: ${collectedData.subject}`);
+        }
+        if (selectedOption.activityLength) {
+            const lengthNames: Record<string, string> = {
+                'short': 'קצר',
+                'medium': 'בינוני',
+                'long': 'ארוך'
+            };
+            parts.push(`היקף: ${lengthNames[selectedOption.activityLength] || selectedOption.activityLength}`);
+        }
+
+        return parts.length > 0 ? parts.join(' • ') : undefined;
+    };
+
     return {
         mode: getMode(),
         file: null,
@@ -917,6 +1161,7 @@ export function prepareWizardData(
         originalTopic: collectedData.topic || selectedOption.title,
         textbookSelection: collectedData.textbookInfo ? { info: collectedData.textbookInfo } : null,
         youtubeUrl: collectedData.youtubeUrl || null,
+        conversationSummary: generateSummary(), // Summary of what was collected in chat
         settings: {
             subject: collectedData.subject || 'כללי',
             grade: collectedData.grade || 'כיתה ה׳',
@@ -987,6 +1232,7 @@ export function getInitialCollectedData(): CollectedData {
         customQuestionTypes: null,
         hasFileToUpload: null,
         textbookInfo: null,
-        youtubeUrl: null
+        youtubeUrl: null,
+        contentDeliveryMode: null
     };
 }

@@ -12,7 +12,7 @@
  * - Support for differentiated content levels
  */
 
-import { auth } from '../firebase';
+import { auth, getAppCheckToken } from '../firebase';
 
 // ============================================================
 // CONFIGURATION
@@ -83,6 +83,25 @@ async function getAuthToken(): Promise<string> {
 }
 
 /**
+ * Get headers with both Auth and App Check tokens
+ */
+async function getSecureHeaders(): Promise<Record<string, string>> {
+  const authToken = await getAuthToken();
+  const appCheckToken = await getAppCheckToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`
+  };
+
+  if (appCheckToken) {
+    headers['X-Firebase-AppCheck'] = appCheckToken;
+  }
+
+  return headers;
+}
+
+/**
  * Parse SSE data line
  */
 function parseSSEData(line: string): StreamChunk | null {
@@ -118,15 +137,12 @@ export async function streamContent(
   options: StreamContentOptions,
   callbacks: StreamCallbacks
 ): Promise<AbortController> {
-  const token = await getAuthToken();
+  const headers = await getSecureHeaders();
   const controller = new AbortController();
 
   const response = await fetch(`${STREAMING_BASE_URL}/stream/content`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers,
     body: JSON.stringify({
       type: options.productType || 'activity',
       prompt,
@@ -226,17 +242,14 @@ export async function streamDifferentiatedContent(
   options: StreamContentOptions,
   callbacks: StreamCallbacks
 ): Promise<{ controller: AbortController; result: Promise<DifferentiatedResult> }> {
-  const token = await getAuthToken();
+  const headers = await getSecureHeaders();
   const controller = new AbortController();
 
   const result = new Promise<DifferentiatedResult>(async (resolve, reject) => {
     try {
       const response = await fetch(`${STREAMING_BASE_URL}/stream/differentiated`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           topic: options.topic,
           gradeLevel: options.gradeLevel,
@@ -390,17 +403,14 @@ export async function streamLessonContent(
   options: StreamContentOptions & { lessonParts?: string[]; sourceType?: string },
   callbacks: LessonStreamCallbacks
 ): Promise<{ controller: AbortController; result: Promise<Record<string, any>> }> {
-  const token = await getAuthToken();
+  const headers = await getSecureHeaders();
   const controller = new AbortController();
 
   const result = new Promise<Record<string, any>>(async (resolve, reject) => {
     try {
       const response = await fetch(`${STREAMING_BASE_URL}/stream/lesson`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           topic: options.topic,
           gradeLevel: options.gradeLevel,
@@ -593,17 +603,14 @@ export async function streamPodcastContent(
   options: StreamContentOptions,
   callbacks: StreamCallbacks
 ): Promise<{ controller: AbortController; result: Promise<any> }> {
-  const token = await getAuthToken();
+  const headers = await getSecureHeaders();
   const controller = new AbortController();
 
   const result = new Promise<any>(async (resolve, reject) => {
     try {
       const response = await fetch(`${STREAMING_BASE_URL}/stream/podcast`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           topic: options.topic,
           gradeLevel: options.gradeLevel,
@@ -760,17 +767,14 @@ export async function streamActivityContent(
   options: StreamContentOptions,
   callbacks: ActivityStreamCallbacks
 ): Promise<{ controller: AbortController; result: Promise<ActivityStreamResult> }> {
-  const token = await getAuthToken();
+  const headers = await getSecureHeaders();
   const controller = new AbortController();
 
   const result = new Promise<ActivityStreamResult>(async (resolve, reject) => {
     try {
       const response = await fetch(`${STREAMING_BASE_URL}/stream/activity`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           topic: options.topic,
           gradeLevel: options.gradeLevel,

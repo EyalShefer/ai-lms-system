@@ -14,8 +14,33 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // ============================================
+    // CUSTOM CLAIMS-BASED AUTHORIZATION (PERFORMANT)
+    // ============================================
+    // Custom claims are stored in the JWT token, no database lookup required!
+    // This is ~10x faster than Firestore-based role checks
+
+    // Check if user has admin role via custom claims
+    function isAdminClaim() {
+      return isAuthenticated() &&
+        request.auth.token.role == 'admin';
+    }
+
+    // Check if user has teacher role via custom claims
+    function isTeacherClaim() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'teacher' || request.auth.token.role == 'admin');
+    }
+
+    // Check if user has premium status via custom claims
+    function isPremiumClaim() {
+      return isAuthenticated() &&
+        (request.auth.token.premium == true || request.auth.token.role == 'admin');
+    }
+
     // Check if user has QA tester role (for running QA tests)
     // SECURITY: QA testers should only exist in development/staging
+    // Note: QA role still uses Firestore as it's rare and shouldn't have claims
     function isQATester() {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -24,16 +49,53 @@ service cloud.firestore {
     }
 
     // Check if user is an admin
+    // HYBRID: First check claims (fast), fallback to Firestore (backward compatible)
     function isAdmin() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+      return isAuthenticated() && (
+        // Fast path: Check custom claims first (no database lookup)
+        request.auth.token.role == 'admin' ||
+        // Fallback: Firestore check for users without claims yet
         (
-          // Check roles array
-          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
-           'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles) ||
-          // OR check isAdmin boolean field
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-        );
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            // Check roles array
+            (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
+             'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles) ||
+            // OR check isAdmin boolean field
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+          )
+        )
+      );
+    }
+
+    // Check if user is a teacher
+    // HYBRID: First check claims (fast), fallback to Firestore
+    function isTeacher() {
+      return isAuthenticated() && (
+        // Fast path: Check custom claims
+        request.auth.token.role == 'teacher' ||
+        request.auth.token.role == 'admin' ||
+        // Fallback: Firestore check
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher'
+        )
+      );
+    }
+
+    // Check if user has premium subscription
+    // HYBRID: First check claims (fast), fallback to Firestore
+    function isPremium() {
+      return isAuthenticated() && (
+        // Fast path: Check custom claims
+        request.auth.token.premium == true ||
+        request.auth.token.role == 'admin' ||
+        // Fallback: Firestore check
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.active == true
+        )
+      );
     }
 
     // Validate string length
@@ -60,15 +122,73 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(userId)).data.teacherId == request.auth.uid;
     }
 
+    // ============================================
+    // FIELD-LEVEL SECURITY FOR USER DOCUMENTS
+    // ============================================
+    // These fields can ONLY be modified by admins or Cloud Functions (Admin SDK)
+    // Regular users cannot modify these fields even on their own document
+
+    // Check if update only touches safe (non-protected) fields
+    // Protected fields: roles, isAdmin, role, teacherId, institutionId,
+    //                   licenseTier, licenseStatus, licenseExpiresAt, monthlyUsage
+    function userUpdateOnlySafeFields() {
+      let protectedFields = ['roles', 'isAdmin', 'role', 'teacherId', 'institutionId',
+                             'licenseTier', 'licenseStatus', 'licenseExpiresAt', 'monthlyUsage'];
+      let changedFields = request.resource.data.diff(resource.data).affectedKeys();
+      // Return true if NO protected field was changed
+      return !changedFields.hasAny(protectedFields);
+    }
+
+    // For create: ensure user cannot set admin-only fields
+    function userCreateOnlySafeFields() {
+      let adminOnlyFields = ['roles', 'isAdmin', 'role', 'teacherId', 'institutionId',
+                             'licenseTier', 'licenseStatus', 'licenseExpiresAt', 'monthlyUsage'];
+      // On create, check if any admin-only field has a non-default/privileged value
+      let data = request.resource.data;
+      return (
+        // roles must not exist or be empty or only contain 'student'
+        (!('roles' in data) || data.roles == null || data.roles.size() == 0 ||
+         (data.roles.size() == 1 && 'student' in data.roles)) &&
+        // isAdmin must not exist or be false
+        (!('isAdmin' in data) || data.isAdmin == false) &&
+        // role must not exist or be 'student'
+        (!('role' in data) || data.role == 'student' || data.role == null) &&
+        // teacherId, institutionId can be set (assigned by teacher/system)
+        // licenseTier must not exist or be 'free'
+        (!('licenseTier' in data) || data.licenseTier == 'free' || data.licenseTier == null) &&
+        // licenseStatus must not exist or be null
+        (!('licenseStatus' in data) || data.licenseStatus == null) &&
+        // monthlyUsage must not exist
+        (!('monthlyUsage' in data) || data.monthlyUsage == null)
+      );
+    }
+
     // Users collection - only the user can read/write their own data
+    // SECURITY: Field-level protection prevents users from escalating privileges
     match /users/{userId} {
       // Users can read their own data
       // Teachers can read their students' data (where student.teacherId == teacher.uid)
       // QA testers can read all users for testing purposes
       allow read: if isAuthenticated() && (isOwner(userId) || isTeacherOf(userId) || isQATester());
-      allow write: if isAuthenticated() && isOwner(userId);
+
+      // CREATE: User can create their own document, but cannot set privileged fields
+      // (or Cloud Functions via Admin SDK bypass rules entirely)
+      allow create: if isAuthenticated() && isOwner(userId) && userCreateOnlySafeFields();
+
+      // UPDATE: User can update their own document, but CANNOT change protected fields
+      // Admins can update any field on any user
+      allow update: if isAuthenticated() && (
+        // Admin can update anything
+        isAdmin() ||
+        // Owner can update, but only safe fields
+        (isOwner(userId) && userUpdateOnlySafeFields())
+      );
+
+      // DELETE: Only admins can delete user documents
+      allow delete: if isAdmin();
 
       // User's sub-collections (profile, gamification, adaptive_events, sessions, etc.)
+      // These don't contain privileged fields, so regular write is OK
       match /{document=**} {
         // Users can read their own data
         // Teachers can read their students' data
@@ -766,6 +886,19 @@ service cloud.firestore {
 
       // Only the student or Cloud Functions can update/delete
       allow update, delete: if isAuthenticated() && resource.data.studentId == request.auth.uid;
+    }
+
+    // ============================================
+    // CAPABILITIES COLLECTION (Agent System)
+    // ============================================
+
+    // Capabilities - defines what the smart creation agent can do
+    match /capabilities/{capabilityId} {
+      // All authenticated users can read capabilities
+      allow read: if isAuthenticated();
+
+      // Only Cloud Functions can write (via Admin SDK)
+      allow write: if false;
     }
 
     // ============================================

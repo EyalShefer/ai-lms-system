@@ -680,13 +680,8 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
         setCreatedAssignmentLink(null);
     };
 
-    if (!course) return null;
-
-    const showScoring = course.mode === 'exam' || unit.type === 'test';
-    const AI_ACTIONS = getAiActions(gradeLevel);
-    const mediaBtnClass = "cursor-pointer bg-white text-slate-600 hover:text-wizdi-royal hover:bg-wizdi-royal/5 border border-slate-200 hover:border-wizdi-royal/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm";
-
     // --- חישוב ניקוד בזמן אמת ---
+    // Moved before early return to comply with Rules of Hooks
     const totalScore = React.useMemo(() => {
         if (!editedUnit.activityBlocks) return 0;
         return editedUnit.activityBlocks.reduce((sum: number, block: any) => sum + (block.metadata?.score || 0), 0);
@@ -694,18 +689,36 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
 
     useEffect(() => {
         const initContent = async () => {
+            console.log("[UnitEditor] 🔄 initContent called for unit:", unit.id);
+
+            // Guard: early return if course is missing
+            if (!course) {
+                console.log("[UnitEditor] ⛔ No course, returning early");
+                return;
+            }
+
             // If already filled or initialized, skip
             if ((unit.activityBlocks && unit.activityBlocks.length > 0) || hasInitialized.current) {
+                console.log("[UnitEditor] ⛔ Already initialized or has blocks:", {
+                    blocksLength: unit.activityBlocks?.length,
+                    hasInitialized: hasInitialized.current
+                });
                 setEditedUnit(unit);
                 return;
             }
 
             const settings = (course as any)?.wizardData?.settings || {};
+            console.log("[UnitEditor] 🚀 Starting auto-generation with settings:", {
+                productType: settings.productType,
+                courseMode: course.mode,
+                activityLength: settings.activityLength
+            });
 
             hasInitialized.current = true;
             setIsAutoGenerating(true); // START LOADING STATE
 
             const productType = settings.productType || 'lesson'; // Get Product Type
+            console.log("[UnitEditor] 📦 Final productType:", productType);
 
             // ⏱️ Initialize timing tracker
             const timer = new (await import('../services/generationTimingService')).GenerationTimer(
@@ -767,6 +780,12 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                 // ============================================================
                 // 🚀 NEW STREAMING PATH - Parallel generation in one call
                 // ============================================================
+                console.log("[UnitEditor] 🔍 Streaming check:", {
+                    USE_STREAMING_GENERATION,
+                    productType,
+                    isActivity: productType === 'activity',
+                    streamingSupported: isStreamingSupported()
+                });
                 if (USE_STREAMING_GENERATION && productType === 'activity' && isStreamingSupported()) {
                     console.log("🚀 Using NEW streaming generation (parallel, faster)...");
 
@@ -1303,6 +1322,11 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             }
         };
         initContent();
+
+        // Reset hasInitialized when unit changes to allow new generation
+        return () => {
+            hasInitialized.current = false;
+        };
     }, [unit.id]);
 
     // --- Podcast Auto-Trigger ---
@@ -1328,6 +1352,13 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
             handleGeneratePodcastBlock(pendingPodcast.id);
         }
     }, [editedUnit.activityBlocks, loadingBlockId]);
+
+    // Early return moved after all hooks to comply with Rules of Hooks
+    if (!course) return null;
+
+    const showScoring = course.mode === 'exam' || unit.type === 'test';
+    const AI_ACTIONS = getAiActions(gradeLevel);
+    const mediaBtnClass = "cursor-pointer bg-white text-slate-600 hover:text-wizdi-royal hover:bg-wizdi-royal/5 border border-slate-200 hover:border-wizdi-royal/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm";
 
     const handleSaveWithFeedback = async () => {
         setIsSaving(true);
@@ -2333,6 +2364,20 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                         )}
                     </button>
 
+                    {/* Copy Link Button - Direct access */}
+                    <button
+                        onClick={handleCopyLinkClick}
+                        className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 border ${
+                            isDirty
+                                ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                : 'text-wizdi-royal bg-wizdi-royal/10 border-wizdi-royal/20 hover:bg-wizdi-royal/20'
+                        }`}
+                        title={isDirty ? 'שמור לפני שיתוף!' : 'העתקת קישור לתלמיד'}
+                    >
+                        <IconLink className="w-4 h-4" />
+                        <span className="hidden sm:inline">{isDirty ? 'שמור לפני שיתוף' : 'קישור לתלמיד'}</span>
+                    </button>
+
                     {/* Secondary Actions - Dropdown Menu */}
                     <div className="relative">
                         <button
@@ -2371,19 +2416,6 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                             חלק ניקוד
                                         </button>
                                     )}
-
-                                    {/* Copy Link */}
-                                    <button
-                                        onClick={() => { handleCopyLinkClick(); setShowHeaderMenu(false); }}
-                                        className="w-full px-4 py-3 text-right hover:bg-slate-50 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors"
-                                    >
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDirty ? 'bg-amber-100' : 'bg-wizdi-royal/10'}`}>
-                                            <IconLink className={`w-4 h-4 ${isDirty ? 'text-amber-600' : 'text-wizdi-royal'}`} />
-                                        </div>
-                                        {isDirty ? 'שמור לפני שיתוף!' : 'העתקת קישור לתלמיד'}
-                                    </button>
-
-                                    <div className="border-t border-slate-100 my-2" />
 
                                     {/* Back */}
                                     <button
@@ -2555,7 +2587,7 @@ const UnitEditor: React.FC<UnitEditorProps> = ({ unit, gradeLevel = "כללי", 
                                                             prompt={mediaInputValue[block.id]}
                                                         />
                                                     ) : (
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-48 relative">
                                                         <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all group">
                                                             <IconUpload className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
                                                             <span className="font-bold text-gray-500 group-hover:text-blue-600">העלאת תמונה</span>

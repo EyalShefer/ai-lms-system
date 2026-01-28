@@ -12,6 +12,7 @@
 
 import * as logger from 'firebase-functions/logger';
 import { GoogleGenAI } from '@google/genai';
+import { withGeminiRetry } from '../utils/retry';
 
 // Configuration
 // WARNING: Do not change without approval - see AI_MODELS_POLICY.md
@@ -99,14 +100,16 @@ export const generateText = async (
             fullPrompt += '\n\nIMPORTANT: Respond with valid JSON only. No explanations or markdown.';
         }
 
-        // Generate content
-        const response = await client.models.generateContent({
-            model: GEMINI_CONFIG.model,
-            contents: fullPrompt,
-            config: {
-                temperature: options.temperature ?? 0.7,
-                maxOutputTokens: options.maxTokens ?? 16384  // Increased from 4096 to handle large JSON responses
-            }
+        // Generate content with retry logic for transient failures
+        const response = await withGeminiRetry(async () => {
+            return client.models.generateContent({
+                model: GEMINI_CONFIG.model,
+                contents: fullPrompt,
+                config: {
+                    temperature: options.temperature ?? 0.7,
+                    maxOutputTokens: options.maxTokens ?? 16384  // Increased from 4096 to handle large JSON responses
+                }
+            });
         });
 
         const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -161,26 +164,29 @@ export const generateWithVision = async (
     const startTime = Date.now();
 
     try {
-        const response = await client.models.generateContent({
-            model: GEMINI_CONFIG.model,
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: prompt },
-                        {
-                            inlineData: {
-                                mimeType,
-                                data: imageBase64
+        // Generate content with retry logic for transient failures
+        const response = await withGeminiRetry(async () => {
+            return client.models.generateContent({
+                model: GEMINI_CONFIG.model,
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType,
+                                    data: imageBase64
+                                }
                             }
-                        }
-                    ]
+                        ]
+                    }
+                ],
+                config: {
+                    temperature: options.temperature ?? 0.3,
+                    maxOutputTokens: options.maxTokens ?? 16384
                 }
-            ],
-            config: {
-                temperature: options.temperature ?? 0.3,
-                maxOutputTokens: options.maxTokens ?? 16384
-            }
+            });
         });
 
         const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';

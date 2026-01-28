@@ -2,6 +2,12 @@ import { db, storage } from "./firebase";
 import { doc, getDoc, setDoc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { Course } from "./shared/types/courseTypes";
+import {
+    validateDocumentSize,
+    optimizeCourseForSave,
+    analyzeUnitSize,
+    SAFE_DOC_SIZE_THRESHOLD
+} from "./utils/firestoreSizeGuard";
 
 // Debounce state for saveCourseToFirestore
 const SAVE_DEBOUNCE_MS = 2500;
@@ -46,10 +52,16 @@ const executeSave = async (course: Course) => {
     const batch = writeBatch(db);
     const courseRef = doc(db, "courses", course.id);
 
+    // 0. Optimize course data to reduce size
+    const { optimized: optimizedCourse, warnings: optimizationWarnings } = optimizeCourseForSave(course);
+    if (optimizationWarnings.length > 0) {
+        console.log('📦 Course optimization:', optimizationWarnings);
+    }
+
     // 1. Prepare Main Course Document (Lightweight)
-    const lightweightSyllabus = course.syllabus.map(module => ({
+    const lightweightSyllabus = optimizedCourse.syllabus.map((module: any) => ({
         ...module,
-        learningUnits: module.learningUnits.map(unit => ({
+        learningUnits: module.learningUnits.map((unit: any) => ({
             id: unit.id,
             title: unit.title,
             type: unit.type,
@@ -62,19 +74,42 @@ const executeSave = async (course: Course) => {
     }));
 
     const cleanCourseMain = cleanDataForFirestore({
-        ...course,
+        ...optimizedCourse,
         syllabus: lightweightSyllabus,
         updatedAt: new Date().toISOString()
     });
 
+    // 1.5 Validate main document size before save
+    try {
+        validateDocumentSize(cleanCourseMain, `Course ${course.id}`);
+    } catch (sizeError) {
+        console.error('❌ Course document too large:', sizeError);
+        throw sizeError;
+    }
+
     batch.set(courseRef, cleanCourseMain, { merge: true });
 
-    // 2. Prepare Unit Documents (Sub-collection)
+    // 2. Prepare Unit Documents (Sub-collection) with size validation
     course.syllabus.forEach(module => {
         module.learningUnits.forEach(unit => {
             if (unit.id) {
                 const unitRef = doc(db, "courses", course.id, "units", unit.id);
                 const cleanUnit = cleanDataForFirestore(unit);
+
+                // Validate unit size (warn only, don't block save)
+                const unitAnalysis = analyzeUnitSize(cleanUnit);
+                if (unitAnalysis.isNearLimit) {
+                    console.warn(`⚠️ Unit "${unit.title}" approaching size limit:`, {
+                        size: `${unitAnalysis.totalSizeKB}KB`,
+                        variants: unitAnalysis.variantCount,
+                        variantSize: `${Math.round(unitAnalysis.variantSize / 1024)}KB`
+                    });
+                }
+                if (unitAnalysis.isOverLimit) {
+                    console.error(`❌ Unit "${unit.title}" exceeds size limit:`, unitAnalysis);
+                    // Don't throw - try to save anyway, Firestore will reject if truly over
+                }
+
                 batch.set(unitRef, cleanUnit, { merge: true });
             }
         });
